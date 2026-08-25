@@ -205,8 +205,7 @@ const items = computed(() => {
     title: f.name || f.title,
   }));
 
-  // Notes use the in-memory MiniSearch index (built + kept fresh); folders are
-  // few and filtered linearly by name.
+  // Notes use the in-memory MiniSearch index; folders are few and filtered linearly.
   const matchedNoteIds = matchNoteIdsByQuery(notes, state.query);
   const allItems = [...notes, ...folders];
   if (matchedNoteIds === null) {
@@ -224,7 +223,6 @@ const items = computed(() => {
   });
 });
 
-// Icon Mapping Logic
 const getIconName = (item) => {
   if (item.type === 'folder') return 'riFolder5Fill';
   if (item.type === 'command') return item.icon || 'riCodeLine';

@@ -118,8 +118,7 @@ export default {
     const { isRecording, isPaused, formattedTime, targetNoteId } = recorder;
     const { expandedPill, toggle } = usePillDock();
 
-    // The dock target is rendered by App.vue before any pill mounts; fall
-    // back to inline rendering when it is absent (isolated unit tests).
+    // Dock target renders before any pill mounts; fall back inline when absent (isolated tests).
     const dockTarget =
       typeof document !== 'undefined' &&
       !!document.getElementById('pill-dock');
@@ -147,10 +146,9 @@ export default {
       router.push({ name: 'Note', params: { id: targetNoteId.value } });
     }
 
-    // Global fallback: when the recording's note is not currently open in an
-    // editor, append the audio into the closed note's store content. The open
-    // note page handles its own insert and marks itself via `recorder.openNoteId`
-    // (authority, not the route), so the two can never race for the same note.
+    // Global fallback when the recording's note is not open in an editor. The
+    // open note page claims itself via `recorder.openNoteId` (authority, not
+    // the route), so the two paths can never race for the same note.
     recorder.onStopped((payload) => {
       const { filePath, noteId, cursorPos } = payload;
       if (noteId === recorder.openNoteId.value) return;

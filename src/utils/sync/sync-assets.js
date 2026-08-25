@@ -18,13 +18,9 @@ function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// ─── Remote listing cache ─────────────────────────────────────────────────────
-//
-// syncAssets previously re-listed every note's local + remote asset directory
-// on every single sync call — O(notes × files) IO each cycle even when nothing
-// changed. We cache the last listing per directory with a short TTL so that
-// rapid successive syncs (e.g. the new periodic loop in #3, or multiple
-// debounced note saves) reuse the previous result instead of re-reading disk.
+// Remote listing cache: syncAssets used to re-list every local + remote asset
+// directory each cycle (O(notes × files) IO); the TTL cache lets rapid
+// successive syncs reuse the previous listing instead of re-reading disk.
 
 const REMOTE_LISTING_TTL_MS = 30000;
 const MAX_CACHE_ENTRIES = 500;
@@ -41,7 +37,6 @@ async function cachedReadDir(dirPath, useCache) {
   const entries = await readSyncDir(dirPath)
     .then((e) => e.filter((n) => !isIgnoredAssetEntry(n)))
     .catch(() => []);
-  // Evict oldest entries when cache exceeds limit
   if (remoteListingCache.size >= MAX_CACHE_ENTRIES) {
     const oldest = remoteListingCache.keys().next().value;
     remoteListingCache.delete(oldest);
@@ -180,13 +175,10 @@ export async function syncAssets(
         switch (op.type) {
           case 'upload':
             await copyLocalToRemote(op.src, op.dest);
-            // The remote dir we just wrote to must be re-read next cycle.
             remoteListingCache.delete(path.dirname(op.dest));
             break;
           case 'download':
             await copyRemoteToLocal(op.src, op.dest);
-            // Invalidate remote cache so the downloaded file is not
-            // re-listed as absent on the next cycle.
             remoteListingCache.delete(path.dirname(op.src));
             break;
           case 'remove-local':
@@ -213,10 +205,8 @@ export async function syncAssets(
     onProgress?.({ phase: 'assets', processed, total });
   }
 
-  // Use mergeIntoMap (not syncTombstoneMap / syncDeletedAssets) so that
-  // deletion-tombstone entries added by a remote device between our
-  // snapshot at the start of this cycle and now are preserved — the merge
-  // only sets keys, it never deletes keys that aren't in the local snapshot.
+  // mergeIntoMap (not syncTombstoneMap) preserves deletion-tombstones added
+  // remotely mid-cycle — it only sets keys, never removes existing ones.
   if (deletedAssetsDirty) {
     mergeIntoMap('deletedAssets', deletedAssets);
   }

@@ -53,9 +53,9 @@ pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
     "e2eIdentityKeypair",
 ];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
-/// Consecutive failed passphrase attempts before the app-encryption unlock is
-/// rate-limited (lockout), and the base lockout duration. Each further failure
-/// while locked extends the lockout by `LOCKOUT_BASE_SECS`, capped at `LOCKOUT_MAX_SECS`.
+/// Consecutive failed passphrase attempts before unlock is rate-limited, and
+/// the base lockout duration; each further failure extends by
+/// `LOCKOUT_BASE_SECS`, capped at `LOCKOUT_MAX_SECS`.
 pub(crate) const LOCKOUT_THRESHOLD: u32 = 5;
 pub(crate) const LOCKOUT_BASE_SECS: u64 = 30;
 pub(crate) const LOCKOUT_MAX_SECS: u64 = 300;
@@ -263,24 +263,20 @@ impl DbState {
     }
 }
 
-/// Snapshot of the app-encryption session. Lives behind a single `RwLock` in
-/// `AppState` so the items-key ring, current key id, cached KEK, loaded data
-/// key, and active flag are always mutated/observed atomically (no TOCTOU).
-///
-/// All key material is scrubbed when the session is dropped or reset (lock),
-/// so the DEK/KEK/ring are zeroized from memory instead of lingering in the
-/// heap after a lock or app shutdown.
+/// Snapshot of the app-encryption session behind one `RwLock` in `AppState`:
+/// items-key ring, current key id, cached KEK, data key, and active flag are
+/// always mutated/observed atomically (no TOCTOU). All key material is
+/// zeroized on drop/reset instead of lingering in the heap after lock/shutdown.
 #[derive(Default, Debug)]
 pub(crate) struct CryptoSession {
     /// Items data key (decrypted). Present only while the app is unlocked.
     pub(crate) app_data_key: Option<[u8; 32]>,
-    /// Ring of items keys (current + previous), keyed by items-key id. Enables
-    /// lazy rotation: old data stays decryptable after a new items key is created.
+    /// Items key ring (current + previous), keyed by items-key id — enables
+    /// lazy rotation while old data stays decryptable.
     pub(crate) items_keys: HashMap<String, [u8; 32]>,
     /// ID of the current items key (empty when locked / unconfigured).
     pub(crate) current_items_key_id: String,
-    /// Cached KEK derived from the passphrase; enables key rotation without
-    /// re-prompting. Present only while unlocked.
+    /// Cached KEK; enables rotation without re-prompting. Present only unlocked.
     pub(crate) master_key_cache: Option<[u8; 32]>,
     /// Whether app encryption is enabled (a manifest exists).
     pub(crate) active: bool,
@@ -457,13 +453,12 @@ fn is_path_inside(root: &Path, candidate: &Path) -> bool {
 }
 
 fn is_path_allowed_strict(allowed_roots: &[PathBuf], input: &Path) -> bool {
-    // First pass: lexical normalization blocks ".." traversal and related tricks
-    // without relying on filesystem state.
+    // Pass 1: lexical normalization blocks ".." traversal without fs state.
     if !allowed_roots.iter().any(|root| is_path_inside(root, input)) {
         return false;
     }
 
-    // Second pass: best-effort canonicalization to prevent symlink escape.
+    // Pass 2: best-effort canonicalization to prevent symlink escape.
     if input.exists() {
         let Ok(real) = fs::canonicalize(input) else {
             return false;
@@ -577,8 +572,8 @@ pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, AppError> {
     }
 }
 
-/// Return an owned clone of the active workspace data pool (cheap Arc clone).
-/// Lazily initializes from the active workspace on first call.
+/// Owned clone of the active workspace data pool (cheap Arc clone), lazily
+/// initialized from the active workspace.
 pub(crate) fn data_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, AppError> {
     {
         let guard = state.db.data.lock()?;
@@ -609,8 +604,7 @@ pub(crate) fn swap_data_pool(
     Ok(())
 }
 
-/// Return an owned clone of the active workspace settings pool.
-/// Lazily initializes from the active workspace on first call.
+/// Owned clone of the active workspace settings pool (see `data_pool`).
 pub(crate) fn settings_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, AppError> {
     {
         let guard = state.db.settings.lock()?;
@@ -641,7 +635,7 @@ pub(crate) fn swap_settings_pool(
     Ok(())
 }
 
-// ─── Workspace helpers ────────────────────────────────────────────────────────
+// ─── Workspace registry (workspaces.json) ─────────────────────────────────────
 
 pub(crate) const DEFAULT_WORKSPACE_ID: &str = "default";
 pub(crate) const DEFAULT_WORKSPACE_NAME: &str = "Default";
@@ -682,17 +676,14 @@ fn default_workspace_type() -> String {
     "personal".to_string()
 }
 
-/// Path to the workspaces.json registry file at the app root.
 pub(crate) fn workspaces_json_path(app: &AppHandle, state: &AppState) -> Result<PathBuf, AppError> {
     Ok(app_storage_dir(app, state)?.join(WORKSPACES_JSON))
 }
 
-/// Root directory for workspace data (app_data_dir/workspaces).
 pub(crate) fn workspace_root(app: &AppHandle, state: &AppState) -> Result<PathBuf, AppError> {
     Ok(app_storage_dir(app, state)?.join(WORKSPACES_DIR))
 }
 
-/// Path to a specific workspace's data.db.
 pub(crate) fn workspace_data_path(
     app: &AppHandle,
     state: &AppState,
@@ -703,7 +694,6 @@ pub(crate) fn workspace_data_path(
         .join("data.db"))
 }
 
-/// Path to a specific workspace's settings.db.
 pub(crate) fn workspace_settings_path(
     app: &AppHandle,
     state: &AppState,
@@ -713,8 +703,6 @@ pub(crate) fn workspace_settings_path(
         .join(workspace_id)
         .join("settings.db"))
 }
-
-// ─── Workspace registry (workspaces.json) ─────────────────────────────────────
 
 fn read_workspaces_json(app: &AppHandle, state: &AppState) -> Result<WorkspacesJson, AppError> {
     let path = workspaces_json_path(app, state)?;
@@ -740,13 +728,11 @@ fn write_workspaces_json(
     Ok(())
 }
 
-/// Read the active workspace ID from workspaces.json.
 pub(crate) fn current_workspace_id(app: &AppHandle, state: &AppState) -> Result<String, AppError> {
     let data = read_workspaces_json(app, state)?;
     Ok(data.active_workspace)
 }
 
-/// Read the workspace registry from workspaces.json.
 pub(crate) fn load_workspace_registry(
     app: &AppHandle,
     state: &AppState,
@@ -755,7 +741,6 @@ pub(crate) fn load_workspace_registry(
     Ok(data.workspaces)
 }
 
-/// Save the workspace registry to workspaces.json.
 pub(crate) fn save_workspace_registry(
     app: &AppHandle,
     state: &AppState,
@@ -766,7 +751,6 @@ pub(crate) fn save_workspace_registry(
     write_workspaces_json(app, state, &data)
 }
 
-/// Save the active workspace ID to workspaces.json.
 pub(crate) fn save_active_workspace_id(
     app: &AppHandle,
     state: &AppState,
@@ -777,7 +761,6 @@ pub(crate) fn save_active_workspace_id(
     write_workspaces_json(app, state, &data)
 }
 
-/// Read the active workspace ID directly from workspaces.json (no pool needed).
 pub(crate) fn read_active_workspace_from_json(
     app: &AppHandle,
     state: &AppState,
@@ -905,7 +888,7 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
         .map_err(|e| AppError::Other(e.to_string()))?
         .to_string();
 
-    // Strict: decoded asset paths must be relative (no absolute paths / prefixes).
+    // Strict: decoded asset paths must be relative (no absolute paths).
     if Path::new(&decoded).is_absolute() {
         return Err(AppError::Other(format!(
             "Asset path must be relative: {url}"
@@ -1143,8 +1126,8 @@ pub(crate) fn cached_or_decrypted_asset(
     }
     let app_state = app.state::<AppState>();
     let key = if let Some(passphrase) = transient_passphrase.filter(|v| !v.is_empty()) {
-        // Derive key from transient passphrase (e.g. during asset migration
-        // before the main app key has been restored into state)
+        // Transient passphrase path (e.g. asset migration before the main app
+        // key is restored into state).
         let manifest_path = app_encryption_manifest_path(app, app_state.inner())?;
         let manifest = load_encryption_manifest(&manifest_path)?
             .ok_or_else(|| AppError::Other("App encryption manifest is missing.".into()))?;
@@ -1228,12 +1211,10 @@ pub(crate) fn protocol_response(
     protocol_response_with_range(status, path, bytes, None)
 }
 
-/// Response for a custom-protocol asset request. When `content_range` is set
-/// the body is a byte range and the reply is a `206 Partial Content` with
-/// `Content-Range`; `Accept-Ranges: bytes` is always advertised so the
-/// renderer can issue range requests for media (e.g. `audio`/`video` seeking
-/// and `ReadableStream`-based readers) without loading whole decrypted files
-/// into memory.
+/// Response for a custom-protocol asset request. With `content_range` set the
+/// body is a byte range replied as `206 Partial Content`; `Accept-Ranges:
+/// bytes` is always advertised so the renderer can range-request media
+/// (seeking, streaming) without loading whole decrypted files into memory.
 pub(crate) fn protocol_response_with_range(
     status: StatusCode,
     path: &Path,

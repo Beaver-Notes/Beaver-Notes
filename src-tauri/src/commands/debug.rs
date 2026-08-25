@@ -1,14 +1,8 @@
-//! Debug bridge — inspect raw store + workspace-doc state from the running app.
-//!
-//! Exposes a single `debug:dumpState` command the frontend can call to dump
-//! what is actually persisted (KV rows, per-note Yjs updates, the workspace
-//! meta doc) versus what the in-memory stores think. This is the ground-truth
-//! tool for diagnosing migration/empty-state bugs: labels visible + notes
-//! missing in the UI is usually a workspace-doc/notes-map mismatch that only
-//! shows up by comparing the two layers.
-//!
-//! Intended for dev/diagnostics. The output is diagnostic only and never
-//! contains note contents.
+//! Debug bridge — `debug:dumpState` dumps what is actually persisted (KV rows,
+//! per-note Yjs updates, workspace meta doc) versus in-memory store state.
+//! Ground-truth tool for migration/empty-state bugs: labels visible + notes
+//! missing usually means a workspace-doc/notes-map mismatch only visible by
+//! comparing the two layers. Diagnostic output; never contains note contents.
 
 use std::collections::BTreeMap;
 
@@ -63,9 +57,8 @@ fn kv_summary(pool: &crate::db::DbPool, enc_key: Option<[u8; 32]>) -> Result<Val
   }))
 }
 
-/// Decode the workspace meta doc from `note_content` into counts of what it
-/// actually contains. Returns `None` for each collection when the meta doc is
-/// absent or cannot be decoded.
+/// Decode the workspace meta doc into counts of what it actually contains;
+/// `None`-ish values when absent or undecodable.
 fn workspace_doc_summary(
   pool: &crate::db::DbPool,
   key: Option<[u8; 32]>,
@@ -201,9 +194,8 @@ pub(crate) fn debug_dump_state(
   let data_pool = data_pool(&app, &state)?;
   let settings_pool = settings_pool(&app, &state)?;
 
-  // Attempt to read the app key so the workspace doc can be decoded. During
-  // onboarding encryption may not be configured yet — that is fine, the
-  // snapshot will just be reported as undecodable.
+  // Read the app key if possible; during onboarding encryption may not be
+  // configured yet — fine, the snapshot reports as undecodable.
   let app_key = state
     .crypto
     .session

@@ -3,11 +3,9 @@ mod characterization {
     use base64::Engine;
     use crate::shared::crypto::keys::{aead_decrypt_bytes, aead_encrypt_bytes};
 
-    /// Characterization vector for argon2id key derivation under the legacy
-    /// parameters (t=2, m=32MiB, p=2), pinned explicitly so bumping the module
-    /// defaults does not invalidate it. Vaults created before a KDF parameter
-    /// bump keep these params in their manifest and must keep deriving the same
-    /// KEK forever.
+    /// Characterization vector for argon2id under the legacy parameters
+    /// (t=2, m=32MiB, p=2), pinned explicitly so bumping module defaults does
+    /// not invalidate it. Pre-bump vaults must derive the same KEK forever.
     #[test]
     fn derive_kek_argon2id_known_vector() {
         use crate::shared::crypto::keys::derive_kek_argon2id_with_params;
@@ -26,10 +24,9 @@ mod characterization {
 
     /// The `derive_argon2_key` command is the sole derivation path for
     /// historical v3 Argon2-locked notes via the legacy Electron migration
-    /// flow (src/utils/migration/legacyElectron.js). Those notes were locked
-    /// under the original parameter set, so the command must stay pinned to
-    /// these explicit legacy numbers (m=32768 KiB / t=2 / p=2) even if the
-    /// module-default ARGON2_* constants are bumped again.
+    /// flow (src/utils/migration/legacyElectron.js): it must stay pinned to
+    /// the explicit legacy numbers (m=32768 KiB / t=2 / p=2) even if the
+    /// module defaults are bumped again.
     #[tokio::test]
     async fn derive_argon2_key_command_is_pinned_to_legacy_kdf_params() {
         use crate::commands::security::derive_argon2_key;
@@ -43,9 +40,8 @@ mod characterization {
             .expect("command derive");
         let from_command = hex::decode(&hex_out).unwrap();
 
-        // Explicit legacy constants on purpose: referencing the module
-        // constants would let a defaults bump silently invalidate every
-        // historical note.
+        // Explicit legacy constants on purpose: module constants would let a
+        // defaults bump silently invalidate every historical note.
         let expected = derive_kek_argon2id_with_params(passphrase, &salt, 32768, 2, 2).unwrap();
         assert_eq!(from_command, expected);
 
@@ -56,9 +52,8 @@ mod characterization {
         assert_eq!(from_command, known_vector);
     }
 
-    /// New vaults must be created with Amendment 1 KDF parameters
-    /// (128 MiB memory, t=3, p=4). Existing vaults are unaffected: their
-    /// manifests store per-vault params.
+    /// New vaults must use Amendment 1 KDF parameters (128 MiB, t=3, p=4);
+    /// existing vaults are unaffected (per-vault manifest params).
     #[test]
     fn new_manifests_use_amendment1_kdf_params() {
         use crate::shared::crypto::keys::create_encryption_manifest;
@@ -70,9 +65,8 @@ mod characterization {
         assert_eq!(manifest.argon2_parallelism, Some(4));
     }
 
-    /// A vault created under older Argon2id parameters must keep unlocking: the
-    /// KEK is derived from the params stored in the manifest, not the current
-    /// constants.
+    /// A vault created under older Argon2id params keeps unlocking: the KEK is
+    /// derived from the manifest's stored params, not current constants.
     #[test]
     fn derive_kek_from_manifest_respects_stored_argon2_params() {
         use crate::shared::crypto::keys::{
@@ -94,10 +88,8 @@ mod characterization {
         assert_eq!(from_manifest, expected);
     }
 
-    /// Sync vault join must derive the items key with the params' stored Argon2
-    /// settings — not the module defaults. A vault published under 16 MiB must
-    /// join with the correct passphrase (a WrongPassword here means the derive
-    /// ignored the params and used 32 MiB).
+    /// Sync vault join must derive with the params' stored Argon2 settings —
+    /// a WrongPassword here means the derive ignored them and used defaults.
     #[test]
     fn derive_items_key_from_params_respects_stored_argon2_memory() {
         use base64::Engine;
@@ -110,8 +102,7 @@ mod characterization {
         let (manifest, data_key, _) =
             create_encryption_manifest("app", "check", passphrase).unwrap();
 
-        // Simulate a vault created under 16 MiB: derive a 16 MiB KEK and wrap
-        // the same data_key with it, exactly as a 16 MiB vault would.
+        // Simulate a 16 MiB vault: derive a 16 MiB KEK and wrap the same key.
         let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
         let kek_16mb = derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
         let wrapped_16mb = encrypt_bytes_with_key(&kek_16mb, &data_key).unwrap();
@@ -139,7 +130,6 @@ mod characterization {
         ));
     }
 
-    /// Round-trip: a note encrypted for storage can be decrypted back.
     #[test]
     fn note_content_round_trip() {
         use crate::shared::crypto::keys::{encrypt_note_content_for_storage, decrypt_native_note_content};
@@ -163,7 +153,6 @@ mod characterization {
         assert_eq!(dec, content);
     }
 
-    /// Asset round-trip: encrypt/decrypt raw bytes with a key.
     #[test]
     fn asset_bytes_round_trip() {
         use crate::shared::crypto::assets::{
@@ -198,9 +187,8 @@ mod characterization {
         ));
     }
 
-    /// Assets written by the non-streaming encryptor (`encrypt_asset_bytes_with_key`,
-    /// used by fs:writeFile and migration) are a single chunk whose length can
-    /// exceed STREAM_CHUNK_SIZE. The streaming decryptor must accept them.
+    /// Non-streaming encryptor output (fs:writeFile, migration) can be a
+    /// single chunk longer than STREAM_CHUNK_SIZE; streaming decrypt must accept.
     #[test]
     fn asset_streaming_decrypt_accepts_large_single_chunk() {
         use crate::shared::crypto::assets::{
@@ -229,7 +217,6 @@ mod characterization {
         assert_eq!(decrypted.unwrap(), plain);
     }
 
-    /// Yjs blob round-trip.
     #[test]
     fn yjs_blob_round_trip() {
         use crate::shared::crypto::assets::{

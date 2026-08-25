@@ -2,7 +2,6 @@ use tauri::{AppHandle, State};
 
 use crate::shared::*;
 
-/// Return all registered workspaces.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_list(
@@ -12,7 +11,6 @@ pub(crate) fn workspace_list(
     Ok(load_workspace_registry(&app, &state)?)
 }
 
-/// Return the currently active workspace.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_get_active(
@@ -51,11 +49,9 @@ pub(crate) fn workspace_create(
     let ws_dir = workspace_root(&app, &state)?.join(&id);
     std::fs::create_dir_all(&ws_dir)?;
 
-    // Create the data.db for the new workspace
     let data_path = ws_dir.join("data.db");
     let _pool = crate::db::open_pool(&data_path)?;
 
-    // Create settings.db for the new workspace
     let settings_path = ws_dir.join("settings.db");
     let new_settings_pool = crate::db::open_pool(&settings_path)?;
 
@@ -84,7 +80,6 @@ pub(crate) fn workspace_create(
     registry.push(ws.clone());
     save_workspace_registry(&app, &state, &registry)?;
 
-    // Switch to the new workspace
     save_active_workspace_id(&app, &state, &id)?;
     swap_data_pool(&app, &state, &id)?;
     swap_settings_pool(&app, &state, &id)?;
@@ -93,9 +88,8 @@ pub(crate) fn workspace_create(
 }
 
 /// Register a backend (cloud) workspace in the local registry so local mirrors
-/// of shared/cloud workspaces participate in removal reconciliation. Creates
-/// the workspace directory and DBs on first registration (like `workspace_create`),
-/// upserts the entry, and never changes the active workspace.
+/// of shared workspaces participate in removal reconciliation. Creates the
+/// directory + DBs on first registration; never changes the active workspace.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_register_cloud(
@@ -165,7 +159,6 @@ pub(crate) fn workspace_switch(
     Ok(())
 }
 
-/// Rename a workspace.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_rename(
@@ -184,8 +177,7 @@ pub(crate) fn workspace_rename(
     Ok(())
 }
 
-/// Delete a workspace. Cannot delete the currently active workspace.
-/// The workspace directory and all its data are removed.
+/// Delete a workspace (never the active or default one); removes its directory.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_delete(

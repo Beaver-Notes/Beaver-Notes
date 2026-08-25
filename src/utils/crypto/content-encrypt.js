@@ -5,14 +5,8 @@ const TYPE_STRING = 0x01
 const TYPE_BINARY = 0x02
 
 /**
- * Encrypt a value for a specific Y.Map key.
- * Uses AES-256-GCM via existing collab.js infrastructure.
- * Prepends a 1-byte type tag so decryptMapValue can restore the original type.
- *
- * @param {CryptoKey} key - AES-256-GCM collaboration key
- * @param {string} mapKey - Y.Map key (used as AAD for authentication)
- * @param {string|Uint8Array} value - Plaintext value to encrypt
- * @returns {Promise<Uint8Array>} Encrypted value (IV + ciphertext)
+ * Encrypt a Y.Map value with AES-256-GCM (via collab.js): a 1-byte type tag
+ * is prepended so the original type can be restored, and mapKey is the AAD.
  */
 export async function encryptMapValue(key, mapKey, value) {
   const isString = typeof value === 'string'
@@ -25,15 +19,7 @@ export async function encryptMapValue(key, mapKey, value) {
   return encryptUpdate(key, tagged, mapKey)
 }
 
-/**
- * Decrypt a value from a specific Y.Map key.
- * Reads the 1-byte type tag to return string or Uint8Array as originally encrypted.
- *
- * @param {CryptoKey} key - AES-256-GCM collaboration key
- * @param {string} mapKey - Y.Map key (must match encryption AAD)
- * @param {Uint8Array} encrypted - IV + ciphertext from encryptMapValue
- * @returns {Promise<string|Uint8Array>} Decrypted value matching original type
- */
+/** Inverse of encryptMapValue — mapKey must match the encryption AAD. */
 export async function decryptMapValue(key, mapKey, encrypted) {
   const decrypted = await decryptUpdate(key, encrypted, mapKey)
   const typeTag = decrypted[0]
@@ -44,15 +30,7 @@ export async function decryptMapValue(key, mapKey, encrypted) {
   return payload
 }
 
-/**
- * Create a clone of a Y.Doc with specified map values encrypted.
- * Used before sending updates to the relay server.
- *
- * @param {Y.Doc} doc - Source document
- * @param {CryptoKey} key - Encryption key
- * @param {string[]} mapKeys - Y.Map keys to encrypt
- * @returns {Promise<Y.Doc>} New doc with encrypted values
- */
+/** Clone a Y.Doc with the given map values encrypted, before sending to the relay. */
 export async function wrapYDocForRelay(doc, key, mapKeys) {
   const clone = Y.encodeStateAsUpdate(doc)
   const newDoc = new Y.Doc()
@@ -69,15 +47,6 @@ export async function wrapYDocForRelay(doc, key, mapKeys) {
   return newDoc
 }
 
-/**
- * Decrypt specified map values in a Y.Doc.
- * Used after receiving updates from the relay server.
- *
- * @param {Y.Doc} doc - Document with encrypted values
- * @param {CryptoKey} key - Decryption key
- * @param {string[]} mapKeys - Y.Map keys to decrypt
- * @returns {Promise<Y.Doc>} Doc with decrypted values
- */
 export async function unwrapYDocFromRelay(doc, key, mapKeys) {
   const map = doc.getMap('note')
   for (const mk of mapKeys) {

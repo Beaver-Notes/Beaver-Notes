@@ -46,14 +46,12 @@ impl SecurityState {
         }
     }
 
-    /// Replace the transient passphrase, zeroizing the previous value.
     pub(crate) fn set_transient_passphrase(&self, passphrase: String) {
         let mut guard = self.transient_passphrase.lock().unwrap_or_else(|e| e.into_inner());
         guard.zeroize();
         *guard = passphrase;
     }
 
-    /// Zeroize and clear the transient passphrase.
     pub(crate) fn clear_transient_passphrase(&self) {
         let mut guard = self.transient_passphrase.lock().unwrap_or_else(|e| e.into_inner());
         guard.zeroize();

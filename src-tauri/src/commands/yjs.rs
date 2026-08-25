@@ -5,19 +5,16 @@ use tauri::{AppHandle, State};
 
 use crate::shared::*;
 
-/// Extract the current app encryption key, if encryption is active and unlocked.
-/// Returns `None` only when encryption is NOT configured (blobs stored in
-/// plaintext in that case). When encryption is configured but the items key is
-/// not loaded (session not yet unlocked), returns `EncryptionLocked` instead of
-/// silently falling back to plaintext: reading ciphertext as plaintext would
-/// feed garbage to the Yjs decoder (which aborts on invalid UTF-8), and writing
-/// plaintext would interleave plaintext among encrypted rows.
+/// Current app encryption key. `None` only when encryption is NOT configured
+/// (blobs stored plaintext). When configured but locked, returns
+/// `EncryptionLocked` instead of silently falling back to plaintext: reading
+/// ciphertext as plaintext feeds garbage to the Yjs decoder, and writing would
+/// interleave plaintext among encrypted rows.
 fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
   let session = state.crypto.session.read()?;
   if !session.active {
-    // Encryption is mandatory — there is no plaintext mode. `active` is set by
-    // the startup init (a manifest is always created), so reaching this state
-    // is a startup/init bug and must fail closed rather than write plaintext.
+    // Encryption is mandatory (startup init always creates a manifest and sets
+    // `active`); reaching this state is a startup bug — fail closed.
     return Err(AppError::EncryptionLocked);
   }
   Ok(Some(current_app_key(state)?.ok_or(AppError::EncryptionLocked)?))
@@ -40,9 +37,8 @@ mod tests {
 
     #[test]
     fn locked_when_encryption_not_configured() {
-        // Encryption is mandatory: a session that never became active must fail
-        // closed (no plaintext) — the startup init guarantees `active` is set
-        // before any note is read or written.
+        // Mandatory encryption: a never-active session must fail closed —
+        // startup init guarantees `active` before any note read/write.
         let state = state_with(false, None);
         assert!(matches!(
             yjs_encryption_key(&state),
@@ -66,12 +62,10 @@ mod tests {
     }
 }
 
-/// Append a single Yjs binary update for a note.  Updates are stored as
-/// append-only BLOB rows so every peer's version is preserved.
-/// When app encryption is active the blob is encrypted before persisting.
-/// Dispatched to a blocking thread so AES + SQLite never block the event loop.
-/// The update crosses IPC as base64 (Tauri invoke is JSON-only; base64 is
-/// ~3x smaller than the JSON number-array encoding this replaced).
+/// Append one Yjs binary update for a note as an append-only BLOB row (every
+/// peer's version preserved), encrypted when app encryption is active. Runs on
+/// a blocking thread; the update crosses IPC as base64 (~3x smaller than the
+/// JSON number-array encoding it replaced).
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn yjs_append(
@@ -89,8 +83,7 @@ pub(crate) async fn yjs_append(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Append multiple Yjs binary updates in a single IPC call.
-/// All updates are inserted inside one SQLite transaction.
+/// Append multiple Yjs updates in one IPC call, inside a single SQLite transaction.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn yjs_append_batch(
@@ -111,11 +104,10 @@ pub(crate) async fn yjs_append_batch(
         .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Return a cached merged Yjs state snapshot for a note when it is fresh
-/// (no stored update is newer than the snapshot). Returns an empty string when
-/// the caller must replay history and re-cache it via `yjs_save_snapshot`.
-/// Dispatched to a blocking thread: the stale path replays and decrypts the
-/// whole update history, which must not block the event loop.
+/// Cached merged Yjs state snapshot when fresh (no stored update newer).
+/// Empty string means the caller must replay history and re-cache via
+/// `yjs_save_snapshot`. Blocking thread: the stale path replays the whole
+/// update history.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn yjs_get_snapshot(
@@ -131,10 +123,9 @@ pub(crate) async fn yjs_get_snapshot(
   Ok(BASE64.encode(result))
 }
 
-/// Return the fresh merged Yjs snapshot for many notes in a single round-trip
-/// (batched SQL), avoiding N+1 IPC calls. Only requested notes that have data
-/// are included in the result map.
-/// Dispatched to a blocking thread (rayon parallel decrypt inside).
+/// Fresh merged snapshots for many notes in one round-trip (batched SQL,
+/// no N+1 IPC); only notes with data are included. Blocking thread with
+/// rayon parallel decrypt inside.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn yjs_get_snapshots(
@@ -150,8 +141,7 @@ pub(crate) async fn yjs_get_snapshots(
   Ok(result.into_iter().map(|(id, blob)| (id, BASE64.encode(blob))).collect())
 }
 
-/// Return every stored Yjs update for a note, oldest first.
-/// The caller replays them into a Y.Doc to reconstruct the current state.
+/// Every stored update for a note, oldest first, for replaying into a Y.Doc.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn yjs_get_updates(
@@ -184,10 +174,9 @@ pub(crate) async fn yjs_get_state_vector(
   Ok(result.map(serde_json::to_value).transpose()?.unwrap_or(serde_json::json!({})))
 }
 
-/// Delete all existing updates for a note and replace them with a single
-/// compressed Yjs state vector (snapshot).  Keeps the row count bounded.
-/// Dispatched to a blocking thread: rewrites every row + encrypts a multi-MB
-/// blob on note switch.
+/// Replace all updates for a note with a single compressed snapshot,
+/// keeping the row count bounded. Blocking thread: rewrites every row and
+/// encrypts a multi-MB blob on note switch.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn yjs_compact(
@@ -204,9 +193,8 @@ pub(crate) async fn yjs_compact(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Read all updates for a note, merge them into a single snapshot via y-octo,
-/// replace the old rows with one compacted row, and keep the snapshot cache in
-/// sync — all in a single SQLite transaction.
+/// Merge all updates into one snapshot (y-octo), replace the rows, sync the
+/// snapshot cache — all in a single SQLite transaction.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn yjs_compact_batch(

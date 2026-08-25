@@ -105,8 +105,7 @@ pub(crate) async fn asset_crypto_migrate_dir(
             let current = path.to_string_lossy().to_string();
             let result: Result<(), AppError> = (|| {
                 let raw = fs::read(path)?;
-                // Decrypt with old key (in case it was encrypted with a stale key),
-                // then re-encrypt with the current key.
+                // Decrypt (possibly stale key), then re-encrypt with current.
                 let plain = decrypt_asset(&app, &state_inner, path, &raw)?;
                 let payload = encrypt_asset(&app, &state_inner, path, &plain)?;
                 fs::write(path, payload)?;
@@ -196,9 +195,9 @@ pub(crate) async fn encryption_submit_password(
     if manifest_path.exists() {
         let manifest = load_encryption_manifest(&manifest_path)?
             .ok_or_else(|| AppError::Other("Encryption manifest is missing.".into()))?;
-        // KDF (Argon2id, ~200ms) off the main thread. `manifest` is cloned so
-        // the owned copy can be moved into the blocking closure while the
-        // original remains available for populate_key_ring() after the await.
+        // KDF (Argon2id, ~200ms) off the main thread; manifest cloned so the
+        // owned copy moves into the closure while the original stays available
+        // for populate_key_ring() after the await.
         let manifest_for_task = manifest.clone();
         let password_for_task = password.clone();
         let (key, kek) = tokio::task::spawn_blocking(move || {
@@ -351,9 +350,8 @@ pub(crate) fn encryption_decrypt_note_payload(
 ) -> Result<Option<Vec<u8>>, AppError> {
     let ae = payload.get("ae").and_then(Value::as_u64).unwrap_or(0) as u8;
 
-    // Legacy v3 envelope: encrypted payload is a serde_json Value (JSON bytes).
-    // Decrypt via the JSON path and re-serialise to bytes so callers always
-    // receive raw bytes regardless of the source format.
+    // Legacy v3 envelope: payload is a serde_json Value — decrypt via the JSON
+    // path and re-serialise so callers always receive raw bytes.
     if ae == 3 {
         let kid = payload
             .get("kid")
@@ -428,14 +426,11 @@ pub(crate) struct SyncMeta {
     pub(crate) note_id: String,
 }
 
-/// Encrypt a sync payload (commit / snapshot / genesis) with the items key using
-/// XChaCha20-Poly1305. `aad` binds the ciphertext to its identity (e.g. the file
-/// stem) so it cannot be swapped between sync entries.
-///
-/// The Yjs update is passed as base64-encoded raw bytes (`data`) rather than a
-/// JSON number array, so multi-MB payloads never hit a serde_json round-trip on
-/// a huge array (the previous ~950ms cost). `meta` (device/ts/sequence/noteId) is
-/// stored inside the encrypted envelope so it round-trips with the payload.
+/// Encrypt a sync payload (commit / snapshot / genesis) with the items key
+/// (XChaCha20-Poly1305). `aad` binds the ciphertext to its identity so it
+/// cannot be swapped between entries. The Yjs update arrives as base64 raw
+/// bytes (`data`) — never a JSON number array, which cost ~950ms for multi-MB
+/// payloads. `meta` is stored inside the encrypted envelope.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_encrypt_payload(
@@ -464,12 +459,10 @@ pub(crate) async fn sync_encrypt_payload(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Decrypt a sync payload. Returns `DECRYPT_FAILED` on authentication failure
-/// (wrong passphrase or tampered AAD) and `KEY_LOCKED` when the key is absent.
-///
-/// Returns the decrypted update as base64 raw bytes plus the meta object, so the
-/// renderer never reconstructs a giant number array. v4 envelopes (update stored
-/// as a JSON number array) are decoded for backward compatibility.
+/// Decrypt a sync payload. Errors with `DECRYPT_FAILED` on authentication
+/// failure (wrong passphrase or tampered AAD), `KEY_LOCKED` when the key is
+/// absent. Update returns as base64 raw bytes; v4 envelopes (JSON number
+/// array) are decoded for backward compatibility.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_decrypt_payload(
@@ -541,9 +534,8 @@ pub(crate) async fn sync_decrypt_payload(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Batch-decrypt a list of sync payloads in parallel. Each envelope is
-/// decrypted independently; failed items produce `None` in the result vec
-/// instead of aborting the whole batch.
+/// Batch-decrypt sync payloads in parallel; each envelope is independent and
+/// failed items yield `None` instead of aborting the batch.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_decrypt_batch(
@@ -645,8 +637,8 @@ pub(crate) async fn sync_decrypt_batch(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Batch-encrypt a list of sync payloads in parallel. All items must succeed;
-/// if any encryption fails the whole batch returns an error.
+/// Batch-encrypt sync payloads in parallel. All items must succeed; any
+/// failure errors the whole batch.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_encrypt_batch(
@@ -697,12 +689,9 @@ pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
         .unwrap_or(false)
 }
 
-/// Rotate the items key: archive the current key, generate a fresh one, and
-/// persist the updated manifest. Old notes remain decryptable because the
-/// archived key stays in the in-memory `items_keys` ring (loaded from the
-/// manifest's `previous_keys` on unlock).
-///
-/// Requires that the app is unlocked (the KEK is cached in `master_key_cache`).
+/// Rotate the items key: archive the current key, generate a fresh one,
+/// persist. Old notes stay decryptable via the in-memory ring loaded from
+/// `previous_keys`. Requires an unlocked app (KEK cached).
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn encryption_rotate_key(app: AppHandle, state: State<AppState>) -> Result<(), AppError> {
@@ -710,9 +699,8 @@ pub(crate) fn encryption_rotate_key(app: AppHandle, state: State<AppState>) -> R
     Ok(())
 }
 
-/// Generate a recovery code that can unlock the app without the passphrase.
-/// The code is a 64-character hex string derived from random entropy, shown
-/// exactly once to the user. Requires the app to be unlocked.
+/// Generate a recovery code (64 hex chars, shown exactly once) that unlocks
+/// the app without the passphrase. Requires an unlocked app.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn encryption_generate_recovery_code(
@@ -731,8 +719,8 @@ pub(crate) fn encryption_generate_recovery_code(
     Ok(RecoveryCodeResult { code })
 }
 
-/// Recover the app encryption key using a previously-generated recovery code.
-/// On success the app is unlocked just as if the passphrase had been entered.
+/// Recover the app encryption key with a previously-generated recovery code;
+/// on success the app is unlocked as with the passphrase.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn encryption_recover_with_code(
@@ -764,9 +752,9 @@ pub(crate) fn encryption_recover_with_code(
     })
 }
 
-/// Keep the local manifest and the shared `keyParams.json` in the sync folder
-/// consistent so every device derives the same items key. `passphrase` is needed
-/// to adopt a remote items key on a joining device (it is never written out).
+/// Keep the local manifest and shared `keyParams.json` consistent so every
+/// device derives the same items key. `passphrase` adopts a remote items key on
+/// a joining device; it is never written out.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn encryption_reconcile_key_params(
@@ -793,8 +781,8 @@ pub(crate) fn encryption_reconcile_key_params(
                         adopt_key_params(&app, state.inner(), &params, &pw)?
                     }
                     None => {
-                        // Cannot adopt without the passphrase yet; a later sync
-                        // (which supplies it from secure storage) will retry.
+                        // No passphrase yet; a later sync (which supplies it
+                        // from secure storage) will retry.
                     }
                 }
             }
@@ -806,10 +794,10 @@ pub(crate) fn encryption_reconcile_key_params(
     Ok(())
 }
 
-/// Join an existing vault by adopting the shared key params found in the sync
-/// source. Unlike `encryption_reconcile_key_params`, this works with an inactive
-/// session (a fresh joining device has no manifest yet). Wrong passphrase returns
-/// `WrongPassword` without touching any vault state.
+/// Join an existing vault by adopting shared key params. Unlike
+/// `encryption_reconcile_key_params`, works with an inactive session (fresh
+/// joining device). Wrong passphrase returns `WrongPassword` without touching
+/// any vault state.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn encryption_adopt_key_params(
@@ -850,8 +838,8 @@ pub(crate) fn encryption_adopt_key_params(
     })
 }
 
-/// True when the configured sync source holds vault key params that differ from
-/// this device's local manifest (or when no local manifest exists).
+/// True when the configured sync source holds key params differing from the
+/// local manifest (or no local manifest exists).
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn encryption_has_remote_key_params(
@@ -891,9 +879,8 @@ pub(crate) fn safe_storage_get_backend_info(
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool, AppError> {
-    // Honest probe: report whether a master key can actually be produced by the
-    // secure store right now, rather than trusting a compile-time flag or
-    // papering over backend failures with the file-based fallback.
+    // Honest probe: can a master key actually be produced right now — not a
+    // compile-time flag or a fallback papering over backend failures.
     Ok(master_key_available())
 }
 
@@ -1029,8 +1016,8 @@ pub(crate) fn passwd_reset_failures(state: State<AppState>) -> Result<(), AppErr
     Ok(())
 }
 
-/// Returns `Err` with a lockout message when unlock attempts are currently
-/// rate-limited, clearing an expired lockout so a fresh attempt can proceed.
+/// Returns `Err` with a lockout message when unlock attempts are rate-limited,
+/// clearing an expired lockout so a fresh attempt can proceed.
 fn assert_not_locked(state: &AppState) -> Result<(), AppError> {
     let mut lockout_guard = state.security.lockout_until.lock()?;
     match *lockout_guard {
@@ -1180,9 +1167,8 @@ pub(crate) async fn derive_argon2_key(
     };
     let passphrase_for_task = passphrase.clone();
     let result = tokio::task::spawn_blocking(move || {
-        // Historical v3 Argon2-locked notes were derived under the legacy
-        // parameter set; pin it explicitly so module-default bumps never
-        // break migration of existing notes.
+        // Historical v3 notes derive under the legacy parameter set; pinned so
+        // module-default bumps never break migration of existing notes.
         crate::shared::derive_kek_argon2id_legacy(&passphrase_for_task, &salt)
     })
     .await

@@ -9,9 +9,7 @@
  *   svgInk                 → final SVG path via elbow partitioning + smooth Bézier
  */
 
-// ============================================================================
 // Vec2 — tldraw-compatible 2D vector class
-// ============================================================================
 
 class Vec2 {
   constructor(x = 0, y = 0, z = 0) {
@@ -546,8 +544,6 @@ function renderPartition(pts) {
   }
   return d;
 }
-
-// Render props + bounds
 
 export function getRenderableStrokeProps(stroke) {
   const isHL = stroke?.tool === 'highlighter';

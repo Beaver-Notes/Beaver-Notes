@@ -377,8 +377,8 @@ export function useSettingsAccount({ dialog, translations }) {
   }
 
   onMounted(() => {
-    // hydrate is called by the composable's onMounted; ensure the latest
-    // profile is fetched when the settings page is opened.
+    // Hydration runs in the auth composable's own onMounted; refresh the
+    // profile when the settings page opens.
     if (accountStore.isAuthenticated) {
       auth.refreshProfile().catch(() => {});
     }

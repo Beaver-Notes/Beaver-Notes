@@ -16,9 +16,8 @@ const CHUNK_SIZE = 20;
 const ASSET_NODE_TYPES = new Set(['image', 'Audio', 'Video', 'fileEmbed']);
 
 /**
- * Walk a ProseMirror JSON tree and normalize broken asset paths from legacy
- * v4 versions that stored full filesystem paths or relative paths without
- * the protocol prefix.
+ * Normalize broken asset paths from legacy v4 versions that stored full
+ * filesystem paths or relative paths without the protocol prefix.
  */
 function normalizeAssetPaths(node, noteId) {
   if (!node || typeof node !== 'object') return;
@@ -26,22 +25,19 @@ function normalizeAssetPaths(node, noteId) {
   if (ASSET_NODE_TYPES.has(node.type) && node.attrs?.src) {
     const src = node.attrs.src;
 
-    // Already correct protocol — leave as-is
     if (src.startsWith('assets://') || src.startsWith('file-assets://')) {
       return;
     }
 
     let fileName = src;
 
-    // Full filesystem path: /Users/.../notes-assets/{noteId}/{file}
-    // or /Users/.../file-assets/{noteId}/{file}
+    // Full path like /Users/.../notes-assets/{noteId}/{file} or /Users/.../file-assets/{noteId}/{file}
     const fsMatch = src.match(/(?:notes-assets|file-assets)\/([^/]+\/)?([^/]+)$/);
     if (fsMatch) {
       // fsMatch[1] = "noteId/" (if present), fsMatch[2] = filename
       fileName = fsMatch[2];
     } else {
-      // Relative path like "file-assets/noteId/file" or "notes-assets/file"
-      // Strip leading directory prefix to get the filename
+      // Relative path like "file-assets/noteId/file" — strip prefix to filename
       const relMatch = src.match(/^(?:notes-assets|file-assets)(?:\/[^/]+)*\/([^/]+)$/);
       if (relMatch) {
         fileName = relMatch[1];
@@ -52,7 +48,6 @@ function normalizeAssetPaths(node, noteId) {
     return;
   }
 
-  // Recurse into child content
   if (Array.isArray(node.content)) {
     for (const child of node.content) {
       normalizeAssetPaths(child, noteId);
@@ -79,16 +74,8 @@ export async function convertLegacyNoteToUpdate(schema, content) {
 }
 
 /**
- * Convert an array of legacy notes into Yjs docs, batching `appendBatch`
- * calls in chunks and yielding to the UI between chunks.
- *
- * @param {Array<{id: string, content: object}>} notes
- * @param {{
- *   onProgress?: (done: number, total: number, id: string) => void,
- *   legacyPassword?: string,
- *   alreadyConvertedIds?: Set<string>,
- * }} [opts]
- * @returns {Promise<{converted: number, skipped: number, failures: string[]}>}
+ * Convert legacy notes into Yjs docs, batching `appendBatch` calls in chunks
+ * and yielding to the UI between chunks.
  */
 export async function convertLegacyNotesToYjs(
   notes = [],
@@ -184,12 +171,8 @@ export async function convertLegacyNotesToYjs(
 }
 
 /**
- * Ensure each note in a legacy notes map carries cardPreview/preview/searchText
- * before it is passed to seedWorkspaceDocFromData. Mutates the map in place.
- * Locked/encrypted notes get an empty preview (hidden).
- *
- * @param {Record<string, object>} notesMap id -> note meta (content may be ProseMirror JSON)
- * @returns {Record<string, object>} same map
+ * Ensure each legacy note carries cardPreview/preview/searchText before
+ * seedWorkspaceDocFromData. Mutates in place; locked notes get empty previews.
  */
 export function ensureLegacyNotesPreview(notesMap) {
   if (!notesMap || typeof notesMap !== 'object') return notesMap;
@@ -199,9 +182,7 @@ export function ensureLegacyNotesPreview(notesMap) {
     if (note.cardPreview?.blocks?.length > 0) continue;
     const content = note.content;
     // ae:3 / ae:6 envelopes are app-encrypted and must be hidden even when
-    // isLocked is not set or the legacy string-prefix heuristic misses them.
-    // Use the canonical helper when available, with an inline fallback so the
-    // function stays correct even if the helper is mocked or unavailable.
+    // isLocked is unset or the prefix heuristic misses them.
     let isAeEnvelope = false;
     try {
       isAeEnvelope = isAppEncryptedEnvelope(content) || content?.ae === 3 || content?.ae === 6;
@@ -212,14 +193,10 @@ export function ensureLegacyNotesPreview(notesMap) {
       typeof content?.content?.[0] === 'string' &&
       (content.content[0].startsWith('U2FsdGVk') || content.content[0].startsWith('{'));
     const isLocked = note.isLocked === true || isAeEnvelope || hasLegacyCipher;
-    // For app-encrypted envelopes content is not plaintext JSON for preview;
-    // buildNotePreview with hidden:true will produce EMPTY_CARD_PREVIEW.
+    // Encrypted envelopes aren't structured content — hidden preview only.
     let contentForPreview = note.content;
-    // If content is an encrypted envelope (ae:3/ae:6) or legacy cipher string,
-    // don't use it as structured content — fall back to preview/searchText text.
     if (isLocked) contentForPreview = null;
     else if (contentForPreview && typeof contentForPreview === 'object' && contentForPreview.type !== 'doc') {
-      // Non-ProseMirror envelope — treat as missing structured content.
       contentForPreview = null;
     }
     const { cardPreview, preview } = buildNotePreview({

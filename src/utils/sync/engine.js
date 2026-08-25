@@ -26,11 +26,8 @@ import { logger } from '@/utils/logger';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
 
-// ── Desktop notifications ──
-// Background pull-only cycles can fail or complete every 30s while the app is
-// visible, so consecutive failure and lock notifications are throttled to
-// avoid spamming the user. Completion notifications only fire when a cycle
-// actually moved data.
+// Background pull-only cycles run every 30s while the app is visible, so
+// failure/lock notifications are throttled to avoid spamming the user.
 const ERROR_NOTIFY_THROTTLE_MS = 5 * 60_000;
 let lastErrorNotifyAt = 0;
 let unlockNotified = false;
@@ -131,22 +128,15 @@ export class SyncEngine {
     return this.enqueueSync(true);
   }
 
-  /**
-   * Signal that the app returned from a hidden state.
-   * Triggers a pull to pick up remote changes made while backgrounded.
-   */
+  /** Signal the app returned from hidden state; pulls changes made while backgrounded. */
   notifyForeground() {
     this._foregroundWake = true;
     return this.enqueueSync(true);
   }
 
   /**
-   * Start the pull-only periodic timer. Fires every PULL_ONLY_INTERVAL_MS
-   * to pull remote changes from other devices. Only pulls — does not push.
-   *
-   * Cloud-only sync relies on WebSocket connection events for real-time
-   * pull triggers — the timer is only started for folder sync which has
-   * no notification mechanism.
+   * Pull-only timer for folder sync (cloud relies on WebSocket events for
+   * real-time pull triggers, so it never starts the timer).
    */
   startPullTimer() {
     if (this._pullTimer !== null) return;
@@ -156,15 +146,12 @@ export class SyncEngine {
     this._pullTimer = setInterval(async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       if (this.syncing) return;
-      // Skip entirely when no syncPath is configured and only local transport
-      // is active — there is nothing to pull from.
+      // Nothing to pull from with no syncPath and only the local transport.
       const syncPath = await getSyncPath();
       const transports = this.getActiveTransports();
       if (!syncPath && transports.length === 1 && transports[0] === 'local') return;
-      // Idle backoff: if the previous pull-only cycle found no updates and
-      // there is nothing pending locally, skip this tick to avoid pulling the
-      // network every 30s for no reason. Detection still resumes on the next
-      // tick, so remote changes are picked up at worst one interval later.
+      // Idle backoff: skip one tick after an idle pull-only cycle; remote
+      // changes are picked up at worst one interval later.
       if (this._idlePullBackoff) {
         this._idlePullBackoff = false;
         return;
@@ -216,11 +203,9 @@ export class SyncEngine {
     this.pending = false;
     this._forceFlush = _force;
 
-    // Early exit before any sync work or status emit: with no sync folder and
-    // only the local transport active there is nothing to do. Unconfigured
-    // installs (no folder, no account) must not pay for cycles on every
-    // visibility change / foreground wake / force. `syncing` was already set
-    // synchronously so concurrent enqueueSync callers still coalesce.
+    // Early exit before any sync work or status emit: nothing to do for
+    // unconfigured installs. `syncing` was set synchronously so concurrent
+    // enqueueSync callers still coalesce.
     const { getSettingSync } = await import('@/lib/settings');
     const { bufToBase64 } = await import('@/utils/crypto/codec.js');
     const onboardingCompleted = getSettingSync('onboardingCompleted');
@@ -261,16 +246,12 @@ export class SyncEngine {
 
       logger.info('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
 
-      // Resolve sync readiness once per cycle — auth, plan, encryption key,
-      // workspace. Replaces the scattered syncKeyReady + isEncryptionEnabled +
-      // _remoteAllowed checks that previously ran independently and could
-      // disagree with each other.
+      // Resolve sync readiness once per cycle — replaces scattered checks
+      // that could disagree with each other.
       const { getSyncReadiness } = await import('./readiness.js');
       const readiness = await getSyncReadiness();
       logger.info('[sync] readiness', { isAuth: readiness.isAuth, plan: readiness.plan, syncAllowed: readiness.syncAllowed, keyReady: readiness.keyReady, wsId: readiness.workspaceId });
 
-      // Inject readiness into cloud transport so _remoteAllowed() and
-      // _ensureWorkspace() use the same snapshot as the engine.
       if (this.transports.cloud?.setReadiness) {
         this.transports.cloud.setReadiness(readiness);
       }
@@ -283,10 +264,9 @@ export class SyncEngine {
         return;
       }
 
-      // Vault key params: reconcile on EVERY cycle so a joining device adopts
-      // the vault owner's keys as soon as possible.  Previously this only ran
-      // on force/foreground cycles, meaning a failed first reconcile left the
-      // device using its own local key until the next force sync.
+      // Reconcile on EVERY cycle so a joining device adopts the vault owner's
+      // keys as soon as possible — force-only reconcile left a device on its
+      // own local key after one failed attempt.
       {
         let syncPassphrase = null;
         try {
@@ -336,8 +316,6 @@ export class SyncEngine {
 
       await flushPendingSyncWrites();
 
-      // Only pull when there's a reason: forced sync, foreground wake, or pending local writes.
-      // Idle cycles with nothing to push skip the pull to avoid unnecessary network traffic.
       let cloudBlocked = false;
       if (shouldPull) {
         try { emit('sync:progress', { phase: 'pull', processed: 0, total: 0 }); } catch {}
@@ -360,9 +338,8 @@ export class SyncEngine {
                 break;
               }
               if (e?.code === 'DECRYPT_FAILED') {
-                // The local key doesn't match the sync data — not a transient
-                // lock. Surface it so the user can re-adopt/import the correct
-                // vault instead of silently deferring forever.
+                // Local key doesn't match the sync data — surface it so the
+                // user re-adopts instead of silently deferring forever.
                 try { emit('sync:status', { status: 'decrypt-failed', message: e.message }); } catch {}
                 throw e;
               }
@@ -410,10 +387,8 @@ export class SyncEngine {
               try { emit('sync:progress', { phase: 'pull', processed: updates.length, total: updates.length }); } catch {}
             }
 
-            // Reconcile placeholder meta AFTER the batch's remote updates were
-            // applied: notes whose titled meta entries just arrived are already
-            // in the workspace doc and keep their titles — only ids still
-            // unknown get an untitled placeholder. Must never fail the cycle.
+            // Reconcile placeholders AFTER applying the batch: notes whose
+            // titled meta just arrived keep their titles; must never fail the cycle.
             if (updates.length > 0) {
               try {
                 reconcileUnknownNotePlaceholders(updates.map((u) => u.noteId));
@@ -422,12 +397,9 @@ export class SyncEngine {
               }
             }
 
-            // Refresh the Pinia note store after every pull batch. The
-            // workspace-doc observer skips origin 'sync', so applyRemote
-            // updates the Y.Doc but never triggers writeStoresFromWorkspace.
-            // Content-only batches (no meta) need this too — otherwise
-            // newly-arrived note content shows as "untitled" until the
-            // next cycle when meta arrives.
+            // Refresh the Pinia store after every pull batch: the workspace-doc
+            // observer skips origin 'sync', so without this newly-arrived
+            // content shows as "untitled" until meta arrives next cycle.
             if (updates.length > 0) {
               try {
                 const hasMetaUpdates = updates.some((u) => u.noteId === 'meta');
@@ -447,7 +419,6 @@ export class SyncEngine {
 
             const allSucceeded = succeeded.every(Boolean);
             if (allSucceeded) {
-              // Save state vectors for affected notes (replaces cursor tracking)
               if (updates.length > 0) {
                 const affectedNoteIds = new Set(updates.map((u) => u.noteId));
                 for (const noteId of affectedNoteIds) {
@@ -470,10 +441,8 @@ export class SyncEngine {
             hasMore = pullResult.hasMore === true;
           }
 
-          // Compact snapshot cache for notes that received updates.
-          // This prevents the staleness check from false-positiving on the
-          // newly added rows (which are encrypted re-encryptions of the same
-          // content) and avoids an endless bootstrap loop.
+          // Compact affected notes' snapshot caches so the staleness check
+          // doesn't false-positive on the new rows and loop bootstrap endlessly.
           if (pullAffectedNotes.size > 0) {
             const { compactUpdates } = await import('@/lib/native/yjs.js');
             for (const noteId of pullAffectedNotes) {
@@ -495,8 +464,6 @@ export class SyncEngine {
         logger.info('[sync] pull skipped — nothing to sync');
       }
 
-      // After a pull-only cycle with zero remote updates and nothing pending
-      // locally, arm the idle backoff so the next timer tick skips the pull.
       if (pullOnly && !gotUpdates && !hasPendingWrites()) {
         this._idlePullBackoff = true;
       }

@@ -35,11 +35,7 @@ export async function getCommitSnapshot(commitHash, noteId = '') {
 }
 
 /**
- * Create a version history commit for a note.
- * @param {string} noteId
- * @param {{ content: string, title: string }} snapshot - HTML content + title
- * @param {object} [opts]
- * @param {string} [opts.baseUrl]
+ * Create a version history commit for a note (`snapshot` = HTML content + title).
  */
 export async function createCommit(noteId, snapshot, opts = {}) {
   const { encryptJSON } = await import('@/utils/sync/crypto.js');
@@ -49,7 +45,6 @@ export async function createCommit(noteId, snapshot, opts = {}) {
   const ts = Date.now();
   const clock = ts;
 
-  // Encrypt the snapshot with the sync key
   const updateBytes = new TextEncoder().encode(JSON.stringify(snapshot));
   const encrypted = await encryptJSON({ update: updateBytes, noteId, ts }, noteId);
 

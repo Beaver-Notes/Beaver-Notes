@@ -288,9 +288,7 @@ export default {
           f.parentId === currentFolderId.value,
       );
 
-      // Filter by archive status:
-      // In archive view, show only archived folders
-      // In normal view, show only non-archived folders
+      // Archive view: only archived folders; normal view: only non-archived.
       childFolders = childFolders.filter((f) =>
         isArchiveView ? f.isArchived : !f.isArchived,
       );
@@ -355,10 +353,8 @@ export default {
         }
 
         if (isMatch && labelFilter) {
-          // Push the original note reference. The card renders `cardPreview`,
-          // never `content`, and copying the note here re-created every object
-          // on each keystroke/sort, churning props down into the masonry and
-          // forcing a full relayout of all visible cards.
+          // Push the original note reference: copying it re-created every
+          // object per keystroke/sort, churning props into a full masonry relayout.
           if (isArchived) return filteredNotes.archived.push(note);
 
           if (isBookmarked) {

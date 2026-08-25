@@ -158,11 +158,9 @@ export default {
     }));
 
     /**
-     * Labels shown below the input.
-     * - When query is empty or doesn't start with #: show all labels
-     * - When query starts with #: filter to matching labels (acting as suggestions)
-     * Always sorted alphabetically. Selected label is hidden from the scroll line
-     * and shown pinned left inline.
+     * Labels below the input: all labels unless the query starts with '#'
+     * (then matching suggestions), always alphabetical. The selected label is
+     * pinned left, hidden from the scroll line.
      */
     const visibleLabels = computed(() => {
       const term = props.query.startsWith('#')

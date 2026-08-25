@@ -116,7 +116,6 @@ const shouldArchive = computed(() => {
     return archivedCount < folders.length / 2;
   }
 
-  // If only notes selected, check note archive status
   if (folders.length === 0 && notes.length > 0) {
     const archivedCount = notes.filter((n) => n.isArchived).length;
     return archivedCount < notes.length / 2;

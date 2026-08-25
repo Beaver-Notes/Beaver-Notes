@@ -468,7 +468,6 @@ export default {
 
     const isSettingsActive = computed(() => route.path.startsWith('/settings'));
 
-    // Compute active styles for a single fluid moving side indicator bar
     const pillStyle = computed(() => ({
       top: `${pillTop.value}px`,
       height: `${pillHeight.value}px`,
@@ -615,7 +614,6 @@ export default {
       emitter.off('dark', enableDarkTheme);
       emitter.off('light', enableLightTheme);
 
-      // CRITICAL FIX: Safe memory leak cleanup
       if (typeof window !== 'undefined' && window.addNote) {
         delete window.addNote;
       }

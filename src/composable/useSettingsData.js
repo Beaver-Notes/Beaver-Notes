@@ -185,8 +185,7 @@ export function useSettingsData({
       const folderPath = path.join(filePaths[0], folderName);
 
       // Full-state archive: clean copies of data.db + settings.db + assets
-      // (see src-tauri/src/commands/backup.rs). Content lives in Yjs docs
-      // inside the DB, so this captures everything.
+      // (see src-tauri/src/commands/backup.rs); Yjs content lives in the DBs.
       await exportBackup(folderPath);
 
       if (!folderPath.includes('gvfs')) {
@@ -202,10 +201,9 @@ export function useSettingsData({
 
   async function mergeImportedData(data) {
     try {
-      // Legacy backups stored lock state in separate top-level maps
-      // (lockStatus: id->'locked', isLocked: id->true). Single source of
-      // truth is now per-note `isLocked` in the Yjs workspace doc, so fold
-      // those maps into notes and never persist them as separate keys.
+      // Legacy backups stored lock state in top-level maps (lockStatus:
+      // id->'locked', isLocked: id->true); fold into per-note `isLocked`
+      // and never persist them as separate keys.
       const lockedIds = new Set([
         ...Object.entries(data.lockStatus ?? {})
           .filter(([, v]) => v === 'locked')
@@ -265,8 +263,8 @@ export function useSettingsData({
         }
       }
 
-      // Also sync isLocked into Yjs meta so legacy imports become visible
-      // even though KV `notes` is no longer read (meta doc is the source).
+      // Sync isLocked into Yjs meta so legacy imports stay visible — KV `notes`
+      // is no longer read (the meta doc is the source).
       if (data.notes) {
         try {
           const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
@@ -350,14 +348,12 @@ export function useSettingsData({
       };
 
       // Two import formats:
-      //   string → legacy `encryptSettings`-encrypted backup whose password
-      //             was arbitrary (never the workspace passphrase). Decrypt it
-      //             with that backup password directly; do NOT verify the
-      //             workspace passphrase.
-      //   object → the new workspace-encrypted export. Require the workspace
-      //             passphrase and merge only when verifyPassphrase succeeds
-      //             (this also unlocks the workspace key so merged rows are
-      //             encrypted with the current key).
+      //   string → legacy `encryptSettings` backup; password was arbitrary,
+      //             NOT the workspace passphrase — decrypt directly, never
+      //             verify the workspace passphrase.
+      //   object → workspace-encrypted export; require the workspace
+      //             passphrase (verifyPassphrase also unlocks the workspace
+      //             key so merged rows re-encrypt under the current key).
       dialog.prompt({
         title: translations.value.settings.inputPassword,
         body: translations.value.settings.body,

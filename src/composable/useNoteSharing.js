@@ -22,8 +22,8 @@ import {
   clearUnwrappedKeyCache,
 } from '@/utils/crypto/note-key';
 
-// Module-level so the key-distributor background task can resolve a note's
-// collaborator device public keys without spinning up the full composable.
+// Module-level so background tasks can resolve collaborator device keys
+// without spinning up the full composable.
 export async function fetchCollaboratorPublicKeys(noteId) {
   const accountStore = useAccountStore();
   const baseUrl = accountStore.serverUrl;
@@ -68,7 +68,6 @@ export function useNoteSharing() {
     error.value = '';
     try {
       const raw = await apiList(noteId, { baseUrl: activeBaseUrl(), signal });
-      // Check if request was cancelled
       if (signal.aborted) return;
 
       collaborators.value = Array.isArray(raw)
@@ -94,7 +93,6 @@ export function useNoteSharing() {
       error.value = err?.message || 'Failed to load collaborators';
       console.error('[useNoteSharing] fetchCollaborators failed:', err);
     } finally {
-      // Only reset loading if this request wasn't cancelled
       if (!signal.aborted) {
         loading.value = false;
       }
@@ -143,9 +141,7 @@ export function useNoteSharing() {
 
     const identity = await loadOrCreateIdentity();
 
-    // First touch of a note: the caller may not be a collaborator yet.
-    // Listing invitations auto-grants the self-invitation, after which the
-    // key endpoint (gated to collaborators) accepts the request.
+    // Same 403 self-invitation dance as fetchCollaboratorPublicKeys.
     const getKey = async () => {
       try {
         return await apiGetKey(noteId, { baseUrl: activeBaseUrl() });

@@ -1362,9 +1362,7 @@ export default {
       runImportSource,
     });
 
-    // Recycle the Settings account orchestration — the sign-in handlers and
-    // refs live in useSettingsAccount, errors surface through the onboarding
-    // toast via showDialogAlert.
+    // Recycle the Settings account orchestration; errors surface through the onboarding toast.
     const account = useSettingsAccount({
       dialog: { alert() {}, confirm() {} },
       translations,
@@ -1435,15 +1433,13 @@ export default {
       flow.handleLegacyPasswordSkip();
     }
 
-    // ── Coarse key for the top-level content div: stays 'wizard' across
-    // every step inside the persistent frame so it never remounts — only
-    // its inner Transition (keyed by step + importPhase) slides.
+    // Coarse key: stays 'wizard' across every step inside the persistent frame
+    // so it never remounts — only its inner Transition slides.
     const topLevelKey = computed(() =>
       flow.isCardStep.value ? 'wizard' : flow.step.value,
     );
 
-    // Back button: import's 'confirm' phase steps back to source-picking
-    // rather than leaving the import step entirely.
+    // 'confirm' phase steps back to source-picking, not out of import.
     function wizardBack() {
       if (
         flow.step.value === 'import' &&
@@ -1455,9 +1451,8 @@ export default {
       }
     }
 
-    // Footer button set differs per step/phase (Skip vs Start import vs
-    // Decrypt notes, etc.) — centralized here so the frame markup doesn't
-    // need a bespoke nav row per step.
+    // Footer button set per step/phase (Skip vs Start import vs Decrypt
+    // notes, …) centralized so each step doesn't need a bespoke nav row.
     const footerButtons = computed(() => {
       const s = flow.step.value;
       const t = translations.value;
@@ -1605,25 +1600,20 @@ export default {
       return [];
     });
 
-    // ── Intro curtain on first load ────────────────────────────────────
-    // Starts closed (covering the screen by default), then opens
-    // once with a slow retract animation synced to the intro sound.
+    // Intro curtain: starts closed, opens once with a slow retract synced to the intro sound.
     (async function playIntroCurtain() {
       if (prefersReducedMotion()) {
         return;
       }
 
-      // Brief pause before the reveal
       await new Promise((r) => setTimeout(r, CURTAIN_HOLD));
 
-      // Play the intro sound as the curtain begins to open
       play('intro');
       curtainOpen.value = true;
 
       await new Promise((r) => setTimeout(r, CURTAIN_OPEN));
     })();
 
-    // ── Passphrase strength meter ──────────────────────────────────────
     function assessStrength(pw) {
       if (!pw) return { level: 0, label: '', percent: 0 };
       const len = pw.length;
@@ -1698,7 +1688,6 @@ export default {
 </script>
 
 <style scoped>
-/* ── Background ── */
 .ob-light {
   --ob-bg-start: #fff9ec;
   --ob-bg-end: #fff9ec;
@@ -1743,8 +1732,6 @@ export default {
   }
 }
 
-/* ── Curtain overlay ────────────────────────────────────────────────────── */
-
 /* Curtain colours (adapt to theme) */
 .ob-light .ob-curtain__block {
   background: #e8d5a3;
@@ -1773,7 +1760,6 @@ export default {
   pointer-events: none;
 }
 
-/* Each half occupies 50% of the viewport */
 .ob-curtain__half {
   position: relative;
   width: 50%;
@@ -1786,7 +1772,7 @@ export default {
   transform: scaleX(-1);
 }
 
-/* ── Default state: curtain closed (covers the screen) ── */
+/* Default state: curtain closed (covers the screen) */
 .ob-curtain__wrapper {
   display: flex;
   flex-direction: row;
@@ -1807,7 +1793,7 @@ export default {
   will-change: width;
 }
 
-/* ── Opening: curtain retracts ── */
+/* Opening: curtain retracts */
 .ob-curtain--open .ob-curtain__wrapper {
   transform: rotate(8deg);
 }
@@ -1824,7 +1810,6 @@ export default {
   transition-delay: 0.3s;
 }
 
-/* ── Welcome entrance ── */
 .ob-logo {
   opacity: 0;
   transform: translateY(-14px) scale(0.985);
@@ -1862,7 +1847,6 @@ export default {
   transform: none;
 }
 
-/* ── Finish entrance ── */
 .ob-finish {
   opacity: 0;
   transform: translateY(12px);
@@ -1881,10 +1865,8 @@ export default {
   overflow: hidden;
 }
 
-/* ── Wizard step slide ──
-   Direction-aware: forward slides new content in from the right, back
-   slides it in from the left. Applied to the Transition wrapping the
-   step body inside the persistent modal frame. */
+/* Wizard step slide: direction-aware — forward enters from the right,
+   back from the left. Applied to the step body inside the modal frame. */
 .ob-slide-fwd-enter-active,
 .ob-slide-fwd-leave-active,
 .ob-slide-back-enter-active,
@@ -1910,7 +1892,6 @@ export default {
   transform: translateX(24px);
 }
 
-/* ── Toast ── */
 .ob-toast-enter-active,
 .ob-toast-leave-active {
   transition:
@@ -1923,7 +1904,6 @@ export default {
   transform: translateX(-50%) translateY(4px);
 }
 
-/* ── Confetti ── */
 .ob-confetti__bit {
   width: var(--cw);
   height: var(--ch);
@@ -1954,7 +1934,7 @@ export default {
   }
 }
 
-/* ── Reduced motion ── */
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .ob-curtain__wrapper,
   .ob-curtain__block {

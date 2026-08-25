@@ -2,14 +2,10 @@ import { path } from '@/lib/tauri-bridge';
 import { removePath } from '@/lib/native/fs';
 
 /**
- * Append a finished recording into a note that is not currently open in the
- * editor. The recording file already lives in the note's assets directory
- * (the recorder writes there), so this only records the node in the note's
- * content JSON, mirrors it into the note's Yjs doc, and persists.
- *
- * When `cursorPos` is provided, the audio node is inserted at the block
- * boundary that best matches the saved ProseMirror cursor; otherwise it is
- * appended to the end of the note.
+ * Append a finished recording into a note not currently open in the editor.
+ * The file already lives in the note's assets dir (the recorder writes there);
+ * this only inserts the audio node at the saved cursor (or the end), mirrors
+ * into the Yjs doc, and persists.
  *
  * @param {string} noteId
  * @param {string} filePath Absolute path of the recorded file.
@@ -62,11 +58,8 @@ export async function insertAudioIntoClosedNote(
 }
 
 /**
- * Best-effort mapping of a saved ProseMirror cursor position onto the note's
- * top-level content array. Walks the blocks, accumulating each block's text
- * length plus a small constant (+1) per block boundary, and returns the index
- * at which the audio node should be inserted (clamped to `[0, blocks.length]`).
- * Exact ProseMirror offset math is not required.
+ * Best-effort mapping of a saved ProseMirror cursor onto the note's top-level
+ * content array (+1 per block boundary; exact PM offset math not required).
  *
  * @param {{ content?: unknown[] }} content
  * @param {number} cursorPos
@@ -87,8 +80,7 @@ export function posToContentIndex(content, cursorPos) {
 }
 
 /**
- * Best-effort size of a block: total text length, with a constant for leaf
- * nodes (images, audio, rules, ...) that carry no text content.
+ * Best-effort block size: text length, +1 constant for leaf nodes with no text.
  *
  * @param {unknown} node
  * @returns {number}

@@ -238,8 +238,6 @@ const currentPointsRef = ref([]);
 const animationFrameRef = ref(null);
 const svgWidth = ref(DEFAULT_SVG_WIDTH);
 
-// Initial state
-
 function loadStrokes(attrs) {
   if (Array.isArray(attrs.linesV2) && attrs.linesV2.length > 0) {
     return attrs.linesV2.map((l, i) => ({
@@ -297,8 +295,6 @@ const state = reactive({
   viewY: 0,
 });
 
-// ViewBox
-
 const viewBoxAttr = computed(() => {
   if (!props.zoomEnabled) return `0 0 ${svgWidth.value} ${state.height}`;
   const w = svgWidth.value;
@@ -307,8 +303,6 @@ const viewBoxAttr = computed(() => {
   return `${state.viewX} ${state.viewY} ${w / z} ${h / z}`;
 });
 
-// Background CSS
-
 const backgroundClass = computed(() => {
   const base = 'bg-transparent border rounded-lg';
   const bg = state.background;
@@ -316,8 +310,6 @@ const backgroundClass = computed(() => {
     return `${base} ${bg}`;
   return base;
 });
-
-// Rendering helpers
 
 const pathCache = new WeakMap();
 
@@ -341,7 +333,6 @@ function strokeToolFilter(tool) {
 
 const liveToolFilter = computed(() => strokeToolFilter(state.tool));
 
-// Live preview
 const livePathD = computed(() => {
   const pts = state.currentStrokePoints;
   if (!pts || pts.length < 2) return null;
@@ -367,8 +358,6 @@ const liveProps = computed(() => {
 
 const eraserPos = ref(null);
 
-// Selection transform (rotation)
-
 const selectionTransform = computed(() => {
   const el = state.selectedElement;
   if (!el || !el.rotation) return '';
@@ -376,8 +365,6 @@ const selectionTransform = computed(() => {
   const cy = el.bounds.y + el.bounds.height / 2;
   return `rotate(${el.rotation}, ${cx}, ${cy})`;
 });
-
-// Corner handles
 
 const cornerHandles = computed(() => {
   const b = state.selectedElement?.bounds;
@@ -390,8 +377,6 @@ const cornerHandles = computed(() => {
   ];
 });
 
-// Settings accessor
-
 function activeSettings() {
   if (state.tool === 'highlighter') return state.highlighterSettings;
   if (state.tool === 'pencil') return state.pencilSettings;
@@ -400,16 +385,13 @@ function activeSettings() {
   return state.penSettings;
 }
 
-// Auto-grow callback (called by pointerHelper when drawing near bottom edge)
-
+// Called by pointerHelper when drawing near the bottom edge
 function autoGrow(amount) {
   const newH = Math.min(MAX_HEIGHT, state.height + amount);
   if (newH !== state.height) {
     state.height = newH;
   }
 }
-
-// Transform / selection helpers
 
 const { handleTransformStart, handleTransformMove, handleTransformEnd } =
   useTransformHelper(state, svgRef);
@@ -434,8 +416,6 @@ const { handleSelectionStart, handleSelectionMove, handleSelectionEnd } =
     handleTransformStart
   );
 
-// Pointer helper (state-machine based)
-
 const {
   handlePointerDown: _pointerDown,
   handlePointerMove: _pointerMove,
@@ -459,8 +439,6 @@ const {
   autoGrow,
 });
 
-// Wheel zoom
-
 function handleWheel(e) {
   if (!props.zoomEnabled) return;
   e.preventDefault();
@@ -477,8 +455,6 @@ function handleWheel(e) {
   state.viewY = cy - relY * (state.height / newZoom);
   state.zoom = newZoom;
 }
-
-// Middle-click pan
 
 function startPan(e) {
   if (!props.zoomEnabled) return;
@@ -505,7 +481,6 @@ function startPan(e) {
 
 // Wrap events to add eraser-specific behaviour
 function handlePointerDown(e) {
-  // Middle-click pan when zoom enabled
   if (props.zoomEnabled && e.button === 1) {
     startPan(e);
     return;
@@ -520,7 +495,6 @@ function handlePointerDown(e) {
 }
 
 function handlePointerMove(e) {
-  // Update eraser cursor position
   if (state.tool === 'eraser') {
     const svg = svgRef.value;
     if (svg) {
@@ -542,26 +516,19 @@ function handlePointerUp(e) {
 }
 
 function onTouchStart(e) {
-  // Prevent scroll on touch devices while drawing
-  // Also handle Pencil double-tap zoom prevention
+  // Prevent scroll + Pencil double-tap zoom on touch devices.
   if (e.touches?.length > 1) return;
   e.preventDefault();
 }
-
-// Pen mode exit
 
 function exitPenMode() {
   state.isPenMode = false;
 }
 
-// ---------------------------------------------------------------------------
-// Keyboard: Shift for straight lines, Delete, Undo, Redo
-// ---------------------------------------------------------------------------
-
+// Keyboard: Shift straight-lines, Delete, undo/redo
 function handleKeyDown(e) {
   const mod = e.metaKey || e.ctrlKey;
 
-  // Shift key for straight-line segments
   if (e.key === 'Shift' && !e.repeat) {
     setShiftHeld(true);
     return;
@@ -590,10 +557,6 @@ function handleKeyUp(e) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Undo / redo
-// ---------------------------------------------------------------------------
-
 function undo() {
   if (!state.undoStack.length) return;
   state.redoStack = [...state.redoStack, state.lines];
@@ -610,10 +573,7 @@ function redo() {
   state.selectedElement = null;
 }
 
-// ---------------------------------------------------------------------------
-// Tool / color / size setters (called from Paper.vue)
-// ---------------------------------------------------------------------------
-
+// Tool/color/size setters — called from Paper.vue
 function setTool(tool) {
   state.tool = tool;
   state.selectedElement = null;
@@ -676,10 +636,6 @@ function clearAll() {
   state.selectedElement = null;
 }
 
-// ---------------------------------------------------------------------------
-// Resize handle (bottom-drag)
-// ---------------------------------------------------------------------------
-
 function startResize(e) {
   e.preventDefault();
   const startY = e.clientY;
@@ -702,10 +658,6 @@ function startResize(e) {
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
 }
-
-// ---------------------------------------------------------------------------
-// SVG export
-// ---------------------------------------------------------------------------
 
 function exportSVG() {
   const { lines, background } = state;
@@ -751,10 +703,6 @@ function exportPNG(scale = 2) {
     img.src = url;
   });
 }
-
-// ---------------------------------------------------------------------------
-// Exposed methods
-// ---------------------------------------------------------------------------
 
 function deleteSelection() {
   if (!state.selectedElement) return;
@@ -844,10 +792,7 @@ defineExpose({
   resetZoom,
 });
 
-// ---------------------------------------------------------------------------
 // Sync node attrs → state (remote/undo changes from ProseMirror)
-// ---------------------------------------------------------------------------
-
 let _ignoreNextAttrWatch = false;
 
 watch(
@@ -864,7 +809,6 @@ watch(
   { deep: true }
 );
 
-// Emit state changes upward
 watch(
   () => [state.lines, state.height],
   () => {
@@ -912,7 +856,7 @@ onMounted(() => {
   const svg = svgRef.value;
   if (!svg) return;
 
-  // Track container width so the viewBox matches — no stretching
+  // Track container width so the viewBox matches — no stretching.
   const container = svg.parentElement;
   if (container) {
     svgWidth.value = container.clientWidth || DEFAULT_SVG_WIDTH;
@@ -922,7 +866,6 @@ onMounted(() => {
       }
     });
     ro.observe(container);
-    // Store for cleanup
     svg._resizeObserver = ro;
   }
 

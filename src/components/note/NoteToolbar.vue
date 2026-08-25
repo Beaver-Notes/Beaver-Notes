@@ -699,7 +699,6 @@ export default {
     const isMobile = backend.isMobileRuntime();
     const toolbarInsertRef = ref(null);
 
-    // ── Link input state ────────────────────────────────────────────
     const linkInputValue = ref('');
     const selectedLinkIndex = ref(0);
     const linkPopoverOpen = ref(false);
@@ -968,10 +967,8 @@ export default {
       swipeEdge = false;
     }
 
-    // ── Scroll-edge fade indicators ────────────────────────────────
-    // rAF-throttled + ResizeObserver-driven so we never recompute more
-    // than once per frame, and we catch width changes (sub-panel swaps,
-    // overflow items appearing) without manually calling this everywhere.
+    // rAF-throttled + ResizeObserver-driven: at most one recompute per frame,
+    // and width changes (sub-panel swaps) are caught without manual calls.
     const scrolledLeft = ref(true);
     const scrolledRight = ref(false);
 
@@ -1016,7 +1013,7 @@ export default {
       clearTimeout(exitTimer);
     });
 
-    // ── Class helpers (static parts hoisted out of the function body) ──
+    // Static class strings, hoisted out of the function body
     const TB_BTN_BASE =
       'shrink-0 w-11 h-11 rounded-xl border-0 bg-transparent cursor-pointer ' +
       'flex items-center justify-center ' +
@@ -1078,7 +1075,7 @@ export default {
 </script>
 
 <style scoped>
-/* ── Hide scrollbar on all browsers while keeping scroll functionality ── */
+/* Hide scrollbar on all browsers while keeping scroll functionality */
 .scrollbar-hide {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */
@@ -1087,7 +1084,6 @@ export default {
   display: none; /* Chrome/Safari/WebKit */
 }
 
-/* ── Panel morph animation states ─────────────────────────────────────── */
 .tb-panel {
   max-width: min(calc(100vw - 2rem), 42rem);
   overflow-x: auto;
@@ -1125,12 +1121,10 @@ export default {
   transform: translateX(0);
 }
 
-/* ── Active state color (uses app's --color-primary / --color-secondary) ── */
 .is-active {
   @apply text-primary dark:text-secondary bg-primary/10 dark:bg-secondary/10;
 }
 
-/* ── Back button ────────────────────────────────────────────────────────── */
 .tb-back {
   @apply shrink-0 h-11 w-9 rounded-xl border-0 bg-transparent cursor-pointer
          flex items-center justify-center
@@ -1141,19 +1135,16 @@ export default {
          transition-[transform,background-color] duration-150 select-none touch-manipulation;
 }
 
-/* ── Divider ────────────────────────────────────────────────────────────── */
 .tb-divider {
   @apply inline-block w-px h-5 rounded-sm shrink-0 mx-1
          bg-black/10 dark:bg-white/[0.12];
 }
 
-/* ── Sub-panel section label ────────────────────────────────────────────── */
 .sub-label {
   @apply px-1 shrink-0 select-none text-[10px] font-semibold uppercase tracking-wider
          text-neutral-400 dark:text-neutral-500;
 }
 
-/* ── URL text input ─────────────────────────────────────────────────────── */
 .tb-input {
   @apply h-10 min-w-[10rem] max-w-[14rem] px-3
          rounded-xl border border-black/10 dark:border-white/10
@@ -1164,7 +1155,7 @@ export default {
          transition-colors duration-150;
 }
 
-/* ── Remove number input spinners ────────────────────────────────────────── */
+/* Remove number input spinners */
 .no-spinner::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button {
   -webkit-appearance: none;

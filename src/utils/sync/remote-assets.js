@@ -22,17 +22,11 @@ function getClient() {
   return apiClient;
 }
 
-/**
- * Encode a local asset path into a flat server key.
- * assets/abc123/image.png → assets--abc123--image.png
- */
+/** Encode a local asset path into a flat server key: assets/abc/img.png → assets--abc--img.png */
 export function encodeAssetKey(type, noteId, filename) {
   return `${type}--${noteId}--${filename}`;
 }
 
-/**
- * Decode a flat server key back into { type, noteId, filename }.
- */
 export function decodeAssetKey(key) {
   const parts = key.split('--');
   if (parts.length < 3) return null;
@@ -43,10 +37,6 @@ export function decodeAssetKey(key) {
   };
 }
 
-/**
- * List all asset keys on the server.
- * @returns {Promise<string[]>} flat keys like "assets--abc--img.png"
- */
 export async function listRemoteAssets() {
   const client = getClient();
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -68,12 +58,6 @@ export async function listRemoteAssets() {
   return [];
 }
 
-/**
- * Upload a local file to the server as an asset.
- * @param {string} flatKey - encoded key like "assets--abc--img.png"
- * @param {Uint8Array|Buffer} data - raw file bytes
- * @returns {Promise<{status: string, sizeBytes?: number}>}
- */
 export async function uploadAsset(flatKey, data) {
   const client = getClient();
   try {
@@ -95,11 +79,6 @@ export async function uploadAsset(flatKey, data) {
   }
 }
 
-/**
- * Batch-upload multiple assets in a single request.
- * @param {Array<{key: string, data: Uint8Array}>} items
- * @returns {Promise<{results: Array, uploaded: number, skipped: number}>}
- */
 export async function batchUploadAssets(items) {
   const client = getClient();
   const payload = {
@@ -112,11 +91,7 @@ export async function batchUploadAssets(items) {
   return result || { results: [], uploaded: 0, skipped: 0 };
 }
 
-/**
- * Batch-upload assets during seed (higher limits, no rate limit).
- * @param {Array<{key: string, data: Uint8Array}>} items
- * @returns {Promise<{results: Array, uploaded: number, skipped: number}>}
- */
+/** Seed-time batch upload — higher limits, no rate limit. */
 export async function seedBatchUploadAssets(items) {
   const client = getClient();
   const payload = {
@@ -129,11 +104,6 @@ export async function seedBatchUploadAssets(items) {
   return result || { results: [], uploaded: 0, skipped: 0 };
 }
 
-/**
- * Download an asset from the server.
- * @param {string} flatKey - encoded key
- * @returns {Promise<Uint8Array|null>} raw file bytes, or null if not found
- */
 export async function downloadAsset(flatKey) {
   const client = getClient();
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -160,10 +130,6 @@ export async function downloadAsset(flatKey) {
   return null;
 }
 
-/**
- * Delete an asset from the server.
- * @param {string} flatKey
- */
 export async function deleteRemoteAsset(flatKey) {
   const client = getClient();
   try {
@@ -173,32 +139,17 @@ export async function deleteRemoteAsset(flatKey) {
   }
 }
 
-/**
- * Get presigned PUT URLs for batch direct-to-R2 upload.
- * @param {string[]} assetKeys - flat keys like "assets--abc--img.png"
- * @returns {Promise<Array<{assetKey: string, url: string}>>}
- */
 export async function presignBatchUpload(assetKeys) {
   const client = getClient();
   const result = await client.post('/assets/presign-batch', { keys: assetKeys }, { timeoutMs: 30000 });
   return result?.urls || [];
 }
 
-/**
- * Confirm that assets were uploaded directly to R2.
- * @param {string[]} assetKeys - flat keys that were uploaded
- * @returns {Promise<{verified: number, total: number, sizeBytes: number}>}
- */
 export async function confirmSeed(assetKeys) {
   const client = getClient();
   return client.post('/assets/confirm-seed', { keys: assetKeys }, { timeoutMs: 30000 });
 }
 
-/**
- * Get presigned GET URLs for batch direct-from-R2 download.
- * @param {string[]} assetKeys - flat keys
- * @returns {Promise<Array<{assetKey: string, url: string, sizeBytes: number}>>}
- */
 export async function presignGetBatch(assetKeys) {
   const client = getClient();
   const result = await client.post('/assets/presign-get-batch', { keys: assetKeys }, { timeoutMs: 30000 });

@@ -79,13 +79,11 @@ export async function setupEncryption(passphrase) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     // Fetch server key params FIRST so reconcile adopts the vault owner's keys
-    // instead of writing this device's own keys and overwriting the server.
+    // instead of overwriting the server with this device's own.
     const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
     await fetchCloudKeyParams().catch(() => null);
-    // Adopt the server's keys using the passphrase so we decrypt with the
-    // correct key immediately — without this, submitEncryptionPassword created
-    // a local key and all subsequent writes use the wrong key until the first
-    // engine cycle's reconcile runs.
+    // Adopt the server's keys immediately — otherwise writes use this device's
+    // fresh local key until the first engine cycle reconciles.
     await reconcileSyncKeyParams(passphrase).catch(() => {});
     // NEVER auto-publish key params here.  If fetchCloudKeyParams returned null
     // (workspace not loaded, network glitch, 404), publishCloudKeyParams would
@@ -111,12 +109,11 @@ export async function verifyPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    // Fetch server key params FIRST so reconcile adopts the vault owner's keys.
+    // Same sequence as setupEncryption: fetch server params, adopt with the
+    // passphrase, never auto-publish (see setupEncryption).
     const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
     await fetchCloudKeyParams().catch(() => null);
-    // Adopt the server's keys with the passphrase — same as setupEncryption.
     await reconcileSyncKeyParams(passphrase).catch(() => {});
-    // NEVER auto-publish key params here — see setupEncryption comment.
     return { ok: true };
   } catch (err) {
     const msg = err?.message || String(err);
@@ -140,9 +137,8 @@ export async function adoptVaultKey(passphrase, keyParams) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
-    // Discard any pending writes that were queued before vault key adoption.
-    // These were encrypted with the pre-adoption local key and must not be
-    // flushed to disk or pushed to the server.
+    // Discard pending writes queued before adoption — encrypted with the
+    // pre-adoption local key, they must never be flushed or pushed.
     try {
       const { clearPendingWrites } = await import('@/utils/sync/pending-writes.js');
       clearPendingWrites();
@@ -171,10 +167,9 @@ async function _doRestoreKey() {
 
   if (next?.unlocked) return true;
 
-  // Try to restore the key from secure storage even when getEncryptionState
-  // reports enabled:false — on restart the Rust backend may not yet know
-  // encryption is configured until the passphrase is re-submitted.  The
-  // presence of a saved blob proves encryption was set up.
+  // getEncryptionState may report enabled:false on restart before the
+  // passphrase is re-submitted — a saved blob proves encryption was set up,
+  // so try restoring anyway.
   let passphrase;
   try {
     passphrase = await loadSecureBlob(BLOB_KEY);
@@ -240,9 +235,8 @@ export function isAppEncryptedEnvelope(contentVal) {
 }
 
 /**
- * Runtime detection of encrypted note content. Yjs is the only content store,
- * so only the current raw-byte envelope (`ae:6`) can appear at runtime; the
- * legacy `ae:1/2/3` formats only exist inside import conversion, never here.
+ * Runtime detection of encrypted note content. Only the raw-byte envelope
+ * (`ae:6`) appears at runtime; legacy `ae:1/2/3` exist only in import conversion.
  */
 export function isEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
@@ -259,7 +253,6 @@ export async function lockEncryptionKey() {
   } catch {}
 }
 
-// Re-exports for sync/crypto.js
 export { encryptContent as encryptPayload, decryptContent as decryptPayload };
 
 export async function generateRecoveryCode() {

@@ -364,9 +364,8 @@ function onCardObserved(entries) {
   });
 }
 
-// On container resize the column count changes, which means cards reflow to a
-// new width and their heights change. Clear the cache and re-measure mounted
-// cards; the per-card ResizeObserver corrects the rest.
+// On container resize, column count changes → cards reflow and change height.
+// Clear the cache and re-measure mounted cards; per-card ResizeObserver fixes the rest.
 watch(columnCount, () => {
   cardHeights.clear();
   measuredVersion.value++;

@@ -172,8 +172,7 @@ onMounted(() => {
 });
 
 // Same key/label set as the accent-color picker in Appearance.vue, so
-// recoloring a label and picking an accent color feel like the same
-// control living in two places, not two different pickers.
+// recoloring a label and picking an accent feel like the same control in two places.
 const labelPalette = [
   { key: 'red', label: 'Red', hex: '#ef4444', class: 'text-red-500' },
   { key: 'amber', label: 'Amber', hex: '#fbbf24', class: 'text-amber-500' },

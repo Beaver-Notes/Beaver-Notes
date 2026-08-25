@@ -1,7 +1,6 @@
 /**
- * Import legacy Electron user preferences (from Chromium localStorage) into
- * the new settings store. Only keys that exist in the new app's settings
- * schema are written; everything else is ignored.
+ * Import legacy Electron preferences (Chromium localStorage) into the settings
+ * store; only keys present in the new schema are written, the rest ignored.
  */
 import { setSetting, getSettingSync, DEFAULT_UI_FONT_STACK } from '@/lib/settings';
 import { readLegacyPreferences } from '@/lib/native/app';

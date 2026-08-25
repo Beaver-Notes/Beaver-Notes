@@ -48,8 +48,8 @@ import { initAppSync } from '@/utils/sync/app-sync.js';
 
 import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
 
-// Re-export the pure helper so it stays unit-testable via this composable
-// module (see src/composable/__tests__/menu-context.spec.js).
+// Re-exported here so it stays unit-testable via this module
+// (see src/composable/__tests__/menu-context.spec.js).
 export { buildMenuContext };
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
@@ -114,7 +114,6 @@ export function useAppShell(onboardingCompleted = true) {
   const state = reactive({
     zoomLevel: getStoredZoomLevel().toFixed(1),
   });
-  // ── Layout ──
   const keyboardVisible = ref(false);
   const pluginKeyboardVisible = ref(false);
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
@@ -162,9 +161,8 @@ export function useAppShell(onboardingCompleted = true) {
     return true;
   });
 
-  // Keep the native menu in sync with the current screen. Desktop only — the
-  // native menu is a desktop concept. Debounced (~150ms) so rapid navigation
-  // coalesces into a single rebuild; the last context wins.
+  // Keep the native menu in sync with the current screen. Desktop only;
+  // debounced so rapid navigation coalesces into one rebuild.
   watch(
     () => [route.name, uiState.inReaderMode],
     () => {
@@ -318,7 +316,6 @@ export function useAppShell(onboardingCompleted = true) {
     removeMobileKeyboardListeners();
   });
 
-  // ── Banners ──
   const updateBanner = reactive({
     show: false,
     content: '',
@@ -436,10 +433,9 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   const hasExistingWorkspaceData = async () => {
-    // Yjs workspace doc is the single source for notes/folders (data.db KV
-    // `notes`/`folders` are legacy, never written after migration). Check the
-    // meta snapshot directly so first-run vs returning-user is decided without
-    // touching dead KV rows. Fallback to KV for users who haven't yet migrated.
+    // Yjs workspace doc is the source for notes/folders (KV `notes`/`folders`
+    // are legacy, never written post-migration); KV is only a fallback for
+    // not-yet-migrated users.
     try {
       const snap = await backend.invoke('yjs:getSnapshot', { noteId: 'meta' });
       if (snap?.data?.length) return true;
@@ -463,8 +459,7 @@ export function useAppShell(onboardingCompleted = true) {
   const initializeWorkspace = async () => {
     performance.mark('init:start');
 
-    // Set retrieved immediately — the UI can render while we check onboarding state.
-    // This eliminates the white screen for both first-time and returning users.
+    // Set immediately — UI renders while onboarding state is checked (no white screen).
     retrieved.value = true;
 
     await hydrateSettingsStore();
@@ -477,9 +472,8 @@ export function useAppShell(onboardingCompleted = true) {
     ]);
 
     if (!hasData && !onboardingCompleted) {
-      // First run: initialize the sync engine before entering onboarding so a
-      // post-onboarding sync (path set + initial pull) has a live engine. With
-      // no sync folder configured yet the engine's cycles are no-ops.
+      // Init the sync engine before onboarding so post-onboarding sync has a
+      // live engine; with no sync folder configured the cycles are no-ops.
       initAppSync();
       performance.mark('init:done');
       logStartupTiming();
@@ -489,22 +483,18 @@ export function useAppShell(onboardingCompleted = true) {
       return;
     }
 
-    // Derive/restore the encryption key BEFORE reading any note data. Note
-    // blobs are encrypted at rest when the vault is enabled, so loading them
-    // before the items key is available would hand ciphertext to the Yjs
-    // decoder (which aborts on invalid UTF-8).
+    // Derive/restore the encryption key BEFORE reading note data: blobs are
+    // encrypted at rest, and handing ciphertext to the Yjs decoder makes it
+    // abort on invalid UTF-8.
     await restoreEncryptionKeys();
     performance.mark('init:encryption');
 
-    // The vault passphrase is set by the user during onboarding — the startup
-    // path never auto-creates encryption. Encryption is mandatory; the yjs
-    // layer fails closed if it is ever missing (a startup/init bug).
+    // The vault passphrase is user-set during onboarding; startup never
+    // auto-creates encryption. The yjs layer fails closed if it is missing.
     if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
-      // Encryption is configured but the key could not be restored (no stored
-      // passphrase / safe storage unavailable). Loading note data now would
-      // yield garbage (or fail closed server-side), so defer until the user
-      // unlocks via the encryption gate. handleEncryptionUnlocked() runs the
-      // remainder of the init afterwards.
+      // Key configured but not restorable — loading note data now would yield
+      // garbage, so defer to the encryption gate; handleEncryptionUnlocked()
+      // runs the remainder of init.
       retrieved.value = true;
       return;
     }
@@ -521,31 +511,27 @@ export function useAppShell(onboardingCompleted = true) {
       checkAppEncryptionMigration(migrationStatus);
     }
 
-    // Load the unified workspace Y.Doc first — it is the single source of
-    // truth for all note/folder/label metadata. On first run after legacy
-    // migration the doc is seeded from parsed data during onboarding before
-    // observers are wired.
+    // Load the unified workspace Y.Doc — single source of truth for all
+    // note/folder/label metadata; seeded from parsed data during onboarding.
     await loadWorkspaceDoc();
     performance.mark('init:workspace-doc');
     observeWorkspace(writeStoresFromWorkspace);
     await writeStoresFromWorkspace();
     performance.mark('init:workspace-write');
 
-    // Post-process — the stores are now populated from Yjs, so retrieve()
-    // must NOT read from KV.
+    // Stores now come from Yjs — retrieve() must NOT read KV.
     await store.retrieve();
     performance.mark('init:retrieve');
 
-    // One-time whole-row re-encryption of legacy migration rows (which left
-    // note titles and folder metadata as plaintext JSON on disk). Idempotent.
+    // One-time idempotent re-encryption of legacy migration rows (plaintext
+    // titles/folder metadata on disk).
     backend.invoke('storage:reencryptLegacyRows').catch((err) => {
       console.warn('[app] legacy row re-encryption failed:', err?.message || err);
     });
 
     await refreshSyncLockBanner();
 
-    // One-time deferred backfill of card previews for notes that predate the
-    // persisted `cardPreview` (so their cards aren't blank on launch).
+    // One-time backfill of previews for notes predating persisted `cardPreview`.
     if (!(await settingsStorage.get('preview_backfill_done', false))) {
       backfillNotePreviews()
         .then(() => settingsStorage.set('preview_backfill_done', true))
@@ -559,14 +545,13 @@ export function useAppShell(onboardingCompleted = true) {
       }
     }
 
-    // Always initialize the engine so runtime sync config (Settings "Sync now",
-    // transport, path pick) works without an app restart. Autosync is always
-    // on — periodic sync runs whenever the app is visible.
+    // Always init so runtime sync config works without an app restart.
+    // Autosync is always on — periodic sync runs whenever the app is visible.
     try {
       const { useWorkspaceStore } = await import('@/store/workspace.ts');
       const accountStore = useAccountStore();
-      // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
-      // useAccountAuth components which may not have mounted yet.
+      // Hydrate auth before sync — hydrate() runs in onMounted of
+      // useAccountAuth components, which may not have mounted yet.
       if (!useAccountStore().isAuthenticated) {
         const { loadSessionToken } = await import('@/lib/account-storage');
         const token = await loadSessionToken().catch(() => null);
@@ -576,8 +561,8 @@ export function useAppShell(onboardingCompleted = true) {
         }
       }
       if (useAccountStore().isAuthenticated) {
-        // Fetch profile/subscription so _remoteAllowed has plan info for sync.
-        // Await so initAppSync() runs with full auth state.
+        // Fetch profile/subscription so _remoteAllowed has plan info; awaited
+        // so initAppSync() runs with full auth state.
         try {
           const { getAccount } = await import('@/lib/api/account');
           const data = await getAccount({ baseUrl: accountStore.serverUrl });
@@ -591,8 +576,8 @@ export function useAppShell(onboardingCompleted = true) {
         }
         await useWorkspaceStore().retrieve();
 
-        // Join meta WebSocket room now that activeId is known. loadWorkspaceDoc()
-        // ran earlier but workspaceStore.activeId was null at that point.
+        // Join the meta WebSocket room now that activeId is known — it was
+        // null when loadWorkspaceDoc() ran earlier.
         const { getWsSync } = await import('@/lib/sync/ws-sync');
         const { ensureMetaRoomKey } = await import('@/lib/yjs/workspace-doc');
         const wsId = useWorkspaceStore().activeId;
@@ -611,8 +596,6 @@ export function useAppShell(onboardingCompleted = true) {
     logStartupTiming();
   };
 
-  // Full-screen encryption gate (show/derive state, key auto-restore, deferred
-  // init on unlock) lives in a focused composable.
   const encryptionGate = useAppEncryptionGate({
     finishWorkspaceInit,
     onUnlockError: () => {
@@ -648,7 +631,6 @@ export function useAppShell(onboardingCompleted = true) {
   onMounted(async () => {
     document.body.style.zoom = state.zoomLevel;
 
-    // Skip heavy init for first-time users (onboarding not completed)
     if (!onboardingCompleted) {
       retrieved.value = true;
       return;
@@ -767,12 +749,10 @@ export function useAppShell(onboardingCompleted = true) {
 
   function handleVisibilityChange() {
     if (document.hidden) {
-      // Flush cloud push before going to background
       const engine = getSyncEngine();
       if (engine) engine.flush().catch(() => {});
       engine?.stopPullTimer();
     } else {
-      // App returned to foreground — pull remote changes and restart pull timer
       const engine = getSyncEngine();
       if (engine) engine.notifyForeground().catch(() => {});
       engine?.startPullTimer();
@@ -824,7 +804,6 @@ export function useAppShell(onboardingCompleted = true) {
       let title;
 
       if (ext === 'bea') {
-        // Read just the metadata from the BEA JSON
         const fileContent = await import('@/lib/native/exports').then((m) =>
           m.readImportJson(path)
         );
@@ -836,7 +815,7 @@ export function useAppShell(onboardingCompleted = true) {
             .replace(/\.bea$/i, '') ||
           'Untitled';
       } else {
-        // Read file once, reuse for title extraction and later import
+        // Read once; raw content is reused for title extraction and import.
         const { readFile } = await import('@/lib/native/fs');
         const { extractImportTitle } = await import(
           '@/utils/import/fileImport'

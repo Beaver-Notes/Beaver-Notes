@@ -423,7 +423,6 @@ export default {
   @apply bg-neutral-100 dark:bg-neutral-700;
 }
 
-/* Ensure dropdown is above other elements */
 .ui-select .z-50 {
   z-index: 50;
 }

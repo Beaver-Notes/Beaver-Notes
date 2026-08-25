@@ -30,12 +30,12 @@ pub(crate) fn reset() {
     INIT.store(false, Ordering::Relaxed);
 }
 
-/// Only measures at/above this many ms are logged; faster calls are dropped
-/// so high-frequency micro-operations (e.g. db_get) don't spam the log.
+/// Only measures at/above this many ms are logged, so high-frequency
+/// micro-operations (e.g. db_get) don't spam the log.
 const MIN_LOG_MS: u128 = 1;
 
-/// Start timing a scope. Returns `None` (and logs nothing) when disabled.
-/// The returned guard prints `[speed] <label> took <elapsed>` when dropped.
+/// Start timing a scope; `None` when disabled. The guard prints
+/// `[speed] <label> took <elapsed>` when dropped.
 pub(crate) fn scope(label: &'static str) -> Option<ScopeTimer> {
     enabled().then(|| ScopeTimer {
         label,
@@ -121,9 +121,8 @@ mod tests {
     fn scope_timer_logs_on_drop() {
         std::env::set_var("BEAVER_SPEED_LOG", "1");
         reset();
-        // We can't easily capture eprintln output from a unit test without
-        // redirecting, but we can verify the guard is created and .log()
-        // doesn't panic.
+        // Can't capture eprintln output without redirecting; verify the guard
+        // is created and .log() doesn't panic.
         let guard = scope("drop_test").unwrap();
         guard.log(); // should print to stderr
         // finish() consumes and logs

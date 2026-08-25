@@ -51,18 +51,16 @@ let persistHandlerAttached = false;
 let snapshotWritten = false;
 
 // Reset module-level flags when the doc singleton is destroyed (workspace
-// switch, account switch) so observers re-attach on the next doc creation.
+// switch, account switch) so observers re-attach on next creation.
 onWorkspaceDocDestroy(() => {
   observerAttached = false;
   persistHandlerAttached = false;
   snapshotWritten = false;
 });
 
-// Debounced, merged persistence for the workspace doc. A burst of meta edits
-// (bulk drag, multi-rename, bulk label) fires one Y.Doc update event per
-// change; persisting each event individually would issue one SQLite IPC +
-// AES encrypt per change on the main thread. Instead we buffer the deltas,
-// merge them (Y.mergeUpdates — lossless for CRDT state) and write once.
+// Debounced, merged persistence: a burst of meta edits would otherwise issue
+// one SQLite IPC + AES encrypt per change. Buffer deltas, merge once
+// (Y.mergeUpdates is lossless CRDT state), write once.
 const META_FLUSH_DELAY_MS = 300;
 let pendingMetaUpdates = [];
 let metaFlushTimer = null;
@@ -82,8 +80,6 @@ export async function flushPendingMetaUpdates() {
   if (merged.byteLength === 0) return;
   await persistWorkspace(merged);
 }
-
-// ── Persistence ──────────────────────────────────────────────────────────────
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
@@ -140,9 +136,8 @@ async function persistWorkspace(update) {
 // ── Load / observe ───────────────────────────────────────────────────────────
 
 export async function loadWorkspaceDoc() {
-  // Flush any buffered meta updates (e.g. from seedWorkspaceDocFromData)
-  // BEFORE reading from SQLite, so the freshly seeded state is persisted
-  // and won't be lost when re-loading.
+  // Flush buffered meta updates BEFORE reading SQLite so freshly seeded
+  // state is persisted and can't be lost on reload.
   await flushPendingMetaUpdates();
 
   const doc = getWorkspaceDoc();
@@ -154,7 +149,7 @@ export async function loadWorkspaceDoc() {
       scheduleMetaFlush();
     });
 
-    // Flush any buffered meta updates on navigation so nothing is lost.
+    // Flush buffered meta updates on pagehide so nothing is lost.
     if (typeof window !== 'undefined') {
       window.addEventListener('pagehide', flushPendingMetaUpdates);
     }
@@ -170,13 +165,10 @@ export async function loadWorkspaceDoc() {
     }
   } catch (err) {
     console.error('[meta-yjs] snapshot corrupted — attempting recovery from updates:', err?.message);
-    // The compacted snapshot is unreadable (e.g. Unknown content type).
-    // Fall through to update-replay recovery below.
   }
 
-  // Recovery: replay individual updates, skipping any that are corrupted.
-  // This handles cases where the compacted snapshot is invalid but the
-  // underlying update history in SQLite is still partially intact.
+  // Recovery: replay individual updates, skipping corrupted ones —
+  // snapshot invalid but the SQLite update history may be partially intact.
   if (!snapshotLoaded) {
     try {
       const updates = await getUpdates(META_DOC_ID);
@@ -230,12 +222,8 @@ export async function loadWorkspaceDoc() {
 
 /**
  * Derive the workspace key and register it on the Hocuspocus meta room.
- * Mirrors the per-note key wiring in useNoteYjs.js (setRoomKey around
- * useNoteYjs.js:230) but uses the WORKSPACE key instead of a per-note key.
- *
- * The key is preferred from the local workspace-key cache (seeded at creation
- * or after vault-passphrase recovery — no network), then from the workspace
- * store's wrapped key, falling back to an API fetch via getWorkspaceKey(wsId).
+ * Mirrors per-note key wiring in useNoteYjs but uses the WORKSPACE key.
+ * Precedence: local workspace-key cache → store's wrapped key → API fetch.
  */
 export async function ensureMetaRoomKey(wsId) {
   if (!wsId) return;
@@ -314,13 +302,9 @@ export function observeWorkspace(callback, debounceMs = 150) {
   }
 }
 
-// ── Transaction helper ───────────────────────────────────────────────────────
-
 export function transactWorkspace(mutator) {
   getWorkspaceDoc().transact(mutator, 'local');
 }
-
-// ── Sync helpers (store -> workspace doc) ────────────────────────────────────
 
 export function syncFolder(folder) {
   if (!folder || !folder.id) return;
@@ -337,13 +321,10 @@ export function removeFolder(id) {
   });
 }
 
-// ── Tombstone map helpers ───────────────────────────────────────────────────
-
 /**
- * Merge a partial set of entries into a Yjs Map, only touching keys that
- * changed.  Unlike syncTombstoneMap below, this does NOT delete keys that
- * are absent from the incoming object.  Used by the asset-sync loop so
- * that remote deletions added after the local snapshot are preserved.
+ * Merge a partial set of entries into a Yjs Map. Unlike syncTombstoneMap,
+ * does NOT delete keys absent from the incoming object — used by the
+ * asset-sync loop so remote deletions added after the local snapshot survive.
  */
 export function mergeIntoMap(mapName, entries) {
   if (!entries || typeof entries !== 'object') return;
@@ -357,9 +338,7 @@ export function mergeIntoMap(mapName, entries) {
 
 /**
  * Diff a Yjs Map against a desired plain-object state, applying only the
- * minimal set/delete operations.  Previous code did `map.clear()` +
- * re-insert every entry — O(n) mutations + O(n) delete events even when
- * only one key changed.  This is O(m) where m = number of changed keys.
+ * minimal set/delete operations — O(changed keys) instead of clear()+reinsert.
  */
 function syncTombstoneMap(mapName, desired) {
   const map = getWorkspaceDoc().getMap(mapName);
@@ -417,9 +396,8 @@ export function syncNoteMeta(note) {
     const meta = {};
     for (const field of NOTE_META_FIELDS) {
       if (field === 'preview') {
-        // Short display snippet only — search text lives in the search index,
-        // not in the workspace doc (full text here is what bloats the meta and
-        // makes every launch transfer megabytes).
+        // Short snippet only — full search text here bloats the meta doc and
+        // makes every launch transfer megabytes; search lives in the index.
         meta.preview = String(
           note.preview || note.searchText || note.cardPreview?.text || ''
         ).slice(0, 400);
@@ -448,11 +426,9 @@ export function syncDeletedAssets(deletedAssets) {
 
 /**
  * Create untitled placeholder meta entries for note ids that arrived via a
- * remote pull/bootstrap but are not yet present in the workspace doc's
- * `notes` map. Ids that already exist (e.g. because applyRemote merged the
- * sender's titled meta entries first) are skipped so real titles are never
- * shadowed by a fresher empty placeholder, and META_DOC_ID is always filtered
- * so the shared meta doc can never materialize as a ghost note card.
+ * remote pull/bootstrap but are not yet in the `notes` map. Existing ids are
+ * skipped so real titles are never shadowed by a fresher empty placeholder,
+ * and META_DOC_ID is filtered so the meta doc never materializes as a note.
  */
 export function reconcileUnknownNotePlaceholders(noteIds) {
   const doc = getWorkspaceDoc();

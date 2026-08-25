@@ -57,9 +57,8 @@ pub(crate) fn migration_status(
 pub(crate) async fn migration_run(app: AppHandle) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        // The copy is I/O + asset-encryption heavy; run it on a blocking thread
-        // (state is re-derived from the AppHandle — Tauri's managed state is
-        // Send + Sync and reachable from any thread).
+        // I/O + asset-encryption heavy; run on a blocking thread (state is
+        // re-derived from the AppHandle — managed state is Send + Sync).
         let app = app.clone();
         tokio::task::spawn_blocking(move || {
             let state = app.state::<AppState>();
@@ -166,22 +165,20 @@ pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Resul
 }
 
 /// Prefix of a `file://`-origin localStorage key inside the LevelDB write log:
-/// `_file://\0` origin marker plus a `\x01` flag byte (Chromium writes the
-/// origin and key as one string). Non-file origins (dev server, devtools) use
-/// a different origin prefix and are ignored.
+/// `_file://\0` origin marker plus a `\x01` flag byte (Chromium writes origin
+/// and key as one string). Non-file origins are ignored.
 const FILE_ORIGIN_PREFIX: &[u8] = b"_file://\0\x01";
 
 /// LevelDB write-ahead log block size in bytes. Records never straddle blocks;
 /// the writer zero-fills the tail of a block and resumes at the next boundary.
 const LEVELDB_BLOCK_SIZE: usize = 32768;
 
-/// Index of the next 32768-byte block boundary after `i`.
 fn next_wal_block_boundary(i: usize) -> usize {
     (i / LEVELDB_BLOCK_SIZE + 1) * LEVELDB_BLOCK_SIZE
 }
 
-/// Chromium stores each localStorage value as a serialized record whose first
-/// byte is a `\x01` marker; the actual string follows it.
+/// Chromium stores each localStorage value as a serialized record starting
+/// with a `\x01` marker; the string follows it.
 const VALUE_MARKER: u8 = 0x01;
 
 /// Parse a Chromium localStorage LevelDB write-ahead log into the final map of
@@ -207,17 +204,15 @@ fn parse_localstorage_wal_bytes(data: &[u8]) -> serde_json::Map<String, serde_js
         let record_type = data[i + 6];
         let payload = &data[i + 7..];
         if len > payload.len() {
-            // Truncated frame — a partially-written final record. Skip to the
-            // next block boundary instead of aborting so earlier records are
-            // kept; if the skip goes past EOF the loop ends naturally.
+            // Truncated frame — partially-written final record. Skip to the next
+            // block boundary so earlier records are kept; past EOF the loop ends.
             i = next_wal_block_boundary(i);
             continue;
         }
         match record_type {
             0 => {
-                // kZeroType — the writer pads the rest of the block after the
-                // last real record. Advance to the next block boundary so the
-                // first record of the next block is not desynced.
+                // kZeroType — writer pads the rest of the block; advance to the
+                // boundary so the next block's first record is not desynced.
                 i = next_wal_block_boundary(i);
                 continue;
             }
@@ -264,7 +259,6 @@ fn parse_write_batch(out: &mut serde_json::Map<String, serde_json::Value>, batch
         p = key_end;
 
         if entry_type == 0 {
-            // Deletion.
             if let Some(name) = pref_name(key) {
                 out.remove(name);
             }
@@ -293,7 +287,7 @@ fn pref_name<'a>(key: &'a [u8]) -> Option<&'a str> {
     Some(std::str::from_utf8(name).unwrap_or_default())
 }
 
-/// Decode a LevelDB varint (7 bits per byte, LSB-first, high bit = more bytes).
+/// LevelDB varint: 7 bits per byte, LSB-first, high bit = more bytes.
 /// Returns `(value, next_index)`.
 fn wal_varint(data: &[u8], mut i: usize) -> Option<(usize, usize)> {
     let mut value = 0usize;
@@ -318,9 +312,8 @@ fn parse_localstorage_wal(log_path: &Path) -> Result<serde_json::Map<String, ser
     Ok(parse_localstorage_wal_bytes(&data))
 }
 
-/// Scan every LevelDB write log under `<dir>/Local Storage/leveldb` and merge
-/// the file-origin preferences it contains. I/O + parsing run on a blocking
-/// thread (see `migration_read_legacy_preferences`).
+/// Scan every LevelDB write log under `<dir>/Local Storage/leveldb`, merging
+/// the file-origin preferences they contain. Runs on a blocking thread.
 #[cfg(desktop)]
 fn read_legacy_preferences_blocking(dir: String) -> Result<serde_json::Value, AppError> {
     let base = std::path::PathBuf::from(&dir);
@@ -352,8 +345,7 @@ pub(crate) async fn migration_read_legacy_preferences(
 ) -> Result<serde_json::Value, AppError> {
     #[cfg(desktop)]
     {
-        // The directory scan + per-log parsing is file I/O heavy; run it on a
-        // blocking thread so the Tauri event loop stays responsive.
+        // Directory scan + per-log parsing is I/O heavy; keep off the event loop.
         tokio::task::spawn_blocking(move || read_legacy_preferences_blocking(dir))
             .await
             .map_err(|e| AppError::Other(e.to_string()))?
@@ -547,14 +539,12 @@ pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(
         #[cfg(target_os = "linux")]
         {
             // x,y are screen-relative CSS pixels from JS (event.screenX/Y).
-            // Tauri's popup_menu_at expects coordinates relative to the
-            // window GdkWindow origin (includes CSD decorations).
-            // We compute window-relative physical pixels by subtracting
-            // the window's outer position from the screen cursor position.
+            // popup_menu_at expects window-relative physical pixels (GdkWindow
+            // origin, incl. CSD decorations): multiply by DPR, subtract the
+            // window's outer position.
             let window_pos = window.outer_position().map_err(|e| AppError::Other(e.to_string()))?;
             let dpr = window.scale_factor().map_err(|e| AppError::Other(e.to_string()))?;
 
-            // screenX/Y are CSS pixels → multiply by DPR → subtract window origin in physical px
             let phys_x = (x * dpr) - window_pos.x as f64;
             let phys_y = (y * dpr) - window_pos.y as f64;
 
@@ -591,9 +581,8 @@ mod tests {
         std::env::temp_dir().join(format!("{prefix}-{ts}-{}", std::process::id()))
     }
 
-    /// Build a single LevelDB log record (`checksum | length | type=full |
-    /// WriteBatch`) from `(is_delete, key, value)` entries, mirroring the
-    /// layout Chromium's localStorage writes on disk.
+    /// Build one LevelDB log record (`checksum | length | type=full |
+    /// WriteBatch`) mirroring Chromium's on-disk localStorage layout.
     fn build_record(entries: &[(bool, &[u8], &[u8])]) -> Vec<u8> {
         let mut batch = Vec::new();
         batch.extend_from_slice(&[0; 8]); // sequence number
@@ -647,8 +636,8 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// WAL with a record in block 1, a type-0 (zero) record that the writer
-    /// emits right before a 32768-byte block boundary, and a record in block 2.
+    /// WAL with a record in block 1, a type-0 record right before a block
+    /// boundary, and a record in block 2.
     fn build_multi_block_wal() -> Vec<u8> {
         let block_size = super::LEVELDB_BLOCK_SIZE;
         let mut bytes = Vec::new();

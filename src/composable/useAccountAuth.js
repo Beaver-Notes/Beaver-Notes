@@ -172,9 +172,7 @@ export function useAccountAuth() {
     return { token, user, subscription };
   }
 
-  // Shared scaffolding for the sign-in / sign-up flows: clear the previous
-  // error, set the authenticating status, hold the busy flag, and on failure
-  // reset to anonymous with a normalized error.
+  // Shared scaffolding for the sign-in/sign-up flows.
   async function runAuthFlow(fn) {
     clearAuthError();
     setStatus('authenticating');
@@ -416,7 +414,6 @@ export function useAccountAuth() {
   }
 
   async function triggerSeed(_onProgress) {
-    // Skip if no cloud sync is configured
     if (!accountStore.isAuthenticated) return false;
     if (!accountStore.isPaidPlan) return false;
 
@@ -431,14 +428,12 @@ export function useAccountAuth() {
     try {
       const { getSyncEngine } = await import('@/utils/sync/engine.js');
 
-      // Wait up to 5s for the sync engine to initialize (it may start after auth)
       let engine = getSyncEngine();
       for (let i = 0; i < 50 && !engine; i++) {
         await new Promise((r) => setTimeout(r, 100));
         engine = getSyncEngine();
       }
 
-      // If the engine still isn't initialized, initialize it now
       if (!engine) {
         logger.info('[auth] sync engine not found, initializing now');
         const { initAppSync } = await import('@/utils/sync/app-sync.js');

@@ -3,15 +3,13 @@ use tauri::{AppHandle, State};
 
 use crate::shared::{RawJson, *};
 
-// ─── Key helpers ─────────────────────────────────────────────────────────────
-
 fn key_segments(key: &str) -> Vec<&str> {
     key.split('.')
         .filter(|segment| !segment.is_empty())
         .collect()
 }
 
-// ─── Nested-value helpers (used only for storage_get_store / storage_replace) ─
+// ─── Nested-value helpers ────────────────────────────────────────────────────
 
 fn get_nested_value<'a>(value: &'a Value, segments: &[&str]) -> Option<&'a Value> {
     let mut current = value;
@@ -95,8 +93,7 @@ fn flatten_store_value(root: Value) -> Map<String, Value> {
     };
 
     for (key, value) in entries {
-        // Collection namespaces are stored as individual flat rows rather than
-        // a single JSON blob, so we explode them into "<namespace>.<id>" rows.
+        // Collection namespaces live as individual flat rows: explode them.
         if COLLECTION_NAMESPACES.contains(&key.as_str()) {
             if let Value::Object(items) = value {
                 for (id, item) in items {
@@ -131,8 +128,8 @@ pub(crate) fn encrypt_store_row_with_key(
     Ok(serde_json::to_value(envelope)?)
 }
 
-/// Core store-load logic, parameterised by key material so it can be called
-/// from both sync (state-bearing) and async (`spawn_blocking`) paths.
+/// Core store-load logic, parameterised by key material so it is callable from
+/// both sync (state-bearing) and async (`spawn_blocking`) paths.
 fn load_store_root_inner(
     pool: &crate::db::DbPool,
     name: &str,
@@ -226,27 +223,19 @@ fn pick_pool(
 
 // ─── Flat-key helpers ─────────────────────────────────────────────────────────
 //
-// For simple dot-separated keys that map 1:1 to a KV row (e.g. "notes.abc123",
-// "deletedIds", "migration_completed") we can go directly to the DB without
-// loading the whole store into memory first.
-//
-// A key is "flat-addressable" when it has exactly one level (e.g. "deletedIds")
-// or when its top-level prefix is a known note-like namespace ("notes",
-// "folders") with a single sub-key — both of which are already stored as
-// flat rows by flatten_store_value / the note store.
+// A key is "flat-addressable" when it maps 1:1 to a KV row: a single segment
+// (e.g. "deletedIds") or a note-like namespace with one sub-key ("notes.<id>",
+// "folders.<id>") — both stored as flat rows, so they skip the whole-store load.
 
 /// Collection namespaces whose entries are stored as individual flat rows
-/// (e.g. "notes.abc123") rather than a single JSON blob under the bare key.
-/// Requests for the bare key (e.g. `storage_get("notes")`) must fall through
-/// to `load_store_root` so they see all the individual rows reassembled.
+/// (e.g. "notes.abc123"). Requests for the bare key (`storage_get("notes")`)
+/// fall through to `load_store_root` to see all rows reassembled.
 const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
 
 fn flat_db_key(segments: &[&str]) -> Option<String> {
     match segments {
-        // Single-segment key that is NOT a collection namespace → stored as-is
-        // (e.g. "deletedIds", "migration_completed", "labelColors", …).
-        // Collection-namespace bare keys ("notes", "folders", …) must fall
-        // through to load_store_root so the caller gets the full assembled object.
+        // Single non-collection key ("deletedIds", …) stored as-is; bare
+        // collection keys ("notes", …) fall through to load_store_root.
         [key] if !COLLECTION_NAMESPACES.contains(key) => Some((*key).to_string()),
         // "notes.<id>", "folders.<id>" → flat rows
         ["notes", id] | ["folders", id] => {
@@ -256,9 +245,9 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
     }
 }
 
-/// Decrypt a single KV row with key material extracted up front, so the work
-/// can run inside `spawn_blocking` without touching `AppState`.
-/// Mirrors `decrypt_store_row` (plaintext passthrough when the key is absent).
+/// Decrypt one KV row with pre-extracted key material so the work runs inside
+/// `spawn_blocking` without touching `AppState`. Plaintext passthrough when
+/// the key is absent (mirrors `decrypt_store_row`).
 fn decrypt_store_row_with_key(
     row_key: &str,
     value: Value,
@@ -273,16 +262,14 @@ fn decrypt_store_row_with_key(
 
 // ─── Pure worker functions (state-free; run inside spawn_blocking) ───────────
 //
-// The async commands extract owned key material (`app_key`, `key_id`) and the
-// connection pool up front, then dispatch these workers to a blocking thread so
-// SQLite I/O and per-row AES never block the Tauri event loop.
+// The async commands extract owned key material and the pool up front, then
+// dispatch these workers to a blocking thread so SQLite I/O and per-row AES
+// never block the Tauri event loop.
 
-/// One-time pass: whole-row-encrypt legacy `notes.*` / `folders.*` rows that
-/// the migration wrote with only their note content encrypted (or not at all),
-/// leaving titles and folder metadata as plaintext JSON on disk. Idempotent —
-/// rows that already decrypt as whole-row envelopes are skipped, and the read
-/// path handles mixed plaintext/encrypted rows transparently, so a partial pass
-/// is safe.
+/// One-time pass: whole-row-encrypt legacy `notes.*` / `folders.*` rows the
+/// migration left with only note content encrypted (titles/folder metadata as
+/// plaintext JSON). Idempotent: already-encrypted rows are skipped, and mixed
+/// plaintext/encrypted reads are handled transparently.
 pub(crate) fn reencrypt_legacy_store_rows(
     pool: crate::db::DbPool,
     key: [u8; 32],
@@ -331,7 +318,6 @@ fn storage_get_value(
         return Ok(value);
     }
 
-    // Fallback: multi-level key — load full store and walk the tree
     let root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     Ok(get_nested_value(&root, &segments).cloned().unwrap_or(def))
 }
@@ -363,7 +349,6 @@ fn storage_set_value(
         return Ok(());
     }
 
-    // Fallback: multi-level key — load, mutate, rewrite
     let mut root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     set_nested_value(&mut root, &segments, value);
     let mut flattened = flatten_store_value(root);
@@ -401,7 +386,6 @@ fn storage_delete_value(
         return Ok(());
     }
 
-    // Fallback: multi-level key — load, mutate, rewrite
     let mut root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     let _ = delete_nested_value(&mut root, &segments);
     let mut flattened = flatten_store_value(root);
@@ -438,7 +422,6 @@ fn storage_has_value(
         return Ok(crate::db::db_has(&pool, &flat_key)?);
     }
 
-    // Fallback: multi-level key
     let root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     Ok(get_nested_value(&root, &segments).is_some())
 }
@@ -467,7 +450,7 @@ fn storage_replace_value(
                     };
                     &decrypted_existing != plain_value
                 }
-                None => true, // new row
+                None => true,
             };
             if changed {
                 if let Some(k) = &app_key {
@@ -504,13 +487,10 @@ fn storage_replace_value(
 
 // ─── Commands ────────────────────────────────────────────────────────────────
 
-/// Returns the full store as a nested JSON object.
-/// Only used on startup / sync — intentionally loads everything.
-/// Note content is no longer encrypted at the KV layer; Yjs blobs are
-/// encrypted at rest in the note_content / yjs_snapshots tables instead.
-///
-/// The heavy lifting (DB read + per-row decryption) is dispatched to a
-/// blocking thread pool so the Tauri event loop stays responsive.
+/// Full store as a nested JSON object; only used on startup / sync
+/// (intentionally loads everything). Note content is no longer encrypted at the
+/// KV layer — Yjs blobs are encrypted in note_content / yjs_snapshots instead.
+/// DB read + per-row decryption run on a blocking thread.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_get_store(
@@ -534,14 +514,10 @@ pub(crate) async fn storage_get_store(
     Ok(root.into())
 }
 
-/// Replaces the entire store. Used by sync / import flows.
-///
-/// Optimised path: only rows whose content actually changed are re-encrypted
-/// and written.  Unchanged rows keep their existing DB envelope, avoiding
-/// expensive AES-GCM re-encryption and reducing I/O.
-///
-/// Heavy lifting (full-table read + per-row compare/decrypt/encrypt) is
-/// dispatched to a blocking thread so the Tauri event loop stays responsive.
+/// Replace the entire store (sync / import flows). Optimised: only rows whose
+/// content actually changed are re-encrypted and written; unchanged rows keep
+/// their existing DB envelope, avoiding AES-GCM re-encryption and I/O. Runs on
+/// a blocking thread.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_replace(
@@ -572,13 +548,9 @@ pub(crate) async fn storage_replace(
     Ok(())
 }
 
-/// Gets a single value by dot-separated key.
-/// For flat-addressable keys this is a single-row lookup; otherwise it falls
-/// back to loading the full store (legacy path, rarely hit).
-///
-/// Runs off the main thread: the collection-namespace fallback ("notes",
-/// "folders") reads and decrypts the entire KV table, which must not block the
-/// Tauri event loop.
+/// Get one value by dot-separated key: single-row lookup for flat-addressable
+/// keys, otherwise full-store load (legacy path). Runs off the main thread —
+/// the collection-namespace fallback reads and decrypts the entire KV table.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_get(
@@ -606,8 +578,8 @@ pub(crate) async fn storage_get(
     Ok(value.into())
 }
 
-/// Whole-row-encrypt legacy `notes.*` / `folders.*` rows left plaintext by the
-/// migration. Idempotent; call after the app key is loaded.
+/// Whole-row-encrypt legacy plaintext `notes.*` / `folders.*` rows.
+/// Idempotent; call after the app key is loaded.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_reencrypt_legacy_rows(
@@ -631,9 +603,8 @@ pub(crate) async fn storage_reencrypt_legacy_rows(
         .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Sets a single value by dot-separated key.
-/// For flat-addressable keys this is a single INSERT OR REPLACE; otherwise it
-/// falls back to the load-modify-rewrite path.
+/// Set one value by dot-separated key: single INSERT OR REPLACE for
+/// flat-addressable keys, otherwise the load-modify-rewrite path.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_set(
@@ -665,9 +636,8 @@ pub(crate) async fn storage_set(
     Ok(())
 }
 
-/// Deletes a single value by dot-separated key.
-/// For flat-addressable keys this is a single DELETE; otherwise falls back to
-/// the load-modify-rewrite path.
+/// Delete one value by dot-separated key: single DELETE for flat-addressable
+/// keys, otherwise the load-modify-rewrite path.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_delete(
@@ -698,8 +668,7 @@ pub(crate) async fn storage_delete(
     Ok(())
 }
 
-/// Checks whether a key exists.
-/// For flat-addressable keys this is a single COUNT query; otherwise falls back.
+/// Whether a key exists (COUNT for flat-addressable keys, otherwise fallback).
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_has(
@@ -841,8 +810,8 @@ mod tests {
         let db_path = root.join("data.db");
         let pool = crate::db::open_pool(&db_path).expect("pool");
 
-        // Legacy migration shape: note content encrypted inline, metadata (and
-        // the whole folder row) plaintext.
+        // Legacy migration shape: content encrypted inline, metadata (and the
+        // whole folder row) plaintext.
         let mut plain = Map::new();
         plain.insert(
             "notes.note-1".to_string(),

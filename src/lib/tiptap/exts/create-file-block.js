@@ -5,13 +5,8 @@ const inputRegex = /!\[(.+|:?)]\((\S+)(?:(?:\s+)["'](\S+)["'])?\)/;
 
 /**
  * Factory for file-like TipTap block extensions (audio, video, file-embed).
- *
- * @param {object} opts
- * @param {string}  opts.name         – Unique node name (e.g. 'Audio', 'Video', 'fileEmbed')
- * @param {string}  opts.commandName  – Editor command (e.g. 'setAudio', 'setVideo', 'setFileEmbed')
- * @param {object}  opts.component    – Vue component for the node view
- * @param {string[]} [opts.extraAttrs] – Additional attribute keys beyond src/fileName
- * @param {function} [opts.buildAttrs] – (attrs) => object  – map command args to node attrs
+ * `name`/`commandName`/`component` are required; `extraAttrs` adds attribute
+ * keys beyond src/fileName; `buildAttrs` maps command args to node attrs.
  */
 export function createFileBlock({
   name,

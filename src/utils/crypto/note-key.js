@@ -1,8 +1,7 @@
 import { createMlKem768 } from 'mlkem';
 import { importCollabKey, isValidCollabKey } from './collab.js';
 
-// Cache for unwrapped note key hex values (noteId -> noteKeyHex)
-// Avoids repeated ML-KEM768 decap + AES-GCM unwrap on every access.
+// Cache unwrapped note key hex values — avoids repeated ML-KEM768 decap + AES-GCM unwrap.
 const unwrappedKeyCache = new Map();
 
 export function clearUnwrappedKeyCache(noteId) {
@@ -43,19 +42,10 @@ export async function unwrapNoteKey(privateKeyHex, envelopeStr) {
 }
 
 /**
- * Resolve the note key for a caller without ever rotating an existing one.
- *
- * Injected API functions keep this pure and unit-testable:
- *   getKey()        -> GET /keys/:noteId response
- *   listPublicKeys() -> GET /public-keys/:noteId response
- *   storeRecipients(recipients) -> POST /keys/:noteId/recipients response
- *
- * Returns the note key hex, or null (never provision/rotate on ambiguity).
+ * Injected API fns (getKey/listPublicKeys/storeRecipients) keep this pure and
+ * unit-testable. Returns the note key hex, or null — never provision/rotate on ambiguity.
  */
-/**
- * Try each envelope with the local private key; return the first that unwraps
- * to a valid note key. Caches the result against `noteId`.
- */
+/** Try each envelope with the local private key; cache the first valid unwrap. */
 export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _log = console) {
   for (const env of envelopes || []) {
     const wrappedKey = env?.wrappedKey ?? env;
@@ -97,7 +87,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
     return null;
   }
 
-  // 1. The note already has a key. Recover this caller's envelope, if any.
+  // Note already has a key — recover this caller's envelope, if any.
   if (raw?.noteHasKey === true) {
     if (raw?.wrappedKey) {
       try {
@@ -115,8 +105,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
     return null;
   }
 
-  // 2. Fresh note — provision a new note key for every keypair'd collaborator
-  //    (the owner is part of the collaborator set).
+  // 2. Fresh note — provision a new key for every keypair'd collaborator.
   try {
     const publicKeys = await listPublicKeys();
     const keypairCollabs = Array.isArray(publicKeys?.collaborators)
@@ -132,8 +121,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
     }
     const stored = await storeRecipients(recipients);
 
-    // Concurrent provisioning: another client won the race and the server
-    // refused our envelopes. Recover the winner's key instead of diverging.
+    // Concurrent provisioning: another client won the race; recover the winner's key.
     if (stored?.existing) {
       try {
         const winner = await getKey();

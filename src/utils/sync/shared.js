@@ -1,8 +1,3 @@
-// src/utils/sync/shared.js
-//
-// Shared helpers used by both CloudTransport and LocalFolderTransport.
-// Extracted to eliminate duplication across transport implementations.
-
 import { readDir, writeFile } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
 import { YJS_UPDATE_EXT } from './constants.js';
@@ -37,22 +32,14 @@ export function checkpointMap(checkpoint) {
     : checkpoint;
 }
 
-/**
- * Build AAD suffix for sync envelope encryption/decryption.
- * @param {{ docId: string, ts: number, isSnapshot?: boolean }} parsed
- * @returns {string}
- */
+/** AAD suffix binding an envelope to its doc + ts (snapshot variant included). */
 export function buildAadSuffix(parsed) {
   return parsed?.isSnapshot
     ? `${parsed.docId}-snapshot-${parsed.ts}`
     : `${parsed.docId}-${parsed.ts}`;
 }
 
-/**
- * Idempotent seed: writes initial Yjs snapshots to the commits directory
- * if it hasn't been seeded yet. Marker-based — safe to call multiple times.
- * @param {string} commitsDir
- */
+/** Idempotent seed guarded by the '._seeded' marker — safe to call repeatedly. */
 export async function seedOnce(commitsDir) {
   try {
     const files = await readDir(commitsDir).catch(() => []);

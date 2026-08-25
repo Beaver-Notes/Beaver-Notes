@@ -18,22 +18,19 @@ use super::keys::{
 use keyring::credential::CredentialBuilderApi;
 use aes_gcm::aead::{Aead, KeyInit};
 
-// Task 3 moves `SAFE_STORAGE_MASTER_ACCOUNT` here from `keys.rs`. Until then it
-// is defined locally so the brief's code compiles as-is.
 pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
 
 pub(crate) const MASTER_KEY_FILE: &str = "master.key";
 pub(crate) const MASTER_KEY_ENC_FILE: &str = "master.key.enc";
 
-/// Android-only: the Keystore-wrapped master-key blob persisted by the Android
-/// backend. Readable without the Keystore key but useless without it.
+/// Android-only Keystore-wrapped master-key blob: readable without the
+/// Keystore key but useless without it.
 #[cfg(target_os = "android")]
 const MASTER_KEY_WRAPPED_FILE: &str = "master.key.wrapped";
 
-/// Which secure backend currently protects the master key. Mirrors the OS
-/// keychain on macOS/Windows/iOS, Secret Service or the kernel keyring on
-/// Linux, and Android Keystore on Android. `EncryptedFile` is the Linux
-/// device-password fallback.
+/// Which secure backend currently protects the master key: OS keychain on
+/// macOS/Windows/iOS, Secret Service / kernel keyring on Linux, Android
+/// Keystore on Android. `EncryptedFile` is the Linux device-password fallback.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum MasterKeyBackendKind {
@@ -54,9 +51,8 @@ enum MasterKeyState {
 static MASTER_KEY_STATE: Mutex<MasterKeyState> = Mutex::new(MasterKeyState::Pending);
 static MASTER_KEY_CONDVAR: Condvar = Condvar::new();
 
-/// Per-launch cache of the device-password KEK used to unlock `master.key.enc`.
-/// Never persisted; cleared at shutdown. `None` means the device password has
-/// not been supplied this session.
+/// Per-launch cache of the device-password KEK unlocking `master.key.enc`;
+/// never persisted. `None` = no device password supplied this session.
 static DEVICE_KEK: Mutex<Option<[u8; 32]>> = Mutex::new(None);
 
 fn master_key_path() -> Result<PathBuf, AppError> {
@@ -123,8 +119,8 @@ pub(crate) fn read_master_key() -> Result<Vec<u8>, AppError> {
 }
 
 fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
-    // 1. Legacy migration: a plaintext `master.key` from before this change is
-    //    authoritative until it is folded into the secure chain and deleted.
+    // Legacy plaintext `master.key` is authoritative until folded into the
+    // secure chain and deleted.
     if let Some(key) = migrate_legacy_master_key()? {
         return Ok(key);
     }
@@ -135,20 +131,13 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
     )
 }
 
-/// Walk the secure backends in priority order. The first backend holding a key
-/// wins (re-anchoring it into any higher-priority backend that was alive but
-/// empty — a key found in a lower-priority store is mirrored back into the
-/// keyring once it becomes reachable). When none hold a key but at least one
-/// errored hard (e.g. a keychain `PlatformFailure`), that error propagates
-/// instead of minting over the real key (which would strand existing blobs).
-/// A `DevicePasswordRequired` or `WrongPassword` from the enc-file backend is
-/// folded into the device-password prompt signal. A fresh key is minted and
-/// mirrored to every backend ONLY when every backend returned `Ok(None)` AND
-/// at least one durable backend is alive (`durable_alive`) AND that durable
-/// backend's `set` actually succeeds — minting into a reboot-ephemeral kernel
-/// keyring alone would strand blobs once the key expires, and so would a
-/// durable backend that probes alive but fails its write. Pure; testable with
-/// fake backends.
+/// First backend holding a key wins; it is re-anchored into higher-priority
+/// live-but-empty backends. A hard backend error propagates (never mint over a
+/// possibly-live key — that would strand existing blobs), with `WrongPassword`
+/// folded into `DevicePasswordRequired`. Minting happens ONLY when every
+/// backend returned `Ok(None)` and a durable backend is alive AND accepts the
+/// write — minting into the reboot-ephemeral kernel keyring alone would strand
+/// blobs. Pure; testable with fake backends.
 fn select_key_from_backends(
     backends: &[Box<dyn MasterKeyBackend>],
     mint: impl Fn() -> [u8; 32],
@@ -159,8 +148,6 @@ fn select_key_from_backends(
     for (i, backend) in backends.iter().enumerate() {
         match backend.get() {
             Ok(Some(key)) => {
-                // Re-anchor into higher-priority live-but-empty backends so the
-                // key is restored to the keyring once it becomes reachable.
                 for &j in &empty_alive {
                     let _ = backends[j].set(&key);
                 }
@@ -171,9 +158,8 @@ fn select_key_from_backends(
         }
     }
     if let Some(e) = last_error {
-        // A hard backend error must NOT trigger minting over it (would strand
-        // blobs). Fold a WrongPassword (stale KEK) into the device-password
-        // prompt signal.
+        // Hard error: never mint over it; fold a stale-KEK WrongPassword into
+        // the device-password prompt signal.
         if matches!(
             e,
             AppError::DevicePasswordRequired | AppError::WrongPassword
@@ -183,13 +169,13 @@ fn select_key_from_backends(
         return Err(e);
     }
     if !durable_alive {
-        // No durable store to anchor a fresh key: refusing to mint avoids
-        // persisting blobs under a reboot-ephemeral kernel-keyring key.
+        // Refusing to mint avoids persisting blobs under a reboot-ephemeral
+        // kernel-keyring key.
         return Err(AppError::SecureStorageUnavailable);
     }
     let key = mint();
-    // Write durable backends FIRST; if none succeed, abort before the key
-    // touches the reboot-ephemeral kernel keyring.
+    // Write durable backends FIRST; if none succeed, the key never touches the
+    // reboot-ephemeral kernel keyring.
     let mut durable_written = false;
     for backend in backends {
         if is_durable_kind(backend.kind()) && backend.set(&key).is_ok() {
@@ -197,11 +183,8 @@ fn select_key_from_backends(
         }
     }
     if !durable_written {
-        // Durable write failed (e.g. GNOME Keyring locked, no device password
-        // for enc-file).  Fall back to an in-memory-only key so the session
-        // can still encrypt/decrypt.  Blobs written with this key are
-        // encrypted (not plaintext) but will not survive a restart — the user
-        // will be prompted for their device password on next launch.
+        // Durable writes all failed: session-scoped in-memory key. Blobs stay
+        // encrypted but won't survive restart; password prompted on next launch.
         eprintln!(
             "[master_key] WARNING: no durable backend accepted the key — \
              blobs are encrypted but key is session-scoped only"
@@ -213,8 +196,7 @@ fn select_key_from_backends(
         }
         return Ok(key.to_vec());
     }
-    // Only now mirror to non-durable backends (kernel keyring) — the durable
-    // anchor is already in place, so the key cannot be stranded on reboot.
+    // Mirror to non-durable backends only after the durable anchor is in place.
     for backend in backends {
         if !is_durable_kind(backend.kind()) {
             let _ = backend.set(&key);
@@ -233,12 +215,10 @@ fn master_key_cached() -> bool {
     }
 }
 
-/// Return the current backend kind for the UI. Always probes the live backends
-/// with real I/O (`is_alive()`); there is no cached fast path. This is only
-/// called by the display command (`safeStorage:getBackendInfo`), never on the
-/// hot path, so the extra probe cost is fine — and it avoids the old bug where
-/// the lazy entry constructor reported `secretService` on daemon-less Linux
-/// even though the key actually lives in keyutils or the enc file.
+/// Current backend kind for the UI display command. Always probes live
+/// backends with real I/O (no cached fast path — fine off the hot path);
+/// avoids the old bug where a lazy entry constructor reported `secretService`
+/// on daemon-less Linux even though the key lived in keyutils or the enc file.
 pub(crate) fn master_key_backend() -> MasterKeyBackendKind {
     for backend in platform_backends() {
         if backend.is_alive() {
@@ -248,9 +228,8 @@ pub(crate) fn master_key_backend() -> MasterKeyBackendKind {
     MasterKeyBackendKind::None
 }
 
-/// True when a key minted into `kind` would survive a relaunch. The kernel
-/// keyring is session-scoped with a ~3-day persistent expiry, so a key held
-/// only there can vanish mid-week; every other backend is durable.
+/// True when a key minted into `kind` survives a relaunch: the kernel keyring
+/// is session-scoped (~3-day persistent expiry), every other backend durable.
 fn is_durable_kind(kind: MasterKeyBackendKind) -> bool {
     matches!(
         kind,
@@ -261,23 +240,19 @@ fn is_durable_kind(kind: MasterKeyBackendKind) -> bool {
     )
 }
 
-/// True when at least one durable backend is reachable today, meaning a fresh
-/// master-key mint would be persisted somewhere that survives relaunch (OS
-/// keychain, Secret Service, a device-password enc file, or Android Keystore).
-/// The kernel keyring alone does NOT count — it is `UntilReboot`.
+/// True when a fresh master-key mint would land somewhere that survives
+/// relaunch. The kernel keyring alone does NOT count — it is `UntilReboot`.
 pub(crate) fn durable_store_available() -> bool {
     platform_backends()
         .iter()
         .any(|b| is_durable_kind(b.kind()) && b.is_alive())
 }
 
-/// Honest availability probe used by `safeStorage:isEncryptionAvailable`. True
-/// when a key can be PRODUCED today: a real key is readable now, or a fresh
-/// mint would land in a durable store. A reachable-but-empty kernel keyring
-/// (KernelKeyring) alone does NOT make storage available — it is session-scoped
-/// with a ~3-day persistent expiry, so a blob persisted on that basis could
-/// become unreadable before the next relaunch. Once the key is cached this
-/// returns true without probing a daemon.
+/// Availability probe for `safeStorage:isEncryptionAvailable`: true when a key
+/// can be PRODUCED today (readable now, or a fresh mint lands durably). A
+/// reachable-but-empty kernel keyring alone does NOT count — session-scoped,
+/// so a blob persisted on that basis could become unreadable before relaunch.
+/// Returns true without probing once the key is cached.
 pub(crate) fn master_key_available() -> bool {
     if master_key_cached() {
         return true;
@@ -313,16 +288,11 @@ fn device_password_required_core(enc_exists: bool, any_key_readable: bool) -> bo
     enc_exists && !any_key_readable
 }
 
-/// Fold a legacy plaintext `master.key` into the secure chain and delete the
-/// file once at least one DURABLE backend wrote. Returns the key if a legacy
-/// file exists. Idempotent; `Ok(None)` when no legacy file exists.
-///
-/// Degrades gracefully: when no DURABLE backend is available yet (e.g. a
-/// daemon-less Linux box upgrading before a device password is set), the legacy
-/// file is KEPT and its key returned, so existing blobs stay readable. The
-/// enc-file write happens later, once a device password is supplied. Deleting
-/// on the strength of the kernel keyring alone would strand blobs once that
-/// session-scoped key expires.
+/// Fold a legacy plaintext `master.key` into the secure chain; delete the file
+/// only once a DURABLE backend wrote. Idempotent; `Ok(None)` without a legacy
+/// file. With no durable backend available (daemon-less Linux, no device
+/// password yet) the file is KEPT so existing blobs stay readable — deleting
+/// on kernel-keyring strength alone would strand blobs once it expires.
 pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
     let path = master_key_path()?;
     if !path.exists() {
@@ -342,25 +312,19 @@ pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
             durable_written = true;
         }
     }
-    // Only delete the plaintext file once a DURABLE backend accepted the key.
-    // On daemon-less Linux with no device password yet, keyutils alone is not
-    // durable — keep the legacy file so existing blobs stay readable; the
-    // enc-file write happens once a device password is supplied.
     if durable_written {
         fs::remove_file(&path)?;
     }
     Ok(Some(key_bytes))
 }
 
-/// Accept the Linux device password, derive its KEK (Argon2id), validate it
-/// against `master.key.enc` if present, cache the KEK, and re-anchor the
-/// current master key into the encrypted file.
+/// Accept the Linux device password: derive + validate its KEK against
+/// `master.key.enc`, cache the KEK, re-anchor the master key into the file.
 pub(crate) fn set_device_password(password: &str) -> Result<(), AppError> {
     let kek = derive_device_kek(password)?;
     let enc_path = master_key_enc_path()?;
     if enc_path.exists() {
-        // Validate the KEK against the existing file BEFORE caching it, so a
-        // wrong password can never poison the in-memory KEK cache.
+        // Validate BEFORE caching so a wrong password can't poison the KEK cache.
         let raw = fs::read_to_string(&enc_path)?;
         let env: WrappedKeyEnvelope = serde_json::from_str(&raw)?;
         decrypt_bytes_with_key(&kek, &env).map_err(|_| AppError::WrongDevicePassword)?;
@@ -382,8 +346,7 @@ pub(crate) fn set_device_password(password: &str) -> Result<(), AppError> {
 }
 
 fn derive_device_kek(password: &str) -> Result<[u8; 32], AppError> {
-    // Reuse the manifest KDF so the on-disk file stays decryptable after a KDF
-    // constant bump.
+    // Manifest KDF: keeps the on-disk file decryptable across KDF bumps.
     derive_kek_argon2id_with_params(
         password,
         b"beaver-notes-device-password", // fixed salt is fine here: the KEK only protects a file whose contents are random
@@ -423,9 +386,9 @@ fn write_enc_file(key: &[u8]) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Write `bytes` to `path` atomically: write to a temp file in the same
-/// directory (so a crash mid-write can never corrupt the only durable master-key
-/// copy), set 0600 perms on unix, then rename over the destination.
+/// Atomic write: temp file in the same directory (a crash mid-write can never
+/// corrupt the only durable master-key copy), 0600 perms on unix, rename over
+/// destination.
 fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> Result<(), AppError> {
     let dir = path
         .parent()
@@ -559,19 +522,17 @@ impl MasterKeyBackend for KeyringBackend {
     }
 
     fn is_alive(&self) -> bool {
-        // A daemon-backed store is alive only if a real read probe succeeds: on
-        // daemon-less Linux, constructing the entry does no I/O and would
-        // falsely report the SecretService backend as available.
+        // Real read probe required: on daemon-less Linux constructing the entry
+        // does no I/O and would falsely report SecretService as available.
         let entry = match self.entry() {
             Ok(e) => e,
             Err(_) => return false,
         };
         match entry.get_password() {
             Ok(_) => true,
-            // Entry doesn't exist yet — verify write capability with a probe.
-            // Without this, `master_key_available()` returns true (daemon
-            // reachable) but `set()` later fails (keyring locked, D-Bus write
-            // denied), causing encryptString to throw.
+            // No entry yet: verify write capability, else availability reports
+            // true but set() later fails (locked keyring, D-Bus write denied)
+            // and encryptString throws.
             Err(keyring::Error::NoEntry) => {
                 match entry.set_password("__probe__") {
                     Ok(()) => {
@@ -616,10 +577,9 @@ impl MasterKeyBackend for EncryptedFileBackend {
     }
 }
 
-/// The `tauri::AppHandle` captured at startup, so the no-arg master-key
-/// backend can reach the plugin-managed `SecureKeystore` state. `AppHandle::current()`
-/// is not available in the pinned tauri 2.10, so it is populated during setup
-/// (see `set_android_app_handle`). Only touched on Android; cfg'd out elsewhere.
+/// AppHandle captured at setup so the no-arg master-key backend can reach the
+/// plugin-managed `SecureKeystore` state (`AppHandle::current()` is unavailable
+/// in the pinned tauri 2.10). Android only; cfg'd out elsewhere.
 #[cfg(target_os = "android")]
 static ANDROID_APP: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
 
@@ -639,11 +599,10 @@ fn android_app_handle() -> Result<tauri::AppHandle, AppError> {
         .ok_or_else(|| AppError::Other("Android Keystore not initialized".into()))
 }
 
-/// Android Keystore (hardware-backed) master-key backend, via the vendored
-/// `tauri-plugin-secure-keystore`. Wraps the 32-byte master key in an Android
-/// Keystore AES-GCM key so the raw key never leaves the device, and persists
-/// the resulting portable blob next to the other master-key files. `get`
-/// reads that blob and asks the Keystore to unwrap it.
+/// Hardware-backed Android Keystore backend via vendored
+/// `tauri-plugin-secure-keystore`: wraps the 32-byte master key with a Keystore
+/// AES-GCM key (raw key never leaves the device) and persists the portable
+/// blob next to the other master-key files. `get` reads and unwraps it.
 #[cfg(target_os = "android")]
 struct AndroidKeystoreBackend;
 
@@ -682,15 +641,13 @@ impl MasterKeyBackend for AndroidKeystoreBackend {
     }
 
     fn is_alive(&self) -> bool {
-        // Keystore is a hardware/TEE-backed key that is always available on
-        // Android; treat as alive (the concrete read tolerates absence).
+        // Hardware/TEE-backed: always alive on Android (read tolerates absence).
         true
     }
 }
 
-/// Where the Android backend keeps the blob produced by `wrap`. Uses the
-/// tauri path resolver rather than `dirs` because `data_local_dir` resolves
-/// to `None` on Android (no `$HOME`).
+/// Blob path for `wrap`; tauri resolver because `data_local_dir` resolves to
+/// `None` on Android (no `$HOME`).
 #[cfg(target_os = "android")]
 fn master_key_wrapped_path(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
     use tauri::Manager;
@@ -777,9 +734,7 @@ mod tests {
         }
     }
 
-    /// Like `FakeBackend` but records every key passed to `set` (via a shared
-    /// `Rc<RefCell<..>>` log so the test can inspect it through the trait
-    /// object).
+    /// Like `FakeBackend` but records every key passed to `set`.
     struct RecordingBackend {
         kind: MasterKeyBackendKind,
         stored: Option<Vec<u8>>,
@@ -930,10 +885,9 @@ mod tests {
 
     #[test]
     fn select_returns_ephemeral_key_when_no_durable_write_succeeds() {
-        // Durable-alive backends whose `set` all fail (daemon crashed between
-        // the `is_alive`/`get` probe and the write, store went read-only, ...).
-        // The minted key IS returned as session-scoped: blobs are encrypted
-        // (not plaintext) but won't survive a restart.
+        // Durable backends probe alive but all writes fail (daemon crashed
+        // between probe and write, read-only store, ...): key returned
+        // session-scoped — encrypted blobs, gone after restart.
         let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
             Box::new(FakeBackend {
                 kind: MasterKeyBackendKind::SecretService,
@@ -957,10 +911,9 @@ mod tests {
 
     #[test]
     fn select_returns_ephemeral_key_when_only_keyutils_write_succeeds() {
-        // Durable backends probe alive (via `get`/`is_alive`) but their `set`
-        // fails moments later; only the KernelKeyring backend accepts the
-        // write. The key IS returned as session-scoped, and the keyutils
-        // mirror runs so the key is available for the current session.
+        // Durable sets fail right after probing; only the KernelKeyring backend
+        // accepts the write. Key still returned session-scoped; the keyutils
+        // mirror runs so this session has a working key.
         let keyutils = Rc::new(RefCell::new(Vec::new()));
         let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
             Box::new(FakeBackend {
@@ -1093,8 +1046,7 @@ mod tests {
 
     #[test]
     fn availability_core_semantics() {
-        // A reachable-but-empty kernel keyring alone must NOT make storage
-        // available — it is not durable.
+        // Reachable-but-empty kernel keyring alone must NOT count as available.
         assert!(!master_key_available_core(false, false));
         assert!(master_key_available_core(true, false));
         assert!(master_key_available_core(false, true));

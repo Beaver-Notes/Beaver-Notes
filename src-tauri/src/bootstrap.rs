@@ -24,10 +24,8 @@ const WINDOW_STATE_KEY: &str = "windowStateMain";
 #[cfg(desktop)]
 const LEGACY_DATA_FILES: &[&str] = &["config.json", "data.json"];
 
-/// Progress payload for the legacy migration, emitted over the
-/// `migration-progress` Tauri event so the onboarding UI can show real
-/// progress instead of a fake ticker. `done`/`total` count files (store JSON +
-/// assets); the renderer maps the "copy" phase into the overall bar.
+/// Progress payload for the `migration-progress` Tauri event; `done`/`total`
+/// count files (store JSON + assets), the renderer maps phases onto its bar.
 #[derive(Clone, serde::Serialize)]
 pub(crate) struct MigrationProgress {
     pub(crate) phase: String,
@@ -222,10 +220,8 @@ fn import_json_file_into_pool(
         }
     }
 
-    // Post-import store summary so we can verify what actually landed in KV.
-    // Legacy notes/folders collections are no longer written as KV rows — the
-    // frontend converts them straight to Yjs — so only top-level scalar keys
-    // (labels, labelColors, deletedIds, …) appear here.
+    // Notes/folders collections are converted to Yjs by the frontend, not
+    // written as KV rows — only top-level scalar keys (labels, …) land here.
     match crate::db::db_all(pool, None) {
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
@@ -267,8 +263,7 @@ fn copy_directory_missing(
             let payload = encrypt_asset(app, state, &target_path, &raw)?;
             fs::write(&target_path, payload)?;
             *done += 1;
-            // Throttle: emit once per percentage point so large asset trees
-            // don't flood the event channel.
+            // Emit at most once per percentage point so large trees don't flood the channel.
             let pct = if total > 0 { (*done * 100) / total } else { 100 };
             if pct != last_pct {
                 last_pct = pct;
@@ -338,11 +333,9 @@ fn run_migration_core(
     let mut merged_store_files = Vec::new();
     let data_pool = data_pool(app, state)?;
 
-    // Count every file that will be copied so the progress bar has a real total
-    // (store JSONs + all assets), then report as we go.
-    // Legacy notes/folders (config.json/data.json) are no longer imported into
-    // the data KV store — the frontend converts them straight to Yjs. The store
-    // JSON copy is just settings.json.
+    // Count every file to be copied (store JSON + assets) so the progress bar
+    // has a real total. Legacy config.json/data.json notes/folders are NOT
+    // imported — the frontend converts them straight to Yjs.
     eprintln!(
         "[migration]   skipping legacy notes/folders import (config.json/data.json) — the data KV store stays empty of note rows"
     );
@@ -380,15 +373,14 @@ fn run_migration_core(
     for folder in ["notes-assets", "file-assets"] {
         let old = old_dir.join(folder);
         if old.exists() {
-            // Copy all legacy asset subdirs into the consolidated `assets/` directory
+            // Copy into the consolidated `assets/` directory
             let dest = new_dir.join("assets");
             copy_directory_missing(app, state, &old, &dest, &mut copy_done, copy_total)?;
             copied_asset_dirs.push(folder.to_string());
         }
     }
-    // Also check if the source already uses the consolidated `assets/` dir.
-    // Skip notes-assets/ and file-assets/ inside it — those are already handled
-    // by the loop above and copying them would create nested duplicates.
+    // Also copy a consolidated source `assets/` dir, skipping notes-assets/ and
+    // file-assets/ inside it — already handled above; copying would nest duplicates.
     if old_assets.exists() {
         let dest_assets = new_dir.join("assets");
         fs::create_dir_all(&dest_assets)?;
@@ -418,9 +410,8 @@ fn run_migration_core(
     // Do not remove or mutate the legacy Electron directory here.
     // let _ = fs::remove_dir_all(&old_dir);
 
-    // Final KV summary before the marker is written. The data store is
-    // intentionally empty of legacy note/folder rows — the frontend converts
-    // them to Yjs instead of the app reading them back from KV.
+    // Final KV summary before the marker is written (data store intentionally
+    // has no legacy note/folder rows — the frontend converts them to Yjs).
     match crate::db::db_all(&data_pool, None) {
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
@@ -553,16 +544,13 @@ fn register_asset_protocol(
     })
 }
 
-/// Maximum bytes to read for a non-range request.  Assets larger than this are
-/// capped so that a single full-file read cannot blow up the process heap.
-/// Range requests are unaffected — they only ever read the requested slice.
+/// Max bytes for a non-range request, so a full read cannot blow the process
+/// heap. Range requests only ever read their slice.
 const MAX_FULL_READ: u64 = 16 * 1024 * 1024; // 16 MiB
 
-/// Serve a cached-or-decrypted asset over the custom protocol, honoring HTTP
-/// byte-range requests. Requests without a `Range` header get the full file;
-/// range requests get only the requested slice (`206 Partial Content`), so
-/// media elements and streaming readers never force a whole decrypted asset
-/// into memory. Unsatisfiable ranges yield `416` with `Content-Range: bytes */N`.
+/// Serve a cached-or-decrypted asset honoring HTTP byte ranges: no header =
+/// full file, range = `206` slice so media never forces a whole decrypted asset
+/// into memory, unsatisfiable = `416` with `Content-Range: bytes */N`.
 fn serve_asset(
     app: &AppHandle,
     asset_cache_dir: &Path,
@@ -621,9 +609,8 @@ fn serve_asset(
     }
 }
 
-/// Parse a single `Range: bytes=...` header value against a known length.
-/// Returns `Ok(None)` for no-range requests, `Ok(Some((start, end)))` with an
-/// inclusive end for satisfiable ranges, and `Err(())` for unsatisfiable ones.
+/// Parse a single `Range: bytes=...` header: `Ok(None)` = no range,
+/// `Ok(Some((start, end)))` = satisfiable (inclusive end), `Err(())` = unsatisfiable.
 fn parse_byte_range(header: &str, total: u64) -> Result<Option<(u64, u64)>, ()> {
     if total == 0 {
         return Err(());
@@ -655,10 +642,7 @@ fn parse_byte_range(header: &str, total: u64) -> Result<Option<(u64, u64)>, ()> 
     Ok(Some(range))
 }
 
-/// Migrate flat data.db and settings.db into the workspaces layout.
-/// Moves `data.db` → `workspaces/default/data.db` and
-/// `settings.db` → `workspaces/default/settings.db`.
-/// Creates `workspaces.json` at the app root with the default workspace.
+/// Move flat data.db/settings.db into `workspaces/default/` and seed workspaces.json.
 fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("bootstrap.migrate_to_workspace_layout");
     let app_dir = crate::shared::app_storage_dir(app, state)?;
@@ -717,7 +701,6 @@ fn ensure_default_workspace_in_registry(
     let has_json = json_path.exists();
 
     if !has_json {
-        // No workspaces.json yet — create one with default
         let now = chrono::Utc::now().to_rfc3339();
         let default_ws = crate::shared::WorkspaceInfo {
             id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
@@ -737,7 +720,6 @@ fn ensure_default_workspace_in_registry(
         return Ok(());
     }
 
-    // Check if default workspace is registered
     let registry = crate::shared::load_workspace_registry(app, state)?;
     if !registry.iter().any(|w| w.id == crate::shared::DEFAULT_WORKSPACE_ID) {
         let now = chrono::Utc::now().to_rfc3339();
@@ -769,9 +751,8 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     // ── Workspace migration (must run BEFORE any settings_pool call) ──────
     migrate_to_workspace_layout(app.handle(), state.inner())?;
 
-    // The separate app-password store was retired — one workspace passphrase
-    // protects everything now. Delete the legacy `password.enc` file on the
-    // first launch after the upgrade; never fails startup if it is absent.
+    // Retired separate app-password store: one workspace passphrase protects
+    // everything now. Delete legacy `password.enc` on first launch; absence is fine.
     {
         let app_dir = crate::shared::app_storage_dir(app.handle(), state.inner())?;
         let legacy_password_file = app_dir.join("password.enc");
@@ -788,16 +769,15 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     grant_trusted_path(&state, &app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?);
     fs::create_dir_all(&state.files.asset_cache_dir)?;
 
-    // Fold any legacy plaintext `master.key` into the secure chain, then delete
-    // the file. Never fails startup.
+    // Fold any legacy plaintext `master.key` into the secure chain, then delete; never fails startup.
     let _ = crate::shared::migrate_legacy_master_key();
 
     // Warm the Keychain-backed master key on a background thread so the
     // frontend's first `loadSecureBlob('encryptionPassphraseBlob')` hits the
-    // in-memory cache instead of a ~2.5s cold Keychain read on the startup
-    // path. On daemon-less Linux (no durable store yet) this is SKIPPED so the
-    // frontend sees `available=false` and prompts the user to create a device
-    // password BEFORE any key is minted into the reboot-ephemeral kernel keyring.
+    // in-memory cache instead of a ~2.5s cold Keychain read. SKIPPED on
+    // daemon-less Linux (no durable store) so the frontend sees `available=false`
+    // and prompts for a device password BEFORE any key is minted into the
+    // reboot-ephemeral kernel keyring.
     if crate::shared::durable_store_available() {
         std::thread::spawn(|| {
             let _ = read_master_key();

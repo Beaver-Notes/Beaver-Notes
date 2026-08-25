@@ -363,14 +363,7 @@ export function buildCardPreview(content) {
 
 /**
  * Build a structured cardPreview and flat preview text for a note.
- * Handles the fallback chain: structured content -> flat text -> empty.
- *
- * @param {Object} opts
- * @param {*}       opts.content     - TipTap JSON content (or null)
- * @param {string}  [opts.preview]   - Flat preview text (cross-device fallback)
- * @param {string}  [opts.searchText] - Legacy search text
- * @param {boolean} [opts.hidden]    - true when note is locked/encrypted
- * @returns {{ cardPreview: Object, preview: string }}
+ * Fallback chain: structured content -> flat text -> empty.
  */
 export function buildNotePreview({
   content,

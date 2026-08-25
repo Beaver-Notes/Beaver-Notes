@@ -65,13 +65,7 @@ function chunkItems(items, getItemSize) {
   return chunks;
 }
 
-/**
- * Push local Yjs updates to the remote server using the durable identity
- * contract. The transport supplies deviceId, sequence, and ts per update.
- * @param {string} workspaceId
- * @param {Array<{noteId: string, updates: Array<{key: string, data: string}>}>} notes
- * @returns {Promise<{accepted: number, duplicate: number, checkpoints: Object}>}
- */
+/** Push via the durable identity contract — the transport supplies deviceId/sequence/ts per update. */
 export async function pushUpdates(workspaceId, notes) {
   if (!notes || notes.length === 0) {
     return { accepted: 0, duplicate: 0, checkpoints: {} };
@@ -81,8 +75,7 @@ export async function pushUpdates(workspaceId, notes) {
   const deviceId = getSyncDeviceId();
 
   function estimateNoteSize(n) {
-  // Estimate size without full serialization: noteId string + updates array overhead
-  // Each update has key (~60 chars) + data (base64, variable) + metadata (~50 chars)
+  // Rough estimate: noteId + per-update key/base64-data/metadata overhead
   let size = (n.noteId?.length || 0) + 64; // base overhead
   if (n.updates) {
     for (const u of n.updates) {
@@ -121,13 +114,7 @@ const chunks = chunkItems(notes, estimateNoteSize);
   return { accepted, duplicate, checkpoints };
 }
 
-/**
- * Pull remote updates since the given cursor watermark.
- * Supports single or multiple notes. Automatically chunks large payloads.
- * @param {string} workspaceId
- * @param {Array<{noteId: string, cursors: Object}>} notes
- * @returns {Promise<Object>} { notes: { [noteId]: { updates: Array<{key: string, data: string}>, nextCheckpoint?: Object, hasMore?: boolean } } }
- */
+/** Pull updates since cursor watermarks; auto-chunked, results merged per note. */
 export async function pullUpdates(workspaceId, notes) {
   const client = getClient();
 
@@ -220,13 +207,6 @@ export async function getWorkspaces() {
   return getClient().get('/workspaces', { timeoutMs: 15000 });
 }
 
-/**
- * Delete remote updates that have been compacted into a snapshot.
- * @param {string} workspaceId
- * @param {string} noteId
- * @param {string[]} keys - filenames to delete
- * @returns {Promise<{deleted: number}>}
- */
 export async function deleteRemoteUpdates(workspaceId, noteId, keys) {
   if (!keys || keys.length === 0) {
     return { deleted: 0 };
@@ -242,11 +222,6 @@ export async function deleteRemoteUpdates(workspaceId, noteId, keys) {
   return result || { deleted: 0 };
 }
 
-/**
- * Fetch a single stored blob by key.
- * @param {string} key
- * @returns {Promise<string | null>} base64 blob, or null when the key is absent.
- */
 export async function fetchUpdate(key) {
   const client = getClient();
   try {
@@ -261,11 +236,6 @@ export async function fetchUpdate(key) {
   }
 }
 
-/**
- * List all distinct noteIds stored on the server for a workspace.
- * @param {string} workspaceId
- * @returns {Promise<string[]>}
- */
 export async function listRemoteNoteIds(workspaceId) {
   try {
     const result = await getRemoteState(workspaceId);

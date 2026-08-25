@@ -13,10 +13,8 @@ pub(crate) struct SearchEntry {
     pub(crate) labels_text: String,
 }
 
-/// Extract search index data from all notes in the data store.
-/// Runs off-main-thread via `spawn_blocking` so the UI stays responsive.
-/// Returns a flat array of `{ id, title, searchText, labelsText }` entries
-/// ready for MiniSearch to consume on the JS side.
+/// Extract search-index data from all notes in the data store, off-main-thread
+/// via `spawn_blocking`; entries are MiniSearch-ready on the JS side.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn search_extract_index_data(
@@ -40,12 +38,10 @@ pub(crate) async fn search_extract_index_data(
         let mut entries = Vec::new();
 
         for (row_key, raw_value) in &flat {
-            // Only process note rows (keys starting with "notes.")
             if !row_key.starts_with("notes.") {
                 continue;
             }
 
-            // Decrypt the note envelope
             let decrypted = if let Some(ref key) = app_key {
                 match decrypt_json_from_storage(key, raw_value, &storage_aad(row_key)) {
                     Ok(Some(v)) => v,

@@ -31,10 +31,10 @@ pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
 pub(crate) const ARGON2_MEMORY_KIB: u32 = 131_072; // 128 MiB (Amendment 1)
 pub(crate) const ARGON2_ITERATIONS: u32 = 3;
 pub(crate) const ARGON2_PARALLELISM: u32 = 4;
-/// Original Argon2id parameters used by historical v3 note envelopes and v3
-/// manifests before Amendment 1. Pinned forever: the legacy Electron migration
-/// flow (`derive_argon2_key`) derives note KEKs through these constants, so a
-/// bump here would make every existing locked note undecryptable.
+/// Original Argon2id parameters of historical v3 note envelopes and v3
+/// manifests (pre-Amendment 1). Pinned forever: the legacy Electron migration
+/// flow (`derive_argon2_key`) derives note KEKs through these constants; a bump
+/// would make every existing locked note undecryptable.
 pub(crate) const LEGACY_ARGON2_MEMORY_KIB: u32 = 32768; // 32 MiB
 pub(crate) const LEGACY_ARGON2_ITERATIONS: u32 = 2;
 pub(crate) const LEGACY_ARGON2_PARALLELISM: u32 = 2;
@@ -44,18 +44,16 @@ pub(crate) const APP_ENCRYPTION_SCOPE: &str = "app";
 pub(crate) const STREAM_CHUNK_SIZE: usize = 256 * 1024;
 pub(crate) const SYNC_ROOT_DIR: &str = "BeaverNotesSync";
 pub(crate) const PROTOCOL_VERSION: u8 = 4;
-/// Envelope version written for binary sync payloads (raw Yjs update bytes).
-/// v5 encrypts the raw bytes directly instead of embedding the update as a
-/// giant JSON number array inside an encrypted JSON object (which cost ~950ms
-/// per multi-MB sync file). v4 envelopes are still decrypted for compat.
+/// Envelope version for binary sync payloads. v5 encrypts raw bytes directly;
+/// v4 embedded the update as a giant JSON number array inside an encrypted JSON
+/// object (~950ms per multi-MB sync file). v4 still decrypted for compat.
 pub(crate) const SYNC_PAYLOAD_VERSION: u8 = 5;
 pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
 /// AAD binding for note-content encryption. Fixed domain string: it proves the
 /// ciphertext is genuine note content (and not forged/moved across contexts).
 pub(crate) const NOTE_AAD: &str = "beaver-notes:note-content:v1";
-/// Envelope version for raw-byte note payloads. v6 encrypts the raw UTF-8 bytes
-/// directly instead of round-tripping through serde_json (which parsed the JSON
-/// string into a Value and then re-serialised it to bytes). v3 envelopes are
+/// Envelope version for raw-byte note payloads. v6 encrypts raw UTF-8 bytes
+/// directly instead of round-tripping through serde_json. v3 envelopes are
 /// still decrypted for backward compatibility.
 pub(crate) const NOTE_RAW_VERSION: u8 = 6;
 
@@ -66,9 +64,8 @@ pub(crate) struct WrappedKeyEnvelope {
     pub(crate) cipher: String,
 }
 
-/// A previously-active items key that has been rotated out. The key bytes are
-/// wrapped (encrypted) with the master KEK so they can be unwrapped into the
-/// in-memory ring at unlock time for decrypting old notes.
+/// A previously-active items key, rotated out: wrapped with the master KEK so
+/// it can be unwrapped into the in-memory ring at unlock time for old notes.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PreviousWrappedKey {
@@ -99,14 +96,12 @@ pub(crate) struct EncryptionManifest {
     /// Current items-key ID so newly-encrypted notes carry a `kid` reference.
     #[serde(default)]
     pub(crate) current_key_id: String,
-    /// Ring of previously-active items keys (wrapped with the KEK) so they can
-    /// be loaded at unlock time and used to decrypt notes written before the
-    /// most recent rotation.
+    /// Ring of previously-active items keys (wrapped with the KEK), loaded at
+    /// unlock time to decrypt notes written before the last rotation.
     #[serde(default)]
     pub(crate) previous_keys: Vec<PreviousWrappedKey>,
-    /// Items key wrapped with a random recovery secret so it can be recovered
-    /// without the passphrase. Absent for manifests created before recovery
-    /// codes were added; populated lazily when the user generates a code.
+    /// Items key wrapped with a random recovery secret. Absent in manifests
+    /// created before recovery codes; populated lazily on code generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) recovery_kek: Option<WrappedKeyEnvelope>,
 }
@@ -128,10 +123,9 @@ pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 
     )
 }
 
-/// Derive a KEK under the pinned LEGACY_ARGON2_* parameters. Used exclusively
-/// by the legacy-note migration path (`derive_argon2_key` command), which must
-/// reproduce historical v3 derivations byte-for-byte regardless of any future
-/// change to the module defaults.
+/// KEK under the pinned LEGACY_ARGON2_* parameters, exclusively for the
+/// legacy-note migration path (`derive_argon2_key`): must reproduce historical
+/// v3 derivations byte-for-byte regardless of module-default changes.
 pub(crate) fn derive_kek_argon2id_legacy(
     passphrase: &str,
     salt: &[u8],
@@ -177,9 +171,8 @@ pub(crate) fn derive_kek_from_manifest(
             .as_ref()
             .ok_or_else(|| AppError::Crypto("Argon2 salt missing in v3 manifest".into()))?;
         let salt = hex::decode(salt.trim())?;
-        // Use the parameters the manifest was created with (they can predate
-        // the current constants) so existing vaults keep unlocking after a
-        // KDF parameter bump.
+        // Use the manifest's stored params (they may predate current constants)
+        // so existing vaults keep unlocking after a KDF parameter bump.
         derive_kek_argon2id_with_params(
             passphrase,
             &salt,
@@ -206,9 +199,8 @@ pub(crate) fn random_nonce() -> [u8; 12] {
 }
 
 /// Force-initialize the lazily-initialized crypto stack (thread-local CSPRNG
-/// seeding and AES-GCM cipher setup) so the first real encrypt/decrypt on the
-/// user-visible path doesn't pay a one-time cold-start cost. Called during
-/// bootstrap and at unlock; the first `yjs_append` then reuses warm state.
+/// seeding, AES-GCM cipher setup) so the first real encrypt/decrypt doesn't pay
+/// a one-time cold-start cost. Called at bootstrap and unlock.
 pub(crate) fn prewarm_crypto() {
     let _t = crate::shared::speed_log::scope("keys.prewarm_crypto");
     let key = random_key();
@@ -262,9 +254,8 @@ pub(crate) fn xnonce() -> [u8; 24] {
     nonce
 }
 
-/// AEAD envelope used for all JSON payloads (sync commits, genesis, snapshot).
-/// XChaCha20-Poly1305 with a 24-byte nonce and AAD binding the ciphertext to its
-/// identity (commit id / snapshot / genesis marker).
+/// AEAD envelope for all JSON payloads (sync commits, genesis, snapshot):
+/// XChaCha20-Poly1305, 24-byte nonce, AAD binding ciphertext to its identity.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SyncEnvelope {
@@ -340,10 +331,9 @@ pub(crate) fn aead_decrypt_json(
     Ok(serde_json::from_slice(&plaintext)?)
 }
 
-/// Encrypt a raw byte payload (e.g. a Yjs binary update) with
-/// XChaCha20-Poly1305. Returns `(iv_hex, enc_base64)` — the same envelope
-/// layout as `aead_encrypt_json` but without the serde_json round-trip, so
-/// multi-MB sync payloads avoid parsing a huge JSON number array.
+/// Encrypt raw bytes (e.g. a Yjs binary update) with XChaCha20-Poly1305.
+/// Returns `(iv_hex, enc_base64)` — same envelope layout as
+/// `aead_encrypt_json` without the serde_json round-trip.
 pub(crate) fn aead_encrypt_bytes(
     key: &[u8; 32],
     plaintext: &[u8],
@@ -444,13 +434,10 @@ pub(crate) fn decrypt_json_from_storage(
     Ok(Some(decrypted))
 }
 
-//  Shared key params
-//
-// The items key is random and wrapped by the master key. To let a second device
-// derive the SAME master key (and thus unwrap the SAME items key) we publish the
-// public KDF parameters (salt) plus the wrapped items key in the sync folder.
-// This file is public: only a device with the correct passphrase can unwrap the
-// items key.
+// Shared key params: the items key is random and wrapped by the master key. To
+// let a second device derive the SAME master key (and unwrap the SAME items
+// key) we publish the public KDF parameters (salt) plus the wrapped items key
+// in the sync folder — only a device with the correct passphrase can unwrap it.
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -474,8 +461,7 @@ pub(crate) fn sync_key_params_path(
         if !p.is_empty() {
             PathBuf::from(p)
         } else {
-            // Cloud-only mode: fall back to the app data directory so
-            // keyParams.json is always reachable from the JS side too.
+            // Cloud-only mode: keep keyParams.json reachable from the JS side.
             dirs::data_local_dir()
                 .map(|d| d.join("com.beavernotes.beaver-notes"))
                 .unwrap_or_default()
@@ -536,18 +522,17 @@ pub(crate) fn read_key_params(
     Ok(Some(serde_json::from_str(&raw)?))
 }
 
-/// Derive the items key from shared key params: KEK = Argon2id(passphrase, salt),
-/// then unwrap `wrapped_items_key`. Pure and unit-testable. Returns the KEK too
-/// so callers can populate the key ring without re-running the KDF.
+/// Derive the items key from shared key params (KEK = Argon2id(passphrase,
+/// salt), then unwrap). Pure; returns the KEK so callers populate the key ring
+/// without re-running the KDF.
 pub(crate) fn derive_items_key_from_params(
     params: &KeyParams,
     passphrase: &str,
 ) -> Result<([u8; 32], [u8; 32]), AppError> {
     let salt = hex::decode(params.salt_hex.trim())?;
-    // Use the KDF parameters the vault was published with — never the module
-    // defaults. A vault may have been created with different Argon2 settings
-    // (e.g. a legacy 16 MiB manifest), and deriving with the defaults yields a
-    // different KEK and a spurious WrongPassword for the correct passphrase.
+    // Use the vault's published KDF params, never module defaults: a legacy
+    // 16 MiB manifest derived with defaults yields a different KEK and a
+    // spurious WrongPassword for the correct passphrase.
     let kek = derive_kek_argon2id_with_params(
         passphrase,
         &salt,
@@ -567,7 +552,7 @@ pub(crate) fn derive_items_key_from_params(
     Ok((key, kek))
 }
 
-/// True when the shared key params belong to a vault different from the local
+/// True when the shared key params belong to a different vault than the local
 /// manifest (or no local manifest exists).
 pub(crate) fn remote_params_differ(
     params: &KeyParams,
@@ -582,9 +567,9 @@ pub(crate) fn remote_params_differ(
     }
 }
 
-/// Adopt shared key params: derive the same items key every other device uses
-/// from the passphrase + the published (public) salt, update the in-memory key,
-/// and rewrite the local manifest so future local unlocks stay consistent.
+/// Adopt shared key params: derive the items key every other device uses,
+/// update the in-memory key, and rewrite the local manifest so future unlocks
+/// stay consistent.
 pub(crate) fn adopt_key_params(
     app: &AppHandle,
     state: &AppState,
@@ -643,9 +628,8 @@ pub(crate) fn write_encryption_manifest(
     Ok(())
 }
 
-/// Create a fresh encryption manifest for a scope. Derives the KEK once and
-/// returns it along with the manifest and items key so the caller can populate
-/// the key ring without re-running the KDF.
+/// Create a fresh encryption manifest for a scope, returning the KEK alongside
+/// so the caller can populate the key ring without re-running the KDF.
 pub(crate) fn create_encryption_manifest(
     scope: &str,
     password_check: &str,
@@ -673,8 +657,8 @@ pub(crate) fn create_encryption_manifest(
     Ok((manifest, data_key, kek))
 }
 
-/// Generate a random 256-bit recovery code and wrap the active items key with
-/// it. Returns the hex-encoded code so the frontend can display it once.
+/// Generate a random 256-bit recovery code wrapping the active items key;
+/// return hex for one-time display to the user.
 pub(crate) fn generate_recovery_code(
     manifest: &mut EncryptionManifest,
     data_key: &[u8; 32],
@@ -686,8 +670,7 @@ pub(crate) fn generate_recovery_code(
 }
 
 /// Recover the items key from a previously-generated recovery code (64 hex
-/// chars). The code must match the value returned by `generate_recovery_code`
-/// for the same manifest.
+/// chars) matching `generate_recovery_code` for the same manifest.
 pub(crate) fn recover_key_from_code(
     manifest: &EncryptionManifest,
     code_hex: &str,
@@ -712,10 +695,9 @@ pub(crate) fn recover_key_from_code(
     Ok(key)
 }
 
-/// Unwrap the items key from the manifest and return it together with the KEK
-/// derived from `passphrase`. Returning the KEK lets callers populate the key
-/// ring (and cache `master_key_cache`) without re-running the KDF — Argon2id is
-/// expensive (~200ms) and only needs to run once per unlock.
+/// Unwrap the items key from the manifest and return it with the KEK derived
+/// from `passphrase` — callers reuse the KEK (Argon2id is expensive, ~200ms)
+/// to populate the key ring without re-running the KDF.
 pub(crate) fn unlock_key_from_manifest(
     manifest: &EncryptionManifest,
     passphrase: &str,
@@ -758,11 +740,11 @@ pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, AppE
         .app_data_key)
 }
 
-/// Resolve the key for kv-layer at-rest encryption. `Ok(None)` only when
-/// encryption is not configured (pre-onboarding) — plaintext is the correct
-/// mode then. When encryption is configured but the session is still locked,
-/// returns `EncryptionLocked` so callers fail closed instead of writing
-/// plaintext among encrypted rows or reading ciphertext as garbage.
+/// Resolve the kv-layer at-rest encryption key. `Ok(None)` only when encryption
+/// is not configured (pre-onboarding) — plaintext is correct then. When
+/// encryption is configured but locked, returns `EncryptionLocked` so callers
+/// fail closed instead of writing plaintext among encrypted rows or reading
+/// ciphertext as garbage.
 pub(crate) fn kv_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
     let s = state.crypto.session.read().map_err(AppError::from)?;
     match (s.active, s.app_data_key) {
@@ -789,9 +771,8 @@ pub(crate) fn key_for_id(state: &AppState, kid: &str) -> Result<Option<[u8; 32]>
     Ok(s.items_keys.get(kid).copied())
 }
 
-/// Unwrap all `previous_keys` from the manifest and load them into the
-/// in-memory `items_keys` ring. Also caches the KEK in `master_key_cache`
-/// for future rotation without re-prompting.
+/// Unwrap all `previous_keys` into the in-memory `items_keys` ring and cache
+/// the KEK in `master_key_cache` for rotation without re-prompting.
 pub(crate) fn populate_key_ring(
     state: &AppState,
     manifest: &EncryptionManifest,
@@ -815,15 +796,12 @@ pub(crate) fn populate_key_ring(
     Ok(())
 }
 
-/// Rotate the current items key: wrap the old key and store it in the manifest's
-/// `previous_keys` list, generate a fresh random items key, wrap it with the KEK
-/// (which must be cached in `master_key_cache`), and persist the updated manifest.
-/// Old notes encrypted with the previous key remain decryptable via `items_keys`
-/// and `key_for_id`.
+/// Rotate the items key: archive the old key (manifest `previous_keys` +
+/// in-memory ring, so old notes stay decryptable via `key_for_id`) and wrap a
+/// fresh random key with the cached KEK. Requires the app to be unlocked.
 pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("keys.rotate_items_key");
-    // KEK + current key must be present (app must be unlocked). Copy them out so
-    // we can release the lock before doing disk I/O / crypto.
+    // Copy key material out so the lock releases before disk I/O / crypto.
     let (kek, current_key_id, current_key) = {
         let s = state.crypto.session.read().map_err(AppError::from)?;
         let kek = s.master_key_cache.ok_or_else(|| {
@@ -844,8 +822,6 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
     let mut manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Crypto("Encryption manifest is missing".into()))?;
 
-    // Wrap the outgoing key with the KEK and push it into the manifest's
-    // previous-keys list (persistent storage).
     let wrapped_old = encrypt_bytes_with_key(&kek, &current_key)?;
     manifest.previous_keys.push(PreviousWrappedKey {
         id: current_key_id.clone(),
@@ -853,8 +829,7 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
         cipher: wrapped_old.cipher,
     });
 
-    // Keep the old key in the in-memory ring so it can be looked up during this
-    // session without needing to unwrap it from the manifest.
+    // Keep the old key in the in-memory ring for lookups this session.
     state
         .crypto
         .session
@@ -937,9 +912,8 @@ pub(crate) fn decrypt_native_note_content(
     if !note_content_is_native_encrypted(content) {
         return Ok(Some(content.clone()));
     }
-    // Determine which items key to use: `kid` in the envelope lets us pick
-    // the correct key from the ring after rotation; absent `kid` (legacy)
-    // falls back to the current key.
+    // Pick the items key via `kid` (correct ring entry after rotation);
+    // absent `kid` (legacy) falls back to the current key.
     let kid = content
         .get("kid")
         .and_then(serde_json::Value::as_str)

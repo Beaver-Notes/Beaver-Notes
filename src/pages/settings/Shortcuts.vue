@@ -35,7 +35,6 @@ import { useTranslations } from '@/composable/useTranslations';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import SettingsGroup from '@/components/settings/SettingsGroup.vue';
 
-// Translations
 const { translations } = useTranslations();
 
 const shortcuts = [

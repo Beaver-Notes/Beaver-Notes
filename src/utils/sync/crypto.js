@@ -11,14 +11,10 @@ import {
 import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
 import { ENCRYPTED_ASSET_EXT } from './constants.js';
 
-// Encryption now runs entirely in Rust. The renderer never sees the items key:
+// Encryption runs entirely in Rust; the renderer never sees the items key —
 // it only asks the backend to encrypt/decrypt payloads with an AAD binding.
-//
-// Sync payloads carry the Yjs update as raw bytes: the JS layer sends the update
-// as base64 (`data`) alongside a small `meta` object (`{device, ts, sequence,
-// noteId}`), and the backend encrypts the raw bytes directly. This avoids the
-// old `update: Array.from(bytes)` + JSON.stringify/serde round-trip on a huge
-// number array, which cost ~950ms per multi-MB sync file.
+// Sync payloads carry the Yjs update as raw bytes (base64 `data` + small `meta`),
+// avoiding the old JSON number-array round-trip that cost ~950ms per multi-MB file.
 
 export async function ensureSyncKeyReadyForWrite() {
   const ready = await syncKeyReady().catch(() => false);
@@ -86,10 +82,7 @@ export async function decryptJSON(raw, aad = '') {
   return parsed;
 }
 
-/**
- * Batch-decrypt an array of sync envelopes in a single IPC call.
- * Returns an array of {meta, update} objects; failed items are `null`.
- */
+/** Batch-decrypt sync envelopes in one IPC call; failed items are `null`. */
 export async function decryptBatch(rawEnvelopes, aads) {
   if (!rawEnvelopes.length) return [];
   const results = await syncDecryptBatch(rawEnvelopes, aads);
@@ -103,10 +96,6 @@ export async function decryptBatch(rawEnvelopes, aads) {
   });
 }
 
-/**
- * Batch-encrypt an array of sync payloads in a single IPC call.
- * Each payload is {update, ...meta}. Returns an array of encrypted envelope strings.
- */
 export async function encryptBatch(payloads, aads) {
   if (!payloads.length) return [];
   await ensureSyncKeyReadyForWrite();

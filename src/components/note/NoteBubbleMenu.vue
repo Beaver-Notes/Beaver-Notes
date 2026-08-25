@@ -71,7 +71,6 @@ export default {
     const hoverMenuVisible = ref(false);
     let hoverCleanup = null;
 
-    // Extract link attributes from the hovered DOM element
     const hoverLinkAttrs = computed(() => {
       const el = hoveredLinkEl.value;
       if (!el) return null;
@@ -150,7 +149,6 @@ export default {
       // Small delay so the menu doesn't flicker when moving mouse to it
       setTimeout(() => {
         if (!hoverMenuVisible.value) return;
-        // Check if mouse is actually outside the menu
         const menu = hoverMenuRef.value;
         if (menu && !menu.matches(':hover')) {
           closeHoverMenu();
@@ -176,7 +174,6 @@ export default {
       const linkEl =
         target.closest('a[data-link-note]') || target.closest('a[tiptap-url]');
       if (!linkEl && hoveredLinkEl.value) {
-        // Mouse left the link – close if not hovering the menu
         setTimeout(() => {
           const menu = hoverMenuRef.value;
           if (menu && menu.matches(':hover')) return;

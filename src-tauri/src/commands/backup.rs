@@ -11,8 +11,8 @@ const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Byte-for-byte recursive copy (no re-encryption): assets are already stored
-/// encrypted-at-rest when applicable, so the archive mirrors disk exactly.
+/// Byte-for-byte recursive copy (no re-encryption): assets are already
+/// encrypted-at-rest where applicable, so the archive mirrors disk.
 fn copy_dir_raw(src: &Path, dest: &Path) -> Result<(), AppError> {
     std::fs::create_dir_all(dest)?;
     for entry in std::fs::read_dir(src)? {
@@ -28,8 +28,8 @@ fn copy_dir_raw(src: &Path, dest: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Verify `path` is a SQLite database at or below the current schema version
-/// and contains every expected table. Runs before anything is modified.
+/// Verify `path` is SQLite at/below the current schema version with every
+/// expected table present. Runs before anything is modified.
 fn validate_backup_db(path: &Path, label: &str) -> Result<(), AppError> {
     use std::io::Read;
 
@@ -111,13 +111,12 @@ fn import_db(pool: &crate::db::DbPool, src: &Path) -> Result<(), AppError> {
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
-/// Export a full-state backup folder: clean copies of both workspace databases
-/// plus the global assets directory. Layout:
-///   `<dir>/data.db`, `<dir>/settings.db`, `<dir>/assets/`
+/// Export a full-state backup folder (clean DB copies + global assets):
+/// `<dir>/data.db`, `<dir>/settings.db`, `<dir>/assets/`
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn backup_export(app: AppHandle, dir: String) -> Result<(), AppError> {
-    // VACUUM INTO + recursive asset copy are I/O-heavy — run off the main thread.
+    // VACUUM INTO + recursive asset copy are I/O heavy.
     tokio::task::spawn_blocking(move || {
         let state = app.state::<AppState>();
         let dest = PathBuf::from(&dir);
@@ -151,9 +150,9 @@ pub(crate) async fn backup_export(app: AppHandle, dir: String) -> Result<(), App
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Import a full-state backup folder created by `backup_export`: replaces every
-/// row of both live workspace databases and swaps the assets directory.
-/// The caller must relaunch the app afterwards so all cached state rehydrates.
+/// Import a backup folder from `backup_export`: replaces every row of both
+/// live DBs and swaps the assets directory. Caller must relaunch afterwards so
+/// cached state rehydrates.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn backup_import(app: AppHandle, dir: String) -> Result<(), AppError> {

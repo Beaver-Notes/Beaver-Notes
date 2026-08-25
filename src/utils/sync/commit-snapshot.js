@@ -21,12 +21,7 @@ async function getGenerateHTML() {
   return (json) => generateHTML(json, extensions);
 }
 
-/**
- * Capture a note's current content as an HTML snapshot from the active Yjs doc.
- * Returns null if the doc is not loaded or empty.
- * @param {string} noteId
- * @returns {Promise<{ content: string, title: string } | null>}
- */
+/** Capture a note's content/title as HTML from the active Yjs doc; null if unloaded or empty. */
 export async function captureNoteSnapshot(noteId) {
   const doc = getActiveDoc(noteId);
   if (!doc) return null;

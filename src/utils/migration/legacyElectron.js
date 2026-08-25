@@ -178,15 +178,10 @@ export async function detectLegacyLockedNotes(dir) {
 }
 
 /**
- * Validate the legacy locked-notes password WITHOUT writing anything back.
- * Decrypts (read-only) the first locked note to confirm the password is
- * correct. Throws on a wrong password so callers keep the existing
- * "Incorrect password" error path. The actual per-note decryption + Yjs
- * conversion happens later, in convertLegacyNotesToYjs.
- *
- * @param {string} dir legacy data directory
- * @param {string} password the submitted legacy password
- * @returns {Promise<{ok: boolean, count: number}>}
+ * Validate the legacy locked-notes password WITHOUT writing anything back:
+ * decrypts (read-only) the first locked note to confirm the password; throws
+ * on a wrong password so callers keep the "Incorrect password" error path.
+ * Actual decryption + Yjs conversion happens later in convertLegacyNotesToYjs.
  */
 export async function validateLegacyLockedPassword(dir, password) {
   const { data, notes: lockedNotes } = await readLegacyWithLocked(dir);
@@ -194,8 +189,7 @@ export async function validateLegacyLockedPassword(dir, password) {
     return { ok: true, count: 0 };
   }
 
-  // Decrypt the first locked note only — enough to prove the password. The
-  // rest are decrypted once, during content conversion. Nothing is persisted.
+  // First locked note only — enough to prove the password. Nothing persisted.
   const first = lockedNotes[0];
   const ciphertext = first?.content?.content?.[0];
   if (typeof ciphertext === 'string' && ciphertext) {
@@ -221,7 +215,6 @@ export async function migrateLegacyLockedNotes(dir, password) {
 
       if (parsed?.v === NOTE_ENVELOPE_VERSION_ARGON2) {
         const saltBuf = hexToBuf(parsed.salt);
-        // Derive the Argon2id key once and reuse it for decryption.
         const key = await _noteKeyArgon2(password, saltBuf);
         const buf = await crypto.subtle.decrypt(
           { name: ALGO_AES_GCM, iv: hexToBuf(parsed.iv) },
@@ -230,7 +223,6 @@ export async function migrateLegacyLockedNotes(dir, password) {
         );
         plaintext = new TextDecoder().decode(buf);
       } else if (parsed?.v === ENVELOPE_VERSION) {
-        // PBKDF2 envelope — decrypt with PBKDF2.
         const saltBuf = hexToBuf(parsed.salt);
         const keyPbkdf2 = await _noteKeyPbkdf2(password, saltBuf);
         const buf = await crypto.subtle.decrypt(
@@ -240,8 +232,7 @@ export async function migrateLegacyLockedNotes(dir, password) {
         );
         plaintext = new TextDecoder().decode(buf);
       } else {
-        // Legacy CryptoJS or unknown — fall back to the generic helper which
-        // handles derivation internally.
+        // Legacy CryptoJS or unknown — generic helper derives internally.
         ({ plaintext } = await decryptNoteWithPassword(ciphertext, password));
       }
 
@@ -251,9 +242,8 @@ export async function migrateLegacyLockedNotes(dir, password) {
       note.content = await encryptContent(JSON.parse(plaintext));
       note.isLocked = true;
       note.updatedAt = Date.now();
-      // Ensure cardPreview/preview/searchText are seeded for legacy import:
-      // locked notes are hidden -> EMPTY_CARD_PREVIEW and empty preview/search.
-      // Idempotency: EMPTY (blocks: []) is upgradeable to hidden preview.
+      // Seed cardPreview/preview/searchText for legacy import; locked notes
+      // are hidden -> EMPTY_CARD_PREVIEW (empty blocks upgradeable).
       if (!note.cardPreview?.blocks?.length) {
         const { cardPreview, preview } = buildNotePreview({
           content: null,
@@ -267,9 +257,8 @@ export async function migrateLegacyLockedNotes(dir, password) {
       }
       migrated += 1;
 
-      // Persist note metadata to the workspace Y.Doc `notes` map so the
-      // UI can display the migrated note in the new app. This ensures the
-      // note appears in the Pinia store after workspace doc hydration.
+      // Persist meta to the workspace doc `notes` map so the note shows up
+      // in the Pinia store after hydration.
       const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
       syncNoteMeta(note);
     } catch (err) {

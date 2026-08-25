@@ -1,7 +1,6 @@
 /**
  * Write a note's ProseMirror JSON content into its Yjs doc at creation /
- * import time. Yjs is the only content store — notes get their content into
- * Yjs immediately instead of relying on a later conversion.
+ * import time. Yjs is the only content store — no later conversion step.
  */
 
 import * as Y from 'yjs';
@@ -39,8 +38,7 @@ export async function writeNoteContentToYjs(noteId, content) {
 }
 
 /**
- * Persist many notes' content into their Yjs docs in a single batched IPC
- * (used by imports).
+ * Persist many notes' content in a single batched IPC (used by imports).
  */
 export async function writeNotesContentToYjs(notes) {
   if (!notes?.length) return;
@@ -66,15 +64,10 @@ export async function writeNotesContentToYjs(notes) {
 /**
  * Replace a note's Yjs content with the given full content.
  *
- * `writeNoteContentToYjs` APPENDS a full-state update built from an
- * independent Y.Doc — correct when the doc is empty (creation/import), but for
- * a note that already has Yjs content it re-adds everything (whole content
- * duplicated). This variant encodes the full content and COMPACTS the note's
- * update log to that snapshot, so the doc ends up exactly as given.
- *
- * Safe for notes that are not concurrently edited (single-window app; used by
- * the closed-note recording insert). Do not use while a collaboration session
- * is live on the note.
+ * `writeNoteContentToYjs` APPENDS a full-state update — correct on an empty
+ * doc, but duplicates everything on a note that already has content. This
+ * variant COMPACTS the update log to the snapshot instead. Not safe while a
+ * collaboration session is live on the note.
  */
 export async function replaceNoteContentInYjs(noteId, content) {
   if (!noteId || !content || typeof content !== 'object') return;

@@ -97,14 +97,12 @@ export default {
     const recorder = useAudioRecorder();
     const { expandedPill, toggle } = usePillDock();
 
-    // The dock target is rendered by App.vue before any pill mounts; fall
-    // back to inline rendering when it is absent (isolated unit tests).
+    // Dock target renders before any pill mounts; fall back inline when absent (isolated tests).
     const dockTarget =
       typeof document !== 'undefined' &&
       !!document.getElementById('pill-dock');
 
-    // Docked while a recording is visible next to us; solo means always
-    // expanded.
+    // Solo means always expanded; otherwise docked while a recording is visible.
     const docked = computed(() => recorder.isRecording.value);
     const isExpanded = computed(
       () => !docked.value || (expandedPill.value ?? 'recording') === 'word-count'

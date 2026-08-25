@@ -390,7 +390,6 @@ export default {
       commentStore.setPendingThread(threadId, from, to);
     }
 
-    // ── Link input state ────────────────────────────────────────────
     const linkInputValue = ref('');
     const linkInputRef = ref(null);
     const selectedLinkIndex = ref(0);

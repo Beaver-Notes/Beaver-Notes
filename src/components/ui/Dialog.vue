@@ -171,9 +171,8 @@ export default {
 
       state.input = options.defaultValue ?? '';
       state.show = true;
-      // A new show-dialog emit while a callback is running means a nested
-      // dialog took over the modal. fireCallback uses this to avoid tearing
-      // the nested dialog down after its parent's callback resolves.
+      // A new show-dialog emit while a callback runs means a nested dialog
+      // took over the modal; fireCallback must not tear it down afterwards.
       state.reentered = true;
       isEmpty.value = false;
     });
@@ -215,9 +214,8 @@ export default {
         }
       }
 
-      // A nested dialog (confirm → prompt, prompt → prompt) replaces the
-      // modal via a new show-dialog emit while this callback runs. It is
-      // already visible — do not tear it down here.
+      // A nested dialog (confirm → prompt, …) replaces the modal via a new
+      // show-dialog emit while this callback runs; it is already visible.
       if (hide && !state.reentered) {
         state.options = defaultOptions;
         state.show = false;

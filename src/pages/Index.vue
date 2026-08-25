@@ -223,9 +223,7 @@ export default {
 
       let rootFolders = [...folderStore.rootFolders];
 
-      // Filter by archive status:
-      // In archive view, show only archived folders
-      // In normal view, show only non-archived folders
+      // Archive view: only archived folders; normal view: only non-archived.
       rootFolders = rootFolders.filter((f) =>
         isArchiveView ? f.isArchived : !f.isArchived
       );

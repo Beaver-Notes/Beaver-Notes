@@ -1,16 +1,5 @@
 /**
- * drawHelper.js - drawing utilities facade
- *
- * Delegates rendering to freehand.js.
- * Handles:
- *   - Apple Pencil pen mode detection (from tldraw's Editor.ts dispatch)
- *   - Palm rejection (from tldraw's penMode + contact area)
- *   - Coordinate conversion (SVG getScreenCTM)
- *   - Pressure normalisation (pen real, mouse simulated)
- *   - Coalesced event handling
- *   - Point interpolation / smoothing
- *   - Legacy stroke migration
- *   - Straight-line segment insertion (Shift+draw)
+ * drawHelper.js - drawing utilities facade (rendering in freehand.js)
  *
  * Stroke format (canonical v2):
  *   {
@@ -32,27 +21,17 @@ import {
 
 // Pen-mode / Palm-rejection (from tldraw)
 
-/**
- * True when the input is a real pen/stylus.
- * This is the key Apple Pencil detection.
- */
 export function isPen(e) {
   return e.pointerType === 'pen';
 }
 
-/**
- * True if the touch contact area looks like a palm resting on screen.
- * Only relevant for touch input (pen and mouse are always deliberate).
- */
+/** Palm rejection heuristic — deliberately applies only to touch input. */
 export function isPalmTouch(e) {
   if (e.pointerType === 'pen' || e.pointerType === 'mouse') return false;
   return (e.width ?? 0) > 60 || (e.height ?? 0) > 60;
 }
 
-/**
- * True for any deliberate drawing input.
- * When isPenMode is active, only pen input is accepted.
- */
+/** Deliberate drawing input; when pen mode is active, pen only. */
 export function isDeliberateInput(e, isPenMode = false) {
   if (isPalmTouch(e)) return false;
   if (isPenMode && e.pointerType !== 'pen') return false;
@@ -73,11 +52,7 @@ export function isStylusEraser(e) {
 
 // Double-tap zoom fix (from tldraw's useFixSafariDoubleTapZoomPencilEvents)
 
-/**
- * Prevent iOS double-tap-to-zoom when using Apple Pencil.
- * Call this on touchstart/touchend when isPen(e) is true.
- * Must be called with a real DOM event, not a synthetic one.
- */
+/** Call on touchstart/touchend when isPen(e); needs a real DOM event. */
 export function preventPencilDoubleTapZoom(e) {
   if (e instanceof PointerEvent && e.pointerType === 'pen') {
     e.preventDefault();
@@ -86,10 +61,7 @@ export function preventPencilDoubleTapZoom(e) {
 
 // Coordinate conversion
 
-/**
- * Convert a pointer event to SVG-local coordinates via the CTM.
- * Accepts either the SVG element directly or a Vue ref wrapping it.
- */
+/** Accepts the SVG element directly or a Vue ref wrapping it. */
 export function getPointerCoordinates(event, svgElement) {
   const svg = svgElement?.value ?? svgElement;
   if (!svg) return [event.clientX, event.clientY];
@@ -105,30 +77,22 @@ export function getPointerCoordinates(event, svgElement) {
   return [local.x, local.y];
 }
 
-/**
- * Return a 0–1 pressure value from a pointer event.
- * All inputs return 0.5 — pressure sensitivity disabled for consistency.
- */
+/** Pressure sensitivity disabled: always returns 0.5 regardless of input. */
 export function normalisePressure(_e) {
   return 0.5;
 }
 
 // Point interpolation / smoothing
 
-/**
- * Smooth raw pointer samples using Douglas–Peucker thinning +
- * Chaikin corner-cutting. Operates on `[x, y, pressure]` triplets.
- */
+/** Douglas–Peucker thinning + Chaikin corner-cutting over [x, y, pressure] triplets. */
 export function interpolatePoints(
   points,
   { passes = 2, threshold = 2.5 } = {}
 ) {
   if (!points || points.length < 3) return points ?? [];
 
-  // Light D-P thinning
   let pts = douglasPeucker(points, threshold);
 
-  // Chaikin corner-cutting for smooth curves
   for (let pass = 0; pass < passes; pass++) {
     const next = [pts[0]];
     for (let i = 0; i < pts.length - 1; i++) {
@@ -181,18 +145,7 @@ function douglasPeucker(pts, epsilon) {
 
 // Straight-line segment insertion (Shift+draw, from tldraw's Drawing.ts)
 
-/**
- * Insert a straight-line segment into an existing stroke's points.
- * Used when the user holds Shift mid-stroke to lock to a straight line.
- *
- * @param {Array<[number,number,number]>} existingPoints - current stroke points
- * @param {number} fromX - segment start X
- * @param {number} fromY - segment start Y
- * @param {number} toX - segment end X
- * @param {number} toY - segment end Y
- * @param {number} pressure
- * @returns {Array<[number,number,number]>} new points array with straight line appended
- */
+/** Insert a straight segment into a stroke's points (Shift+draw mid-stroke). */
 export function appendStraightSegment(
   existingPoints,
   fromX,
@@ -205,7 +158,7 @@ export function appendStraightSegment(
   const steps = Math.max(2, Math.floor(dist / 4));
 
   const result = [...existingPoints];
-  result.push([fromX, fromY, pressure]); // anchor at start of segment
+  result.push([fromX, fromY, pressure]);
   for (let i = 1; i < steps; i++) {
     const t = i / steps;
     result.push([
@@ -214,19 +167,13 @@ export function appendStraightSegment(
       pressure,
     ]);
   }
-  result.push([toX, toY, pressure]); // end point
+  result.push([toX, toY, pressure]);
   return result;
 }
 
 // Coalesced events helper
 
-/**
- * Get all coalesced events from a pointermove event.
- * High-Hz styluses (Apple Pencil) fire multiple sub-frame events;
- * this captures them all for smooth ink.
- * Falls back to the single event on platforms where getCoalescedEvents
- * isn't available (e.g. iOS in non-HTTPS contexts).
- */
+/** High-Hz styluses fire sub-frame events; falls back to [e] where unsupported. */
 export function getCoalescedEvents(e) {
   if (typeof e.getCoalescedEvents === 'function') {
     return e.getCoalescedEvents();
@@ -234,11 +181,7 @@ export function getCoalescedEvents(e) {
   return [e];
 }
 
-// Re-exports from freehand.js
-
 export { getRenderablePath, getRenderableStrokeProps, getLineBounds };
-
-// Default tool settings
 
 export function cloneDrawingToolDefaults() {
   return {
@@ -280,10 +223,7 @@ export function migrateStrokes(rawLines, rawLinesV2) {
 
 // Point transforms (used by transformHelper.js)
 
-/**
- * Move or resize all points in a stroke from oldBounds → newBounds.
- * Preserves the pressure (3rd element) of each point.
- */
+/** Maps points oldBounds → newBounds, preserving each point's pressure. */
 export function transformPoints(points, oldBounds, newBounds, transformType) {
   if (!points?.length) return points;
 
@@ -293,7 +233,6 @@ export function transformPoints(points, oldBounds, newBounds, transformType) {
     return points.map(([x, y, p = 0.5]) => [x + dx, y + dy, p]);
   }
 
-  // resize
   const sx = oldBounds.width > 0 ? newBounds.width / oldBounds.width : 1;
   const sy = oldBounds.height > 0 ? newBounds.height / oldBounds.height : 1;
   return points.map(([x, y, p = 0.5]) => [
@@ -303,9 +242,7 @@ export function transformPoints(points, oldBounds, newBounds, transformType) {
   ]);
 }
 
-/**
- * Rotate all points around (cx, cy) by angleDeg degrees (CW positive).
- */
+/** Rotate points around (cx, cy); angleDeg in degrees, clockwise positive. */
 export function rotatePoints(points, cx, cy, angleDeg) {
   const rad = (angleDeg * Math.PI) / 180;
   const cos = Math.cos(rad);

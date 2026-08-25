@@ -28,8 +28,7 @@ function buildNotePreviewFromContent(merged, content) {
   });
 }
 
-// Lazy wrapper — @tiptap/y-tiptap pulls in prosemirror, which should not load
-// until a note actually needs a snapshot-based preview.
+// Lazy: @tiptap/y-tiptap pulls in prosemirror; don't load until a preview needs it.
 let yXmlToJsonPromise = null;
 async function yXmlFragmentToProsemirrorJSON(xmlFragment) {
   if (!yXmlToJsonPromise) {
@@ -42,11 +41,7 @@ async function yXmlFragmentToProsemirrorJSON(xmlFragment) {
 /**
  * Batch-load note CONTENT as ProseMirror JSON from per-note Yjs snapshots
  * (the only place content lives post-migration). Missing/locked/failed notes
- * are simply absent from the result so callers can fall back to whatever
- * in-memory copy they have.
- *
- * @param {string[]} noteIds
- * @returns {Promise<Record<string, object>>} id -> ProseMirror JSON doc
+ * are absent from the result so callers fall back to their in-memory copy.
  */
 export async function readNoteContents(noteIds) {
   const contents = {};
@@ -78,19 +73,14 @@ export async function readNoteContents(noteIds) {
 
 /**
  * Push workspace-doc changes into the Pinia stores (one-way: doc -> store).
- * Idempotent — re-applying the same state is a no-op for consumers.
+ * Idempotent. The workspace Y.Doc is the source of truth for metadata;
+ * note CONTENT lives in per-note Yjs docs.
  *
- * The workspace Y.Doc is the single source of truth for metadata; note CONTENT
- * lives in per-note Yjs docs. No KV reads, no seeding, no conversion.
- *
- * @param {Set<string>|undefined} [changedNoteIds] ids of notes whose meta
- *   changed in this batch. When provided, only those notes are re-merged and
- *   removed ids are evicted — the store map is not rebuilt wholesale. When
- *   omitted, all notes are re-merged (initial hydration).
+ * @param {Set<string>|undefined} [changedNoteIds] when provided, only those
+ *   notes are re-merged and removed ids evicted; omitted = full re-merge.
  * @param {{folders?: boolean, labels?: boolean, labelColors?: boolean}|undefined} [metaChanges]
- *   flags for which non-note collections changed in this batch (from
- *   `observeWorkspace`). When provided, folders/labels are only rebuilt when
- *   their flag is set; when omitted (initial hydration) everything is rebuilt.
+ *   per-collection flags (from `observeWorkspace`); folders/labels rebuild
+ *   only when flagged; omitted (initial hydration) rebuilds everything.
  */
 export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   const doc = getWorkspaceDoc();
@@ -109,12 +99,9 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   let foldersNeedRebuild = isInitialHydration || metaChanges.folders;
   let labelsNeedRebuild = isInitialHydration || metaChanges.labels || metaChanges.labelColors;
 
-  // ── Folders / Labels ───────────────────────────────────────────────────────
-  // Incremental batches only rebuild a collection when its own flag is set.
-  // Note-only changes previously rebuilt every folder/label object and
-  // cascaded a full reactive re-render of every folder-dependent computed
-  // app-wide — the dominant cost for a single-note edit at scale. Initial
-  // hydration (no flags) rebuilds everything.
+  // Incremental batches rebuild a collection only when its flag is set —
+  // rebuilding every folder/label per note edit cascaded app-wide reactive
+  // re-renders (the dominant cost at scale). Initial hydration rebuilds all.
   if (foldersNeedRebuild) {
     const folders = {};
     for (const [id, yFolder] of yFolders.entries()) {
@@ -129,13 +116,11 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
     labelStore.colors = yMapToObj(yLabelColors);
   }
 
-  // ── Note metadata ──────────────────────────────────────────────────────────
-  // Content lives in per-note Yjs docs. Card previews missing an in-memory
-  // content source are built from the note's Yjs snapshot (batched below).
+  // Content lives in per-note Yjs docs; previews without an in-memory
+  // content source are built from the note's snapshot (batched below).
   const pendingPreviews = [];
 
   if (changedIds) {
-    // Incremental: re-merge only the changed notes and evict removed ones.
     for (const id of changedIds) {
       const yNote = yNotes.get(id);
       if (!yNote) continue;
@@ -154,7 +139,6 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
       delete noteStore.data[id];
     }
   } else {
-    // Full hydration: merge every note in the doc.
     for (const [id, yNote] of yNotes.entries()) {
       const meta = yMapToObj(yNote);
       const existing = noteStore.data[id] || {};
@@ -172,8 +156,7 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
     }
   }
 
-  // Batch-load Yjs snapshots for notes that have no in-memory content source
-  // (single round-trip instead of one IPC call per note).
+  // Batch-load snapshots for notes with no in-memory content source.
   if (pendingPreviews.length > 0) {
     let snapshots;
     try {
@@ -203,8 +186,7 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
             const { cardPreview, preview } = buildNotePreviewFromContent(merged, content);
             merged.cardPreview = cardPreview;
             if (!merged.preview) merged.preview = preview;
-            // Persist the built preview so the next launch reads it from the
-            // workspace doc instead of loading + converting the content again.
+            // Persist the built preview so next launch skips content conversion.
             syncNoteMeta(merged);
           } catch (err) {
             console.warn('[meta-yjs] preview load failed for', id, err);
@@ -298,11 +280,9 @@ export async function seedWorkspaceDocFromData(
 
 /**
  * One-time backfill: notes written before `cardPreview` was persisted (or
- * migrated notes whose content left KV) have no preview source in memory, so
- * their cards are blank on launch until re-saved. For each such note we load
- * its Yjs snapshot (O(1) via the Phase 0 snapshot store), rebuild the
- * structured `cardPreview` + flat `preview` from the content, and persist them.
- * Runs deferred (non-blocking) and only once per device.
+ * migrated notes whose content left KV) have blank cards on launch until
+ * re-saved. Loads each note's Yjs snapshot, rebuilds `cardPreview` + `preview`
+ * and persists them. Deferred, non-blocking, once per device.
  */
 export async function backfillNotePreviews() {
   const noteStore = useNoteStore();
@@ -317,7 +297,6 @@ export async function backfillNotePreviews() {
 
   let snapshots = {};
   try {
-    // Batch-load all missing previews in a single round-trip.
     snapshots = await getSnapshots(needsSnapshot);
   } catch (err) {
     console.warn('[meta-yjs] preview backfill batch failed', err);

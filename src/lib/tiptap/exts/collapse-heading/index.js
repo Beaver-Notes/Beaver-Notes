@@ -408,7 +408,7 @@ export default Heading.extend({
       container.style.position = 'relative';
 
       const content = document.createElement(`h${node.attrs.level}`);
-      content.style.marginLeft = '30px'; // Adjust based on your design
+      content.style.marginLeft = '30px';
       content.style.position = 'relative';
 
       const indicator = createArrowSVG();
@@ -417,8 +417,8 @@ export default Heading.extend({
       indicator.style.position = 'absolute';
       indicator.style.left = '0';
       indicator.style.top = '50%';
-      indicator.style.transform = 'translateY(-50%)'; // Center vertically
-      indicator.style.transition = 'transform 0.3s'; // Smooth rotation transition
+      indicator.style.transform = 'translateY(-50%)';
+      indicator.style.transition = 'transform 0.3s';
 
       const updateIndicator = () => {
         if (node.attrs.open) {
@@ -430,7 +430,6 @@ export default Heading.extend({
 
       updateIndicator();
 
-      // Toggle state on indicator click
       indicator.addEventListener('click', () => {
         if (node.attrs.open) {
           editor.commands.collapsedHeading();

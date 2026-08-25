@@ -1,26 +1,14 @@
 /**
- * State-vector storage for Yjs sync.
- *
- * Instead of per-device timestamp cursors, we store a compact JSON object
- * `{ [deviceId]: clock }` per note.  This is derived from the Rust backend's
- * y-octo state vector and lets us quickly check whether a remote update is
- * already known without reading or decrypting the file.
- *
- * The state vector is NOT a binary-encoded Yjs state vector — it is a plain
- * JSON map produced by the `yjs:getStateVector` IPC command (which returns
- * `HashMap<String, i64>` from y-octo).  This avoids compatibility issues
- * between y-octo's string client IDs and yjs's numeric client IDs.
+ * Per-note state-vector storage for Yjs sync: a plain JSON map
+ * `{ [deviceId]: clock }` derived from the Rust backend's y-octo state vector.
+ * Deliberately NOT a binary Yjs state vector — y-octo uses string client IDs
+ * vs. yjs's numeric ones.
  */
 
 import { getStateVector } from '@/lib/native/yjs.js';
 
 const STORAGE_KEY = 'syncStateVectors';
 
-/**
- * Load the stored state vector for a document.
- * @param {string} docId
- * @returns {Record<string, number>|null} e.g. { "device-a": 5, "device-b": 12 } or null
- */
 export function loadStateVector(docId) {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY}:${docId}`);
@@ -31,11 +19,6 @@ export function loadStateVector(docId) {
   }
 }
 
-/**
- * Save a state vector for a document.
- * @param {string} docId
- * @param {Record<string, number>} sv — e.g. { "device-a": 5 }
- */
 export function saveStateVector(docId, sv) {
   try {
     localStorage.setItem(`${STORAGE_KEY}:${docId}`, JSON.stringify(sv));
@@ -44,10 +27,7 @@ export function saveStateVector(docId, sv) {
   }
 }
 
-/**
- * Get the current state vector from the Rust backend for a note.
- * Returns a JSON object `{ [deviceId]: clock }`, or `{}` if no data.
- */
+/** Returns the current `{ [deviceId]: clock }` map, or `{}` if none. */
 export async function getCurrentStateVector(docId) {
   try {
     const sv = await getStateVector(docId);
@@ -58,14 +38,7 @@ export async function getCurrentStateVector(docId) {
   }
 }
 
-/**
- * Check whether a remote update is already included in the local state.
- * Uses the stored state vector to avoid re-applying known updates.
- *
- * @param {string} docId
- * @param {{ device: string, sequence?: number }} updateMetadata
- * @returns {boolean} true if the update is already known
- */
+/** True when the update's sequence is already covered by the stored vector. */
 export function isUpdateKnown(docId, updateMetadata) {
   const sv = loadStateVector(docId);
   if (!sv) return false;
@@ -73,22 +46,13 @@ export function isUpdateKnown(docId, updateMetadata) {
   const clientClock = sv[updateMetadata.device];
   if (clientClock == null) return false;
 
-  // If we have state from this client and the update's sequence is at or below
-  // what we've seen, skip it.
   if (updateMetadata.sequence != null) {
     return updateMetadata.sequence <= clientClock;
   }
   return false;
 }
 
-/**
- * Merge a remote state vector with our stored one for a document.
- * After applying updates from a remote, save the merged state.
- *
- * @param {string} docId
- * @param {Record<string, number>} remoteSV — e.g. { "device-b": 8 }
- * @returns {Record<string, number>} merged state vector
- */
+/** Merge a remote state vector into the stored one (max wins) and persist. */
 export function mergeStateVectors(docId, remoteSV) {
   const localSV = loadStateVector(docId);
   if (!localSV || Object.keys(localSV).length === 0) {
@@ -105,19 +69,12 @@ export function mergeStateVectors(docId, remoteSV) {
   return merged;
 }
 
-// ── Server checkpoint storage (for cloud pull efficiency) ────────────────────
-// The cloud server uses per-device { ts, sequence } checkpoints for its
-// pull-batch endpoint.  Storing the server's nextCheckpoint after each pull
-// lets us send only NEW updates on the next pull instead of re-downloading
-// everything.
+// ── Server checkpoint storage ────────────────────────────────────────────────
+// Per-device { ts, sequence } checkpoints sent back on each pull so the server
+// returns only NEW updates instead of re-downloading everything.
 
 const CHECKPOINT_STORAGE_KEY = 'syncServerCheckpoints';
 
-/**
- * Load the stored server checkpoint for a note.
- * @param {string} noteId
- * @returns {Record<string, {ts: number, sequence: number}>|null} e.g. { "device-a": { ts: 123, sequence: 5 } }
- */
 export function loadServerCheckpoint(noteId) {
   try {
     const raw = localStorage.getItem(`${CHECKPOINT_STORAGE_KEY}:${noteId}`);
@@ -128,11 +85,6 @@ export function loadServerCheckpoint(noteId) {
   }
 }
 
-/**
- * Save a server checkpoint for a note.
- * @param {string} noteId
- * @param {Record<string, {ts: number, sequence: number}>} checkpoint
- */
 export function saveServerCheckpoint(noteId, checkpoint) {
   try {
     if (checkpoint && Object.keys(checkpoint).length > 0) {
@@ -143,11 +95,7 @@ export function saveServerCheckpoint(noteId, checkpoint) {
   }
 }
 
-/**
- * Clear the stored server checkpoint for a note.
- * Used after bootstrap to force a full re-pull.
- * @param {string} noteId
- */
+/** Clear the stored checkpoint (e.g. after bootstrap, to force a full re-pull). */
 export function clearServerCheckpoint(noteId) {
   try {
     localStorage.removeItem(`${CHECKPOINT_STORAGE_KEY}:${noteId}`);

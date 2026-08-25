@@ -10,10 +10,8 @@ import { CloudTransport } from './transports/cloud.js';
 
 /**
  * Build and start the app sync engine. Autosync is always on: the engine is
- * initialized unconditionally so callers (Settings "Sync now", transport
- * changes) may forceSyncNow at any time without hitting a null engine, and
- * the initial pull plus periodic sync always run. Without a configured sync
- * folder a sync cycle is a no-op.
+ * initialized unconditionally so callers may forceSyncNow anytime without a
+ * null engine; a cycle without a configured target is a no-op.
  */
 export async function initAppSync() {
   const syncProgressStore = useSyncProgressStore();
@@ -34,11 +32,9 @@ export async function initAppSync() {
 
   const engine = getSyncEngine();
 
-  // Nothing usable is configured — no sync folder, and no authenticated cloud
-  // account — so the engine stays inert. `_runCycle` skips anyway, but we also
-  // skip the initial pull and the 30s timer so unconfigured installs never pay
-  // for them. Once a folder is chosen (or the user signs in and enables cloud)
-  // the engine cycles get triggered on demand / via useAppShell.
+  // Nothing usable configured (no folder, no authenticated cloud account) —
+  // stay inert: skip the initial pull and 30s timer; cycles trigger on demand
+  // once a folder is chosen or cloud is enabled.
   const syncPath = await getSyncPath();
   const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
   const wantsCloud = transport !== SYNC_TRANSPORT.FOLDER;
@@ -53,8 +49,6 @@ export async function initAppSync() {
     .forceSyncNow()
     .catch((err) => console.warn('[sync] initial sync failed:', err));
 
-  // Start pull-only timer: polls for remote changes every 30s when visible.
-  // Push remains event-driven (on edit, on foreground wake, on manual trigger).
   engine.startPullTimer();
 
   return engine;

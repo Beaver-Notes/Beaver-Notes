@@ -35,10 +35,7 @@ export function objToYMap(obj) {
   return map;
 }
 
-/**
- * Apply an array of updates (base64 strings, Uint8Array or number[]) to a
- * Y.Doc, skipping corrupted ones.
- */
+/** Apply updates (base64 strings, Uint8Array or number[]), skipping corrupted ones. */
 export function applyUpdatesToDoc(doc, updates) {
   if (!updates || updates.length === 0) return;
   for (const u of updates) {
@@ -51,8 +48,8 @@ export function applyUpdatesToDoc(doc, updates) {
 }
 
 /**
- * Ensure a Yjs binary value is a Uint8Array. IPC now delivers binary as
- * base64 strings (see commands.ts); numeric arrays are the legacy shape.
+ * Ensure a Yjs binary value is a Uint8Array. IPC delivers binary as base64
+ * strings (see commands.ts); numeric arrays are the legacy shape.
  */
 export function toUint8Array(data) {
   if (data instanceof Uint8Array) return data;
@@ -64,16 +61,14 @@ export function toUint8Array(data) {
 }
 
 /**
- * Build a ProseMirror schema from TipTap extensions, cached globally.
- * Used for seeding Y.Docs from legacy JSON content.
+ * Build a ProseMirror schema from TipTap extensions, cached globally;
+ * used for seeding Y.Docs from legacy JSON content.
  */
 export async function ensureSchema() {
   if (cachedSchema) return cachedSchema;
   const { Editor } = await import('@tiptap/core');
-  // Seed Y.Docs from the SAME extension set the live Yjs editor uses
-  // (yjsExtensions + the heading variant selected by settings), so the
-  // schema matches what ySyncPlugin expects. Using the non-Yjs `extensions`
-  // with the plain `heading` node previously produced mismatched/empty
+  // Must match the live Yjs editor's extension set (incl. the collapsible
+  // heading variant) — using the plain heading node produced mismatched/empty
   // content when collapsible headings were enabled.
   const appStore = useAppStore();
   const headingExt = appStore.setting?.collapsibleHeading

@@ -1,5 +1,3 @@
-// src/utils/sync/transports/seed.js
-
 import * as Y from 'yjs';
 import { getWorkspaceDoc, META_DOC_ID } from '@/lib/yjs/meta-doc.js';
 import { writeYjsSnapshot } from '../sync-yjs.js';

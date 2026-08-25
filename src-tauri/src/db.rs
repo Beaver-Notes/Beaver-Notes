@@ -11,12 +11,10 @@ use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob, is_encrypted_yjs_blob, A
 
 pub(crate) type DbPool = Pool<SqliteConnectionManager>;
 
-/// Schema version — increment when tables/indexes change.
-/// Must stay in sync with `SCHEMA_VERSION` in the migration function below.
+/// Schema version, mirrored into SQLite `PRAGMA user_version`. Bump when tables/indexes change.
 pub(crate) const SCHEMA_VERSION: i64 = 1;
 
-/// DDL for every schema version. Each entry runs all statements from version N
-/// to N+1. Add new migrations here and bump `SCHEMA_VERSION` above.
+/// DDL per schema version: entry for version N runs statements taking N → N+1.
 fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
     // Version 0 → 1: baseline tables (runs for both fresh and existing DBs).
     if from < 1 {
@@ -45,12 +43,6 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
         .map_err(|e| AppError::Other(e.to_string()))?;
     }
 
-    // Future migrations go here, e.g.:
-    // if from < 2 {
-    //     conn.execute_batch("ALTER TABLE kv ADD COLUMN created_at INTEGER; ...")
-    //         .map_err(|e| e.to_string())?;
-    // }
-
     Ok(())
 }
 
@@ -73,7 +65,6 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
 
-    // Run schema migration
     let current: i64 = conn
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap_or(0);
@@ -219,9 +210,7 @@ pub(crate) fn db_replace_all(
     tx.commit().map_err(|e| AppError::Other(e.to_string()))
 }
 
-/// Apply a targeted diff: insert/update only rows in `upserts`, delete keys
-/// in `deletes`.  Runs in a single transaction so the store is never in an
-/// inconsistent intermediate state.
+/// Apply a targeted diff — upsert `upserts`, delete `deletes` — atomically in one transaction.
 pub(crate) fn db_apply_diff(
     pool: &DbPool,
     upserts: &Map<String, Value>,
@@ -258,15 +247,10 @@ pub(crate) fn db_apply_diff(
 
 // ─── Yjs note-content helpers ─────────────────────────────────────────────────
 
-/// Append a Yjs binary update for a note. The raw update is kept (append-only
-/// so every peer's version is preserved). The snapshot cache is NOT folded here:
-/// rebuilding it on every write would cost a full decrypt + CRDT merge +
-/// re-encrypt of the whole note state per keystroke-flush. Instead
-/// `yjs_get_snapshot` rebuilds lazily only when it detects the cached snapshot
-/// is stale (any update newer than the snapshot's `updated_at`), so steady-state
-/// writes stay O(1) while reads remain O(1) when the snapshot is fresh.
-///
-/// When `key` is `Some`, the stored blob is encrypted at rest.
+/// Append a raw Yjs update for a note (append-only so every peer's version is
+/// preserved). The snapshot cache is NOT folded here: rebuilding it per write
+/// would cost a full decrypt + CRDT merge + re-encrypt on every keystroke
+/// flush — `yjs_get_snapshot` rebuilds lazily only when stale, so writes stay O(1).
 pub(crate) fn yjs_append(
     pool: &DbPool,
     note_id: &str,
@@ -275,7 +259,6 @@ pub(crate) fn yjs_append(
     key: Option<[u8; 32]>,
 ) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("db.yjs_append");
-    // Encrypt the blob for storage (no-op when key is None).
     let stored = match key {
         Some(k) => encrypt_yjs_blob(&k, blob)?,
         None => blob.to_vec(),
@@ -289,9 +272,8 @@ pub(crate) fn yjs_append(
     Ok(())
 }
 
-/// Return all Yjs updates for a note, ordered by insertion.
-/// Kept for backwards compatibility / migration; prefer `yjs_get_snapshot`.
-/// When `key` is `Some`, each blob is decrypted before returning.
+/// All Yjs updates for a note, ordered by insertion. Kept for backwards
+/// compatibility / migration; prefer `yjs_get_snapshot`.
 pub(crate) fn yjs_get_updates(
     pool: &DbPool,
     note_id: &str,
@@ -338,12 +320,9 @@ pub(crate) fn yjs_get_updates(
     Ok(result)
 }
 
-/// Return a single merged Yjs state snapshot for a note, computed with the
-/// `y-octo` CRDT engine (wire-compatible with the JS `yjs` library). The result is
-/// cached in `yjs_snapshots`, so reads are O(1) as long as the cached snapshot
-/// is fresh (no update newer than it). When the cache is stale — an update was
-/// appended since the snapshot was written — it is rebuilt from history once and
-/// re-cached. When `key` is `Some`, the snapshot is decrypted before return.
+/// Merged Yjs state snapshot via the `y-octo` CRDT engine (wire-compatible
+/// with the JS `yjs` library). Cached in `yjs_snapshots`; rebuilt once when any
+/// update is newer than the cache.
 pub(crate) fn yjs_get_snapshot(
     pool: &DbPool,
     note_id: &str,
@@ -381,9 +360,7 @@ pub(crate) fn yjs_get_snapshot(
     Ok(snapshot)
 }
 
-/// Return the current Yjs state vector for a note as a JSON object
-/// mapping client IDs to their highest clock values.  Returns `None` when
-/// the note has no stored data (empty state vector).
+/// Current Yjs state vector as a JSON object {clientID: clock}; `None` when the note has no data.
 pub(crate) fn yjs_get_state_vector(
     pool: &DbPool,
     note_id: &str,
@@ -407,11 +384,8 @@ pub(crate) fn yjs_get_state_vector(
     Ok(Some(map))
 }
 
-/// Return the fresh merged Yjs snapshot for many notes in a single pass
-/// (one SQL query for the snapshot cache, one for the latest update timestamp),
-/// avoiding the N+1 IPC/SQL round-trips of calling `yjs_get_snapshot` per note.
-/// Notes whose cache is stale or missing are rebuilt individually via
-/// `yjs_get_snapshot` (rare). When `key` is `Some`, snapshots are decrypted.
+/// Fresh snapshots for many notes in one SQL pass instead of per-note IPC/SQL
+/// round-trips; stale or missing entries are rebuilt via `yjs_get_snapshot` (rare).
 pub(crate) fn yjs_get_snapshots(
     pool: &DbPool,
     note_ids: &[String],
@@ -443,12 +417,11 @@ pub(crate) fn yjs_get_snapshots(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| AppError::Other(e.to_string()))?;
 
-    // Determine which notes have stale or missing snapshots. A note is "stale"
-    // when ANY content row — plaintext or encrypted — is newer than the
-    // snapshot, or when no snapshot exists at all. Encrypted rows must count:
+    // Stale when ANY content row — plaintext or encrypted — is newer than the
+    // snapshot, or when no snapshot exists. Encrypted rows must count:
     // sync-pulled updates are persisted encrypted (yjs_append_batch), so
-    // ignoring them would serve forever-stale snapshots on devices that join
-    // a vault and receive their content exclusively via sync.
+    // ignoring them served forever-stale snapshots on devices that join a
+    // vault and receive content exclusively via sync.
     let stale_query = format!(
         "SELECT DISTINCT nc.note_id FROM note_content nc \
          LEFT JOIN yjs_snapshots ys ON nc.note_id = ys.note_id \
@@ -469,9 +442,8 @@ pub(crate) fn yjs_get_snapshots(
         .into_iter()
         .collect();
 
-    // Decrypt all cached snapshots in parallel. AES-GCM is independent per
-    // blob, so this scales with cores; on a 100+ note vault this is the bulk
-    // of the `yjs_get_snapshots` cost.
+    // Decrypt cached snapshots in parallel (AES-GCM per blob) — the bulk of
+    // this function's cost on 100+ note vaults.
     let decrypted: Vec<(String, Vec<u8>)> = snapshots
         .par_iter()
         .filter(|(note_id, data, _updated_at)| {
@@ -489,9 +461,8 @@ pub(crate) fn yjs_get_snapshots(
         result.insert(note_id, bytes);
     }
 
-    // Rebuild stale/missing snapshots individually (rare). A note whose data is
-    // encrypted but whose key is unavailable is skipped so one locked note never
-    // fails the whole batch.
+    // Rebuild stale/missing snapshots individually; skip locked notes so one
+    // locked note never fails the whole batch.
     for id in note_ids {
         if result.contains_key(id) {
             continue;
@@ -510,9 +481,7 @@ pub(crate) fn yjs_get_snapshots(
     Ok(result)
 }
 
-/// Replace all updates for a note with a single compressed snapshot, and keep
-/// the merged `yjs_snapshots` cache in sync with it. When `key` is `Some`,
-/// the stored snapshot is encrypted.
+/// Replace all updates for a note with one compacted row and refresh the snapshot cache.
 pub(crate) fn yjs_compact(
     pool: &DbPool,
     note_id: &str,
@@ -520,7 +489,6 @@ pub(crate) fn yjs_compact(
     key: Option<[u8; 32]>,
 ) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("db.yjs_compact");
-    // Encrypt the snapshot for storage.
     let stored = match key {
         Some(k) => encrypt_yjs_blob(&k, snapshot)?,
         None => snapshot.to_vec(),
@@ -542,12 +510,7 @@ pub(crate) fn yjs_compact(
     Ok(())
 }
 
-/// Read every stored update for `note_id`, merge them into a single snapshot
-/// using the `y-octo` CRDT engine, replace the old rows with one compacted
-/// row, and keep the `yjs_snapshots` cache in sync — all inside a single
-/// SQLite transaction so the database is never in an inconsistent state.
-/// When `key` is `Some`, both the stored snapshot and the single row are
-/// encrypted at rest.
+/// Merge all stored updates into one compacted row and refresh the snapshot cache.
 pub(crate) fn yjs_compact_batch(
     pool: &DbPool,
     note_id: &str,
@@ -567,7 +530,6 @@ pub(crate) fn yjs_compact_batch(
     let snapshot = doc
         .encode_state_as_update_v1(&StateVector::default())
         .map_err(|e| AppError::Other(e.to_string()))?;
-    // Encrypt the snapshot for storage.
     let stored = match key {
         Some(k) => encrypt_yjs_blob(&k, &snapshot)?,
         None => snapshot.to_vec(),
@@ -586,14 +548,11 @@ pub(crate) fn yjs_compact_batch(
     .map_err(|e| AppError::Other(e.to_string()))?;
     tx.commit()
         .map_err(|e| AppError::Other(e.to_string()))?;
-    // Update the snapshot cache.
     write_snapshot(pool, note_id, &snapshot, key)?;
     Ok(())
 }
 
-/// Append multiple Yjs binary updates for different notes in a single SQLite
-/// transaction. Each entry in the parallel arrays is inserted into `note_content`.
-/// Returns the number of rows inserted.
+/// Append multiple Yjs updates (parallel arrays) in one SQLite transaction.
 pub(crate) fn yjs_append_batch(
     pool: &DbPool,
     note_ids: &[String],
@@ -664,11 +623,9 @@ fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<(Vec<u8>, i64)>,
     Ok(row)
 }
 
-/// True when any stored update for `note_id` is newer than the cached snapshot
-/// (`updated_at`), meaning the snapshot must be rebuilt before it can be served.
-/// Both plaintext and encrypted rows count: sync-pulled updates are stored
-/// encrypted, and excluding them made snapshots permanently stale on devices
-/// whose content arrives exclusively via sync.
+/// True when any stored update for `note_id` is newer than the cached snapshot.
+/// Encrypted rows count: sync-pulled updates are stored encrypted, and
+/// excluding them left snapshots permanently stale on sync-only devices.
 fn snapshot_is_stale(pool: &DbPool, note_id: &str, snapshot_updated_at: i64) -> Result<bool, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let latest: Option<Option<i64>> = conn
@@ -736,8 +693,7 @@ mod tests {
         (pool, root)
     }
 
-    /// A row written plaintext (key unavailable at write time) must be returned
-    /// as-is when later read with a key — decrypt passes non-magic blobs through.
+    /// Plaintext row written without a key stays readable when read with one.
     #[test]
     fn plaintext_row_readable_with_key() {
         let (pool, root) = test_pool("beaver-notes-db-plain-read");
@@ -749,8 +705,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// A row written encrypted round-trips with the same key, is stored under
-    /// the BNY1 magic, and fails closed (never yields ciphertext) without a key.
+    /// Encrypted row round-trips with the key, is stored under BNY1 magic, fails closed without it.
     #[test]
     fn encrypted_row_roundtrips_and_fails_closed_without_key() {
         let (pool, root) = test_pool("beaver-notes-db-enc-roundtrip");
@@ -776,9 +731,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// Plaintext and encrypted rows for the same note coexist and both come
-    /// back intact when read with a key (key adopted after some rows were
-    /// written — the vault-join timing).
+    /// Plaintext and encrypted rows for one note coexist; a keyed read returns both intact.
     #[test]
     fn mixed_plaintext_and_encrypted_rows_coexist() {
         let (pool, root) = test_pool("beaver-notes-db-mixed");
@@ -794,9 +747,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// Regression: updates persisted ENCRYPTED by the sync engine after a
-    /// snapshot was cached must invalidate that snapshot. Ignoring encrypted
-    /// rows made restarts serve the pre-sync (empty) meta snapshot forever.
+    /// Regression: encrypted sync-pulled updates newer than a cached snapshot must invalidate it.
     #[test]
     fn encrypted_rows_invalidate_cached_snapshot() {
         let (pool, root) = test_pool("beaver-notes-db-stale-enc");
@@ -822,9 +773,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// A kv value written with a key must be stored under the BNY1 magic,
-    /// round-trip with that key, and fail closed (never yield ciphertext)
-    /// without it.
+    /// Kv value with a key: BNY1 magic at rest, round-trips, fails closed without it.
     #[test]
     fn kv_encrypted_roundtrip_and_fails_closed_without_key() {
         let (pool, root) = test_pool("beaver-notes-db-kv-enc");
@@ -852,8 +801,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// Legacy plaintext rows stay readable both without and with a key
-    /// (decrypt passes non-magic values through), and db_all parses them.
+    /// Legacy plaintext rows stay readable without and with a key; db_all parses them.
     #[test]
     fn kv_plaintext_rows_stay_readable() {
         let (pool, root) = test_pool("beaver-notes-db-kv-plain");
@@ -872,8 +820,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// db_replace_all / db_all / db_apply_diff honor the same contract: every
-    /// row sealed under the key, bulk reads decrypt, diffs re-seal.
+    /// Bulk ops seal under the key, bulk reads decrypt, diffs re-seal.
     #[test]
     fn kv_bulk_ops_roundtrip_encrypted() {
         let (pool, root) = test_pool("beaver-notes-db-kv-bulk");

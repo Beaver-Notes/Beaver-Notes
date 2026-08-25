@@ -140,10 +140,8 @@ const mobileHeaderRef = ref(null);
 const isMobileHeaderStuck = ref(false);
 const searchQuery = ref('');
 
-// On mobile, the settings root ('/settings') is shared between the
-// drill-down category menu and the "General" section's own content.
-// This flag tracks whether the user has explicitly entered "General"
-// from the menu, since the URL doesn't change between the two states.
+// On mobile '/settings' is shared between the category menu and the "General"
+// section; this flag tracks explicit entry into General since the URL doesn't change.
 const enteredGeneralOnMobile = ref(false);
 
 const settings = computed(() => {
@@ -265,9 +263,8 @@ function exitSection() {
   router.push('/settings');
 }
 
-// Any navigation away from the settings root means the next time we land
-// back on '/settings' (e.g. via the browser back button) it should show
-// the category menu again, not stale "General" content.
+// Navigation away from the settings root means the next landing on '/settings'
+// (e.g. via back) should show the category menu again, not stale "General" content.
 watch(
   () => route.name,
   (name) => {

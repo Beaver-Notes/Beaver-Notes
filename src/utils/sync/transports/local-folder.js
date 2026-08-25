@@ -7,12 +7,7 @@ import { YJS_UPDATE_EXT } from '../constants.js';
 import { readDir } from '@/lib/native/fs';
 import { seedOnce as seedOnceCommits } from '../shared.js';
 
-/**
- * Merge per-note state vectors into a single flat map for pre-decrypt
- * filtering across all notes in the commits/ directory.
- * @param {Record<string, Record<string, number>>} allStateVectors — { noteId: { device: clock } }
- * @returns {Record<string, number>} — { device: maxClock across all notes }
- */
+/** Merge per-note state vectors into { device: maxClock } for pre-decrypt filtering. */
 function mergeAllStateVectors(allStateVectors) {
   const merged = {};
   for (const sv of Object.values(allStateVectors)) {
@@ -37,8 +32,7 @@ export class LocalFolderTransport extends Transport {
     const commitsDir = await ensureCommitsDir(syncPath);
     const { decryptJSON } = await import('../crypto.js');
 
-    // Collect state vectors for all notes to enable pre-decrypt filtering.
-    // listRemoteYjsUpdates will skip files whose sequence <= maxClock for the device.
+    // Gather state vectors so listRemoteYjsUpdates can pre-decrypt-filter.
     const allStateVectors = {};
     try {
       const files = await readDir(commitsDir).catch(() => []);
@@ -60,9 +54,6 @@ export class LocalFolderTransport extends Transport {
       commitsDir,
       {},
       decryptJSON,
-      // Pass combined state vector for pre-decrypt filtering.  Since files
-      // from different notes are interleaved in the commits/ dir, we merge
-      // all per-note state vectors into one flat map for the filter.
       mergeAllStateVectors(allStateVectors)
     ).catch(() => []);
 

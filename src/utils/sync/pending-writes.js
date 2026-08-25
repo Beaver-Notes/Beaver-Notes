@@ -1,12 +1,8 @@
 /**
- * Pending-sync-update queue.
- *
- * Instead of writing a sync-folder file on every 300 ms debounced flush (which
- * generates ~200 files/minute of active typing), local edits are queued here
- * and flushed to the sync folder during the next sync cycle.  The queue is
- * drained atomically: a crashed session may lose up to 10 s of sync writes
- * (still present in SQLite), but the steady-state write rate drops to one
- * sync cycle's worth of merged updates.
+ * Pending-sync-update queue: local edits are queued and flushed once per sync
+ * cycle instead of writing a file per 300ms debounced flush (~200 files/min
+ * while typing). Drained atomically — a crashed session may lose up to 10s of
+ * sync writes (still present in SQLite).
  */
 
 import { writeYjsUpdate } from './sync-yjs.js';
@@ -23,10 +19,7 @@ export function setSyncTrigger(trigger) {
   syncTrigger = typeof trigger === 'function' ? trigger : null;
 }
 
-/**
- * Set the cloud transport's in-memory buffer for cloud-only mode.
- * When set, flushPendingSyncWrites skips disk writes and buffers here instead.
- */
+/** Cloud-only mode: when set, flush buffers in memory instead of writing disk. */
 export function setCloudBuffer(buffer) {
   cloudBuffer = buffer;
 }
@@ -35,19 +28,9 @@ export function getCloudBuffer() {
   return cloudBuffer;
 }
 
-/**
- * Check whether there are queued writes waiting to be flushed.
- */
 export function hasPendingWrites() {
   return pendingSyncWrites.length > 0;
 }
-
-/**
- * @callback WriteFn
- * @param {string} noteId
- * @param {Uint8Array} update
- * @returns {Promise<void>}
- */
 
 /**
  * Drain pending writes into an array of {commitsDir, noteId, update} entries.
@@ -61,10 +44,6 @@ function drainPending() {
   }));
 }
 
-/**
- * Wait for an in-progress flush to finish, then run a callback.
- * Returns a promise that resolves with the callback's result.
- */
 function waitForFlush(callback) {
   return new Promise((resolve) => {
     const check = async () => {
@@ -75,12 +54,7 @@ function waitForFlush(callback) {
   });
 }
 
-/**
- * Flush pending writes using the provided write function.
- * Returns the list of flushed entries for downstream consumers (e.g. remote push).
- * @param {WriteFn} writeFn - called for each entry with (noteId, update)
- * @returns {Promise<Array<{noteId: string, update: Uint8Array}>>}
- */
+/** Flush via writeFn; returns flushed entries for downstream consumers (e.g. remote push). */
 export async function flushPendingSyncWritesTo(writeFn) {
   if (flushing) {
     return waitForFlush(() => flushPendingSyncWritesTo(writeFn));
@@ -105,11 +79,7 @@ export async function flushPendingSyncWritesTo(writeFn) {
   return flushed;
 }
 
-/**
- * Discard all pending writes.  Called after vault key adoption to prevent
- * stale writes (encrypted with the pre-adoption key) from being flushed to
- * disk or pushed to the server.
- */
+/** Discard pending writes after vault key adoption — they were encrypted with the pre-adoption key. */
 export function clearPendingWrites() {
   pendingSyncWrites.length = 0;
 }
@@ -130,7 +100,6 @@ export async function flushPendingSyncWrites() {
   flushing = true;
   try {
     while (pendingSyncWrites.length > 0) {
-      // Cloud-only mode: buffer in memory instead of writing to disk
       if (cloudBuffer) {
         const batch = pendingSyncWrites.splice(0);
         for (const w of batch) {

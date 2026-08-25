@@ -25,11 +25,8 @@ import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared.js';
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
 
-// Map the result of note-key resolution to the per-note "setting up on this
-// device" UI flag. Returns true when no key is available yet — with fan-out
-// inert until the teams phase, callers keep this false instead of spinning.
-// Pure + exported so it can be unit-tested without instantiating the
-// (lifecycle-bound) composable.
+// Maps note-key resolution to the per-note "setting up on this device" UI
+// flag. Pure + exported for unit testing without the lifecycle-bound composable.
 export function applyNoteKeyResult(noteKeyHex) {
   return !noteKeyHex;
 }
@@ -50,8 +47,6 @@ async function retryWrite(fn, label) {
   }
 }
 
- // Convert TipTap JSON content to Yjs using the editor's own schema.
-
 async function seedFromTipJson(ydoc, contentJson) {
   const { prosemirrorJSONToYDoc } = await import('@tiptap/y-tiptap');
   const schema = await ensureSchema();
@@ -60,24 +55,17 @@ async function seedFromTipJson(ydoc, contentJson) {
   Y.applyUpdate(ydoc, update);
 }
 
-  // Load Yjs state into a doc: try snapshot first (O(1)), fall back to
-  // replaying individual updates for backwards compatibility.
-
+// Load Yjs state: snapshot first (O(1)), fall back to replaying updates.
 async function loadStateIntoDoc(newDoc, noteId) {
   const t = speed('yjs_load_snapshot');
   let snapshotWasCorrupt = false;
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
-      // Defensive decode: the bytes fed to Yjs MUST be valid Yjs binary. The
-      // snapshot arrives as a base64 string over IPC (or a raw Uint8Array) and
-      // toUint8Array normalizes both to a Uint8Array. A corrupt/garbage
-      // snapshot (base64 string / JSON / half-decrypted blob from a bad cloud
-      // bootstrap) fails here and is discarded instead of mutating newDoc.
+      // Defensive decode: a corrupt/garbage snapshot (base64 string, JSON, or
+      // half-decrypted blob from a bad cloud bootstrap) must be discarded here,
+      // not allowed to mutate newDoc. Validate in an isolated probe doc first.
       const bytes = toUint8Array(snapshot);
-      // Validate the snapshot in an isolated doc before touching the live
-      // document. If it fails to decode, drop it and fall back to replaying
-      // incremental updates.
       const probe = new Y.Doc();
       try {
         Y.applyUpdate(probe, bytes);
@@ -89,8 +77,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
       return;
     }
   } catch (err) {
-    // Snapshot decode failed ("Unknown content type", "Incomplete document",
-    // ...). Mark it so we can repair the cached copy after replaying updates.
+    // Snapshot decode failed — repair the cached copy after replaying updates.
     snapshotWasCorrupt = true;
     console.error(`[yjs] Failed to load snapshot for ${noteId}:`, err);
   }
@@ -102,9 +89,8 @@ async function loadStateIntoDoc(newDoc, noteId) {
     console.error(`[yjs] Failed to load updates for ${noteId}:`, err);
   }
 
-  // Repair a corrupt cached snapshot with the freshly reconstructed state so it
-  // doesn't re-trigger the decode error on every subsequent open. Best-effort:
-  // a failure here only means we'll fall back again next time.
+  // Repair a corrupt cached snapshot so the decode error doesn't re-trigger on
+  // every open. Best-effort: failure just means falling back again next time.
   if (snapshotWasCorrupt && newDoc.store) {
     try {
       const rebuilt = Y.encodeStateAsUpdate(newDoc);
@@ -141,10 +127,9 @@ async function persistUpdate(noteId, update) {
 
 const FLUSH_DELAY_MS = 300;
 
-// `note_content` grows one row per flush and used to only be compacted on note
-// switch / unmount — so a long editing session (or a crash before switching)
-// left an unbounded update history and forced a full CRDT replay on the next
-// open. Compact periodically in the flush path so history stays bounded.
+// note_content grows one row per flush; without periodic compaction a long
+// editing session (or crash before note switch) forces full CRDT replay on
+// next open.
 const COMPACT_INTERVAL_MS = 5 * 60 * 1000;
 const COMPACT_UPDATE_THRESHOLD = 100;
 
@@ -152,13 +137,11 @@ const COMPACT_UPDATE_THRESHOLD = 100;
 export function useNoteYjs() {
   const doc = shallowRef(null);
   const ready = ref(false);
-  // True while this device is waiting for a note key to be distributed to it
-  // (late joiner). Surfaces the transient "Setting up on this device…" state.
+  // True while this device awaits note-key distribution (late joiner).
   const pendingSetup = ref(false);
   let currentNoteId = null;
   let currentDoc = null;
 
-  // Debounced Yjs update persistence
   let pendingUpdates = [];
   let flushTimer = null;
   let lastCompactAt = Date.now();
@@ -179,9 +162,7 @@ export function useNoteYjs() {
     const merged = Y.mergeUpdates(updates);
     await persistUpdate(currentNoteId, merged);
 
-    // Fold the accumulated update history into a single snapshot row once the
-    // session has been open long enough / appended enough rows. Non-blocking
-    // failure: compaction retries on the next due flush or the note switch.
+    // Fold accumulated history into a single snapshot row when due.
     const due =
       Date.now() - lastCompactAt > COMPACT_INTERVAL_MS ||
       updatesSinceCompact >= COMPACT_UPDATE_THRESHOLD;
@@ -201,12 +182,11 @@ export function useNoteYjs() {
 
   async function load(noteId, initialContent, initialTitle) {
     const t = speed('yjs_load_note');
-    // Reset the per-note "setting up on this device" flag up front so a stale
-    // `true` from a previous note can't leak into this note if its note-key
-    // resolution throws before the key result is applied.
+    // Reset up front so a stale `true` from a previous note can't leak into
+    // this one if key resolution throws before the result is applied.
     pendingSetup.value = false;
 
-    // Flush any pending updates for the *previous* note before switching.
+    // Flush pending updates for the *previous* note before switching.
     if (flushTimer) {
       clearTimeout(flushTimer);
       flushTimer = null;
@@ -217,9 +197,8 @@ export function useNoteYjs() {
       try {
         const snapshot = Y.encodeStateAsUpdate(currentDoc);
         if (snapshot.byteLength > 0) {
-          // Do not block the switch on the old note's compact. The snapshot is
-          // captured before destroy; yjs_compact now runs off the main thread
-          // in Rust, so fire it and load the new note immediately.
+          // Don't block the switch on the old note's compact; snapshot is
+          // captured before destroy and compaction runs off-thread in Rust.
           compactUpdates(currentNoteId, snapshot).catch(() => {
             // non-critical
           });
@@ -237,8 +216,8 @@ export function useNoteYjs() {
 
     await loadStateIntoDoc(newDoc, noteId);
 
-    // If the Y.Doc is still empty after replay, seed from the store content.
-    // Handles fresh notes and notes with stale/corrupted snapshots.
+    // Still empty after replay (fresh note or stale/corrupt snapshot) — seed
+    // from store content.
     const frag = newDoc.getXmlFragment('content');
     if (frag.length === 0 && initialContent) {
       try {

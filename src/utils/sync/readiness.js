@@ -1,11 +1,7 @@
 /**
- * Single source of truth for sync readiness.
- *
- * Called once per sync cycle (or on demand) to resolve auth, plan, transport,
- * encryption key, and workspace state in one shot.  Every consumer reads from
- * this snapshot instead of making their own scattered Pinia/Tauri lookups —
- * eliminates the class of bugs where `_remoteAllowed()` returns false because
- * subscription data hasn't loaded yet.
+ * Single source of truth for sync readiness: resolves auth, plan, transport,
+ * key, and workspace once per cycle so every consumer shares one snapshot
+ * instead of scattered lookups that could disagree.
  */
 import { useAccountStore } from '@/store/account';
 import { useWorkspaceStore } from '@/store/workspace';
@@ -29,8 +25,7 @@ export async function getSyncReadiness() {
   const free = subPlan === 'free';
   const syncAllowed = wantsCloud && isAuth && !free;
 
-  // Encryption is always on after onboarding vault setup.
-  // Just check if the key is available — no need to gate on isEncryptionEnabled().
+  // Encryption is always on after onboarding — just check key availability.
   const keyReady = await syncKeyReady().catch(() => false);
 
   return {

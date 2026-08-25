@@ -453,7 +453,6 @@ export default {
       },
     );
 
-    // Persistence
     const { updateNote, persistCurrentNote, flushScheduledPersist } =
       useNotePersistence({
         noteStore,
@@ -461,7 +460,6 @@ export default {
         appEncryptedLocked,
       });
 
-    // Navigation
     const showBack = computed(() => {
       const back = router.options.history.state.back;
       if (!back) return false;
@@ -500,12 +498,10 @@ export default {
       goBack();
     }
 
-    // Encryption
     const { unlockAppEncryption } = useNoteEncryption({
       noteId: id,
     });
 
-    // Auto-scroll
     const autoScroll = debounce(() => {
       if (!noteEditor.value) return;
       const lastChild =
@@ -530,7 +526,6 @@ export default {
       else if (offset < lineHeight) lastChild.scrollIntoView();
     }, 50);
 
-    // Watch note ID for decryption and heading conversion
     watch(
       id,
       async (n) => {
@@ -548,7 +543,6 @@ export default {
       { immediate: true },
     );
 
-    // Title / content handlers
     let titleInitialized = false;
 
     const handleTitleInput = debounce((event) => {
@@ -556,9 +550,9 @@ export default {
       const text = event.target.textContent || '';
       yjsSetTitle(text);
       autoResizeTitle();
-      // Keep the store title current immediately. Relying on the Yjs observer
-      // alone left a window where the workspace-doc round-trip reset the
-      // contenteditable title mid-typing (caret jump).
+      // Update the store title immediately: relying on the Yjs observer alone
+      // let the workspace-doc round-trip reset the contenteditable mid-typing
+      // (caret jump).
       return updateNote(id.value, { title: text });
     }, 150);
 
@@ -596,8 +590,7 @@ export default {
           localStorage.setItem('lastNoteEdit', noteId);
         }
 
-        // Read content at call time — the decrypt watcher may have updated the
-        // store since this watcher triggered, so don't capture a stale ref.
+        // Read content at call time — the decrypt watcher may have updated the store since this fired.
         const currentForLoad = noteStore.getById(noteId);
         const seedContent = currentForLoad?.content;
         const seedTitle = currentForLoad?.title || '';
@@ -610,7 +603,6 @@ export default {
       { immediate: true },
     );
 
-    // Lifecycle
     const handleBeforeUnload = () => {
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id);
     };
@@ -694,7 +686,6 @@ export default {
       await persistCurrentNote(editor.value, titleDiv.value, route.params.id);
     });
 
-    // Editor focus helpers
     const focusEditor = () => {
       if (editor.value?.commands?.focus) {
         editor.value.commands.focus(undefined, { scrollIntoView: false });
@@ -746,7 +737,6 @@ export default {
       async (newNote) => {
         await nextTick();
         if (!titleDiv.value) return;
-        // Prefer store title, fall back to Yjs title, then empty
         const stored = newNote?.title || yjsGetTitle() || '';
         if (
           !isTitleFocused(titleDiv.value) &&
@@ -771,7 +761,7 @@ export default {
           if (note.value && note.value.title !== title) {
             updateNote(id.value, { title });
           }
-          // Sync to div if it doesn't match (skip while the title is focused)
+          // Skip while the title is focused
           if (
             !isTitleFocused(titleDiv.value) &&
             titleDiv.value &&

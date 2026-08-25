@@ -1,19 +1,10 @@
 //! PDF export for Beaver Notes.
 //!
-//! The export HTML (built by `exportBulk.js`) includes a measurement script
-//! that inserts `break-after:page` markers into the DOM. Every platform
-//! then uses its native print / PDF-capture API to produce a paginated
-//! multi-page A4 PDF.
-//!
-//! - macOS: hidden `WKWebView` inside a Tauri `WebviewWindow`,
-//!   captured via `WKWebView.printOperationWithPrintInfo:`.
-//! - Windows: hidden `WebView2` via `webview2-com`, printed via
-//!   `ICoreWebView2.PrintToPdf`.
-//! - Linux: hidden `WebKitGTK` `WebView`, printed via
-//!   `WebKitPrintOperation`.
-//! - iOS/Android: handled by `tauri-plugin-pdf-render`.
-//!   - iOS: `WKWebView` with `UIPrintPageRenderer`.
-//!   - Android: `WebView` with `PrintDocumentAdapter`.
+//! The export HTML (built by `exportBulk.js`) inserts `break-after:page`
+//! markers; each platform then prints it with its native PDF API:
+//! macOS hidden `WKWebView` (`printOperationWithPrintInfo:`), Windows
+//! `WebView2` (`ICoreWebView2.PrintToPdf`), Linux `WebKitGTK`
+//! (`WebKitPrintOperation`), iOS/Android via `tauri-plugin-pdf-render`.
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -625,8 +616,8 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
 
 #[cfg(target_os = "linux")]
 async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), AppError> {
-    // Force only the file print backend so GTK doesn't require CUPS
-    // to have a printer configured. Set before any GTK init.
+    // File print backend only so GTK doesn't require CUPS to have a printer;
+    // must be set before any GTK init.
     std::env::set_var("GTK_PRINT_BACKENDS", "file");
 
     use std::sync::mpsc as smpsc;

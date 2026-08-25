@@ -1,21 +1,13 @@
 /**
  * Debug bridge — ground-truth introspection of the migration/workspace layers.
  *
- * Exposes `dumpDebugState()` for the console (and the app-shell startup path
- * behind a flag) that correlates:
- *
- *   1. what the NATIVE side actually persisted — KV rows, per-note Yjs
- *      updates, and the decoded workspace meta doc (`debug:dump-state`),
- *   2. what the FRONTEND has in memory — the workspace Y.Doc and the Pinia
- *      note/folder/label stores.
- *
+ * `dumpDebugState()` correlates what the NATIVE side persisted (KV rows,
+ * per-note Yjs updates, decoded workspace meta doc via `debug:dump-state`)
+ * with what the FRONTEND holds in memory (workspace Y.Doc + Pinia stores).
  * The classic "labels visible, notes/folders missing" empty-state is almost
- * always a mismatch between these two layers (e.g. the workspace doc was
- * seeded from KV under stale keys). This bridge makes that mismatch visible in
- * one place instead of guessing.
+ * always a mismatch between these two layers; this makes it visible in one place.
  *
- * Usage from the console:
- *   window.__beaverDebug?.()
+ * Console usage: window.__beaverDebug?.()
  */
 
 import { backend } from '@/lib/tauri-bridge';
@@ -43,10 +35,7 @@ export async function dumpNativeState() {
   return raw;
 }
 
-/**
- * Frontend-side state: what the live workspace Y.Doc and the Pinia stores
- * currently hold. This is the layer the UI actually renders from.
- */
+/** Frontend-side state: live workspace Y.Doc + Pinia stores (what the UI renders from). */
 export async function dumpFrontendState() {
   const notesStore = (await import('@/store/note')).useNoteStore();
   const folderStore = (await import('@/store/folder')).useFolderStore();
@@ -98,10 +87,7 @@ export async function dumpFrontendState() {
   return state;
 }
 
-/**
- * Full correlated dump. Call this after a migration (or from the startup path)
- * to see where notes got stranded.
- */
+/** Full correlated dump — call after a migration to see where notes got stranded. */
 export async function dumpDebugState() {
   const native = await dumpNativeState();
   const frontend = await dumpFrontendState();

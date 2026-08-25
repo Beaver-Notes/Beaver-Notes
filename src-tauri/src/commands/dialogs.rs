@@ -177,8 +177,7 @@ pub(crate) async fn dialog_save(
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn get_system_fonts() -> Result<Vec<String>, AppError> {
-    // Font enumeration scans the whole system (100ms+) — keep it off the
-    // main thread.
+    // Whole-system font scan (100ms+) — keep it off the main thread.
     tokio::task::spawn_blocking(|| {
         #[cfg(target_os = "android")]
         {

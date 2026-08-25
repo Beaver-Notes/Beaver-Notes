@@ -702,12 +702,10 @@ export default {
 
     const showVaultImportPrompt = ref(false);
 
-    // Detect whether the sync source holds a vault that differs from this
-    // device's local manifest. Uses hasRemoteVaultKeyParams() (native
-    // remote_params_differ) as the authoritative signal — it is true when the
-    // remote vault differs from local OR no local manifest exists — so the
-    // prompt shows even when a (possibly wrong) local key is already loaded.
-    // fetchCloudKeyParams() first ensures the downloaded params are current.
+    // Detect whether the sync source holds a vault differing from this device's
+    // local manifest. hasRemoteVaultKeyParams() is authoritative — true when the
+    // remote vault differs OR no local manifest exists — so the prompt shows even
+    // when a (possibly wrong) local key is loaded; fetchCloudKeyParams() refreshes first.
     async function checkVaultImportNeeded() {
       if (!accountStore.isAuthenticated) {
         showVaultImportPrompt.value = false;
