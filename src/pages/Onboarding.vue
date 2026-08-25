@@ -81,15 +81,6 @@
           class="flex flex-wrap mobile:flex-col mobile:w-full mobile:items-stretch mobile:px-4 ob-bottom-nav justify-center gap-3"
         >
           <ui-button
-            :loading="state.savingPreferences"
-            @click="useDefaultPreferences"
-          >
-            <template v-if="!state.savingPreferences">
-              <v-remixicon name="riMagicLine" class="mr-1" />
-              Use defaults
-            </template>
-          </ui-button>
-          <ui-button
             variant="primary"
             data-testid="onboarding-welcome-continue"
             @click="handlePrimaryContinue"
