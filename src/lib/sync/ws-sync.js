@@ -104,6 +104,32 @@ function getAuthToken() {
   return useAccountStore().token || ''
 }
 
+// One-time short-lived ticket so the session token never appears in the WS URL.
+// Falls back to the raw token param against older backends without /auth/ws-ticket.
+async function getWsParams(workspaceId) {
+  const token = getAuthToken()
+  if (!token) return {}
+  try {
+    const apiBase =
+      import.meta.env.VITE_BEAVER_SYNC_API_URL || 'http://localhost:4000'
+    const res = await fetch(`${apiBase.replace(/\/+$/, '')}/auth/ws-ticket`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(workspaceId ? { workspaceId } : {}),
+    })
+    if (res.ok) {
+      const { ticket } = await res.json()
+      if (ticket) return { ticket }
+    }
+  } catch {
+    // fall through to legacy token param
+  }
+  return { token }
+}
+
 function isAuthenticated() {
   const accountStore = useAccountStore()
   return accountStore.status === 'authenticated' && !!accountStore.token
@@ -142,39 +168,49 @@ export function useWsSync() {
 
   const activeProviders = new Map() // roomName -> WebsocketProvider
   const docToRoom = new Map() // Y.Doc -> roomName
+  const pendingRooms = new Set() // joins awaiting ticket fetch
+  const leaveWhilePending = new Set() // rooms left while their join was in flight
 
   function getActiveWorkspaceId() {
     return workspaceStore.activeId
   }
 
-  function joinNoteRoom(noteId, doc) {
+  async function joinNoteRoom(noteId, doc) {
     const workspaceId = getActiveWorkspaceId()
     if (!workspaceId) return
 
     const roomName = buildRoomName(workspaceId, noteId)
-    if (activeProviders.has(roomName)) return
-
-    const wsUrl = getWebSocketUrl()
-    const token = getAuthToken()
-    const provider = new WebsocketProvider(wsUrl, roomName, doc, {
-      connect: true,
-      params: token ? { token } : {},
-      awareness: new awarenessProtocol.Awareness(doc),
-    })
-
-    // On connection/reconnection: re-attach notification listener and
-    // trigger a pull to catch up on anything missed while disconnected.
-    provider.on('status', ({ status }) => {
-      if (status === 'connected') {
-        attachNotificationListener(provider)
-        forceSyncNow().catch(() => {})
+    if (activeProviders.has(roomName) || pendingRooms.has(roomName)) return
+    pendingRooms.add(roomName)
+    try {
+      const wsUrl = getWebSocketUrl()
+      const params = await getWsParams(workspaceId)
+      if (leaveWhilePending.has(roomName)) {
+        leaveWhilePending.delete(roomName)
+        return
       }
-    })
-    // Attach immediately if already connecting
-    attachNotificationListener(provider)
+      const provider = new WebsocketProvider(wsUrl, roomName, doc, {
+        connect: true,
+        params,
+        awareness: new awarenessProtocol.Awareness(doc),
+      })
 
-    activeProviders.set(roomName, provider)
-    docToRoom.set(doc, roomName)
+      // On connection/reconnection: re-attach notification listener and
+      // trigger a pull to catch up on anything missed while disconnected.
+      provider.on('status', ({ status }) => {
+        if (status === 'connected') {
+          attachNotificationListener(provider)
+          forceSyncNow().catch(() => {})
+        }
+      })
+      // Attach immediately if already connecting
+      attachNotificationListener(provider)
+
+      activeProviders.set(roomName, provider)
+      docToRoom.set(doc, roomName)
+    } finally {
+      pendingRooms.delete(roomName)
+    }
   }
 
   function leaveNoteRoom(noteId) {
@@ -185,6 +221,8 @@ export function useWsSync() {
       detachNotificationListener(provider)
       provider.destroy()
       activeProviders.delete(roomName)
+    } else if (pendingRooms.has(roomName)) {
+      leaveWhilePending.add(roomName)
     }
     for (const [doc, name] of docToRoom) {
       if (name === roomName) {
@@ -195,35 +233,43 @@ export function useWsSync() {
     unregisterActiveDoc(noteId)
   }
 
-  function joinMetaRoom(workspaceId) {
+  async function joinMetaRoom(workspaceId) {
     const roomName = buildMetaRoomName(workspaceId)
-    if (activeProviders.has(roomName)) return
-
-    const doc = getWorkspaceDoc()
-    const wsUrl = getWebSocketUrl()
-    const token = getAuthToken()
-    const provider = new WebsocketProvider(wsUrl, roomName, doc, {
-      connect: true,
-      params: token ? { token } : {},
-      awareness: new awarenessProtocol.Awareness(doc),
-    })
-
-    // On connection/reconnection: re-attach notification listener and
-    // trigger a pull to catch up on anything missed while disconnected.
-    provider.on('status', ({ status }) => {
-      if (status === 'connected') {
-        attachNotificationListener(provider)
-        forceSyncNow().catch(() => {})
+    if (activeProviders.has(roomName) || pendingRooms.has(roomName)) return
+    pendingRooms.add(roomName)
+    try {
+      const doc = getWorkspaceDoc()
+      const wsUrl = getWebSocketUrl()
+      const params = await getWsParams(workspaceId)
+      if (leaveWhilePending.has(roomName)) {
+        leaveWhilePending.delete(roomName)
+        return
       }
-    })
-    attachNotificationListener(provider)
+      const provider = new WebsocketProvider(wsUrl, roomName, doc, {
+        connect: true,
+        params,
+        awareness: new awarenessProtocol.Awareness(doc),
+      })
 
-    activeProviders.set(roomName, provider)
-    docToRoom.set(doc, roomName)
+      // On connection/reconnection: re-attach notification listener and
+      // trigger a pull to catch up on anything missed while disconnected.
+      provider.on('status', ({ status }) => {
+        if (status === 'connected') {
+          attachNotificationListener(provider)
+          forceSyncNow().catch(() => {})
+        }
+      })
+      attachNotificationListener(provider)
 
-    ensureMetaRoomKey(workspaceId).catch((err) => {
-      console.warn('[ws-sync] meta room key not set:', err?.message || err)
-    })
+      activeProviders.set(roomName, provider)
+      docToRoom.set(doc, roomName)
+
+      ensureMetaRoomKey(workspaceId).catch((err) => {
+        console.warn('[ws-sync] meta room key not set:', err?.message || err)
+      })
+    } finally {
+      pendingRooms.delete(roomName)
+    }
   }
 
   function connect() {
@@ -237,6 +283,7 @@ export function useWsSync() {
       detachNotificationListener(provider)
       provider.disconnect()
     }
+    for (const room of pendingRooms) leaveWhilePending.add(room)
     activeProviders.clear()
     docToRoom.clear()
     collabKeys.clear()
@@ -256,6 +303,7 @@ export function useWsSync() {
         activeProviders.delete(roomName)
       }
     }
+    for (const room of pendingRooms) leaveWhilePending.add(room)
     for (const [doc, roomName] of docToRoom) {
       if (roomName.startsWith('workspace:')) {
         docToRoom.delete(doc)
