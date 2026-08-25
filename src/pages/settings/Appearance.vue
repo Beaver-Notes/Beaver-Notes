@@ -234,7 +234,6 @@ import {
   getSettingSync,
   setSetting,
 } from '@/lib/settings';
-import { useStorage } from '@/lib/storage';
 import {
   formatZoomLevel,
   getStoredZoomLevel,
@@ -273,7 +272,6 @@ export default {
     ];
 
     const theme = useTheme();
-    const storage = useStorage();
 
     const state = shallowReactive({
       defaultPath: '',
@@ -521,7 +519,6 @@ export default {
       theme,
       themes,
       layouts,
-      storage,
       translations,
       toggleClearFont,
       ClearFontChecked,

@@ -99,7 +99,6 @@ export function useAppShell(onboardingCompleted = true) {
   const route = useRoute();
   const router = useRouter();
   const settingsStorage = useStorage('settings');
-  const dataStorage = useStorage('data');
   const appStore = useAppStore();
 
   useSoundActions();
@@ -437,15 +436,28 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   const hasExistingWorkspaceData = async () => {
-    const [notesData, foldersData] = await Promise.all([
-      dataStorage.get('notes', {}),
-      dataStorage.get('folders', {}),
-    ]);
-
-    return (
-      Object.keys(notesData || {}).length > 0 ||
-      Object.keys(foldersData || {}).length > 0
-    );
+    // Yjs workspace doc is the single source for notes/folders (data.db KV
+    // `notes`/`folders` are legacy, never written after migration). Check the
+    // meta snapshot directly so first-run vs returning-user is decided without
+    // touching dead KV rows. Fallback to KV for users who haven't yet migrated.
+    try {
+      const snap = await backend.invoke('yjs:getSnapshot', { noteId: 'meta' });
+      if (snap?.data?.length) return true;
+    } catch {}
+    try {
+      const { useStorage: _useStorage } = await import('@/lib/storage');
+      const legacy = _useStorage('data');
+      const [notesData, foldersData] = await Promise.all([
+        legacy.get('notes', {}),
+        legacy.get('folders', {}),
+      ]);
+      return (
+        Object.keys(notesData || {}).length > 0 ||
+        Object.keys(foldersData || {}).length > 0
+      );
+    } catch {
+      return false;
+    }
   };
 
   const initializeWorkspace = async () => {
@@ -725,7 +737,7 @@ export function useAppShell(onboardingCompleted = true) {
       console.error('Error initializing workspace:', error);
       try {
         const [hasData, onboardingCompleted] = await Promise.all([
-          dataStorage.get('notes', {}),
+          hasExistingWorkspaceData(),
           settingsStorage.get('onboardingCompleted', false),
         ]);
         if (!hasData && !onboardingCompleted) {

@@ -548,7 +548,6 @@ export default {
       dialog,
       folderStore,
       noteStore,
-      storage,
       translations,
     });
 

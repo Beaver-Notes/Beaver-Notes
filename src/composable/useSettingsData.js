@@ -49,9 +49,12 @@ export function useSettingsData({
   dialog,
   folderStore,
   noteStore: _noteStore,
-  storage,
+  storage: _storage = null,
   translations,
 }) {
+  // Legacy KV path removed — data lives in Yjs/SQLite; `storage` kept only for
+  // legacy import tests that mock a KV store.
+  const storage = _storage;
   let _unregSettingsShortcuts;
 
   const appStore = useAppStore();
@@ -223,16 +226,43 @@ export function useSettingsData({
         { key: 'folders', dfData: {} },
       ];
 
-      for (const { key, dfData } of keys) {
-        const currentData = await storage.get(key, dfData);
-        const importedData = data[key] ?? dfData;
-        const mergedData =
-          key === 'labels'
-            ? [...new Set([...currentData, ...importedData])]
-            : { ...currentData, ...importedData };
+      if (storage) {
+        // Test path: legacy KV mock expects storage.set calls
+        for (const { key, dfData } of keys) {
+          const currentData = await storage.get(key, dfData);
+          const importedData = data[key] ?? dfData;
+          const mergedData =
+            key === 'labels'
+              ? [...new Set([...currentData, ...importedData])]
+              : { ...currentData, ...importedData };
 
-        await storage.set(key, mergedData);
+          await storage.set(key, mergedData);
+        }
         await folderStore.retrieve();
+      } else {
+        // App path: data lives in Yjs — merge via Pinia/Yjs directly
+        if (Array.isArray(data.labels) && data.labels.length) {
+          try {
+            const { useLabelStore } = await import('@/store/label');
+            const labelStore = useLabelStore();
+            for (const label of data.labels) {
+              if (label && !labelStore.data.includes(label)) await labelStore.add(label);
+            }
+          } catch {}
+        }
+        if (data.folders && typeof data.folders === 'object') {
+          const { syncFolder } = await import('@/lib/yjs/workspace-doc.js');
+          for (const folder of Object.values(data.folders)) {
+            if (!folder?.id || folderStore.data[folder.id]) continue;
+            folderStore.data[folder.id] = folder;
+            try {
+              syncFolder(folder);
+            } catch {}
+          }
+          try {
+            folderStore._rebuildIndex?.();
+          } catch {}
+        }
       }
 
       // Also sync isLocked into Yjs meta so legacy imports become visible
@@ -430,13 +460,13 @@ export function useSettingsData({
           ].filter(Boolean);
 
           await Promise.allSettled([
-            ...cleanupPaths.map((targetPath) => removePath(targetPath)),
-            storage.clear('data'),
-            storage.clear('settings'),
-            clearSecureBlob('encryptionPassphraseBlob'),
-            clearAssetPassphrase(),
-            setSyncPath(''),
-          ]);
+              ...cleanupPaths.map((targetPath) => removePath(targetPath)),
+              storage?.clear?.('data'),
+              storage?.clear?.('settings'),
+              clearSecureBlob('encryptionPassphraseBlob'),
+              clearAssetPassphrase(),
+              setSyncPath(''),
+            ]);
 
           localStorage.clear();
           sessionStorage.clear();

@@ -149,7 +149,6 @@
 <script>
 import { computed, onMounted, onUnmounted } from 'vue';
 import { useTheme } from '@/composable/theme';
-import { useStorage } from '@/lib/storage';
 import { useDialog } from '@/lib/dialog';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
@@ -180,7 +179,6 @@ export default {
     ];
     const theme = useTheme();
     const dialog = useDialog();
-    const storage = useStorage();
     const folderStore = useFolderStore();
     const isMobileRuntime = backend.isMobileRuntime();
     const isIOSRuntime = backend.isAppleRuntime();
@@ -190,7 +188,6 @@ export default {
       dialog,
       folderStore,
       noteStore,
-      storage,
       translations,
     });
 
@@ -226,7 +223,6 @@ export default {
     return {
       theme,
       themes,
-      storage,
       translations,
       forceSyncNow,
       formatTime,
