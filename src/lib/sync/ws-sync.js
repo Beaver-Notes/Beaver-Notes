@@ -175,7 +175,7 @@ export function useWsSync() {
     return workspaceStore.activeId
   }
 
-  async function joinNoteRoom(noteId, doc) {
+  async function joinNoteRoom(noteId, doc, externalAwareness = null) {
     const workspaceId = getActiveWorkspaceId()
     if (!workspaceId) return
 
@@ -189,10 +189,11 @@ export function useWsSync() {
         leaveWhilePending.delete(roomName)
         return
       }
+      const awareness = externalAwareness || new awarenessProtocol.Awareness(doc)
       const provider = new WebsocketProvider(wsUrl, roomName, doc, {
         connect: true,
         params,
-        awareness: new awarenessProtocol.Awareness(doc),
+        awareness,
       })
 
       // On connection/reconnection: re-attach notification listener and

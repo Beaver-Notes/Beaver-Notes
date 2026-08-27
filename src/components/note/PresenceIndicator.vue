@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, watch } from 'vue';
 import { usePresence } from '@/composable/usePresence';
 
 export default {
@@ -39,7 +39,7 @@ export default {
   },
   setup(props) {
     const { peers, init, destroy } = usePresence(
-      props.awareness,
+      () => props.awareness,
       props.awareness?.clientID?.toString() || 'local',
       props.userName
     );
@@ -47,6 +47,15 @@ export default {
     onMounted(() => {
       init();
     });
+
+    // Re-init when awareness becomes available after mount (per-doc guard)
+    watch(
+      () => props.awareness,
+      (aw, old) => {
+        if (old) destroy();
+        if (aw) init();
+      }
+    );
 
     onUnmounted(() => {
       destroy();

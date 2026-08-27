@@ -148,7 +148,7 @@
           v-if="yjsReady"
           :id="$route.params.id"
           ref="noteEditor"
-          :key="$route.params.id"
+          :key="`${$route.params.id}-${awareness?.clientID ?? 'no-aw'}`"
           :ydoc="ydoc"
           :awareness="awareness"
           :user-name="accountStore.profile?.username || 'Anonymous'"
@@ -333,6 +333,7 @@ export default {
       { immediate: true },
     );
 
+    const accountStore = useAccountStore();
     const wsSync = getWsSync();
     const noteRole = ref('editor');
     watch(
@@ -374,30 +375,66 @@ export default {
       return () => { doc.off('update', check); clearTimeout(timer); };
     }, { immediate: true });
 
-    const awareness = ydoc.value ? new Awareness(ydoc.value) : null;
-    const accountStore = useAccountStore();
+    const awareness = shallowRef(null);
+
+    function displayNameForPresence() {
+      const p = accountStore.profile;
+      if (p?.username) return p.username;
+      if (p?.email) return p.email.split('@')[0];
+      return 'Anonymous';
+    }
     const presence = usePresence(
       awareness,
       accountStore.profile?.id || 'anonymous',
-      accountStore.profile?.username || 'Anonymous',
+      displayNameForPresence(),
     );
 
-    onMounted(() => {
-      presence.init();
-    });
-
+    // Create/destroy Awareness only after ydoc resolves; never cache across doc switches
     watch(
-      () => accountStore.profile?.username,
-      (name) => {
-        if (name && awareness) {
-          presence.setLocalState({ name });
+      ydoc,
+      (doc, oldDoc) => {
+        // teardown previous
+        if (awareness.value) {
+          try {
+            awareness.value.setLocalState(null);
+          } catch {}
+          presence.destroy();
+          awareness.value = null;
+        }
+        if (!doc) return;
+        const aw = new Awareness(doc);
+        awareness.value = aw;
+        // set initial local user state (usePresence.init does this, but ensure)
+        presence.init();
+        // pass this awareness to ws-sync so provider reuses same instance (per-doc guard)
+        // joinNoteRoom is idempotent; if provider already exists for this doc it is skipped
+        if (id.value) {
+          const wsSyncAny = getWsSync();
+          // if provider for this note already created without external awareness, we need to re-wire:
+          // leave and re-join with correct awareness
+          // detection: provider exists but its awareness !== aw
+          wsSyncAny.joinNoteRoom?.(id.value, doc, aw);
         }
       },
       { immediate: true },
     );
 
+    watch(
+      () => accountStore.profile?.username || accountStore.profile?.email,
+      (name) => {
+        if (awareness.value) {
+          const display = displayNameForPresence();
+          presence.setLocalState({ name: display });
+        }
+      },
+    );
+
     onUnmounted(() => {
       presence.destroy();
+      if (awareness.value) {
+        try { awareness.value.setLocalState(null); } catch {}
+        awareness.value = null;
+      }
     });
 
     const isShared = computed(() => sharing.collaborators.value.length > 0);

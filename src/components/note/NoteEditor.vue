@@ -76,6 +76,7 @@ import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
 import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
 import PresenceIndicator from './PresenceIndicator.vue';
+import { getColorFromId } from '@/composable/usePresence';
 
 export default {
   components: {
@@ -288,8 +289,8 @@ export default {
           CollaborationCursor.configure({
             provider: { awareness: props.awareness },
             user: {
-              name: props.userName,
-              color: '#3B82F6',
+              name: props.userName || 'Anonymous',
+              color: getColorFromId(props.userName || props.id || 'anon'),
             },
           })
         );
@@ -471,6 +472,18 @@ export default {
       (role) => {
         if (editor.value && !editor.value.isDestroyed) {
           editor.value.setEditable(canEdit(role), false);
+        }
+      },
+    );
+
+    watch(
+      () => props.userName,
+      (name) => {
+        if (props.awareness && name) {
+          props.awareness.setLocalStateField('user', {
+            name,
+            color: getColorFromId(name),
+          });
         }
       },
     );

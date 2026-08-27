@@ -249,7 +249,6 @@ export function useNoteYjs() {
       scheduleFlush();
     });
 
-      const wsSync = getWsSync();
       try {
         const workspaceStore = useWorkspaceStore();
         const sharing = useNoteSharing();
@@ -261,13 +260,10 @@ export function useNoteYjs() {
       } catch (err) {
         console.warn('[yjs] note-key provisioning skipped:', err);
       }
-    // Register in the global active-docs map BEFORE joining the room so that
-    // any WS updates arriving during the join handshake are applied to the
-    // in-memory Y.Doc instead of being silently dropped.
+    // Register in the global active-docs map so that WS updates are applied.
+    // Room join (with awareness) is owned by the page watcher (per-doc awareness guard).
     currentDoc = newDoc;
     registerActiveDoc(noteId, newDoc);
-
-    wsSync.joinNoteRoom(noteId, newDoc);
 
     doc.value = newDoc;
     ready.value = true;

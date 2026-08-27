@@ -5,7 +5,7 @@ const PEER_COLORS = [
   '#EC4899', '#06B6D4', '#F97316', '#6366F1', '#14B8A6',
 ];
 
-function getColorFromId(id) {
+export function getColorFromId(id) {
   if (!id) return PEER_COLORS[0];
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
@@ -14,13 +14,25 @@ function getColorFromId(id) {
   return PEER_COLORS[Math.abs(hash) % PEER_COLORS.length];
 }
 
-export function usePresence(awareness, localUserId, localUserName) {
+function resolveAwareness(a) {
+  if (!a) return null;
+  if (typeof a === 'function') return a() || null;
+  // shallowRef unwrapping
+  if (typeof a === 'object' && 'value' in a && a.value !== undefined && (a.value === null || typeof a.value === 'object')) {
+    if (a.value === null || typeof a.value.getStates === 'function' || typeof a.value.setLocalStateField === 'function') return a.value;
+  }
+  return a;
+}
+
+export function usePresence(awarenessOrRef, localUserId, localUserName) {
   const peers = ref(new Map());
   const localColor = ref(getColorFromId(localUserId));
+  const getAw = () => resolveAwareness(awarenessOrRef);
 
   function setLocalState(state) {
-    if (!awareness) return;
-    awareness.setLocalStateField('user', {
+    const aw = getAw();
+    if (!aw) return;
+    aw.setLocalStateField('user', {
       id: localUserId,
       name: localUserName,
       color: localColor.value,
@@ -29,16 +41,18 @@ export function usePresence(awareness, localUserId, localUserName) {
   }
 
   function setCursor(anchor, head) {
-    if (!awareness) return;
-    awareness.setLocalStateField('cursor', { anchor, head });
+    const aw = getAw();
+    if (!aw) return;
+    aw.setLocalStateField('cursor', { anchor, head });
   }
 
   function updatePeers() {
-    if (!awareness) return;
-    const states = awareness.getStates();
+    const aw = getAw();
+    if (!aw) return;
+    const states = aw.getStates();
     const newPeers = new Map();
     states.forEach((state, clientId) => {
-      if (clientId === awareness.clientID) return;
+      if (clientId === aw.clientID) return;
       const user = state?.user;
       if (user) {
         newPeers.set(clientId, {
@@ -53,15 +67,16 @@ export function usePresence(awareness, localUserId, localUserName) {
   }
 
   function init() {
-    if (!awareness) return;
+    const aw = getAw();
+    if (!aw) return;
     setLocalState({});
-    awareness.on('change', updatePeers);
+    aw.on('change', updatePeers);
     updatePeers();
   }
 
   function destroy() {
-    if (!awareness) return;
-    awareness.off('change', updatePeers);
+    const aw = getAw();
+    if (aw) aw.off('change', updatePeers);
     peers.value = new Map();
   }
 
