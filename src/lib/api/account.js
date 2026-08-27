@@ -50,3 +50,8 @@ export async function confirmEmailVerification(token, { baseUrl, signal } = {}) 
   const client = getClient(baseUrl);
   return client.post('/account/verify-email/confirm', { token }, { signal, auth: false });
 }
+
+export async function changePassword(currentPassword, newPassword, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.patch('/account/password', { currentPassword, newPassword }, { signal });
+}

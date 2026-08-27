@@ -13,6 +13,7 @@ import SettingsTeamAdmin from './pages/settings/TeamAdmin.vue';
 import SettingsData from './pages/settings/Data.vue';
 import JoinNote from './pages/join/[token].vue';
 import VerifyEmail from './pages/VerifyEmail.vue';
+import ResetPassword from './pages/ResetPassword.vue';
 import Home from './pages/Index.vue';
 import Note from './pages/note/_id.vue';
 import Folder from './pages/folder/_id.vue';
@@ -123,6 +124,18 @@ const routes = [
     path: '/verify-email/:token',
     name: 'VerifyEmailToken',
     component: VerifyEmail,
+    meta: { guest: true },
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: ResetPassword,
+    meta: { guest: true },
+  },
+  {
+    path: '/reset-password/:token',
+    name: 'ResetPasswordToken',
+    component: ResetPassword,
     meta: { guest: true },
   },
   {

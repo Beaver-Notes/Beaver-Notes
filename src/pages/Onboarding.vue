@@ -953,7 +953,7 @@
                               translations.account?.emailPlaceholder || 'Email'
                             "
                           />
-                          <ui-input
+                           <ui-input
                             v-model="signInPassword"
                             :password="true"
                             class="w-full"
@@ -963,6 +963,15 @@
                             "
                             @keyup.enter="handleSignInWithPassword"
                           />
+                          <div class="flex items-center justify-between">
+                            <button class="text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">Forgot password?</button>
+                            <span v-if="forgotMessage" class="text-xs" :class="forgotSent ? 'text-green-600' : 'text-amber-600'">{{ forgotMessage }}</span>
+                          </div>
+                          <div v-if="showForgot" class="flex flex-col gap-2 border rounded-lg p-3 bg-neutral-50 dark:bg-neutral-800">
+                            <ui-input v-model="forgotEmail" type="email" placeholder="Email for reset link" class="w-full" />
+                            <ui-button variant="secondary" :loading="forgotBusy" @click="handleForgot">Send reset link</ui-button>
+                            <p class="text-xs text-neutral-500">If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).</p>
+                          </div>
                           <ui-input
                             v-model="signUpUsername"
                             class="w-full"
@@ -1433,6 +1442,24 @@ export default {
       await account.handleSignUpWithPassword();
     };
 
+    const showForgot = ref(false);
+    const forgotEmail = ref('');
+    const forgotBusy = ref(false);
+    const forgotMessage = ref('');
+    const forgotSent = ref(false);
+    async function handleForgot() {
+      forgotMessage.value = ''; forgotSent.value = false;
+      const email = forgotEmail.value.trim() || signInEmail.value.trim();
+      if (!email) { forgotMessage.value = 'Enter your email.'; return; }
+      await ensureServerUrl();
+      forgotBusy.value = true;
+      try {
+        const { requestPasswordReset } = await import('@/lib/api/auth');
+        const res = await requestPasswordReset(email, { baseUrl: accountStore.serverUrl });
+        forgotMessage.value = res?.message || 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).';
+        forgotSent.value = true;
+      } catch (e) { forgotMessage.value = e?.message || 'Failed to send reset link.'; } finally { forgotBusy.value = false; }
+    }
     const showRecovery = ref(false);
     const recoverEmail = ref('');
     const recoverCode = ref('');
@@ -1734,6 +1761,12 @@ export default {
       handleSignUpWithPasskey,
       handleSignInWithPassword,
       handleSignUpWithPassword,
+      showForgot,
+      forgotEmail,
+      forgotBusy,
+      forgotMessage,
+      forgotSent,
+      handleForgot,
       showRecovery,
       recoverEmail,
       recoverCode,

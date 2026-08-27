@@ -104,6 +104,13 @@
                 {{ translations.account?.createAccount || 'Create account' }}
               </ui-button>
             </div>
+            <button class="mt-2 text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">Forgot password?</button>
+            <div v-if="showForgot" class="mt-2 flex flex-col gap-2 border rounded-lg p-3 bg-neutral-50 dark:bg-neutral-800">
+              <ui-input v-model="forgotEmail" type="email" placeholder="Email for reset link" class="w-full" />
+              <ui-button variant="secondary" :loading="forgotBusy" @click="handleForgot">Send reset link</ui-button>
+              <p v-if="forgotMessage" class="text-xs" :class="forgotSent ? 'text-green-600' : 'text-amber-600'">{{ forgotMessage }}</p>
+              <p class="text-xs text-neutral-500">If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).</p>
+            </div>
           </div>
         </div>
 
@@ -583,6 +590,18 @@
             }}
           </ui-button>
         </div>
+        <!-- Change password -->
+        <div class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5">
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Change password</p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Verifies current password, rotates, revokes other sessions.</p>
+          <div class="mt-2 flex flex-col gap-2">
+            <ui-input v-model="changeCurrent" :password="true" placeholder="Current password" class="w-full" />
+            <ui-input v-model="changeNew" :password="true" placeholder="New password (min 12 chars)" class="w-full" />
+            <ui-input v-model="changeConfirm" :password="true" placeholder="Confirm new password" class="w-full" />
+            <p v-if="changeMessage" class="text-xs" :class="changeSuccess ? 'text-green-600' : 'text-red-500'">{{ changeMessage }}</p>
+            <ui-button variant="secondary" :loading="changeBusy" @click="handleChangePassword">Change password</ui-button>
+          </div>
+        </div>
         <!-- Recovery code -->
         <div class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5">
           <div class="flex items-start justify-between gap-3">
@@ -741,7 +760,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
-import { generateRecoveryCode as apiGenerateRecoveryCode, requestEmailVerification as apiRequestEmailVerification } from '@/lib/api/account';
+import { generateRecoveryCode as apiGenerateRecoveryCode, requestEmailVerification as apiRequestEmailVerification, changePassword as apiChangePassword } from '@/lib/api/account';
 
 export default {
   setup() {
@@ -752,6 +771,42 @@ export default {
     const account = useSettingsAccount({ dialog, translations });
 
     const showVaultImportPrompt = ref(false);
+    const showForgot = ref(false);
+    const forgotEmail = ref('');
+    const forgotBusy = ref(false);
+    const forgotMessage = ref('');
+    const forgotSent = ref(false);
+    async function handleForgot() {
+      forgotMessage.value = ''; forgotSent.value = false;
+      const email = forgotEmail.value.trim() || accountStore.profile?.email || '';
+      if (!email) { forgotMessage.value = 'Enter your email.'; return; }
+      forgotBusy.value = true;
+      try {
+        const { requestPasswordReset } = await import('@/lib/api/auth');
+        const res = await requestPasswordReset(email, { baseUrl: accountStore.serverUrl });
+        forgotMessage.value = res?.message || 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).';
+        forgotSent.value = true;
+      } catch (e) { forgotMessage.value = e?.message || 'Failed.'; } finally { forgotBusy.value = false; }
+    }
+    const changeCurrent = ref('');
+    const changeNew = ref('');
+    const changeConfirm = ref('');
+    const changeBusy = ref(false);
+    const changeMessage = ref('');
+    const changeSuccess = ref(false);
+    async function handleChangePassword() {
+      changeMessage.value = ''; changeSuccess.value = false;
+      if (!changeCurrent.value || !changeNew.value) { changeMessage.value = 'All fields required.'; return; }
+      if (changeNew.value.length < 12) { changeMessage.value = 'New password must be at least 12 characters.'; return; }
+      if (changeNew.value !== changeConfirm.value) { changeMessage.value = 'Passwords do not match.'; return; }
+      changeBusy.value = true;
+      try {
+        await apiChangePassword(changeCurrent.value, changeNew.value, { baseUrl: accountStore.serverUrl });
+        changeMessage.value = 'Password changed. Other sessions revoked.';
+        changeSuccess.value = true;
+        changeCurrent.value = ''; changeNew.value = ''; changeConfirm.value = '';
+      } catch (e) { changeMessage.value = e?.message || 'Failed to change password.'; } finally { changeBusy.value = false; }
+    }
     const recoveryCode = ref('');
     const recoveryBusy = ref(false);
     const emailVerifySending = ref(false);
@@ -912,6 +967,8 @@ export default {
       showVaultImportPrompt,
       goToSecurity,
       importVaultDialog,
+      showForgot, forgotEmail, forgotBusy, forgotMessage, forgotSent, handleForgot,
+      changeCurrent, changeNew, changeConfirm, changeBusy, changeMessage, changeSuccess, handleChangePassword,
       recoveryCode,
       recoveryBusy,
       handleGenerateRecoveryCode,

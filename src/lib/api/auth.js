@@ -339,6 +339,16 @@ export async function recoverAccount(email, code, { baseUrl, signal } = {}) {
   return client.post('/auth/recover', { email, code }, { signal, auth: false });
 }
 
+export async function requestPasswordReset(email, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/password/reset-request', { email }, { signal, auth: false });
+}
+
+export async function completePasswordReset(token, newPassword, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/password/reset-complete', { token, newPassword, password: newPassword }, { signal, auth: false });
+}
+
 export const webauthn = {
   isAvailable: isWebAuthnAvailable,
   isConditionalMediationAvailable,
