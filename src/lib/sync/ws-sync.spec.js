@@ -2,10 +2,24 @@ import { describe, it, expect, vi } from 'vitest'
 
 // Mock dependencies
 vi.mock('@/store/account', () => ({
-  useAccountStore: vi.fn(() => ({ token: 'mock-token', status: 'authenticated' }))
+  useAccountStore: vi.fn(() => ({
+    token: 'mock-token',
+    status: 'authenticated',
+    profile: { id: 'user-1', username: 'testuser' },
+  })),
 }))
 vi.mock('@/store/workspace', () => ({
-  useWorkspaceStore: vi.fn(() => ({ activeId: 'ws-1', workspaces: [] }))
+  useWorkspaceStore: vi.fn(() => ({
+    activeId: 'ws-1',
+    workspaces: [{ id: 'ws-1', role: 'editor' }],
+    activeWorkspace: { id: 'ws-1', role: 'editor' },
+  })),
+}))
+vi.mock('@/store/collaborator', () => ({
+  useCollaboratorStore: vi.fn(() => ({
+    noteId: '',
+    collaborators: [],
+  })),
 }))
 vi.mock('@/lib/yjs/meta-doc', () => ({
   getWorkspaceDoc: vi.fn(() => ({ on: vi.fn(), off: vi.fn() })),
@@ -13,24 +27,27 @@ vi.mock('@/lib/yjs/meta-doc', () => ({
 }))
 vi.mock('@/lib/yjs/shared', () => ({
   registerActiveDoc: vi.fn(),
-  unregisterActiveDoc: vi.fn()
+  unregisterActiveDoc: vi.fn(),
 }))
 vi.mock('@/utils/crypto/collab', () => ({
   importCollabKey: vi.fn(),
   encryptUpdate: vi.fn(),
   decryptUpdate: vi.fn(),
-  isValidCollabKey: vi.fn(() => true)
+  isValidCollabKey: vi.fn(() => true),
 }))
 vi.mock('@/utils/crypto/note-key', () => ({
   clearUnwrappedKeyCache: vi.fn(),
-  unwrapNoteKey: vi.fn()
+  unwrapNoteKey: vi.fn(),
 }))
 vi.mock('@/utils/crypto/identity', () => ({
-  loadOrCreateIdentity: vi.fn(() => Promise.resolve({ privateKeyHex: 'a'.repeat(64) }))
+  loadOrCreateIdentity: vi.fn(() => Promise.resolve({ privateKeyHex: 'a'.repeat(64) })),
 }))
 vi.mock('@/lib/api/workspaces', () => ({
   getWorkspaceKey: vi.fn(),
-  getCachedWorkspaceKey: vi.fn(() => 'b'.repeat(64))
+  getCachedWorkspaceKey: vi.fn(() => 'b'.repeat(64)),
+}))
+vi.mock('@/utils/permissions', () => ({
+  ROLES: { OWNER: 'owner', EDITOR: 'editor', VIEWER: 'viewer', GUEST: 'guest' },
 }))
 vi.mock('y-websocket', () => {
   const { EventEmitter } = require('events')
@@ -41,8 +58,13 @@ vi.mock('y-websocket', () => {
       this.wsconnected = false
       this.awareness = { getStates: () => new Map(), setLocalState: vi.fn() }
     }
-    connect() { this.wsconnected = true; this.emit('status', { status: 'connected' }) }
-    disconnect() { this.wsconnected = false }
+    connect() {
+      this.wsconnected = true
+      this.emit('status', { status: 'connected' })
+    }
+    disconnect() {
+      this.wsconnected = false
+    }
     destroy() {}
   }
   return { WebsocketProvider: MockWebsocketProvider }
@@ -69,5 +91,10 @@ describe('ws-sync', () => {
     expect(typeof sync.handleWorkspaceSwitch).toBe('function')
     expect(typeof sync.handleNoteSwitch).toBe('function')
     expect(typeof sync.getRoomRole).toBe('function')
+  })
+
+  it('getRoomRole returns editor by default', () => {
+    const sync = getWsSync()
+    expect(sync.getRoomRole('note-1')).toBe('editor')
   })
 })

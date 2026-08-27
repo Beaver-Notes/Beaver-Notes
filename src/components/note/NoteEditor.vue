@@ -284,7 +284,7 @@ export default {
           field: 'content',
         })
       );
-      if (props.awareness) {
+      if (props.awareness && canEdit(props.role)) {
         exts.push(
           CollaborationCursor.configure({
             provider: { awareness: props.awareness },

@@ -2,6 +2,7 @@ import { WebsocketProvider } from 'y-websocket'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
+import { useCollaboratorStore } from '@/store/collaborator'
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc'
 import { unregisterActiveDoc } from '@/lib/yjs/shared'
 import {
@@ -12,6 +13,7 @@ import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces'
 import { forceSyncNow } from '@/utils/sync/engine'
+import { ROLES } from '@/utils/permissions'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
@@ -323,9 +325,27 @@ export function useWsSync() {
     joinNoteRoom(noteId, doc)
   }
 
-  // TODO: role-based access control needs the server to send role info in the auth message
-  function getRoomRole(_noteId) {
-    return 'editor'
+  function getRoomRole(noteId) {
+    const accountStore = useAccountStore()
+    const userId = accountStore.profile?.id
+    if (!userId) return ROLES.EDITOR
+
+    // 1. Check per-note collaborator role (most specific)
+    const collaboratorStore = useCollaboratorStore()
+    if (collaboratorStore.noteId === noteId) {
+      const self = collaboratorStore.collaborators.find(
+        (c) => c.userId === userId || c.username === accountStore.profile?.username
+      )
+      if (self?.role) return self.role
+    }
+
+    // 2. Fall back to workspace role
+    const workspaceStore = useWorkspaceStore()
+    const activeWs = workspaceStore.activeWorkspace
+    if (activeWs?.role) return activeWs.role
+
+    // 3. Default to editor for backwards compatibility
+    return ROLES.EDITOR
   }
 
   return {
