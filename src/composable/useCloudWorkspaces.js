@@ -18,6 +18,8 @@ const workspaces = ref([]);
 const activeId = ref(null);
 const loading = ref(false);
 const error = ref('');
+// ponytail: Set tracks terminal unwrap/provision failures to prevent infinite retry; cleared on success or new workspace list
+const provisionFailures = new Set();
 
 let fetchController = null;
 let fetchInFlight = null;
@@ -239,13 +241,42 @@ export function useCloudWorkspaces() {
     const identity = await loadOrCreateIdentity();
     if (!identity?.privateKeyHex || !identity?.publicKeyHex) return false;
 
-    const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
-    const ws = raw?.workspaces?.find((w) => w.id === workspaceId);
-    if (!ws?.wrappedKey) return false;
+    // Prefer cached raw workspace key (seeded at creation/join) to avoid network + unwrap
+    let workspaceKeyHex = getCachedWorkspaceKey(workspaceId);
+    if (!workspaceKeyHex) {
+      const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
+      const list = Array.isArray(raw) ? raw : (raw?.workspaces ?? []);
+      const ws = list.find((w) => w.id === workspaceId);
+      if (!ws?.wrappedKey) return false;
+      workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, ws.wrappedKey);
+    }
 
-    const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, ws.wrappedKey);
-    const wrappedForTarget = await wrapNoteKeyForRecipient(identity.publicKeyHex, workspaceKeyHex);
+    // Fetch target member kemPublicKey: prefer members list if it carries the key, else fallback to GET /auth/keypair?userId=
+    let memberPubKey = null;
+    try {
+      const { members } = await apiGetWorkspaceMembers(workspaceId, { baseUrl: activeBaseUrl() });
+      const member = (members || []).find((m) => m.userId === memberUserId);
+      if (member?.kemPublicKey) memberPubKey = member.kemPublicKey;
+    } catch {
+      // fall through to direct fetch
+    }
+    if (!memberPubKey) {
+      try {
+        const { getApiClient } = await import('@/lib/api/client');
+        const client = getApiClient({ baseUrl: activeBaseUrl() });
+        const res = await client.get('/auth/keypair', { query: { userId: memberUserId } });
+        memberPubKey = res?.kemPublicKey || res?.publicKey || null;
+      } catch {
+        return false;
+      }
+    }
+    if (!memberPubKey) return false;
+
+    const wrappedForTarget = await wrapNoteKeyForRecipient(memberPubKey, workspaceKeyHex);
     await apiProvisionWorkspaceKey(workspaceId, memberUserId, wrappedForTarget, { baseUrl: activeBaseUrl() });
+    // success clears any prior terminal marker for this member
+    provisionFailures.delete(`${workspaceId}:${memberUserId}`);
+    provisionFailures.delete(`ws:${workspaceId}`);
     return true;
   }
 
@@ -257,6 +288,7 @@ export function useCloudWorkspaces() {
     for (const ws of workspaces.value) {
       if (ws.role !== 'owner' && ws.role !== 'admin') continue;
       if (!ws.wrappedKey) continue;
+      if (provisionFailures.has(`ws:${ws.id}`)) continue;
 
       try {
         const { members } = await apiGetWorkspaceMembers(ws.id, { baseUrl: activeBaseUrl() });
@@ -264,10 +296,20 @@ export function useCloudWorkspaces() {
           (m) => m.userId !== userId && m.hasKeyPair && !m.hasWrappedKey
         );
         for (const member of pending) {
+          const key = `${ws.id}:${member.userId}`;
+          if (provisionFailures.has(key)) continue;
           try {
             await provisionKeysForMember(ws.id, member.userId);
           } catch (err) {
-            console.warn(`[useCloudWorkspaces] failed to provision key for ${member.userId} in ${ws.id}:`, err?.message);
+            const msg = err?.message || String(err);
+            console.warn(`[useCloudWorkspaces] failed to provision key for ${member.userId} in ${ws.id}:`, msg);
+            provisionFailures.add(key);
+            // unwrap failure is unrecoverable for this workspace until manual re-key; mark ws terminal
+            if (msg.toLowerCase().includes('unwrap') || msg.toLowerCase().includes('decap') || msg.toLowerCase().includes('decrypt')) {
+              provisionFailures.add(`ws:${ws.id}`);
+            }
+            // also log terminal marker to avoid infinite retry
+            console.warn(`[useCloudWorkspaces] terminal provision failure for ${key}; will not retry until restart`);
           }
         }
       } catch (err) {
