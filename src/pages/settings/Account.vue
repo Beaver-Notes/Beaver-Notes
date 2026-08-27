@@ -555,6 +555,28 @@
             }}
           </ui-button>
         </div>
+        <!-- Recovery code -->
+        <div class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                Recovery code
+              </p>
+              <p class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                Single code to recover your account if you lose all passkeys. Regenerating invalidates the old code. Restores ACCOUNT access only — E2E data needs vault passphrase.
+              </p>
+              <p v-if="recoveryCode" class="mt-2 font-mono text-xs break-all bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-amber-900 dark:text-amber-100">
+                {{ recoveryCode }}
+              </p>
+              <p v-if="recoveryCode" class="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                Copy now — this code will not be shown again. Store it securely.
+              </p>
+            </div>
+            <ui-button variant="secondary" :loading="recoveryBusy" @click="handleGenerateRecoveryCode">
+              {{ recoveryCode ? 'Regenerate' : 'Generate' }}
+            </ui-button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -691,6 +713,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
+import { generateRecoveryCode as apiGenerateRecoveryCode } from '@/lib/api/account';
 
 export default {
   setup() {
@@ -701,6 +724,8 @@ export default {
     const account = useSettingsAccount({ dialog, translations });
 
     const showVaultImportPrompt = ref(false);
+    const recoveryCode = ref('');
+    const recoveryBusy = ref(false);
 
     // Detect whether the sync source holds a vault differing from this device's
     // local manifest. hasRemoteVaultKeyParams() is authoritative — true when the
@@ -783,6 +808,33 @@ export default {
       });
     }
 
+    async function handleGenerateRecoveryCode() {
+      recoveryBusy.value = true;
+      try {
+        const res = await apiGenerateRecoveryCode({ baseUrl: accountStore.serverUrl });
+        recoveryCode.value = res?.recoveryCode || '';
+        dialog.alert({
+          title: 'Recovery code generated',
+          body: 'Store this code securely — it will not be shown again. Regenerating invalidates the old code. This restores ACCOUNT access only; E2E data needs vault passphrase.',
+          okText: 'Close',
+        });
+        // enrollment offer: prompt to add passkey if missing
+        if (accountStore.devices.length === 0) {
+          dialog.confirm({
+            title: 'Add a passkey?',
+            body: 'You should add a passkey so you do not need the recovery code for daily sign-in.',
+            okText: 'Add passkey',
+            cancelText: 'Later',
+            onConfirm: () => router.push('/settings/security'),
+          });
+        }
+      } catch (e) {
+        dialog.alert({ title: 'Failed to generate', body: e?.message || 'Failed to generate recovery code.', okText: 'Close' });
+      } finally {
+        recoveryBusy.value = false;
+      }
+    }
+
     onMounted(() => {
       checkVaultImportNeeded();
     });
@@ -812,6 +864,9 @@ export default {
       showVaultImportPrompt,
       goToSecurity,
       importVaultDialog,
+      recoveryCode,
+      recoveryBusy,
+      handleGenerateRecoveryCode,
       ...account,
     };
   },

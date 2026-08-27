@@ -1004,6 +1004,22 @@
                       >
                         {{ accountStore.error }}
                       </p>
+
+                      <div class="border-t border-neutral-200 dark:border-neutral-700 pt-3">
+                        <button
+                          class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                          @click="showRecovery = !showRecovery"
+                        >
+                          {{ showRecovery ? '↑' : '↓' }} Lost access? Recover with code
+                        </button>
+                        <div v-if="showRecovery" class="mt-2 flex flex-col gap-2">
+                          <ui-input v-model="recoverEmail" type="email" class="w-full" placeholder="Email" />
+                          <ui-input v-model="recoverCode" class="w-full font-mono text-xs" placeholder="64-char recovery code" />
+                          <p class="text-xs text-amber-600 dark:text-amber-400">Restores ACCOUNT access only — E2E data needs vault passphrase.</p>
+                          <ui-button class="w-full" variant="secondary" :loading="recoverBusy" @click="handleRecover">Recover account</ui-button>
+                          <p v-if="recoverMessage" class="text-xs" :class="recoverSuccess ? 'text-green-600' : 'text-red-500'">{{ recoverMessage }}</p>
+                        </div>
+                      </div>
                     </div>
                   </template>
                 </template>
@@ -1417,6 +1433,49 @@ export default {
       await account.handleSignUpWithPassword();
     };
 
+    const showRecovery = ref(false);
+    const recoverEmail = ref('');
+    const recoverCode = ref('');
+    const recoverBusy = ref(false);
+    const recoverMessage = ref('');
+    const recoverSuccess = ref(false);
+    async function handleRecover() {
+      recoverMessage.value = '';
+      recoverSuccess.value = false;
+      const email = recoverEmail.value.trim();
+      const code = recoverCode.value.trim();
+      if (!email || !code) { recoverMessage.value = 'Email and code required.'; return; }
+      await ensureServerUrl();
+      recoverBusy.value = true;
+      try {
+        const { recoverAccount } = await import('@/lib/api/auth');
+        const { saveSessionToken, saveCachedProfile } = await import('@/lib/account-storage');
+        const { resetApiClient } = await import('@/lib/api/client');
+        const res = await recoverAccount(email, code, { baseUrl: accountStore.serverUrl });
+        const token = res?.token || res?.sessionToken;
+        if (token) {
+          await saveSessionToken(token);
+          const { getAccount } = await import('@/lib/api/account');
+          accountStore.setToken(token);
+          accountStore.setStatus('authenticated');
+          resetApiClient();
+          try { const data = await getAccount({ baseUrl: accountStore.serverUrl }); if (data?.profile) await saveCachedProfile(data.profile); } catch {}
+          recoverSuccess.value = true;
+          recoverMessage.value = 'Recovered! Please enroll a new passkey now.';
+          // prompt passkey enroll
+          const { passkeyRegisterBegin, passkeyRegisterComplete } = await import('@/lib/api/auth');
+          const opts = await passkeyRegisterBegin(email, 'Recovered device', { baseUrl: accountStore.serverUrl });
+          await passkeyRegisterComplete(email, { baseUrl: accountStore.serverUrl }, opts);
+          recoverMessage.value = 'Passkey enrolled successfully.';
+        } else {
+          recoverMessage.value = res?.message || 'Recovered. Please add a passkey from Settings.';
+          recoverSuccess.value = !!res?.requiresPasskeyEnroll;
+        }
+      } catch (e) {
+        recoverMessage.value = e?.message || 'Recovery failed.';
+      } finally { recoverBusy.value = false; }
+    }
+
     const curtainOpen = ref(false);
     const { play } = useSounds();
 
@@ -1675,6 +1734,13 @@ export default {
       handleSignUpWithPasskey,
       handleSignInWithPassword,
       handleSignUpWithPassword,
+      showRecovery,
+      recoverEmail,
+      recoverCode,
+      recoverBusy,
+      recoverMessage,
+      recoverSuccess,
+      handleRecover,
       curtainOpen,
       legacyPasswordValue,
       submitLegacyPassword,

@@ -35,3 +35,8 @@ export async function getAccountExport({ baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   return client.get('/account/export', { signal });
 }
+
+export async function generateRecoveryCode({ baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/account/recovery-code', {}, { signal });
+}

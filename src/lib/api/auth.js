@@ -334,6 +334,11 @@ export async function setKeypair(kemPublicKey, { deviceId, baseUrl, signal } = {
   return client.post('/auth/keypair', { kemPublicKey, deviceId }, { signal });
 }
 
+export async function recoverAccount(email, code, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/recover', { email, code }, { signal, auth: false });
+}
+
 export const webauthn = {
   isAvailable: isWebAuthnAvailable,
   isConditionalMediationAvailable,
