@@ -56,10 +56,18 @@
               <option value="viewer">Viewer</option>
               <option value="admin">Admin</option>
             </ui-select>
-            <ui-button variant="primary" :disabled="addingMember" @click="handleAddMember">
+            <ui-button
+              variant="primary"
+              :disabled="addingMember || !isEmailVerified"
+              :title="!isEmailVerified ? verifyTooltip : undefined"
+              @click="handleAddMember"
+            >
               {{ addingMember ? 'Inviting…' : 'Invite' }}
             </ui-button>
           </div>
+          <p v-if="!isEmailVerified" class="px-4 text-xs text-amber-600 dark:text-amber-400">
+            Please verify your email to invite members.
+          </p>
           <p v-if="inviteSuccess" class="px-4 text-xs text-green-600 dark:text-green-400" role="status">
             {{ inviteSuccess }}
           </p>
@@ -275,6 +283,11 @@ export default {
     const currentUserId = computed(
       () => accountStore.activeAccount?.id || accountStore.profile?.id || null
     );
+    const isEmailVerified = computed(() => {
+      const v = accountStore.profile?.emailVerified;
+      return v === true || v === null || v === undefined;
+    });
+    const verifyTooltip = 'Please verify your email to invite members.';
 
     const plan = ref('free');
     const flags = ref({ dashboard: false, audit: false });
@@ -500,6 +513,8 @@ export default {
       historyLabel,
       plansLoaded,
       currentUserId,
+      isEmailVerified,
+      verifyTooltip,
       admin,
       inviteInput,
       inviteRole,

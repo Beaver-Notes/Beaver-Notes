@@ -12,6 +12,7 @@ import SettingsAccount from './pages/settings/Account.vue';
 import SettingsTeamAdmin from './pages/settings/TeamAdmin.vue';
 import SettingsData from './pages/settings/Data.vue';
 import JoinNote from './pages/join/[token].vue';
+import VerifyEmail from './pages/VerifyEmail.vue';
 import Home from './pages/Index.vue';
 import Note from './pages/note/_id.vue';
 import Folder from './pages/folder/_id.vue';
@@ -110,6 +111,18 @@ const routes = [
     path: '/join/:token',
     name: 'JoinNote',
     component: JoinNote,
+    meta: { guest: true },
+  },
+  {
+    path: '/verify-email',
+    name: 'VerifyEmail',
+    component: VerifyEmail,
+    meta: { guest: true },
+  },
+  {
+    path: '/verify-email/:token',
+    name: 'VerifyEmailToken',
+    component: VerifyEmail,
     meta: { guest: true },
   },
   {

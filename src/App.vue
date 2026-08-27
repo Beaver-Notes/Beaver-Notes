@@ -8,6 +8,22 @@
     id="pill-dock"
     class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+4.25rem)]"
   ></div>
+  <div
+    v-if="showVerificationBanner"
+    class="fixed top-0 inset-x-0 z-40 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 px-4 py-2.5"
+    role="status"
+  >
+    <p class="text-xs font-medium text-amber-900 dark:text-amber-100">
+      Please verify your email — check your inbox for a verification link.
+    </p>
+    <button
+      class="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      :disabled="verificationSending || verificationCooldown > 0"
+      @click="handleRequestVerification"
+    >
+      {{ verificationCooldown > 0 ? `Resend (${verificationCooldown}s)` : verificationSending ? 'Sending…' : 'Resend email' }}
+    </button>
+  </div>
   <recording-pill />
   <app-encryption-gate
     v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
@@ -148,7 +164,7 @@
 </template>
 
 <script>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
@@ -269,6 +285,38 @@ export default {
       }
     }
 
+    // 02.3: soft-gate banner — unverified but authenticated shows nag with throttled resend
+    const verificationSending = ref(false);
+    const verificationCooldown = ref(0);
+    let cooldownTimer = null;
+    const showVerificationBanner = computed(() => {
+      if (!accountStore.isAuthenticated) return false;
+      const v = accountStore.profile?.emailVerified;
+      // null means legacy/unknown — treat as verified to avoid nagging old installs until next profile fetch
+      if (v === null || v === undefined) return false;
+      return v === false;
+    });
+    async function handleRequestVerification() {
+      if (verificationSending.value || verificationCooldown.value > 0) return;
+      verificationSending.value = true;
+      try {
+        const { requestEmailVerification } = await import('@/lib/api/account');
+        await requestEmailVerification({ baseUrl: accountStore.serverUrl });
+        verificationCooldown.value = 60;
+        cooldownTimer = setInterval(() => {
+          verificationCooldown.value -= 1;
+          if (verificationCooldown.value <= 0) {
+            clearInterval(cooldownTimer);
+            cooldownTimer = null;
+          }
+        }, 1000);
+      } catch (err) {
+        console.warn('[verify] request failed:', err?.message);
+      } finally {
+        verificationSending.value = false;
+      }
+    }
+
     onMounted(() => {
       if (onboardingCompleted.value) {
         const wsSync = getWsSync();
@@ -282,6 +330,7 @@ export default {
         const wsSync = getWsSync();
         wsSync.stop();
       }
+      if (cooldownTimer) clearInterval(cooldownTimer);
     });
 
     return {
@@ -290,6 +339,10 @@ export default {
       skipToMain,
       onboardingCompleted,
       translations,
+      showVerificationBanner,
+      verificationSending,
+      verificationCooldown,
+      handleRequestVerification,
     };
   },
 };

@@ -38,8 +38,9 @@
           />
           <ui-button
             variant="primary"
-            :disabled="!inviteInput.trim() || inviting"
+            :disabled="!inviteInput.trim() || inviting || !isEmailVerified"
             :loading="inviting"
+            :title="!isEmailVerified ? verifyTooltip : undefined"
             @click="handleInvite"
           >
             <v-remixicon name="riUserAddLine" class="mr-1" size="16" />
@@ -113,6 +114,8 @@
           variant="primary"
           class="w-full"
           :loading="linkLoading"
+          :disabled="!isEmailVerified"
+          :title="!isEmailVerified ? verifyTooltip : undefined"
           @click="createLink"
         >
           Create invite link
@@ -234,6 +237,11 @@ export default {
     const linkError = ref('');
     const { copyState, copyToClipboard } = useClipboard();
     const copiedToken = ref('');
+    const isEmailVerified = computed(() => {
+      const v = accountStore.profile?.emailVerified;
+      return v === true || v === null || v === undefined;
+    });
+    const verifyTooltip = 'Please verify your email to invite collaborators.';
 
     function getInviteUrl(token) {
       return `beaver-notes://join/${token}`;
@@ -334,6 +342,8 @@ export default {
       linkExpiry,
       copyState,
       copiedToken,
+      isEmailVerified,
+      verifyTooltip,
       createLink,
       copyLink,
       handleRevokeLink,

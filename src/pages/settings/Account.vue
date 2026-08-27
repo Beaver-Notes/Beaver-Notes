@@ -206,14 +206,22 @@
           </div>
           <div class="min-w-0 flex-1">
             <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate"
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate flex items-center gap-2"
             >
-              {{
+              <span>{{
                 accountStore.profile?.email ||
                 accountStore.profile?.username ||
                 translations.account?.signedInAs ||
                 'Signed in'
-              }}
+              }}</span>
+              <span
+                v-if="accountStore.profile?.emailVerified === true"
+                class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+              >Verified</span>
+              <span
+                v-else-if="accountStore.profile?.emailVerified === false"
+                class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+              >Unverified</span>
             </p>
             <p
               class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate"
@@ -224,6 +232,26 @@
           <ui-button variant="danger" @click="handleSignOut">
             <v-remixicon name="riLogoutBoxRLine" class="mr-1" />
             {{ translations.account?.signOut || 'Sign out' }}
+          </ui-button>
+        </div>
+        <!-- Email verification -->
+        <div
+          v-if="accountStore.profile?.emailVerified === false"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5 flex items-center justify-between gap-3"
+        >
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Email verification</p>
+            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+              Verify your email to invite collaborators.
+            </p>
+          </div>
+          <ui-button
+            variant="secondary"
+            :loading="emailVerifySending"
+            :disabled="emailVerifySending || emailVerifyCooldown > 0"
+            @click="handleRequestEmailVerification"
+          >
+            {{ emailVerifyCooldown > 0 ? `Resend (${emailVerifyCooldown}s)` : 'Verify email' }}
           </ui-button>
         </div>
 
@@ -713,7 +741,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
-import { generateRecoveryCode as apiGenerateRecoveryCode } from '@/lib/api/account';
+import { generateRecoveryCode as apiGenerateRecoveryCode, requestEmailVerification as apiRequestEmailVerification } from '@/lib/api/account';
 
 export default {
   setup() {
@@ -726,6 +754,26 @@ export default {
     const showVaultImportPrompt = ref(false);
     const recoveryCode = ref('');
     const recoveryBusy = ref(false);
+    const emailVerifySending = ref(false);
+    const emailVerifyCooldown = ref(0);
+    let emailVerifyTimer = null;
+    async function handleRequestEmailVerification() {
+      if (emailVerifySending.value || emailVerifyCooldown.value > 0) return;
+      emailVerifySending.value = true;
+      try {
+        await apiRequestEmailVerification({ baseUrl: accountStore.serverUrl });
+        dialog.alert({ title: 'Verification email sent', body: 'Check your inbox for the verification link (expires in 24 hours).', okText: 'Close' });
+        emailVerifyCooldown.value = 60;
+        emailVerifyTimer = setInterval(() => {
+          emailVerifyCooldown.value -= 1;
+          if (emailVerifyCooldown.value <= 0) { clearInterval(emailVerifyTimer); emailVerifyTimer = null; }
+        }, 1000);
+      } catch (e) {
+        dialog.alert({ title: 'Failed to send', body: e?.message || 'Failed to send verification email.', okText: 'Close' });
+      } finally {
+        emailVerifySending.value = false;
+      }
+    }
 
     // Detect whether the sync source holds a vault differing from this device's
     // local manifest. hasRemoteVaultKeyParams() is authoritative — true when the
@@ -867,6 +915,9 @@ export default {
       recoveryCode,
       recoveryBusy,
       handleGenerateRecoveryCode,
+      emailVerifySending,
+      emailVerifyCooldown,
+      handleRequestEmailVerification,
       ...account,
     };
   },

@@ -85,6 +85,7 @@ export const ProfileShape = Object.freeze({
   username: 'string?',
   emailHash: 'string?',
   email: 'string?',
+  emailVerified: 'boolean?',
   createdAt: 'string?',
   kemPublicKey: 'string?',
 });
@@ -125,6 +126,7 @@ export function normalizeProfile(raw) {
     username: raw.username || null,
     emailHash: raw.emailHash || raw.emailHmac || null,
     email: raw.email || null,
+    emailVerified: typeof raw.emailVerified === 'boolean' ? raw.emailVerified : null,
     createdAt: raw.createdAt || null,
     kemPublicKey: raw.kemPublicKey ?? null,
   };
