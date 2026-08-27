@@ -963,6 +963,12 @@
                             "
                             @keyup.enter="handleSignInWithPassword"
                           />
+                          <ui-input
+                            v-model="signUpUsername"
+                            class="w-full"
+                            placeholder="Display name (optional)"
+                            maxlength="50"
+                          />
                           <div class="flex gap-2">
                             <ui-button
                               class="flex-1"

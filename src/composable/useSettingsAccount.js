@@ -10,6 +10,7 @@ export function useSettingsAccount({ dialog, translations }) {
 
   const signInEmail = ref('');
   const signInPassword = ref('');
+  const signUpUsername = ref('');
   const passkeyEmail = ref('');
   const quickConnectCode = ref('');
   const quickConnectSecret = ref('');
@@ -82,9 +83,11 @@ export function useSettingsAccount({ dialog, translations }) {
     try {
       await auth.signUpWithPassword(
         signInEmail.value.trim(),
-        signInPassword.value
+        signInPassword.value,
+        signUpUsername.value?.trim() || undefined
       );
       signInPassword.value = '';
+      signUpUsername.value = '';
       if (accountStore.isAuthenticated) {
         await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
@@ -388,6 +391,7 @@ export function useSettingsAccount({ dialog, translations }) {
     accountStore,
     signInEmail,
     signInPassword,
+    signUpUsername,
     passkeyEmail,
     quickConnectCode,
     quickConnectSecret,

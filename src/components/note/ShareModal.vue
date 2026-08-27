@@ -28,7 +28,7 @@
             v-model="inviteInput"
             class="flex-1"
             type="text"
-            placeholder="username or email"
+            placeholder="email"
             @keydown.enter="handleInvite"
           />
           <ui-select
@@ -62,12 +62,12 @@
               class="gap-2"
             >
               <ui-user-avatar
-                :name="collab.username || collab.email || 'Unknown'"
+                :name="displayName(collab)"
                 :size="32"
               />
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {{ collab.username || collab.email || 'Unknown' }}
+                  {{ displayName(collab) }}
                 </p>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400">
                   {{ collab.role }}
@@ -193,6 +193,7 @@ import { useClipboard } from '@/composable/clipboard';
 import { useAccountStore } from '@/store/account';
 import { useTranslations } from '@/composable/useTranslations';
 import { backend } from '@/lib/tauri-bridge';
+import { displayName } from '@/utils/displayName';
 
 const INVITE_ROLE_OPTIONS = [
   { value: 'editor', text: 'Editor' },
@@ -340,6 +341,7 @@ export default {
       formatDate,
       handleInvite,
       handleRemove,
+      displayName,
     };
   },
 };

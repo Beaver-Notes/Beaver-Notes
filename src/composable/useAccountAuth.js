@@ -243,7 +243,7 @@ export function useAccountAuth() {
     });
   }
 
-  async function signUpWithPassword(email, password) {
+  async function signUpWithPassword(email, password, username) {
     return runAuthFlow(async () => {
       const normalizedEmail = String(email || '').trim();
       if (!normalizedEmail || !password) {
@@ -256,6 +256,7 @@ export function useAccountAuth() {
       const result = await authApi.passwordRegister(normalizedEmail, password, {
         baseUrl: activeBaseUrl(),
         kemPublicKey: identity.publicKeyHex,
+        username: typeof username === 'string' ? username.trim().slice(0, 50) : undefined,
       });
       await ensureDeviceId();
       return performSignIn(result || {});

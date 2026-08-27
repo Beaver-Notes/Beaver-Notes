@@ -246,6 +246,7 @@ import { usePresence } from '@/composable/usePresence';
 import { useCommentStore } from '@/store/comment';
 import CommentSidebar from '@/components/note/CommentSidebar.vue';
 import { canEdit } from '@/utils/permissions';
+import { displayName } from '@/utils/displayName';
 
 export default {
   components: {
@@ -379,9 +380,8 @@ export default {
 
     function displayNameForPresence() {
       const p = accountStore.profile;
-      if (p?.username) return p.username;
-      if (p?.email) return p.email.split('@')[0];
-      return 'Anonymous';
+      const name = displayName(p);
+      return name === 'Unknown' ? 'Anonymous' : name;
     }
     const presence = usePresence(
       awareness,

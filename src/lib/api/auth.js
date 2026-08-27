@@ -262,12 +262,14 @@ export async function passwordLogin(email, password, { baseUrl, signal } = {}) {
 export async function passwordRegister(
   email,
   password,
-  { baseUrl, signal, kemPublicKey } = {}
+  { baseUrl, signal, kemPublicKey, username } = {}
 ) {
   const client = getClient(baseUrl);
+  const payload = { email, password, kemPublicKey };
+  if (typeof username === 'string' && username.trim()) payload.username = username.trim().slice(0, 50);
   return client.post(
     '/auth/register',
-    { email, password, kemPublicKey },
+    payload,
     { signal }
   );
 }
