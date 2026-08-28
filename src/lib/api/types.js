@@ -144,8 +144,8 @@ export function normalizeSubscription(raw) {
       }
     : null;
   return {
-    plan: raw.plan || PLAN_NAMES.ENTERPRISE,
-    status: raw.status || 'active',
+    plan: raw.plan || PLAN_NAMES.FREE,
+    status: raw.status || 'inactive',
     renewsAt: raw.renewsAt || null,
     storage,
   };

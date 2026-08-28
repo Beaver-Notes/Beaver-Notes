@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { getSettingSync } from '@/lib/settings';
-import { PAID_PLANS } from '@/lib/api/types';
+import { PAID_PLANS, PLAN_NAMES } from '@/lib/api/types';
 
 export const useAccountStore = defineStore('account', {
   state: () => ({
@@ -41,8 +41,8 @@ export const useAccountStore = defineStore('account', {
     },
 
     plan(state) {
-      // Prefer org subscription, fall back to legacy
-      return this.activeOrg?.subscription?.plan ?? state.subscription?.plan ?? null;
+      // Prefer org subscription, fall back to legacy — fail-closed to free
+      return this.activeOrg?.subscription?.plan ?? state.subscription?.plan ?? PLAN_NAMES.FREE;
     },
 
     isPaidPlan(state) {
