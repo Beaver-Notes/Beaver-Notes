@@ -203,7 +203,7 @@ export function sanitizeImportedHtml(html, options = {}) {
     element.replaceWith(doc.createTextNode(element.outerHTML || ''));
   };
 
-  doc.querySelectorAll('iframe').forEach(replaceWithText);
+  doc.querySelectorAll('iframe, script, style, link, object, embed, base, form, meta').forEach(replaceWithText);
 
   doc.querySelectorAll('img').forEach((img) => {
     const safeSrc = sanitizeImageSource(img.getAttribute('src'), {
