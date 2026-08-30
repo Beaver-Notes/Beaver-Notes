@@ -404,9 +404,72 @@
               }}
             </p>
           </div>
-          <ui-button>
+          <ui-button
+            v-if="accountStore.isPaidPlan"
+            :loading="billingBusy"
+            :disabled="billingBusy"
+            @click="handleManageBilling"
+          >
             <v-remixicon name="riExternalLinkLine" class="mr-1" />
-            {{ translations.account?.managePlan || 'Manage plan' }}
+            {{ translations.account?.managePlan || 'Manage billing' }}
+          </ui-button>
+          <span v-else class="text-xs text-neutral-400">Free</span>
+        </div>
+
+        <!-- Billing: upgrade / manage -->
+        <div
+          v-if="billingMessage"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-2"
+        >
+          <p class="text-xs" :class="billingSuccess ? 'text-green-600' : 'text-amber-600'">{{ billingMessage }}</p>
+        </div>
+        <div
+          v-if="!accountStore.isPaidPlan || accountStore.plan === PLAN_NAMES.STARTER"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Upgrade</p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Choose a plan. Checkout opens in your browser (subscription activates via webhook).</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <ui-button
+              v-for="opt in billingOptions"
+              :key="opt.key"
+              size="sm"
+              :variant="opt.plan === accountStore.plan ? 'secondary' : 'primary'"
+              :loading="billingBusy"
+              :disabled="billingBusy || opt.plan === accountStore.plan"
+              @click="handleCheckout(opt.plan, opt.interval)"
+            >
+              {{ opt.label }}
+            </ui-button>
+            <ui-button
+              v-if="accountStore.isPaidPlan"
+              size="sm"
+              variant="secondary"
+              :loading="billingBusy"
+              :disabled="billingBusy"
+              @click="handleManageBilling"
+            >
+              Manage billing
+            </ui-button>
+          </div>
+          <p v-if="billingError" class="mt-2 text-xs text-red-500">{{ billingError }}</p>
+        </div>
+        <div
+          v-else-if="accountStore.isPaidPlan"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5 flex items-center justify-between gap-3"
+        >
+          <div>
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Billing</p>
+            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Manage payment method, invoices, or cancel.</p>
+          </div>
+          <ui-button
+            variant="secondary"
+            :loading="billingBusy"
+            :disabled="billingBusy"
+            @click="handleManageBilling"
+          >
+            <v-remixicon name="riExternalLinkLine" class="mr-1" />
+            Manage billing
           </ui-button>
         </div>
 
@@ -761,6 +824,7 @@ import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
 import { generateRecoveryCode as apiGenerateRecoveryCode, requestEmailVerification as apiRequestEmailVerification, changePassword as apiChangePassword } from '@/lib/api/account';
+import { createCheckoutSession, createPortalSession } from '@/lib/api/billing';
 
 export default {
   setup() {
@@ -809,6 +873,97 @@ export default {
     }
     const recoveryCode = ref('');
     const recoveryBusy = ref(false);
+    const billingBusy = ref(false);
+    const billingError = ref('');
+    const billingMessage = ref('');
+    const billingSuccess = ref(false);
+    const billingOptions = [
+      { key: 'starter-monthly', plan: 'starter', interval: 'monthly', label: 'Starter Monthly' },
+      { key: 'starter-yearly', plan: 'starter', interval: 'yearly', label: 'Starter Yearly' },
+      { key: 'pro-monthly', plan: 'pro', interval: 'monthly', label: 'Pro Monthly' },
+      { key: 'pro-yearly', plan: 'pro', interval: 'yearly', label: 'Pro Yearly' },
+      { key: 'team-monthly', plan: 'team', interval: 'monthly', label: 'Team Monthly' },
+      { key: 'team-yearly', plan: 'team', interval: 'yearly', label: 'Team Yearly' },
+    ];
+    async function openBillingUrl(url) {
+      billingError.value = '';
+      if (!url) return;
+      try {
+        const { openUrl } = await import('@tauri-apps/plugin-opener');
+        await openUrl(url);
+      } catch {
+        window.open(url, '_blank', 'noopener');
+      }
+    }
+    async function handleCheckout(plan, interval) {
+      billingBusy.value = true;
+      billingError.value = '';
+      billingMessage.value = '';
+      try {
+        const res = await createCheckoutSession(plan, interval, { baseUrl: accountStore.serverUrl });
+        const url = res?.url;
+        if (url) await openBillingUrl(url);
+        else throw new Error('No checkout URL returned');
+        billingMessage.value = 'Checkout opened in browser. Complete payment there; subscription activates shortly via webhook.';
+        billingSuccess.value = true;
+      } catch (e) {
+        const msg = e?.body?.error === 'EMAIL_NOT_VERIFIED'
+          ? 'Please verify your email before upgrading.'
+          : (e?.message || 'Failed to start checkout.');
+        billingError.value = msg;
+        dialog.alert({ title: 'Checkout failed', body: msg, okText: 'Close' });
+      } finally {
+        billingBusy.value = false;
+      }
+    }
+    async function handleManageBilling() {
+      billingBusy.value = true;
+      billingError.value = '';
+      try {
+        const res = await createPortalSession({ baseUrl: accountStore.serverUrl });
+        const url = res?.url;
+        if (url) await openBillingUrl(url);
+        else throw new Error('No portal URL returned');
+      } catch (e) {
+        const msg = e?.message || 'Failed to open billing portal.';
+        billingError.value = msg;
+        dialog.alert({ title: 'Billing portal failed', body: msg, okText: 'Close' });
+      } finally {
+        billingBusy.value = false;
+      }
+    }
+    async function handleBillingReturn() {
+      // Deep-link / fallback return handler: refetch profile/subscription
+      try {
+        const { useAccountAuth } = await import('@/composable/useAccountAuth');
+        const auth = useAccountAuth();
+        await auth.refreshProfile?.();
+        billingMessage.value = 'Billing return received. If you completed checkout, your subscription will activate shortly.';
+        billingSuccess.value = true;
+      } catch {
+        // silent
+      }
+    }
+    // Listen for deep-link billing return (beavernotes://billing/return)
+    // Tauri deep-link plugin emits 'deep-link' events; also handle query param fallback
+    onMounted(() => {
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('session_id') || url.searchParams.get('canceled') || url.pathname.includes('billing/return')) {
+          handleBillingReturn();
+        }
+      } catch {}
+      // lazy import deep-link listener if available
+      import('@tauri-apps/plugin-deep-link').then((m) => {
+        const onOpenUrl = m.onOpenUrl || m.getCurrent || null;
+        if (typeof onOpenUrl === 'function') {
+          onOpenUrl((urls) => {
+            const list = Array.isArray(urls) ? urls : [urls];
+            if (list.some((u) => String(u).includes('billing/return'))) handleBillingReturn();
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    });
     const emailVerifySending = ref(false);
     const emailVerifyCooldown = ref(0);
     let emailVerifyTimer = null;
@@ -975,6 +1130,14 @@ export default {
       emailVerifySending,
       emailVerifyCooldown,
       handleRequestEmailVerification,
+      billingBusy,
+      billingError,
+      billingMessage,
+      billingSuccess,
+      billingOptions,
+      handleCheckout,
+      handleManageBilling,
+      handleBillingReturn,
       ...account,
     };
   },
