@@ -510,9 +510,51 @@ export default {
 <style src="@/assets/css/editor.css"></style>
 
 <style>
+/* Notion-style inline comment: warm yellow wash + dotted underline + gutter badge */
 .comment-highlight {
-  background-color: rgba(255, 235, 59, 0.3);
-  border-bottom: 2px solid rgba(255, 235, 59, 0.6);
+  background: rgba(254, 240, 138, 0.42);
+  border-bottom: 1.5px solid #fde047;
+  border-radius: 3px;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
   cursor: pointer;
+  position: relative;
+  transition: background 140ms var(--ease-standard);
+}
+.comment-highlight:hover {
+  background: rgba(254, 240, 138, 0.62);
+}
+/* active thread (clicked in sidebar) */
+.comment-highlight.is-active,
+.comment-highlight[data-active='true'] {
+  background: rgba(254, 249, 195, 0.95);
+  border-bottom-color: #eab308;
+  box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.14);
+}
+/* inline gutter badge — Notion shows a • / comment dot at the end of the range */
+.comment-highlight[data-comment-id]::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 3px;
+  margin-right: 1px;
+  vertical-align: text-bottom;
+  border-radius: 9999px;
+  background-color: #facc15;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z'/%3E%3C/svg%3E");
+  background-size: 9px 9px;
+  background-repeat: no-repeat;
+  background-position: center;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.08);
+  transform: translateY(1px);
+}
+:root.dark .comment-highlight {
+  background: rgba(202, 138, 4, 0.22);
+  border-bottom-color: rgba(250, 204, 21, 0.55);
+}
+:root.dark .comment-highlight:hover {
+  background: rgba(202, 138, 4, 0.32);
 }
 </style>

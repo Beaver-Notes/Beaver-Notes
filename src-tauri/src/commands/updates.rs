@@ -72,7 +72,9 @@ pub(crate) fn load_auto_update_enabled(app: &AppHandle) -> Result<bool, AppError
     let state = app.state::<AppState>();
     let pool = settings_pool(app, state.inner())?;
     // Tolerant read: before unlock the flag can't be decrypted — default true.
-    let enc_key = crate::shared::kv_encryption_key(state.inner()).ok().flatten();
+    let enc_key = crate::shared::kv_encryption_key(state.inner())
+        .ok()
+        .flatten();
     Ok(crate::db::db_get(&pool, "autoUpdateEnabled", enc_key)
         .ok()
         .flatten()
@@ -86,7 +88,7 @@ fn save_auto_update_enabled(app: &AppHandle, enabled: bool) -> Result<(), AppErr
     let pool = settings_pool(app, state.inner())?;
     let enc_key = crate::shared::kv_encryption_key(state.inner())?;
     let serialized = serde_json::to_string(&json!(enabled))?;
-    Ok(crate::db::db_set(&pool, "autoUpdateEnabled", &serialized, enc_key)?)
+    crate::db::db_set(&pool, "autoUpdateEnabled", &serialized, enc_key)
 }
 
 #[tauri::command]
@@ -97,7 +99,12 @@ pub(crate) async fn check_for_updates(
 ) -> Result<CheckResult, AppError> {
     if !standalone() {
         let msg = managed_err("Updates are managed by");
-        let _ = emit_update_status(&app, &msg, "managed", json!({ "installationSource": source() }));
+        let _ = emit_update_status(
+            &app,
+            &msg,
+            "managed",
+            json!({ "installationSource": source() }),
+        );
         return Ok(CheckResult {
             success: false,
             available: false,
@@ -106,7 +113,10 @@ pub(crate) async fn check_for_updates(
         });
     }
     {
-        let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+        let mut updater = state
+            .updater
+            .lock()
+            .map_err(|e| AppError::Other(e.to_string()))?;
         if updater.is_checking || updater.is_downloading {
             return Ok(CheckResult {
                 success: false,
@@ -123,7 +133,10 @@ pub(crate) async fn check_for_updates(
         Ok(client) => client,
         Err(e) => {
             let error = e.to_string();
-            let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+            let mut updater = state
+                .updater
+                .lock()
+                .map_err(|e| AppError::Other(e.to_string()))?;
             updater.is_checking = false;
             let _ = emit_update_status(
                 &app,
@@ -143,7 +156,10 @@ pub(crate) async fn check_for_updates(
     match updater_client.check().await {
         Err(e) => {
             let error = e.to_string();
-            let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+            let mut updater = state
+                .updater
+                .lock()
+                .map_err(|e| AppError::Other(e.to_string()))?;
             updater.is_checking = false;
             let _ = emit_update_status(
                 &app,
@@ -159,7 +175,10 @@ pub(crate) async fn check_for_updates(
             })
         }
         Ok(Some(update)) => {
-            let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+            let mut updater = state
+                .updater
+                .lock()
+                .map_err(|e| AppError::Other(e.to_string()))?;
             updater.is_checking = false;
             updater.available_version = Some(update.version.clone());
             updater.current_version = Some(update.current_version.clone());
@@ -180,7 +199,10 @@ pub(crate) async fn check_for_updates(
         }
         Ok(None) => {
             let current = app.package_info().version.to_string();
-            let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+            let mut updater = state
+                .updater
+                .lock()
+                .map_err(|e| AppError::Other(e.to_string()))?;
             updater.is_checking = false;
             updater.current_version = Some(current.clone());
             updater.available_version = None;
@@ -210,7 +232,10 @@ pub(crate) async fn download_update(
         return Err(AppError::Other(managed_err("Updates are managed by")));
     }
     let update = {
-        let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+        let mut updater = state
+            .updater
+            .lock()
+            .map_err(|e| AppError::Other(e.to_string()))?;
         if updater.is_downloading {
             return Err(AppError::Other("Download already in progress".into()));
         }
@@ -257,7 +282,10 @@ pub(crate) async fn download_update(
         version: version.clone(),
     };
 
-    let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+    let mut updater = state
+        .updater
+        .lock()
+        .map_err(|e| AppError::Other(e.to_string()))?;
     updater.is_downloading = false;
     updater.pending_banner_data = Some(banner.clone());
     updater.downloaded_bytes = Some(bytes);
@@ -279,7 +307,10 @@ pub(crate) fn install_update(state: State<AppState>) -> Result<(), AppError> {
     if !standalone() {
         return Err(AppError::Other(managed_err("Updates are managed by")));
     }
-    let updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+    let updater = state
+        .updater
+        .lock()
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let update = updater
         .downloaded_update
         .clone()
@@ -288,7 +319,9 @@ pub(crate) fn install_update(state: State<AppState>) -> Result<(), AppError> {
         .downloaded_bytes
         .clone()
         .ok_or_else(|| AppError::Other("No update payload available".into()))?;
-    update.install(bytes).map_err(|e| AppError::Other(e.to_string()))
+    update
+        .install(bytes)
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
 #[tauri::command]
@@ -305,10 +338,16 @@ pub(crate) fn toggle_auto_update(
     enabled: bool,
 ) -> Result<(), AppError> {
     if !standalone() {
-        return Err(AppError::Other("Auto-update is managed by your package manager.".into()));
+        return Err(AppError::Other(
+            "Auto-update is managed by your package manager.".into(),
+        ));
     }
     save_auto_update_enabled(&app, enabled)?;
-    state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?.auto_update_enabled = enabled;
+    state
+        .updater
+        .lock()
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .auto_update_enabled = enabled;
     Ok(())
 }
 
@@ -318,7 +357,11 @@ pub(crate) fn get_auto_update_status(state: State<AppState>) -> Result<bool, App
     if !standalone() {
         return Ok(false);
     }
-    Ok(state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?.auto_update_enabled)
+    Ok(state
+        .updater
+        .lock()
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .auto_update_enabled)
 }
 
 #[tauri::command]
@@ -327,7 +370,11 @@ pub(crate) fn is_update_downloading(state: State<AppState>) -> Result<bool, AppE
     if !standalone() {
         return Ok(false);
     }
-    Ok(state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?.is_downloading)
+    Ok(state
+        .updater
+        .lock()
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .is_downloading)
 }
 
 #[tauri::command]
@@ -343,7 +390,10 @@ pub(crate) fn get_update_info(state: State<AppState>) -> Result<UpdateInfo, AppE
             is_busy: false,
         });
     }
-    let updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
+    let updater = state
+        .updater
+        .lock()
+        .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(UpdateInfo {
         is_checking: updater.is_checking,
         is_downloading: updater.is_downloading,

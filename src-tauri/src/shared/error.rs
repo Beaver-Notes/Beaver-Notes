@@ -148,10 +148,7 @@ mod tests {
 
     #[test]
     fn display_crypto_carries_message() {
-        assert_eq!(
-            AppError::Crypto("boom".to_string()).to_string(),
-            "boom"
-        );
+        assert_eq!(AppError::Crypto("boom".to_string()).to_string(), "boom");
     }
 
     #[test]
@@ -220,10 +217,14 @@ mod tests {
 
     #[test]
     fn kind_discriminator_covers_new_variants() {
-        assert_eq!(AppError::DevicePasswordRequired.kind(), "DevicePasswordRequired");
+        assert_eq!(
+            AppError::DevicePasswordRequired.kind(),
+            "DevicePasswordRequired"
+        );
         assert_eq!(AppError::WrongDevicePassword.kind(), "WrongDevicePassword");
-        assert_eq!(AppError::SecureStorageUnavailable.kind(), "SecureStorageUnavailable");
+        assert_eq!(
+            AppError::SecureStorageUnavailable.kind(),
+            "SecureStorageUnavailable"
+        );
     }
 }
-
-

@@ -1,3 +1,10 @@
+#![allow(dead_code)]
+#![allow(
+    clippy::manual_checked_ops,
+    clippy::while_let_loop,
+    clippy::too_many_arguments,
+    clippy::unnecessary_filter_map
+)]
 mod bootstrap;
 mod commands;
 mod db;
@@ -71,24 +78,25 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
-        builder = builder        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            focus_main_window(app);
-            let state = app.state::<AppState>();
-            for arg in args {
-                let lower = arg.to_lowercase();
-                if lower.starts_with("beaver-notes://") {
-                    emit_deep_link(app, &arg);
-                } else if lower.ends_with(".bea")
-                    || lower.ends_with(".md")
-                    || lower.ends_with(".mdx")
-                    || lower.ends_with(".txt")
-                    || lower.ends_with(".html")
-                {
-                    queue_or_emit_file_open(app, state.inner(), arg);
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+                focus_main_window(app);
+                let state = app.state::<AppState>();
+                for arg in args {
+                    let lower = arg.to_lowercase();
+                    if lower.starts_with("beaver-notes://") {
+                        emit_deep_link(app, &arg);
+                    } else if lower.ends_with(".bea")
+                        || lower.ends_with(".md")
+                        || lower.ends_with(".mdx")
+                        || lower.ends_with(".txt")
+                        || lower.ends_with(".html")
+                    {
+                        queue_or_emit_file_open(app, state.inner(), arg);
+                    }
                 }
-            }
-        }))
-        .plugin(tauri_plugin_deep_link::init());
+            }))
+            .plugin(tauri_plugin_deep_link::init());
     }
 
     #[cfg(not(target_os = "android"))]
@@ -264,7 +272,11 @@ pub fn run() {
             // Listen for deep links when the app is already running (from tauri-plugin-deep-link)
             let handle = app.handle().clone();
             app.listen("deep-link://new-url", move |event| {
-                if let Some(url) = event.payload().strip_prefix('\"').and_then(|s| s.strip_suffix('"')) {
+                if let Some(url) = event
+                    .payload()
+                    .strip_prefix('\"')
+                    .and_then(|s| s.strip_suffix('"'))
+                {
                     emit_deep_link(&handle, url);
                 }
             });

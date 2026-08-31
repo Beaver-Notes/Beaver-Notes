@@ -471,10 +471,7 @@ pub(crate) fn sync_key_params_path(
             .map(|d| d.join("com.beavernotes.beaver-notes"))
             .unwrap_or_default()
     };
-    Ok(Some(
-        base.join(SYNC_ROOT_DIR)
-            .join(SYNC_KEY_PARAMS_FILE),
-    ))
+    Ok(Some(base.join(SYNC_ROOT_DIR).join(SYNC_KEY_PARAMS_FILE)))
 }
 
 pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
@@ -1035,8 +1032,8 @@ mod tests {
     #[test]
     fn derive_items_key_with_correct_passphrase_matches_manifest_key() {
         let (params, data_key) = sample_params("correct horse battery staple");
-        let (key, _kek) = derive_items_key_from_params(&params, "correct horse battery staple")
-            .expect("derive");
+        let (key, _kek) =
+            derive_items_key_from_params(&params, "correct horse battery staple").expect("derive");
         assert_eq!(key, data_key);
     }
 
@@ -1057,12 +1054,9 @@ mod tests {
 
     #[test]
     fn remote_params_differ_false_when_matching_manifest() {
-        let (manifest, _, _) = create_encryption_manifest(
-            APP_ENCRYPTION_SCOPE,
-            APP_PASSWORD_CHECK,
-            "pw",
-        )
-        .expect("create manifest");
+        let (manifest, _, _) =
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, "pw")
+                .expect("create manifest");
         let params = KeyParams {
             version: PROTOCOL_VERSION,
             kdf: "argon2id".to_string(),

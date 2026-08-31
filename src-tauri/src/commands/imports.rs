@@ -1,4 +1,8 @@
-use std::{fs, path::Path, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    fs,
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use chrono::{Local, NaiveDateTime, TimeZone, Utc};
@@ -626,5 +630,7 @@ return output
 #[specta::specta]
 #[cfg(not(target_os = "macos"))]
 pub(crate) async fn import_apple_notes(_app: AppHandle) -> Result<(), AppError> {
-    Err(AppError::Other("Apple Notes import is only available on macOS".into()))
+    Err(AppError::Other(
+        "Apple Notes import is only available on macOS".into(),
+    ))
 }

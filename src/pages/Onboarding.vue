@@ -586,7 +586,7 @@
                               </p>
                             </div>
                             <ui-button @click="browseForPortableData"
-                              >Browse…</ui-button
+                              >{{ tr.browseForData || 'Browse…' }}</ui-button
                             >
                           </div>
                         </ui-card>
@@ -708,11 +708,11 @@
                           >
                             Issues
                           </p>
-                          <ui-button
-                            variant="secondary"
-                            @click="copyMigrationIssues"
-                            >Copy to clipboard</ui-button
-                          >
+                            <ui-button
+                             variant="secondary"
+                             @click="copyMigrationIssues"
+                             >{{ tr.copyToClipboard || 'Copy to clipboard' }}</ui-button
+                           >
                         </div>
                         <div
                           class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
@@ -964,18 +964,18 @@
                             @keyup.enter="handleSignInWithPassword"
                           />
                           <div class="flex items-center justify-between">
-                            <button class="text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">Forgot password?</button>
+                            <button class="text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">{{ trAccount.forgotPassword || 'Forgot password?' }}</button>
                             <span v-if="forgotMessage" class="text-xs" :class="forgotSent ? 'text-green-600' : 'text-amber-600'">{{ forgotMessage }}</span>
                           </div>
                           <div v-if="showForgot" class="flex flex-col gap-2 border rounded-lg p-3 bg-neutral-50 dark:bg-neutral-800">
-                            <ui-input v-model="forgotEmail" type="email" placeholder="Email for reset link" class="w-full" />
-                            <ui-button variant="secondary" :loading="forgotBusy" @click="handleForgot">Send reset link</ui-button>
-                            <p class="text-xs text-neutral-500">If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).</p>
+                            <ui-input v-model="forgotEmail" type="email" :placeholder="trAccount.forgotEmailPlaceholder || 'Email for reset link'" class="w-full" />
+                            <ui-button variant="secondary" :loading="forgotBusy" @click="handleForgot">{{ trAccount.sendResetLink || 'Send reset link' }}</ui-button>
+                            <p class="text-xs text-neutral-500">{{ trAccount.inboxHint || 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).' }}</p>
                           </div>
                           <ui-input
                             v-model="signUpUsername"
                             class="w-full"
-                            placeholder="Display name (optional)"
+                            :placeholder="trAccount.displayNamePlaceholder || 'Display name (optional)'"
                             maxlength="50"
                           />
                           <div class="flex gap-2">
@@ -1019,13 +1019,13 @@
                           class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
                           @click="showRecovery = !showRecovery"
                         >
-                          {{ showRecovery ? '↑' : '↓' }} Lost access? Recover with code
+                          {{ showRecovery ? '↑' : '↓' }} {{ trAuth.recoverPrompt || tr.recoverAccount || 'Lost access? Recover with code' }}
                         </button>
                         <div v-if="showRecovery" class="mt-2 flex flex-col gap-2">
-                          <ui-input v-model="recoverEmail" type="email" class="w-full" placeholder="Email" />
-                          <ui-input v-model="recoverCode" class="w-full font-mono text-xs" placeholder="64-char recovery code" />
-                          <p class="text-xs text-amber-600 dark:text-amber-400">Restores ACCOUNT access only — E2E data needs vault passphrase.</p>
-                          <ui-button class="w-full" variant="secondary" :loading="recoverBusy" @click="handleRecover">Recover account</ui-button>
+                          <ui-input v-model="recoverEmail" type="email" class="w-full" :placeholder="trAccount.emailPlaceholder || 'Email'" />
+                          <ui-input v-model="recoverCode" class="w-full font-mono text-xs" :placeholder="trAuth.recoveryCodePlaceholder || '64-char recovery code'" />
+                          <p class="text-xs text-amber-600 dark:text-amber-400">{{ trAccount.recoveryHint || 'Restores ACCOUNT access only — E2E data needs vault passphrase.' }}</p>
+                          <ui-button class="w-full" variant="secondary" :loading="recoverBusy" @click="handleRecover">{{ tr.recoverAccount || trAuth.recoverAccount || 'Recover account' }}</ui-button>
                           <p v-if="recoverMessage" class="text-xs" :class="recoverSuccess ? 'text-green-600' : 'text-red-500'">{{ recoverMessage }}</p>
                         </div>
                       </div>
@@ -1369,6 +1369,14 @@ export default {
     const isMacOS = isMacOSRuntime();
 
     const { translations } = useTranslations();
+    const tr = computed(() => translations.value?.onboarding || {});
+    const trAccount = computed(() => translations.value.account || {});
+    const trAuth = computed(() => translations.value?.auth || {});
+    function fmt(k, params) {
+      const raw = tr.value[k] ?? k;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [kk, v]) => s.replace(`{${kk}}`, String(v)), raw);
+    }
     const accountStore = useAccountStore();
 
     // Lazy-load useImportExport (tiptap, marked, ~13MB) only when import is triggered
@@ -1752,6 +1760,10 @@ export default {
 
     return {
       translations,
+      tr,
+      fmt,
+      trAccount,
+      trAuth,
       accountStore,
       draftServerUrl: account.draftServerUrl,
       defaultServerUrl: account.defaultServerUrl,

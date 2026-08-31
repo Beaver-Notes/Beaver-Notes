@@ -28,19 +28,13 @@
         <div
           class="flex flex-col sm:flex-row gap-2 px-3 py-2.5 border-b border-neutral-200 dark:border-neutral-800"
         >
-          <div class="relative flex-1">
-            <v-remixicon
-              name="riSearchLine"
-              size="15"
-              class="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
-            />
-            <input
-              v-model="searchQuery"
-              type="text"
-              :placeholder="translations.labels?.search || 'Search labels'"
-              class="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border bg-white dark:bg-neutral-950 dark:border-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-neutral-400"
-            />
-          </div>
+          <ui-input
+            v-model="searchQuery"
+            prepend-icon="riSearchLine"
+            :placeholder="translations.labels?.search || 'Search labels'"
+            clearable
+            class="flex-1"
+          />
           <ui-select v-model="sortMode" class="sm:w-40">
             <option value="alpha">
               {{ translations.labels?.sortAlpha || 'A to Z' }}

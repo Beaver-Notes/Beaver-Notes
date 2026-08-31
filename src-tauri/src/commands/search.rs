@@ -24,7 +24,7 @@ pub(crate) async fn search_extract_index_data(
     let pool = data_pool(&app, &state)?;
     let app_key = current_app_key(state.inner())?;
     let kv_key = kv_encryption_key(state.inner())?;
-    let key_id = state
+    let _key_id = state
         .inner()
         .crypto
         .session
@@ -58,7 +58,11 @@ pub(crate) async fn search_extract_index_data(
             };
 
             // Skip locked notes
-            if obj.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if obj
+                .get("isLocked")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 continue;
             }
 
@@ -73,10 +77,7 @@ pub(crate) async fn search_extract_index_data(
             }
 
             // Skip notes with encrypted content
-            if obj
-                .get("content")
-                .is_some_and(is_encrypted_json_value)
-            {
+            if obj.get("content").is_some_and(is_encrypted_json_value) {
                 continue;
             }
 
@@ -130,8 +131,12 @@ mod tests {
 
     #[test]
     fn is_encrypted_json_value_detects_envelope() {
-        assert!(is_encrypted_json_value(&serde_json::json!({"ae": 4, "ct": "x"})));
-        assert!(!is_encrypted_json_value(&serde_json::json!({"type": "doc"})));
+        assert!(is_encrypted_json_value(
+            &serde_json::json!({"ae": 4, "ct": "x"})
+        ));
+        assert!(!is_encrypted_json_value(
+            &serde_json::json!({"type": "doc"})
+        ));
         assert!(!is_encrypted_json_value(&serde_json::json!("plain string")));
     }
 }

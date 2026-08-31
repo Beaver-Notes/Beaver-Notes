@@ -1,4 +1,21 @@
 // Vitest setup for source-level unit tests.
+import { vi } from 'vitest';
+
+// Stub Tauri invoke so any module that imports @tauri-apps/api does not throw
+// "Cannot read properties of undefined (reading 'invoke')" in happy-dom.
+if (typeof globalThis.__TAURI_INTERNALS__ === 'undefined') {
+  globalThis.__TAURI_INTERNALS__ = { invoke: vi.fn(async () => undefined) };
+}
+if (typeof globalThis.__TAURI__ === 'undefined') {
+  globalThis.__TAURI__ = { invoke: vi.fn(async () => undefined), core: { invoke: vi.fn(async () => undefined) } };
+}
+if (typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__ === 'undefined') {
+  window.__TAURI_INTERNALS__ = globalThis.__TAURI_INTERNALS__;
+}
+
+// Do not stub fetch for localhost:4000 — integration tests probe /health
+// and use `reachable ? describe : describe.skip` to auto-skip when no backend.
+// Stubbing health to ok:true breaks that guard and turns skips into failures.
 
 // happy-dom exposes a `localStorage` slot on the window, but its value is
 // `undefined` unless Node runs with `--localstorage-file`. Several app modules

@@ -12,10 +12,10 @@
           <div class="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-700">
             <div class="flex items-center gap-3">
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                Note History
+                {{ tr.noteHistory || 'Note History' }}
               </h3>
               <span v-if="filteredCommits.length" class="text-xs text-neutral-400 dark:text-neutral-500">
-                Last edited {{ relativeTime(filteredCommits[0]?.createdAt) }}
+                {{ fmt('lastEdited', { time: relativeTime(filteredCommits[0]?.createdAt) }) }}
               </span>
             </div>
             <div class="flex items-center gap-2">
@@ -24,9 +24,9 @@
                 @change="history.setFilter($event.target.value)"
                 class="text-xs border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-1 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
-                <option value="all">All</option>
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
+                <option value="all">{{ tr.all || 'All' }}</option>
+                <option value="today">{{ tr.today || 'Today' }}</option>
+                <option value="week">{{ tr.thisWeek || 'This Week' }}</option>
               </select>
               <button
                 @click="$emit('close')"
@@ -41,7 +41,7 @@
           <div v-if="history.loading.value && !filteredCommits.length" class="flex items-center justify-center py-12">
             <div class="flex flex-col items-center gap-3">
               <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-              <span class="text-sm text-neutral-500">Loading history...</span>
+              <span class="text-sm text-neutral-500">{{ tr.loading || 'Loading history...' }}</span>
             </div>
           </div>
 
@@ -55,7 +55,7 @@
           <!-- Empty State -->
           <div v-else-if="!filteredCommits.length" class="flex items-center justify-center py-12 px-6">
             <div class="text-center">
-              <p class="text-sm text-neutral-500">No history available</p>
+              <p class="text-sm text-neutral-500">{{ tr.noHistory || 'No history available' }}</p>
             </div>
           </div>
 
@@ -119,7 +119,7 @@
                 <div class="p-3 space-y-3">
                   <div class="flex items-center justify-between">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Version</p>
+                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.version || 'Version' }}</p>
                       <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                         {{ filteredCommits.length - history.selectedCommitIndex.value }}
                       </p>
@@ -132,20 +132,20 @@
                     </button>
                   </div>
                   <div>
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Timestamp</p>
+                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.timestamp || 'Timestamp' }}</p>
                     <p class="text-xs text-neutral-700 dark:text-neutral-300">
                       {{ formatDateTime(selectedCommitData.createdAt) }}
                     </p>
                   </div>
                   <div class="flex gap-4">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Words</p>
+                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.words || 'Words' }}</p>
                       <p class="text-xs font-medium text-neutral-900 dark:text-neutral-100">
                         {{ wordCount.toLocaleString() }}
                       </p>
                     </div>
                     <div v-if="wordDiff !== null">
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Change</p>
+                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.change || 'Change' }}</p>
                       <p
                         class="text-xs font-medium"
                         :class="wordDiff > 0 ? 'text-emerald-600 dark:text-emerald-400' : wordDiff < 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'"
@@ -155,13 +155,13 @@
                     </div>
                   </div>
                   <div v-if="snippet">
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400 mb-0.5">Preview</p>
+                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400 mb-0.5">{{ tr.preview || 'Preview' }}</p>
                     <p class="text-[11px] text-neutral-600 dark:text-neutral-400 line-clamp-2 leading-relaxed">
                       {{ snippet }}
                     </p>
                   </div>
                   <div v-if="selectedCommitData.authorName">
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Author</p>
+                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.author || 'Author' }}</p>
                     <p class="text-xs text-neutral-700 dark:text-neutral-300">
                       {{ selectedCommitData.authorName }}
                     </p>
@@ -171,13 +171,13 @@
                       @click="togglePreview"
                       class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
-                      {{ showPreview ? 'Hide' : 'Preview' }}
+                      {{ showPreview ? (tr.hide || 'Hide') : (tr.preview || 'Preview') }}
                     </button>
                     <button
                       @click="$emit('restore', selectedCommitData)"
                       class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                     >
-                      Restore
+                      {{ tr.restore || 'Restore' }}
                     </button>
                   </div>
                 </div>
@@ -244,11 +244,11 @@
           <div class="flex items-center justify-between px-3 py-2 border-b border-neutral-200 dark:border-neutral-700">
             <div class="flex items-center gap-2">
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                History
+                {{ tr.history || 'History' }}
               </h3>
               <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40 rounded-full">
                 <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
-                Auto
+                {{ tr.auto || 'Auto' }}
               </span>
             </div>
             <div class="flex items-center gap-1.5">
@@ -257,9 +257,9 @@
                 @change="history.setFilter($event.target.value)"
                 class="text-[11px] border border-neutral-200 dark:border-neutral-600 rounded px-1.5 py-0.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
               >
-                <option value="all">All</option>
-                <option value="today">Today</option>
-                <option value="week">Week</option>
+                <option value="all">{{ tr.all || 'All' }}</option>
+                <option value="today">{{ tr.today || 'Today' }}</option>
+                <option value="week">{{ tr.week || 'Week' }}</option>
               </select>
               <button
                 @click="$emit('close')"
@@ -282,7 +282,7 @@
 
           <!-- Empty -->
           <div v-else-if="!filteredCommits.length" class="flex items-center justify-center py-8 px-4">
-            <p class="text-sm text-neutral-500">No history available</p>
+            <p class="text-sm text-neutral-500">{{ tr.noHistory || 'No history available' }}</p>
           </div>
 
           <!-- Mobile Content -->
@@ -334,19 +334,19 @@
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-3">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Version</p>
+                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.version || 'Version' }}</p>
                       <p class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
                         {{ filteredCommits.length - history.selectedCommitIndex.value }}
                       </p>
                     </div>
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Words</p>
+                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.words || 'Words' }}</p>
                       <p class="text-xs font-medium text-neutral-900 dark:text-neutral-100">
                         {{ wordCount.toLocaleString() }}
                       </p>
                     </div>
                     <div v-if="wordDiff !== null">
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Change</p>
+                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.change || 'Change' }}</p>
                       <p
                         class="text-xs font-medium"
                         :class="wordDiff > 0 ? 'text-emerald-600 dark:text-emerald-400' : wordDiff < 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'"
@@ -373,13 +373,13 @@
                     @click="togglePreview"
                     class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300"
                   >
-                    {{ showPreview ? 'Hide' : 'Preview' }}
+                    {{ showPreview ? (tr.hide || 'Hide') : (tr.preview || 'Preview') }}
                   </button>
                   <button
                     @click="$emit('restore', selectedCommitData)"
                     class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-emerald-600 text-white"
                   >
-                    Restore
+                    {{ tr.restore || 'Restore' }}
                   </button>
                 </div>
                 <div
@@ -446,6 +446,7 @@
 <script>
 import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue';
 import { useNoteHistory } from '@/composable/useNoteHistory';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: {
@@ -455,6 +456,13 @@ export default {
   emits: ['close', 'restore'],
   setup(props) {
     const history = useNoteHistory();
+    const { translations } = useTranslations();
+    const tr = computed(() => translations.value?.history || {});
+    function fmt(key, params) {
+      const raw = tr.value[key] ?? key;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
     const showPreview = ref(false);
     const previewEditorEl = ref(null);
     const rotaryContainer = ref(null);
@@ -640,12 +648,12 @@ export default {
       const then = new Date(dateStr).getTime();
       const diff = now - then;
       const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'just now';
-      if (mins < 60) return `${mins}m ago`;
+      if (mins < 1) return tr.value.justNow || 'just now';
+      if (mins < 60) return fmt('minutesAgo', { count: mins });
       const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return `${hrs}h ago`;
+      if (hrs < 24) return fmt('hoursAgo', { count: hrs });
       const days = Math.floor(hrs / 24);
-      return `${days}d ago`;
+      return fmt('daysAgo', { count: days });
     }
 
     // --- Lifecycle ---
@@ -704,6 +712,8 @@ export default {
       onWheel,
       formatDateTime,
       relativeTime,
+      tr,
+      fmt,
     };
   },
 };

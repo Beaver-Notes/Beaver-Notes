@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod characterization {
-    use base64::Engine;
     use crate::shared::crypto::keys::{aead_decrypt_bytes, aead_encrypt_bytes};
+    use base64::Engine;
 
     /// Characterization vector for argon2id under the legacy parameters
     /// (t=2, m=32MiB, p=2), pinned explicitly so bumping module defaults does
@@ -11,13 +11,13 @@ mod characterization {
         use crate::shared::crypto::keys::derive_kek_argon2id_with_params;
 
         let salt = [0x42u8; 16];
-        let key = derive_kek_argon2id_with_params("test-passphrase", &salt, 32 * 1024, 2, 2)
-            .unwrap();
+        let key =
+            derive_kek_argon2id_with_params("test-passphrase", &salt, 32 * 1024, 2, 2).unwrap();
         assert_eq!(
             key,
             [
-                221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46,
-                214, 162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2
+                221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46, 214,
+                162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2
             ]
         );
     }
@@ -46,8 +46,8 @@ mod characterization {
         assert_eq!(from_command, expected);
 
         let known_vector: [u8; 32] = [
-            221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46, 214,
-            162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2,
+            221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46, 214, 162,
+            6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2,
         ];
         assert_eq!(from_command, known_vector);
     }
@@ -74,8 +74,7 @@ mod characterization {
         };
 
         let passphrase = "test-passphrase";
-        let (mut manifest, _, _) =
-            create_encryption_manifest("app", "check", passphrase).unwrap();
+        let (mut manifest, _, _) = create_encryption_manifest("app", "check", passphrase).unwrap();
         // Simulate a vault created under the previous (16MiB) parameters.
         manifest.argon2_memory_kib = Some(16 * 1024);
         manifest.argon2_iterations = Some(2);
@@ -83,8 +82,7 @@ mod characterization {
 
         let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
         let from_manifest = derive_kek_from_manifest(&manifest, passphrase).unwrap();
-        let expected =
-            derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
+        let expected = derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
         assert_eq!(from_manifest, expected);
     }
 
@@ -92,11 +90,11 @@ mod characterization {
     /// a WrongPassword here means the derive ignored them and used defaults.
     #[test]
     fn derive_items_key_from_params_respects_stored_argon2_memory() {
-        use base64::Engine;
         use crate::shared::crypto::keys::{
             create_encryption_manifest, derive_items_key_from_params,
             derive_kek_argon2id_with_params, encrypt_bytes_with_key, KeyParams, PROTOCOL_VERSION,
         };
+        use base64::Engine;
 
         let passphrase = "test-passphrase";
         let (manifest, data_key, _) =
@@ -132,10 +130,10 @@ mod characterization {
 
     #[test]
     fn note_content_round_trip() {
-        use crate::shared::crypto::keys::{encrypt_note_content_for_storage, decrypt_native_note_content};
+        use crate::shared::crypto::keys::{
+            decrypt_native_note_content, encrypt_note_content_for_storage,
+        };
         use crate::shared::AppState;
-        
-        
 
         let state = AppState::new(std::path::PathBuf::new(), std::path::PathBuf::new(), None);
         // Inject a fake unlocked key + session.
@@ -200,10 +198,7 @@ mod characterization {
         let plain = vec![0xABu8; STREAM_CHUNK_SIZE + 1024];
         let enc = encrypt_asset_bytes_with_key(&plain, &key).unwrap();
 
-        let dir = std::env::temp_dir().join(format!(
-            "asset-stream-test-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("asset-stream-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let src = dir.join("large.bin");
         let out = dir.join("large.dec");

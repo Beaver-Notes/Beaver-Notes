@@ -1,7 +1,7 @@
 <template>
   <div class="mb-14 w-full max-w-3xl space-y-6">
     <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-      Team settings
+      {{ tr.teamSettings || 'Team settings' }}
     </p>
 
     <!-- Upgrade gate: the dashboard flag is team/enterprise-only -->
@@ -10,10 +10,10 @@
         class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-6"
       >
         <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-          Team dashboard requires the Team or Enterprise plan
+          {{ tr.dashboardRequires || 'Team dashboard requires the Team or Enterprise plan' }}
         </p>
         <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-          Upgrade to manage members, devices and sessions for your workspace.
+          {{ tr.upgradeToManage || 'Upgrade to manage members, devices and sessions for your workspace.' }}
         </p>
       </div>
     </section>
@@ -24,15 +24,15 @@
         <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
           <div class="flex flex-col gap-3 px-4 py-3.5">
             <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Plan</p>
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.plan || 'Plan' }}</p>
               <p class="text-xs text-neutral-500 dark:text-neutral-400 capitalize">{{ plan }}</p>
             </div>
             <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Storage</p>
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.storage || 'Storage' }}</p>
               <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ quotaGB }} GB pooled</p>
             </div>
             <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">History</p>
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.history || 'History' }}</p>
               <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ historyLabel }}</p>
             </div>
           </div>
@@ -41,20 +41,20 @@
 
       <!-- Members -->
       <section class="space-y-2">
-        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">Members</p>
+        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.members || 'Members' }}</p>
         <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
           <div class="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center">
             <ui-input
               v-model="inviteInput"
               class="flex-1"
-              placeholder="Email or username"
-              :aria-label="'Email or username to invite'"
+              :placeholder="tr.emailOrUsername || 'Email or username'"
+              :aria-label="tr.emailOrUsername || 'Email or username to invite'"
               @keydown.enter="handleAddMember"
             />
-            <ui-select v-model="inviteRole" class="w-32" :aria-label="'Invite role'">
-              <option value="editor">Editor</option>
-              <option value="viewer">Viewer</option>
-              <option value="admin">Admin</option>
+            <ui-select v-model="inviteRole" class="w-32" :aria-label="tr.inviteRole || 'Invite role'">
+              <option value="editor">{{ tr.editor || 'Editor' }}</option>
+              <option value="viewer">{{ tr.viewer || 'Viewer' }}</option>
+              <option value="admin">{{ tr.admin || 'Admin' }}</option>
             </ui-select>
             <ui-button
               variant="primary"
@@ -62,11 +62,11 @@
               :title="!isEmailVerified ? verifyTooltip : undefined"
               @click="handleAddMember"
             >
-              {{ addingMember ? 'Inviting…' : 'Invite' }}
+              {{ addingMember ? (tr.inviting || 'Inviting…') : (tr.invite || 'Invite') }}
             </ui-button>
           </div>
           <p v-if="!isEmailVerified" class="px-4 text-xs text-amber-600 dark:text-amber-400">
-            Please verify your email to invite members.
+            {{ tr.verifyEmailToInvite || 'Please verify your email to invite members.' }}
           </p>
           <p v-if="inviteSuccess" class="px-4 text-xs text-green-600 dark:text-green-400" role="status">
             {{ inviteSuccess }}
@@ -75,24 +75,24 @@
           <div v-for="m in members" :key="m.userId" class="flex items-center gap-3 px-4 py-3.5">
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">{{ m.userId }}</p>
-              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">role: {{ m.role }} · {{ m.deviceCount }} devices</p>
+              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ fmt('roleLabel', { role: m.role, count: m.deviceCount }) }}</p>
             </div>
             <ui-select
               :model-value="m.role"
               class="w-32"
               :disabled="m.userId === currentUserId && m.role === 'owner'"
-              :aria-label="`Role for ${m.userId}`"
+              :aria-label="fmt('roleFor', { user: m.userId })"
               @change="($event) => handleChangeRole(m.userId, $event)"
             >
-              <option value="owner">Owner</option>
-              <option value="admin">Admin</option>
-              <option value="editor">Editor</option>
-              <option value="viewer">Viewer</option>
+              <option value="owner">{{ tr.owner || 'Owner' }}</option>
+              <option value="admin">{{ tr.admin || 'Admin' }}</option>
+              <option value="editor">{{ tr.editor || 'Editor' }}</option>
+              <option value="viewer">{{ tr.viewer || 'Viewer' }}</option>
             </ui-select>
             <ui-button
               icon
               variant="danger"
-              :aria-label="`Remove ${m.userId}`"
+              :aria-label="fmt('removeUser', { user: m.userId })"
               @click="handleRemoveMember(m.userId)"
             >
               <v-remixicon name="riDeleteBin6Line" />
@@ -107,8 +107,8 @@
       <!-- Devices & Sessions -->
       <section class="space-y-2">
         <div class="flex items-center justify-between">
-          <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">Devices & Sessions</p>
-          <ui-button variant="secondary" @click="handleLoadDevices">Refresh</ui-button>
+          <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.devicesAndSessions || 'Devices & Sessions' }}</p>
+          <ui-button variant="secondary" @click="handleLoadDevices">{{ tr.refresh || 'Refresh' }}</ui-button>
         </div>
         <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
           <div
@@ -121,13 +121,13 @@
                 {{ s.deviceLabel }}
               </p>
               <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                {{ s.deviceId || 'Unknown device' }} · last seen {{ s.lastSeenAt || 'never' }}
+                {{ s.deviceId || (tr.unknownDevice || 'Unknown device') }} · {{ fmt('lastSeen', { time: s.lastSeenAt || (tr.never || 'never') }) }}
               </p>
             </div>
             <ui-button
               icon
               variant="danger"
-              :aria-label="`Revoke session ${s.idHash}`"
+              :aria-label="fmt('revokeSession', { id: s.idHash })"
               @click="handleRevoke(s.idHash)"
             >
               <v-remixicon name="riShieldKeyholeLine" />
@@ -144,7 +144,7 @@
             </div>
           </div>
           <p v-if="devices.length === 0 && sessions.length === 0" class="px-4 py-3">
-            <span class="text-xs text-neutral-500 dark:text-neutral-400">No devices or active sessions.</span>
+            <span class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.noDevices || 'No devices or active sessions.' }}</span>
           </p>
         </div>
       </section>
@@ -154,12 +154,12 @@
         <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-3.5">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Audit logs</p>
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.auditLogs || 'Audit logs' }}</p>
               <p v-if="!flags.audit" class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                Audit logs are available on the Enterprise plan.
+                {{ tr.auditEnterprise || 'Audit logs are available on the Enterprise plan.' }}
               </p>
             </div>
-            <ui-button v-if="flags.audit" @click="handleLoadAudit">Load</ui-button>
+            <ui-button v-if="flags.audit" @click="handleLoadAudit">{{ tr.load || 'Load' }}</ui-button>
           </div>
           <ul v-if="flags.audit && auditLogs.length > 0" class="space-y-1 pt-2">
             <li
@@ -176,28 +176,28 @@
       <!-- SSO -->
       <section class="space-y-2">
         <div class="flex items-center justify-between">
-          <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">Single Sign-On (SSO)</p>
+          <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.sso || 'Single Sign-On (SSO)' }}</p>
           <button
             v-if="flags.audit"
             class="text-xs text-primary dark:text-primary-light hover:underline"
             @click="sso.showForm = !sso.showForm"
           >
-            {{ sso.showForm ? 'Cancel' : '+ Add SSO' }}
+            {{ sso.showForm ? (tr.cancel || 'Cancel') : (tr.addSso || '+ Add SSO') }}
           </button>
         </div>
 
         <div v-if="!flags.audit" class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-6">
           <p class="text-sm text-neutral-500 dark:text-neutral-400">
-            SSO requires the Enterprise plan.
+            {{ tr.ssoRequiresEnterprise || 'SSO requires the Enterprise plan.' }}
           </p>
         </div>
 
         <template v-else>
-          <div v-if="sso.loading" class="text-xs text-neutral-500 py-4">Loading…</div>
+          <div v-if="sso.loading" class="text-xs text-neutral-500 py-4">{{ tr.ssoLoading || 'Loading…' }}</div>
 
           <div v-else-if="sso.configs.length === 0 && !sso.showForm" class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-6">
             <p class="text-sm text-neutral-500 dark:text-neutral-400">
-              No SSO configurations yet. Add one to enable single sign-on for your workspace members.
+              {{ tr.noSso || 'No SSO configurations yet. Add one to enable single sign-on for your workspace members.' }}
             </p>
           </div>
 
@@ -209,15 +209,15 @@
                   <span class="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">{{ cfg.protocol }}</span>
                 </div>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                  Login URL: {{ sso.loginUrl(cfg) }}
+                  {{ fmt('loginUrl', { url: sso.loginUrl(cfg) }) }}
                 </p>
                 <p v-if="cfg.allowedEmailDomains" class="text-xs text-neutral-500 dark:text-neutral-400">
-                  Allowed domains: {{ cfg.allowedEmailDomains }}
+                  {{ fmt('allowedDomains', { domains: cfg.allowedEmailDomains }) }}
                 </p>
               </div>
               <div class="flex items-center gap-2">
-                <button class="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" @click="sso.editConfig(cfg)">Edit</button>
-                <button class="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400" @click="sso.removeConfig(cfg)">Delete</button>
+                <button class="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" @click="sso.editConfig(cfg)">{{ tr.edit || 'Edit' }}</button>
+                <button class="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400" @click="sso.removeConfig(cfg)">{{ tr.delete || 'Delete' }}</button>
               </div>
             </div>
           </div>
@@ -225,16 +225,16 @@
           <!-- Create / Edit form -->
           <div v-if="sso.showForm" class="bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-4 space-y-4">
             <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-              {{ sso.editingId ? 'Edit' : 'New' }} SSO Configuration
+              {{ sso.editingId ? (tr.editSso || 'Edit SSO Configuration') : (tr.newSso || 'New SSO Configuration') }}
             </p>
             <div class="grid grid-cols-2 gap-4">
-              <ui-select v-model="sso.form.protocol" label="Protocol">
+              <ui-select v-model="sso.form.protocol" :label="tr.protocol || 'Protocol'">
                 <option value="saml">SAML 2.0</option>
                 <option value="oidc">OpenID Connect</option>
               </ui-select>
-              <ui-input v-model="sso.form.slug" label="Slug" placeholder="my-company" />
+              <ui-input v-model="sso.form.slug" :label="tr.slug || 'Slug'" placeholder="my-company" />
             </div>
-            <ui-input v-model="sso.form.allowedEmailDomains" label="Allowed email domains (comma-separated)" placeholder="example.com, company.org" />
+            <ui-input v-model="sso.form.allowedEmailDomains" :label="tr.allowedDomainsLabel || 'Allowed email domains (comma-separated)'" placeholder="example.com, company.org" />
 
             <template v-if="sso.form.protocol === 'saml'">
               <ui-input v-model="sso.form.idpEntityId" label="IdP Entity ID" placeholder="https://idp.example.com/metadata" />
@@ -252,9 +252,9 @@
 
             <div class="flex items-center gap-3">
               <button class="ui-button py-2 text-sm px-4 rounded-lg" :disabled="sso.saving" @click="sso.saveConfig">
-                {{ sso.saving ? 'Saving…' : (sso.editingId ? 'Update' : 'Create') }}
+                {{ sso.saving ? (tr.saving || 'Saving…') : (sso.editingId ? (tr.update || 'Update') : (tr.create || 'Create')) }}
               </button>
-              <button class="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" @click="sso.cancelForm">Cancel</button>
+              <button class="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" @click="sso.cancelForm">{{ tr.cancel || 'Cancel' }}</button>
               <p v-if="sso.formError" class="text-xs text-red-500">{{ sso.formError }}</p>
             </div>
           </div>
@@ -271,11 +271,19 @@ import { useWorkspaceStore } from '@/store/workspace';
 import { useTeamAdmin } from '@/composable/useTeamAdmin';
 import { getPlans } from '@/lib/api/plans';
 import { listSsoConfigs, createSsoConfig, updateSsoConfig, deleteSsoConfig } from '@/lib/api/sso';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   setup() {
     const accountStore = useAccountStore();
     const workspaceStore = useWorkspaceStore();
+    const { translations } = useTranslations();
+    const tr = computed(() => translations.value?.teamAdmin || {});
+    function fmt(key, params) {
+      const raw = tr.value[key] ?? key;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
 
     const workspaceId = computed(
       () => workspaceStore.activeId || accountStore.activeWorkspaceId || null
@@ -287,7 +295,7 @@ export default {
       const v = accountStore.profile?.emailVerified;
       return v === true || v === null || v === undefined;
     });
-    const verifyTooltip = 'Please verify your email to invite members.';
+    const verifyTooltip = computed(() => tr.value.verifyTooltip || 'Please verify your email to invite members.');
 
     const plan = ref('free');
     const flags = ref({ dashboard: false, audit: false });
@@ -430,8 +438,9 @@ export default {
       inviteSuccess.value = '';
       addingMember.value = true;
       try {
+        const email = inviteInput.value.trim();
         await admin.addMemberByEmail(inviteInput.value, inviteRole.value);
-        inviteSuccess.value = `Invitation sent to ${inviteInput.value.trim()}.`;
+        inviteSuccess.value = fmt('invitationSent', { email });
         inviteInput.value = '';
         await admin.loadMembers();
       } catch (err) {
@@ -515,6 +524,8 @@ export default {
       currentUserId,
       isEmailVerified,
       verifyTooltip,
+      tr,
+      fmt,
       admin,
       inviteInput,
       inviteRole,

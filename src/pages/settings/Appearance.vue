@@ -85,7 +85,7 @@
           >
             <div class="fit-scale">
               <div class="p-1 text-center text-xs leading-4">
-                <div class="font-semibold mb-1 truncate">Lorem Ipsum</div>
+                <div class="font-semibold mb-1 truncate">{{ tr.loremIpsum || 'Lorem Ipsum' }}</div>
                 <div class="text-neutral-600 dark:text-neutral-300 line-clamp-3">
                   Lorem ipsum dolor sit amet, consectetur adipiscing elit.
                 </div>
@@ -147,7 +147,7 @@
           <option value="Anonymous Pro" class="anonymous-pro">
             Anonymous Pro
           </option>
-          <option value="Hack" class="font-hack">Hack</option>
+          <option value="Hack" class="font-hack">{{ tr.hack || 'Hack' }}</option>
           <option value="JetBrains Mono" class="font-JetBrainsMono">
             JetBrains Mono
           </option>
@@ -259,6 +259,12 @@ export default {
   components: { SettingsGroup, SettingsRow },
   setup() {
     const { translations } = useTranslations();
+    const tr = computed(() => translations.value?.appearanceView || {});
+    function fmt(key, params) {
+      const raw = tr.value[key] ?? key;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
     const appStore = useAppStore();
     const themes = [
       { name: 'light', img: lightImg },
@@ -522,6 +528,8 @@ export default {
       themes,
       layouts,
       translations,
+      tr,
+      fmt,
       toggleClearFont,
       ClearFontChecked,
       visibilityMenubar,

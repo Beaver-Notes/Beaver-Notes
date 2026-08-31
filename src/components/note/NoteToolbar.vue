@@ -577,7 +577,7 @@
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
-            <span class="sub-label">Align</span>
+            <span class="sub-label">{{ translations.toolbar?.align || translations.menu?.paragraph || 'Align' }}</span>
             <button
               v-keep-focus
               :class="tbBtn()"

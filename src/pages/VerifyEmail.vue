@@ -10,9 +10,9 @@
         <ui-button variant="primary" class="w-full" :loading="sending" :disabled="sending || cooldown > 0" @click="resend">
           {{ cooldown > 0 ? `Resend (${cooldown}s)` : 'Resend verification email' }}
         </ui-button>
-        <ui-button variant="secondary" class="w-full" @click="goHome">Go home</ui-button>
+        <ui-button variant="secondary" class="w-full" @click="goHome">{{ tr.goHome || 'Go home' }}</ui-button>
       </div>
-      <ui-button v-else-if="status === 'success'" variant="primary" class="w-full" @click="goHome">Go home</ui-button>
+      <ui-button v-else-if="status === 'success'" variant="primary" class="w-full" @click="goHome">{{ tr.goHome || 'Go home' }}</ui-button>
       <div v-else class="flex justify-center py-4">
         <ui-spinner :size="24" />
       </div>
@@ -24,12 +24,20 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAccountStore } from '@/store/account';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   setup() {
     const route = useRoute();
     const router = useRouter();
     const accountStore = useAccountStore();
+    const { translations } = useTranslations();
+    const tr = computed(() => translations.value?.auth || translations.value.account || {});
+    function fmt(k, params) {
+      const raw = tr.value[k] ?? k;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [kk, v]) => s.replace(`{${kk}}`, String(v)), raw);
+    }
     const status = ref('loading');
     const title = ref('Verifying…');
     const message = ref('Please wait while we verify your email.');
@@ -109,7 +117,7 @@ export default {
       verify(token);
     });
 
-    return { status, title, message, iconName, iconClass, sending, cooldown, resend, goHome };
+    return { status, title, message, iconName, iconClass, sending, cooldown, resend, goHome, tr, fmt };
   },
 };
 </script>

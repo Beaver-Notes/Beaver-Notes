@@ -42,7 +42,7 @@ async function getAppCopy() {
 }
 
 function desktopNotify(title, body) {
-  if (backend.isTouchRuntime()) return Promise.resolve(false);
+  if (typeof backend?.isTouchRuntime === 'function' && backend.isTouchRuntime()) return Promise.resolve(false);
   return notify({ title, body }).catch(() => false);
 }
 

@@ -8,7 +8,7 @@ pub(crate) fn workspace_list(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<WorkspaceInfo>, AppError> {
-    Ok(load_workspace_registry(&app, &state)?)
+    load_workspace_registry(&app, &state)
 }
 
 #[tauri::command]
@@ -151,7 +151,9 @@ pub(crate) fn workspace_switch(
     }
     let ws_dir = workspace_root(&app, &state)?.join(&id);
     if !ws_dir.exists() {
-        return Err(AppError::Other(format!("Workspace directory missing: {id}")));
+        return Err(AppError::Other(format!(
+            "Workspace directory missing: {id}"
+        )));
     }
     save_active_workspace_id(&app, &state, &id)?;
     swap_data_pool(&app, &state, &id)?;
@@ -186,11 +188,15 @@ pub(crate) fn workspace_delete(
     id: String,
 ) -> Result<(), AppError> {
     if id == DEFAULT_WORKSPACE_ID {
-        return Err(AppError::Other("Cannot delete the default workspace".into()));
+        return Err(AppError::Other(
+            "Cannot delete the default workspace".into(),
+        ));
     }
     let active_id = current_workspace_id(&app, &state)?;
     if id == active_id {
-        return Err(AppError::Other("Cannot delete the currently active workspace".into()));
+        return Err(AppError::Other(
+            "Cannot delete the currently active workspace".into(),
+        ));
     }
 
     let ws_dir = workspace_root(&app, &state)?.join(&id);
@@ -250,5 +256,7 @@ fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, Ap
             return Ok(candidate);
         }
     }
-    Err(AppError::Other("Too many workspaces with similar names".into()))
+    Err(AppError::Other(
+        "Too many workspaces with similar names".into(),
+    ))
 }

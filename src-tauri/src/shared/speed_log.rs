@@ -125,7 +125,7 @@ mod tests {
         // is created and .log() doesn't panic.
         let guard = scope("drop_test").unwrap();
         guard.log(); // should print to stderr
-        // finish() consumes and logs
+                     // finish() consumes and logs
         let guard = scope("finish_test").unwrap();
         guard.finish();
     }

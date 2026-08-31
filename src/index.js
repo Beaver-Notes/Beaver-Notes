@@ -84,7 +84,7 @@ try {
 } catch (err) {
   console.error('[app] mount failed:', err);
   document.getElementById('app').innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:24px;text-align:center;font-family:system-ui;color:#171717;background:#fafafa"><div><p style="font-weight:600;margin-bottom:8px">Beaver Notes failed to start</p><p style="font-size:14px;color:#737373">' + String(err?.message || err) + '</p><button onclick="location.reload()" style="margin-top:16px;padding:8px 16px;border-radius:8px;background:#171717;color:#fff;border:0">Reload</button></div></div>';
+    '<div style="display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:24px;text-align:center;font-family:system-ui;color:#171717;background:#ffffff"><div><p style="font-weight:600;margin-bottom:8px">Beaver Notes failed to start</p><p style="font-size:14px;color:#737373">' + String(err?.message || err) + '</p><button onclick="location.reload()" style="margin-top:16px;padding:8px 16px;border-radius:8px;background:#171717;color:#fff;border:0">Reload</button></div></div>';
 }
 
 performance.mark('app:mounted');

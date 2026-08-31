@@ -16,9 +16,6 @@ export function displayName(user) {
   return 'Unknown';
 }
 
-// alias for older imports
-export const getDisplayName = displayName;
-
 function initialsFrom(display) {
   const d = String(display || '').trim();
   if (!d) return '?';
@@ -47,6 +44,5 @@ export function avatarMeta(user) {
   };
 }
 
-export const getAvatarMeta = avatarMeta;
 export const getInitials = initialsFrom;
 export const getAvatarColor = colorFromId;

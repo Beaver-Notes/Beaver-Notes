@@ -83,8 +83,7 @@ impl SecureBlobCache {
         }
         Ok(dirs::data_local_dir()
             .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))?
-            .join("com.beavernotes.beaver-notes")
-            .into())
+            .join("com.beavernotes.beaver-notes"))
     }
 
     fn storage_path(state: &AppState) -> Result<PathBuf, AppError> {

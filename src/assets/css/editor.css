@@ -411,10 +411,10 @@ mark {
 }
 
 .note-editor__content {
-  margin-inline-start: calc(var(--drag-handle-gutter) * -1);
+  margin-inline-start: 0;
   overflow: visible;
   position: relative;
-  width: calc(100% + var(--drag-handle-gutter));
+  width: 100%;
 }
 
 div[data-type='column-container'] {

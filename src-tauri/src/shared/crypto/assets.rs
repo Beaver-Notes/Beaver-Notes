@@ -11,8 +11,8 @@ use aes_gcm::{
 };
 use tauri::AppHandle;
 
+use super::super::{is_local_asset_path, AppError, AppState};
 use super::keys::{current_app_key, derive_chunk_nonce, random_nonce, STREAM_CHUNK_SIZE};
-use super::super::{AppError, AppState, is_local_asset_path};
 
 pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA3";
 pub(crate) const ASSET_MAGIC_LEGACY_V2: &[u8; 4] = b"BNA2";
@@ -287,10 +287,9 @@ pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
 /// reading the payload. Mirrors [`is_encrypted_asset_buffer`] thresholds.
 pub(crate) fn is_encrypted_asset_header(magic: &[u8; 4], file_size: u64) -> bool {
     (file_size > 4 + 12 + 4 && magic == ASSET_MAGIC)
-        || (file_size > 4 + 12 + 16 && (magic == ASSET_MAGIC_LEGACY_V2 || magic == ASSET_MAGIC_LEGACY_V1))
+        || (file_size > 4 + 12 + 16
+            && (magic == ASSET_MAGIC_LEGACY_V2 || magic == ASSET_MAGIC_LEGACY_V1))
 }
-
-
 
 pub(crate) fn encrypt_asset(
     app: &AppHandle,

@@ -94,7 +94,7 @@
           role="alert"
         >
           <span>{{ syncProgressStore.attention.text }}</span>
-          <button class="shrink-0 opacity-70 hover:opacity-100" aria-label="Dismiss" @click="syncProgressStore.dismissError()">
+          <button class="shrink-0 opacity-70 hover:opacity-100" :aria-label="translations.app?.dismiss || 'Dismiss'" @click="syncProgressStore.dismissError()">
             <v-remixicon name="riCloseLine" size="16" />
           </button>
         </div>
@@ -146,33 +146,31 @@
     </div>
 
     <section>
-      <p class="mb-2">Export</p>
+      <p class="mb-2">{{ tr.export || 'Export' }}</p>
       <ui-card padding="p-4" class="flex flex-col gap-4">
         <div class="space-y-1">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-            Export your data
+            {{ tr.exportDescription || 'Export your data' }}
           </p>
           <p
             class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            Back up everything as a Beaver Notes archive, or convert all notes
-            to Markdown or HTML files.
+            {{ tr.exportDescriptionLong || 'Back up everything as a Beaver Notes archive, or convert all notes to Markdown or HTML files.' }}
           </p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <ui-button class="w-full" @click="openExportModal()">
-            Export
+          <ui-button class="w-full" :aria-label="tr.export || 'Export'" @click="openExportModal()">
+            {{ tr.export || 'Export' }}
           </ui-button>
         </div>
       </ui-card>
 
-      <ui-modal v-model="showExportModal" content-class="max-w-md" title="Export" icon="riFileDownloadLine">
+      <ui-modal v-model="showExportModal" content-class="max-w-md" :title="tr.export || 'Export'" icon="riFileDownloadLine">
 
         <p
           class="mb-4 text-neutral-600 leading-relaxed dark:text-neutral-200"
         >
-          Back up everything as a Beaver Notes archive, or convert all notes to
-          Markdown or HTML files.
+          {{ tr.exportDescriptionLong || 'Back up everything as a Beaver Notes archive, or convert all notes to Markdown or HTML files.' }}
         </p>
 
         <div class="space-y-1">
@@ -224,7 +222,7 @@
                   v-if="backupExportState.running"
                   class="text-xs text-neutral-500 dark:text-neutral-400"
                 >
-                  Creating backup…
+                  {{ tr.creatingBackup || 'Creating backup…' }}
                 </p>
               </template>
 
@@ -281,16 +279,18 @@
         <template #actions>
           <ui-button
             class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+            :aria-label="translations.dialog?.cancel || 'Cancel'"
             :disabled="isExportRunning(selectedExportKey)"
             @click="showExportModal = false"
           >
-            Cancel
+            {{ translations.dialog?.cancel || 'Cancel' }}
           </ui-button>
           <ui-button
             class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
             variant="primary"
             :loading="isExportRunning(selectedExportKey)"
             :disabled="isExportRunning(selectedExportKey)"
+            :aria-label="activeExportOption?.buttonLabel"
             @click="runSelectedExport(selectedExportKey)"
           >
             {{ activeExportOption?.buttonLabel }}
@@ -300,33 +300,31 @@
     </section>
 
     <section>
-      <p class="mb-2">Import</p>
+      <p class="mb-2">{{ tr.import || 'Import' }}</p>
       <ui-card padding="p-4" class="flex flex-col gap-4">
         <div class="space-y-1">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-            Import your data
+            {{ tr.importDescription || 'Import your data' }}
           </p>
           <p
             class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            Restore a Beaver Notes backup, or bring notes in from Obsidian,
-            Notion, Bear, Simplenote, Word documents, Markdown folders,
-            Evernote, and Apple Notes on macOS.
+            {{ tr.importDescriptionLong || 'Restore a Beaver Notes backup, or bring notes in from Obsidian, Notion, Bear, Simplenote, Word documents, Markdown folders, Evernote, and Apple Notes on macOS.' }}
           </p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <ui-button class="w-full" @click="openImportModal('beaverBackup')">
-            Import
+          <ui-button class="w-full" :aria-label="tr.import || 'Import'" @click="openImportModal('beaverBackup')">
+            {{ tr.import || 'Import' }}
           </ui-button>
         </div>
       </ui-card>
 
-      <ui-modal v-model="showImportModal" content-class="max-w-md" title="Import" icon="riFileUploadLine">
+      <ui-modal v-model="showImportModal" content-class="max-w-md" :title="tr.import || 'Import'" icon="riFileUploadLine">
 
         <p
           class="mb-4 text-neutral-600 leading-relaxed dark:text-neutral-200"
         >
-          Restore a Beaver Notes backup, or bring notes in from other apps.
+          {{ tr.importDescriptionShort || 'Restore a Beaver Notes backup, or bring notes in from other apps.' }}
         </p>
 
         <div class="max-h-[24rem] space-y-1 overflow-y-auto">
@@ -383,11 +381,12 @@
                   <label
                     class="text-xs font-medium text-neutral-700 dark:text-neutral-300"
                   >
-                    Notebook name
+                    {{ tr.notebookName || 'Notebook name' }}
                   </label>
                   <ui-input
                     v-model="importState.evernote.notebookName"
-                    placeholder="Notebook name (optional)"
+                    :placeholder="tr.notebookNamePlaceholder || 'Notebook name (optional)'"
+                    :aria-label="tr.notebookName || 'Notebook name'"
                     class="w-full"
                   />
                 </div>
@@ -420,12 +419,13 @@
                         importState[source.key].result.errors.length
                       }})
                     </summary>
-                    <ui-button
+                      <ui-button
                       class="w-full"
                       variant="secondary"
+                      :aria-label="tr.copyToClipboard || 'Copy to clipboard'"
                       @click="copyImportIssues(source.key)"
                     >
-                      Copy to clipboard
+                      {{ tr.copyToClipboard || 'Copy to clipboard' }}
                     </ui-button>
                     <div
                       class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap dark:bg-neutral-950"
@@ -442,10 +442,11 @@
         <template #actions>
           <ui-button
             class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+            :aria-label="translations.dialog?.cancel || 'Cancel'"
             :disabled="activeImportState?.running"
             @click="showImportModal = false"
           >
-            Cancel
+            {{ translations.dialog?.cancel || 'Cancel' }}
           </ui-button>
           <ui-button
             class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
@@ -496,6 +497,12 @@ import { forceSyncNow } from '@/utils/sync';
 export default {
   setup() {
     const { translations } = useTranslations();
+    const tr = computed(() => translations.value?.dataView || {});
+    function fmt(key, params) {
+      const raw = tr.value[key] ?? key;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
     const dialog = useDialog();
     const storage = useStorage();
     const noteStore = useNoteStore();
@@ -679,6 +686,8 @@ export default {
 
     return {
       translations,
+      tr,
+      fmt,
       state,
       chooseDefaultPath,
       clearPath,

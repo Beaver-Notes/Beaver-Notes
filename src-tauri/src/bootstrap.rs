@@ -110,14 +110,20 @@ fn save_window_state(app: &AppHandle, state: &AppState) -> Result<(), AppError> 
         return Ok(());
     };
 
-    let position = window.outer_position().map_err(|e| AppError::Other(e.to_string()))?;
-    let size = window.outer_size().map_err(|e| AppError::Other(e.to_string()))?;
+    let position = window
+        .outer_position()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let size = window
+        .outer_size()
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let snapshot = WindowStateSnapshot {
         x: position.x,
         y: position.y,
         width: size.width,
         height: size.height,
-        maximized: window.is_maximized().map_err(|e| AppError::Other(e.to_string()))?,
+        maximized: window
+            .is_maximized()
+            .map_err(|e| AppError::Other(e.to_string()))?,
     };
 
     let pool = settings_pool(app, state)?;
@@ -194,18 +200,21 @@ pub(crate) fn legacy_store_dir(app: &AppHandle) -> Option<PathBuf> {
 }
 
 #[cfg(desktop)]
-fn import_json_file_into_pool(
-    path: &Path,
-    pool: &crate::db::DbPool,
-) -> Result<bool, AppError> {
+fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<bool, AppError> {
     if !path.exists() {
-        eprintln!("[migration] import_json_file_into_pool: source missing: {}", path.display());
+        eprintln!(
+            "[migration] import_json_file_into_pool: source missing: {}",
+            path.display()
+        );
         return Ok(false);
     }
     let text = fs::read_to_string(path)?;
     let json: serde_json::Value = serde_json::from_str(&text)?;
     let Some(map) = json.as_object() else {
-        eprintln!("[migration] import_json_file_into_pool: not a JSON object: {}", path.display());
+        eprintln!(
+            "[migration] import_json_file_into_pool: not a JSON object: {}",
+            path.display()
+        );
         return Ok(false);
     };
     eprintln!(
@@ -234,7 +243,9 @@ fn import_json_file_into_pool(
                 rows.len()
             );
         }
-        Err(e) => eprintln!("[migration] import_json_file_into_pool: post-import summary failed: {e}"),
+        Err(e) => {
+            eprintln!("[migration] import_json_file_into_pool: post-import summary failed: {e}")
+        }
     }
     Ok(true)
 }
@@ -264,7 +275,11 @@ fn copy_directory_missing(
             fs::write(&target_path, payload)?;
             *done += 1;
             // Emit at most once per percentage point so large trees don't flood the channel.
-            let pct = if total > 0 { (*done * 100) / total } else { 100 };
+            let pct = if total > 0 {
+                (*done * 100) / total
+            } else {
+                100
+            };
             if pct != last_pct {
                 last_pct = pct;
                 emit_migration_progress(app, "copy", *done, total);
@@ -324,9 +339,11 @@ fn run_migration_core(
     eprintln!("[migration]   legacy dir: {}", old_dir.display());
     eprintln!("[migration]   target dir: {}", new_dir.display());
     eprintln!("[migration]   legacy exists: {}", old_dir.exists());
-    eprintln!("[migration]   legacy files: config.json={}, data.json={}",
+    eprintln!(
+        "[migration]   legacy files: config.json={}, data.json={}",
         old_dir.join("config.json").exists(),
-        old_dir.join("data.json").exists());
+        old_dir.join("data.json").exists()
+    );
 
     fs::create_dir_all(&new_dir)?;
 
@@ -565,7 +582,10 @@ fn serve_asset(
         Err(_) => return protocol_response(StatusCode::NOT_FOUND, path, Vec::new()),
     };
     let total = fs::metadata(&resolved).map(|meta| meta.len()).unwrap_or(0);
-    match range.map(|value| parse_byte_range(value, total)).unwrap_or(Ok(None)) {
+    match range
+        .map(|value| parse_byte_range(value, total))
+        .unwrap_or(Ok(None))
+    {
         Ok(None) => {
             let to_read = total.min(MAX_FULL_READ);
             let read_result = (|| -> std::io::Result<Vec<u8>> {
@@ -693,10 +713,7 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
 }
 
 /// Ensure the default workspace entry exists in workspaces.json.
-fn ensure_default_workspace_in_registry(
-    app: &AppHandle,
-    state: &AppState,
-) -> Result<(), AppError> {
+fn ensure_default_workspace_in_registry(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let json_path = crate::shared::workspaces_json_path(app, state)?;
     let has_json = json_path.exists();
 
@@ -721,7 +738,10 @@ fn ensure_default_workspace_in_registry(
     }
 
     let registry = crate::shared::load_workspace_registry(app, state)?;
-    if !registry.iter().any(|w| w.id == crate::shared::DEFAULT_WORKSPACE_ID) {
+    if !registry
+        .iter()
+        .any(|w| w.id == crate::shared::DEFAULT_WORKSPACE_ID)
+    {
         let now = chrono::Utc::now().to_rfc3339();
         let default_ws = crate::shared::WorkspaceInfo {
             id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
@@ -735,11 +755,7 @@ fn ensure_default_workspace_in_registry(
         let mut new_registry = registry;
         new_registry.push(default_ws);
         crate::shared::save_workspace_registry(app, state, &new_registry)?;
-        crate::shared::save_active_workspace_id(
-            app,
-            state,
-            crate::shared::DEFAULT_WORKSPACE_ID,
-        )?;
+        crate::shared::save_active_workspace_id(app, state, crate::shared::DEFAULT_WORKSPACE_ID)?;
     }
     Ok(())
 }
@@ -766,7 +782,12 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
         &state,
         &crate::shared::app_storage_dir(app.handle(), state.inner())?,
     );
-    grant_trusted_path(&state, &app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?);
+    grant_trusted_path(
+        &state,
+        &app.path()
+            .temp_dir()
+            .map_err(|e| AppError::Other(e.to_string()))?,
+    );
     fs::create_dir_all(&state.files.asset_cache_dir)?;
 
     // Fold any legacy plaintext `master.key` into the secure chain, then delete; never fails startup.
@@ -785,7 +806,10 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     }
     prewarm_crypto();
 
-    *state.updater.lock().map_err(|e| AppError::Other(e.to_string()))? = UpdaterState {
+    *state
+        .updater
+        .lock()
+        .map_err(|e| AppError::Other(e.to_string()))? = UpdaterState {
         auto_update_enabled: commands::updates::load_auto_update_enabled(app.handle())
             .unwrap_or(true),
         current_version: Some(app.package_info().version.to_string()),
@@ -794,7 +818,8 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     #[cfg(desktop)]
     {
         let menu = menu::build_app_menu(app.handle())?;
-        app.set_menu(menu).map_err(|e| AppError::Other(e.to_string()))?;
+        app.set_menu(menu)
+            .map_err(|e| AppError::Other(e.to_string()))?;
         if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
             restore_window_state(app.handle(), state.inner())?;
             let app_handle = app.handle().clone();
@@ -924,7 +949,9 @@ mod tests {
             let imported = import_json_file_into_pool(&fixture, &pool).expect("import");
             assert!(imported);
             let rows = crate::db::db_all(&pool, None).expect("rows");
-            assert!(rows.keys().all(|k| !k.starts_with("notes.") && !k.starts_with("folders.")));
+            assert!(rows
+                .keys()
+                .all(|k| !k.starts_with("notes.") && !k.starts_with("folders.")));
             assert!(rows.contains_key("labels"));
             let _ = fs::remove_dir_all(&root);
         }

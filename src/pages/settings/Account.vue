@@ -104,12 +104,12 @@
                 {{ translations.account?.createAccount || 'Create account' }}
               </ui-button>
             </div>
-            <button class="mt-2 text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">Forgot password?</button>
+            <button class="mt-2 text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">{{ tr.forgotPassword || 'Forgot password?' }}</button>
             <div v-if="showForgot" class="mt-2 flex flex-col gap-2 border rounded-lg p-3 bg-neutral-50 dark:bg-neutral-800">
-              <ui-input v-model="forgotEmail" type="email" placeholder="Email for reset link" class="w-full" />
-              <ui-button variant="secondary" :loading="forgotBusy" @click="handleForgot">Send reset link</ui-button>
+              <ui-input v-model="forgotEmail" type="email" :placeholder="tr.emailPlaceholder || 'Email for reset link'" :aria-label="tr.emailPlaceholder || 'Email for reset link'" class="w-full" />
+              <ui-button variant="secondary" :loading="forgotBusy" :aria-label="tr.sendResetLink || 'Send reset link'" @click="handleForgot">{{ tr.sendResetLink || 'Send reset link' }}</ui-button>
               <p v-if="forgotMessage" class="text-xs" :class="forgotSent ? 'text-green-600' : 'text-amber-600'">{{ forgotMessage }}</p>
-              <p class="text-xs text-neutral-500">If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).</p>
+              <p class="text-xs text-neutral-500">{{ tr.inboxHint || 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).' }}</p>
             </div>
           </div>
         </div>
@@ -224,11 +224,11 @@
               <span
                 v-if="accountStore.profile?.emailVerified === true"
                 class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-              >Verified</span>
+              >{{ tr.verified || 'Verified' }}</span>
               <span
                 v-else-if="accountStore.profile?.emailVerified === false"
                 class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-              >Unverified</span>
+              >{{ tr.unverified || 'Unverified' }}</span>
             </p>
             <p
               class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate"
@@ -247,18 +247,19 @@
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5 flex items-center justify-between gap-3"
         >
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Email verification</p>
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.emailVerification || 'Email verification' }}</p>
             <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-              Verify your email to invite collaborators.
+              {{ tr.verifyToInvite || 'Verify your email to invite collaborators.' }}
             </p>
           </div>
           <ui-button
             variant="secondary"
             :loading="emailVerifySending"
             :disabled="emailVerifySending || emailVerifyCooldown > 0"
+            :aria-label="emailVerifyCooldown > 0 ? (fmt('resendWithCooldown', { seconds: emailVerifyCooldown }) || `Resend (${emailVerifyCooldown}s)`) : (tr.verifyEmail || 'Verify email')"
             @click="handleRequestEmailVerification"
           >
-            {{ emailVerifyCooldown > 0 ? `Resend (${emailVerifyCooldown}s)` : 'Verify email' }}
+            {{ emailVerifyCooldown > 0 ? (fmt('resendWithCooldown', { seconds: emailVerifyCooldown }) || `Resend (${emailVerifyCooldown}s)`) : (tr.verifyEmail || 'Verify email') }}
           </ui-button>
         </div>
 
@@ -349,7 +350,7 @@
           <div class="flex items-center gap-2">
             <v-remixicon name="riCheckLine" class="text-green-600 dark:text-green-400" size="18" />
             <p class="text-sm font-medium text-green-700 dark:text-green-300">
-              Cloud sync ready
+              {{ tr.cloudSyncReady || 'Cloud sync ready' }}
             </p>
           </div>
         </div>
@@ -381,7 +382,7 @@
           <div class="flex items-center gap-2">
             <v-remixicon name="riErrorWarningLine" class="text-red-600 dark:text-red-400" size="18" />
             <p class="text-sm font-medium text-red-700 dark:text-red-300">
-              Sync setup failed
+              {{ tr.syncSetupFailed || 'Sync setup failed' }}
             </p>
           </div>
         </div>
@@ -408,12 +409,13 @@
             v-if="accountStore.isPaidPlan"
             :loading="billingBusy"
             :disabled="billingBusy"
+            :aria-label="tr.manageBilling || 'Manage billing'"
             @click="handleManageBilling"
           >
             <v-remixicon name="riExternalLinkLine" class="mr-1" />
-            {{ translations.account?.managePlan || 'Manage billing' }}
+            {{ tr.manageBilling || translations.account?.managePlan || 'Manage billing' }}
           </ui-button>
-          <span v-else class="text-xs text-neutral-400">Free</span>
+          <span v-else class="text-xs text-neutral-400">{{ tr.free || 'Free' }}</span>
         </div>
 
         <!-- Billing: upgrade / manage -->
@@ -427,8 +429,8 @@
           v-if="!accountStore.isPaidPlan || accountStore.plan === PLAN_NAMES.STARTER"
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
         >
-          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Upgrade</p>
-          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Choose a plan. Checkout opens in your browser (subscription activates via webhook).</p>
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.upgrade || 'Upgrade' }}</p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ tr.upgradeDescription || 'Choose a plan. Checkout opens in your browser (subscription activates via webhook).' }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
             <ui-button
               v-for="opt in billingOptions"
@@ -441,15 +443,16 @@
             >
               {{ opt.label }}
             </ui-button>
-            <ui-button
+              <ui-button
               v-if="accountStore.isPaidPlan"
               size="sm"
               variant="secondary"
               :loading="billingBusy"
               :disabled="billingBusy"
+              :aria-label="tr.manageBilling || 'Manage billing'"
               @click="handleManageBilling"
             >
-              Manage billing
+              {{ tr.manageBilling || 'Manage billing' }}
             </ui-button>
           </div>
           <p v-if="billingError" class="mt-2 text-xs text-red-500">{{ billingError }}</p>
@@ -459,17 +462,18 @@
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5 flex items-center justify-between gap-3"
         >
           <div>
-            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Billing</p>
-            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Manage payment method, invoices, or cancel.</p>
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.billing || 'Billing' }}</p>
+            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ tr.manageBillingDescription || 'Manage payment method, invoices, or cancel.' }}</p>
           </div>
           <ui-button
             variant="secondary"
             :loading="billingBusy"
             :disabled="billingBusy"
+            :aria-label="tr.manageBilling || 'Manage billing'"
             @click="handleManageBilling"
           >
             <v-remixicon name="riExternalLinkLine" class="mr-1" />
-            Manage billing
+            {{ tr.manageBilling || 'Manage billing' }}
           </ui-button>
         </div>
 
@@ -655,14 +659,14 @@
         </div>
         <!-- Change password -->
         <div class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5">
-          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">Change password</p>
-          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Verifies current password, rotates, revokes other sessions.</p>
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.changePassword || 'Change password' }}</p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ tr.changePasswordDescription || 'Verifies current password, rotates, revokes other sessions.' }}</p>
           <div class="mt-2 flex flex-col gap-2">
-            <ui-input v-model="changeCurrent" :password="true" placeholder="Current password" class="w-full" />
-            <ui-input v-model="changeNew" :password="true" placeholder="New password (min 12 chars)" class="w-full" />
-            <ui-input v-model="changeConfirm" :password="true" placeholder="Confirm new password" class="w-full" />
+            <ui-input v-model="changeCurrent" :password="true" :placeholder="tr.currentPasswordPlaceholder || 'Current password'" :aria-label="tr.currentPasswordPlaceholder || 'Current password'" class="w-full" />
+            <ui-input v-model="changeNew" :password="true" :placeholder="tr.newPasswordPlaceholder || 'New password (min 12 chars)'" :aria-label="tr.newPasswordPlaceholder || 'New password (min 12 chars)'" class="w-full" />
+            <ui-input v-model="changeConfirm" :password="true" :placeholder="tr.confirmPasswordPlaceholder || 'Confirm new password'" :aria-label="tr.confirmPasswordPlaceholder || 'Confirm new password'" class="w-full" />
             <p v-if="changeMessage" class="text-xs" :class="changeSuccess ? 'text-green-600' : 'text-red-500'">{{ changeMessage }}</p>
-            <ui-button variant="secondary" :loading="changeBusy" @click="handleChangePassword">Change password</ui-button>
+            <ui-button variant="secondary" :loading="changeBusy" :aria-label="tr.changePassword || 'Change password'" @click="handleChangePassword">{{ tr.changePassword || 'Change password' }}</ui-button>
           </div>
         </div>
         <!-- Recovery code -->
@@ -670,20 +674,20 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                Recovery code
+                {{ tr.recoveryCode || 'Recovery code' }}
               </p>
               <p class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                Single code to recover your account if you lose all passkeys. Regenerating invalidates the old code. Restores ACCOUNT access only — E2E data needs vault passphrase.
+                {{ tr.recoveryCodeDescription || 'Single code to recover your account if you lose all passkeys. Regenerating invalidates the old code. Restores ACCOUNT access only — E2E data needs vault passphrase.' }}
               </p>
               <p v-if="recoveryCode" class="mt-2 font-mono text-xs break-all bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-amber-900 dark:text-amber-100">
                 {{ recoveryCode }}
               </p>
               <p v-if="recoveryCode" class="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                Copy now — this code will not be shown again. Store it securely.
+                {{ tr.recoveryCodeHint || 'Copy now — this code will not be shown again. Store it securely.' }}
               </p>
             </div>
-            <ui-button variant="secondary" :loading="recoveryBusy" @click="handleGenerateRecoveryCode">
-              {{ recoveryCode ? 'Regenerate' : 'Generate' }}
+            <ui-button variant="secondary" :loading="recoveryBusy" :aria-label="recoveryCode ? (tr.regenerate || 'Regenerate') : (tr.generate || 'Generate')" @click="handleGenerateRecoveryCode">
+              {{ recoveryCode ? (tr.regenerate || 'Regenerate') : (tr.generate || 'Generate') }}
             </ui-button>
           </div>
         </div>
@@ -831,6 +835,12 @@ export default {
     const router = useRouter();
     const dialog = useDialog();
     const { translations } = useTranslations();
+    const tr = computed(() => translations.value?.account || {});
+    function fmt(key, params) {
+      const raw = tr.value[key] ?? key;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
     const accountStore = useAccountStore();
     const account = useSettingsAccount({ dialog, translations });
 
@@ -1010,17 +1020,17 @@ export default {
 
     async function importVaultDialog() {
       dialog.confirm({
-        title: translations.value.account?.importVaultTitle || 'Import vault from sync',
-        body: translations.value.account?.importVaultBody || 'Importing will replace this device\'s encryption key. Notes encrypted with a different key may no longer be readable.',
+        title: translations.value?.account?.importVaultTitle || 'Import vault from sync',
+        body: translations.value?.account?.importVaultBody || 'Importing will replace this device\'s encryption key. Notes encrypted with a different key may no longer be readable.',
         icon: 'riShieldKeyholeLine',
-        okText: translations.value.account?.importVault || 'Import',
+        okText: translations.value?.account?.importVault || 'Import',
         cancelText: translations.value.dialog?.cancel || 'Cancel',
         onConfirm: () => {
           dialog.prompt({
-            title: translations.value.account?.vaultPasswordTitle || 'Enter vault password',
-            body: translations.value.account?.vaultPasswordBody || 'Enter the password for the existing encrypted vault in your sync source.',
+            title: translations.value?.account?.vaultPasswordTitle || 'Enter vault password',
+            body: translations.value?.account?.vaultPasswordBody || 'Enter the password for the existing encrypted vault in your sync source.',
             icon: 'riLockLine',
-            okText: translations.value.account?.importVault || 'Import',
+            okText: translations.value?.account?.importVault || 'Import',
             cancelText: translations.value.dialog?.cancel || 'Cancel',
             placeholder: translations.value.settings?.password || 'Vault password',
             password: true,
@@ -1048,8 +1058,8 @@ export default {
                 }
                 showVaultImportPrompt.value = false;
                 dialog.alert({
-                  title: translations.value.account?.vaultImported || 'Vault imported',
-                  body: translations.value.account?.vaultImportedBody || 'The vault has been imported. The app will reload.',
+                  title: translations.value?.account?.vaultImported || 'Vault imported',
+                  body: translations.value?.account?.vaultImportedBody || 'The vault has been imported. The app will reload.',
                   okText: translations.value.dialog?.close || 'Close',
                   onConfirm: () => window.location.reload(),
                 });
@@ -1115,6 +1125,8 @@ export default {
 
     return {
       translations,
+      tr,
+      fmt,
       PLAN_NAMES,
       accountStore,
       seedPhaseLabel,

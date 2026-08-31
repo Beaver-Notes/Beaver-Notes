@@ -1,4 +1,8 @@
-use std::{fs, path::PathBuf, time::{Duration, SystemTime}};
+use std::{
+    fs,
+    path::PathBuf,
+    time::{Duration, SystemTime},
+};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use bcrypt::{hash, verify, DEFAULT_COST};
@@ -6,9 +10,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 
-use rayon::prelude::*;
 use crate::shared::{RawJson, *};
 use rand::RngCore;
+use rayon::prelude::*;
 
 #[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -106,8 +110,8 @@ pub(crate) async fn asset_crypto_migrate_dir(
             let result: Result<(), AppError> = (|| {
                 let raw = fs::read(path)?;
                 // Decrypt (possibly stale key), then re-encrypt with current.
-                let plain = decrypt_asset(&app, &state_inner, path, &raw)?;
-                let payload = encrypt_asset(&app, &state_inner, path, &plain)?;
+                let plain = decrypt_asset(&app, state_inner, path, &raw)?;
+                let payload = encrypt_asset(&app, state_inner, path, &plain)?;
                 fs::write(path, payload)?;
                 Ok(())
             })();
@@ -166,8 +170,7 @@ pub(crate) fn encryption_get_state(
     app: AppHandle,
     state: State<AppState>,
 ) -> Result<EncryptionStateResult, AppError> {
-    let enabled = app_encryption_manifest_path(&app, state.inner())?
-        .exists();
+    let enabled = app_encryption_manifest_path(&app, state.inner())?.exists();
     let unlocked = current_app_key(state.inner())?.is_some();
 
     Ok(EncryptionStateResult {
@@ -217,11 +220,7 @@ pub(crate) async fn encryption_submit_password(
     } else if create_if_missing {
         let password_for_task = password.clone();
         let (manifest, key, kek) = tokio::task::spawn_blocking(move || {
-            create_encryption_manifest(
-                APP_ENCRYPTION_SCOPE,
-                APP_PASSWORD_CHECK,
-                &password_for_task,
-            )
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password_for_task)
         })
         .await
         .map_err(to_error)??;
@@ -322,14 +321,8 @@ pub(crate) fn encryption_encrypt_note_payload(
     state: State<AppState>,
     plain_bytes: Vec<u8>,
 ) -> Result<RawJson, AppError> {
-    let key = current_app_key(state.inner())?
-        .ok_or(AppError::EncryptionLocked)?;
-    let key_id = state
-        .crypto
-        .session
-        .read()?
-        .current_items_key_id
-        .clone();
+    let key = current_app_key(state.inner())?.ok_or(AppError::EncryptionLocked)?;
+    let key_id = state.crypto.session.read()?.current_items_key_id.clone();
     let (iv, enc) = aead_encrypt_bytes(&key, &plain_bytes, NOTE_AAD)?;
     let mut result = serde_json::json!({
         "ae": NOTE_RAW_VERSION,
@@ -478,10 +471,7 @@ pub(crate) async fn sync_decrypt_payload(
     tokio::task::spawn_blocking(move || {
         let _t = crate::shared::speed_log::scope("security.sync_decrypt_payload");
         let envelope: Value = serde_json::from_str(&enc)?;
-        let v = envelope
-            .get("v")
-            .and_then(Value::as_u64)
-            .unwrap_or(0) as u8;
+        let v = envelope.get("v").and_then(Value::as_u64).unwrap_or(0) as u8;
         let iv = envelope
             .get("iv")
             .and_then(Value::as_str)
@@ -496,19 +486,19 @@ pub(crate) async fn sync_decrypt_payload(
         if v == SYNC_PAYLOAD_VERSION {
             let bytes = aead_decrypt_bytes(&key, &iv, &enc_str, &aad)
                 .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
-            let meta: SyncMeta = serde_json::from_value(
-                envelope
-                    .get("meta")
-                    .cloned()
-                    .unwrap_or(Value::Null),
-            )
-            .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
+            let meta: SyncMeta =
+                serde_json::from_value(envelope.get("meta").cloned().unwrap_or(Value::Null))
+                    .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
             Ok(SyncDecryptedPayload {
                 meta,
                 update: BASE64.encode(bytes),
             })
         } else if v == PROTOCOL_VERSION {
-            let legacy = SyncEnvelope { v, iv, enc: enc_str };
+            let legacy = SyncEnvelope {
+                v,
+                iv,
+                enc: enc_str,
+            };
             let value = aead_decrypt_json(&key, &legacy, &aad)
                 .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
             let meta: SyncMeta = serde_json::from_value(value.clone())
@@ -527,7 +517,10 @@ pub(crate) async fn sync_decrypt_payload(
                 update: BASE64.encode(bytes),
             })
         } else {
-            Err(AppError::Other(format!("Unsupported envelope version: {}", v)))
+            Err(AppError::Other(format!(
+                "Unsupported envelope version: {}",
+                v
+            )))
         }
     })
     .await
@@ -544,8 +537,8 @@ pub(crate) async fn sync_decrypt_batch(
     envelopes: Vec<String>,
     aads: Vec<String>,
 ) -> Result<Vec<Option<SyncDecryptedPayload>>, AppError> {
-    let key = current_app_key(state.inner())?
-        .ok_or_else(|| AppError::Other("KEY_LOCKED".into()))?;
+    let key =
+        current_app_key(state.inner())?.ok_or_else(|| AppError::Other("KEY_LOCKED".into()))?;
 
     tokio::task::spawn_blocking(move || {
         let _t = crate::shared::speed_log::scope("security.sync_decrypt_batch");
@@ -563,14 +556,23 @@ pub(crate) async fn sync_decrypt_batch(
                     }
                 };
                 let v = envelope.get("v").and_then(Value::as_u64).unwrap_or(0) as u8;
-                let iv = envelope.get("iv").and_then(Value::as_str).unwrap_or_default();
-                let enc_str = envelope.get("enc").and_then(Value::as_str).unwrap_or_default();
+                let iv = envelope
+                    .get("iv")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let enc_str = envelope
+                    .get("enc")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
 
                 if v == SYNC_PAYLOAD_VERSION {
                     let bytes = match aead_decrypt_bytes(&key, iv, enc_str, aad) {
                         Ok(b) => b,
                         Err(e) => {
-                            eprintln!("[sync][rust][debug] [{}] decrypt failed v{}: {} (aad={})", i, v, e, aad);
+                            eprintln!(
+                                "[sync][rust][debug] [{}] decrypt failed v{}: {} (aad={})",
+                                i, v, e, aad
+                            );
                             return None;
                         }
                     };
@@ -579,7 +581,10 @@ pub(crate) async fn sync_decrypt_batch(
                     ) {
                         Ok(m) => m,
                         Err(e) => {
-                            eprintln!("[sync][rust][debug] [{}] meta_parse failed v{}: {}", i, v, e);
+                            eprintln!(
+                                "[sync][rust][debug] [{}] meta_parse failed v{}: {}",
+                                i, v, e
+                            );
                             return None;
                         }
                     };
@@ -588,18 +593,28 @@ pub(crate) async fn sync_decrypt_batch(
                         update: BASE64.encode(bytes),
                     })
                 } else if v == PROTOCOL_VERSION {
-                    let legacy = SyncEnvelope { v, iv: iv.to_string(), enc: enc_str.to_string() };
+                    let legacy = SyncEnvelope {
+                        v,
+                        iv: iv.to_string(),
+                        enc: enc_str.to_string(),
+                    };
                     let value = match aead_decrypt_json(&key, &legacy, aad) {
                         Ok(v) => v,
                         Err(e) => {
-                            eprintln!("[sync][rust][debug] [{}] decrypt_legacy failed v{}: {}", i, v, e);
+                            eprintln!(
+                                "[sync][rust][debug] [{}] decrypt_legacy failed v{}: {}",
+                                i, v, e
+                            );
                             return None;
                         }
                     };
                     let meta: SyncMeta = match serde_json::from_value(value.clone()) {
                         Ok(m) => m,
                         Err(e) => {
-                            eprintln!("[sync][rust][debug] [{}] meta_parse_legacy failed v{}: {}", i, v, e);
+                            eprintln!(
+                                "[sync][rust][debug] [{}] meta_parse_legacy failed v{}: {}",
+                                i, v, e
+                            );
                             return None;
                         }
                     };
@@ -617,7 +632,10 @@ pub(crate) async fn sync_decrypt_batch(
                         update: BASE64.encode(bytes),
                     })
                 } else {
-                    eprintln!("[sync][rust][debug] [{}] unsupported envelope version: {}", i, v);
+                    eprintln!(
+                        "[sync][rust][debug] [{}] unsupported envelope version: {}",
+                        i, v
+                    );
                     None
                 }
             })
@@ -627,7 +645,8 @@ pub(crate) async fn sync_decrypt_batch(
         if null_count > 0 {
             eprintln!(
                 "[sync][rust][debug] sync_decrypt_batch: {}/{} items failed",
-                null_count, results.len()
+                null_count,
+                results.len()
             );
         }
 
@@ -694,7 +713,10 @@ pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
 /// `previous_keys`. Requires an unlocked app (KEK cached).
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn encryption_rotate_key(app: AppHandle, state: State<AppState>) -> Result<(), AppError> {
+pub(crate) fn encryption_rotate_key(
+    app: AppHandle,
+    state: State<AppState>,
+) -> Result<(), AppError> {
     rotate_items_key(&app, state.inner())?;
     Ok(())
 }
@@ -711,8 +733,8 @@ pub(crate) fn encryption_generate_recovery_code(
     let mut manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Other("Encryption is not enabled.".into()))?;
 
-    let data_key = current_app_key(state.inner())?
-        .ok_or_else(|| AppError::Other("App is locked.".into()))?;
+    let data_key =
+        current_app_key(state.inner())?.ok_or_else(|| AppError::Other("App is locked.".into()))?;
 
     let code = generate_recovery_code(&mut manifest, &data_key)?;
     write_encryption_manifest(&manifest_path, &manifest)?;
@@ -771,15 +793,13 @@ pub(crate) fn encryption_reconcile_key_params(
             let already_adopted = app_encryption_manifest_path(&app, state.inner())
                 .ok()
                 .and_then(|p| load_encryption_manifest(&p).ok().flatten())
-                .map_or(false, |m| {
+                .is_some_and(|m| {
                     m.wrapped_key.nonce == params.wrapped_items_key.nonce
                         && m.wrapped_key.cipher == params.wrapped_items_key.cipher
                 });
             if !already_adopted {
                 match passphrase {
-                    Some(pw) => {
-                        adopt_key_params(&app, state.inner(), &params, &pw)?
-                    }
+                    Some(pw) => adopt_key_params(&app, state.inner(), &params, &pw)?,
                     None => {
                         // No passphrase yet; a later sync (which supplies it
                         // from secure storage) will retry.
@@ -912,7 +932,9 @@ pub(crate) fn safe_storage_store_blob(
 ) -> Result<(), AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
-    s.cache.secure_blobs.store_blob(s, &key, blob.as_bytes().to_vec())
+    s.cache
+        .secure_blobs
+        .store_blob(s, &key, blob.as_bytes().to_vec())
 }
 
 #[tauri::command]
@@ -923,7 +945,8 @@ pub(crate) fn safe_storage_fetch_blob(
 ) -> Result<Option<String>, AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
-    s.cache.secure_blobs
+    s.cache
+        .secure_blobs
         .fetch_blob(s, &key)?
         .map(|bytes| String::from_utf8(bytes).map_err(|e| AppError::Other(e.to_string())))
         .transpose()
@@ -992,7 +1015,8 @@ pub(crate) fn passwd_record_failure(state: State<AppState>) -> Result<FailureRes
     if *failures >= LOCKOUT_THRESHOLD {
         // Set or extend the lockout; never start a new lockout in the past.
         let base = lockout_guard.unwrap_or(now);
-        let new_until = (if base > now { base } else { now }) + Duration::from_secs(LOCKOUT_BASE_SECS);
+        let new_until =
+            (if base > now { base } else { now }) + Duration::from_secs(LOCKOUT_BASE_SECS);
         let capped = now + Duration::from_secs(LOCKOUT_MAX_SECS);
         *lockout_guard = Some(new_until.min(capped));
     }
@@ -1060,7 +1084,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     let path_buf = PathBuf::from(path.clone());
     let state_inner = state.inner();
 
-    if let Some(cached) = get_cached_decrypted_asset(&state_inner, &path) {
+    if let Some(cached) = get_cached_decrypted_asset(state_inner, &path) {
         let metadata = fs::metadata(&path_buf)?;
         let cache_path = crate::shared::decrypted_cache_path(
             &state_inner.files.asset_cache_dir,
@@ -1072,8 +1096,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     }
 
     let raw = fs::read(&path_buf)?;
-    let key = current_app_key(&state_inner)?
-        .ok_or(AppError::EncryptionLocked)?;
+    let key = current_app_key(state_inner)?.ok_or(AppError::EncryptionLocked)?;
 
     if is_encrypted_asset_buffer(&raw) {
         let metadata = fs::metadata(&path_buf)?;
@@ -1086,9 +1109,9 @@ pub(crate) async fn encryption_decrypt_asset_stream(
         if magic == ASSET_MAGIC || magic == ASSET_MAGIC_LEGACY_V2 {
             decrypt_asset_streaming(&path_buf, &output_path, &key)?;
         } else {
-            let plain = decrypt_asset(&app, &state_inner, &path_buf, &raw)?;
+            let plain = decrypt_asset(&app, state_inner, &path_buf, &raw)?;
             fs::write(&output_path, &plain)?;
-            cache_decrypted_asset(&state_inner, &path, &plain);
+            cache_decrypted_asset(state_inner, &path, &plain);
         }
         Ok(output_path.to_string_lossy().to_string())
     } else {
@@ -1107,8 +1130,7 @@ pub(crate) async fn encryption_encrypt_asset_stream(
     let path_buf = PathBuf::from(path.clone());
     let state_inner = state.inner();
 
-    let key = current_app_key(&state_inner)?
-        .ok_or(AppError::EncryptionLocked)?;
+    let key = current_app_key(state_inner)?.ok_or(AppError::EncryptionLocked)?;
     let temp_path = path_buf.with_extension("enc.tmp");
     encrypt_asset_streaming(&path_buf, &temp_path, &key)?;
     fs::rename(&temp_path, &path_buf)?;

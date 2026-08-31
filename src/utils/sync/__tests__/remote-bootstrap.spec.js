@@ -172,21 +172,53 @@ vi.mock('../sync-yjs.js', async () => await vi.importActual('../sync-yjs.js'));
 vi.mock('../path.js', () => ({ getSyncPath: vi.fn(async () => '/sync') }));
 vi.mock('../sync-assets.js', () => ({ syncAssets: vi.fn(async () => {}) }));
 vi.mock('@/composable/useNoteYjs.js', () => ({ applyRemote: vi.fn() }));
-vi.mock('@/lib/native/yjs.js', () => ({ appendUpdate: vi.fn(async () => {}), appendBatch: vi.fn(async () => {}), compactUpdates: vi.fn(async () => {}), getStateVector: vi.fn(async () => ({})) }));
-vi.mock('@/lib/native/app', () => ({ getAppDirectory: vi.fn(async () => '/app') }));
+vi.mock('@/lib/native/yjs.js', () => ({
+  appendUpdate: vi.fn(async () => {}),
+  appendBatch: vi.fn(async () => {}),
+  compactUpdates: vi.fn(async () => {}),
+  getStateVector: vi.fn(async () => ({})),
+  getSnapshots: vi.fn(async () => ({})),
+  getSnapshot: vi.fn(async () => null),
+  getUpdates: vi.fn(async () => []),
+}));
+vi.mock('@/lib/native/app', () => ({ getAppDirectory: vi.fn(async () => '/app'), notify: vi.fn(async () => {}) }));
 vi.mock('@/lib/tauri-bridge', () => ({
   backend: {
+    isTouchRuntime: vi.fn(() => false),
+    listen: vi.fn(async () => () => {}),
     invoke: vi.fn(async (channel, payload) => {
       if (channel === 'sync:decryptPayload') {
         const fixture = nativeDecryptResponses.get(payload.enc);
         if (!fixture || fixture.aad !== payload.aad) throw new Error('DECRYPT_FAILED');
         return { meta: JSON.parse(payload.enc).meta, update: fixture.update };
       }
+      if (channel === 'sync:decryptBatch') {
+        // If any envelope is the failure fixture, simulate hard decrypt failure
+        for (let i = 0; i < payload.envelopes.length; i++) {
+          if (payload.envelopes[i] === decryptFailureFixture) {
+            const err = new Error('DECRYPT_FAILED');
+            err.code = 'DECRYPT_FAILED';
+            throw err;
+          }
+        }
+        return payload.envelopes.map((enc, i) => {
+          const aad = payload.aads[i];
+          const fixture = nativeDecryptResponses.get(enc);
+          if (!fixture || fixture.aad !== aad) return null;
+          return { meta: JSON.parse(enc).meta, update: fixture.update };
+        });
+      }
+      if (channel === 'sync:encryptPayload' || channel === 'sync:encryptBatch') {
+        // not used in pull path; return dummy
+        if (channel === 'sync:encryptBatch') return payload.metas.map(() => 'encrypted');
+        return 'encrypted';
+      }
       if (channel === 'encryption:reconcileKeyParams') {
         if (payload.passphrase === 'wrong-passphrase') throw new Error('DECRYPT_FAILED');
         return undefined;
       }
       if (channel === 'sync:keyReady') return true;
+      if (channel.startsWith('yjs:')) return {};
       throw new Error(`Unexpected backend command ${channel}`);
     }),
   },
@@ -194,16 +226,23 @@ vi.mock('@/lib/tauri-bridge', () => ({
 }));
 vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: vi.fn(() => new Y.Doc()), onWorkspaceDocDestroy: vi.fn() }));
 vi.mock('@/lib/yjs/helpers.js', () => ({ yMapToObj: vi.fn(() => ({})) }));
-vi.mock('@/lib/yjs/workspace-doc', () => ({ syncDeletedAssets: vi.fn() }));
+vi.mock('@/lib/yjs/workspace-doc', () => ({
+  syncDeletedAssets: vi.fn(),
+  reconcileUnknownNotePlaceholders: vi.fn(),
+  writeStoresFromWorkspace: vi.fn(async () => {}),
+  mergeIntoMap: vi.fn(),
+}));
 vi.mock('@/lib/yjs/shared.js', () => ({ applyRemote: vi.fn(), getActiveDoc: vi.fn(() => null) }));
+const __checkpointStore = new Map();
 vi.mock('../state-vector.js', () => ({
   loadStateVector: vi.fn(() => null),
   saveStateVector: vi.fn(),
   getCurrentStateVector: vi.fn(async () => ({})),
   isUpdateKnown: vi.fn(() => false),
   mergeStateVectors: vi.fn(() => ({})),
-  loadServerCheckpoint: vi.fn(() => null),
-  saveServerCheckpoint: vi.fn(),
+  loadServerCheckpoint: vi.fn((noteId) => __checkpointStore.get(noteId) || null),
+  saveServerCheckpoint: vi.fn((noteId, cp) => __checkpointStore.set(noteId, cp)),
+  clearServerCheckpoint: vi.fn((noteId) => __checkpointStore.delete(noteId)),
 }));
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({ loadSecureBlob: vi.fn(async () => 'correct-passphrase') }));
 vi.mock('@tauri-apps/api/event', () => ({ emit: vi.fn() }));
@@ -212,6 +251,7 @@ vi.mock('@/store/workspace.ts', () => ({ useWorkspaceStore: vi.fn(() => ({ activ
 describe('remote bootstrap integration contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __checkpointStore.clear();
     localStorage.clear();
     fakeServer.calls = [];
     fakeServer.pushResults = [];
@@ -278,16 +318,14 @@ describe('remote bootstrap integration contract', () => {
     });
 
     const pulls = fakeServer.calls.filter((call) => call.method === 'POST' && call.url === '/yjs/pull-batch');
-    expect(pulls.map((call) => call.body.notes.map((note) => ({ noteId: note.noteId, checkpoint: note.checkpoint })))).toEqual([
-      [
-        { noteId: 'remote-note-a', checkpoint: {} },
-        { noteId: 'remote-note-b', checkpoint: {} },
-      ],
-      [
-        { noteId: 'remote-note-a', checkpoint: {} },
-        { noteId: 'remote-note-b', checkpoint: {} },
-      ],
-    ]);
+    // First pull uses empty checkpoints; second pull (hasMore=true from note-a) uses advanced checkpoint
+    expect(pulls.length).toBeGreaterThanOrEqual(2);
+    expect(pulls[0].body.notes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ noteId: 'remote-note-a', checkpoint: {} }),
+      expect.objectContaining({ noteId: 'remote-note-b', checkpoint: {} }),
+    ]));
+    // second pull should carry serverCheckpoint from first pull (advances cursor)
+    expect(pulls[1].body.notes.find((n) => n.noteId === 'remote-note-a').checkpoint).toEqual({ 'remote-device': { ts: 201, sequence: 1 } });
     const pushes = fakeServer.calls.filter((call) => call.method === 'POST' && call.url === '/yjs/push-batch');
     expect(pushes.length).toBeGreaterThanOrEqual(2);
     expect(pushes[0].body).toMatchObject({ workspaceId: 'remote-workspace', notes: [{ noteId: 'local-note' }] });

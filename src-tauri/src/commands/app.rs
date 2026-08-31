@@ -28,7 +28,10 @@ pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, AppError> {
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn app_directory(app: AppHandle, state: State<'_, AppState>) -> Result<String, AppError> {
+pub(crate) fn app_directory(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, AppError> {
     Ok(app_storage_dir(&app, state.inner())?
         .to_string_lossy()
         .to_string())
@@ -70,7 +73,9 @@ pub(crate) async fn migration_run(app: AppHandle) -> Result<LegacyMigrationResul
 
     #[cfg(not(desktop))]
     {
-        Err(AppError::Other("Legacy migration is only available on desktop".into()))
+        Err(AppError::Other(
+            "Legacy migration is only available on desktop".into(),
+        ))
     }
 }
 
@@ -112,7 +117,9 @@ pub(crate) async fn migration_run_with_path(
 
     #[cfg(not(desktop))]
     {
-        Err(AppError::Other("Legacy migration is only available on desktop".into()))
+        Err(AppError::Other(
+            "Legacy migration is only available on desktop".into(),
+        ))
     }
 }
 
@@ -250,7 +257,9 @@ fn parse_write_batch(out: &mut serde_json::Map<String, serde_json::Value>, batch
         }
         let entry_type = batch[p];
         p += 1;
-        let Some((key_len, key_start)) = wal_varint(batch, p) else { return };
+        let Some((key_len, key_start)) = wal_varint(batch, p) else {
+            return;
+        };
         let key_end = key_start + key_len;
         if key_end > batch.len() {
             return;
@@ -265,7 +274,9 @@ fn parse_write_batch(out: &mut serde_json::Map<String, serde_json::Value>, batch
             continue;
         }
 
-        let Some((value_len, value_start)) = wal_varint(batch, key_end) else { return };
+        let Some((value_len, value_start)) = wal_varint(batch, key_end) else {
+            return;
+        };
         let value_end = value_start + value_len;
         if value_end > batch.len() {
             return;
@@ -282,7 +293,7 @@ fn parse_write_batch(out: &mut serde_json::Map<String, serde_json::Value>, batch
     }
 }
 
-fn pref_name<'a>(key: &'a [u8]) -> Option<&'a str> {
+fn pref_name(key: &[u8]) -> Option<&str> {
     let name = key.strip_prefix(FILE_ORIGIN_PREFIX)?;
     Some(std::str::from_utf8(name).unwrap_or_default())
 }
@@ -307,7 +318,9 @@ fn wal_varint(data: &[u8], mut i: usize) -> Option<(usize, usize)> {
     None
 }
 
-fn parse_localstorage_wal(log_path: &Path) -> Result<serde_json::Map<String, serde_json::Value>, AppError> {
+fn parse_localstorage_wal(
+    log_path: &Path,
+) -> Result<serde_json::Map<String, serde_json::Value>, AppError> {
     let data = std::fs::read(log_path).map_err(|e| AppError::Other(e.to_string()))?;
     Ok(parse_localstorage_wal_bytes(&data))
 }
@@ -360,7 +373,11 @@ pub(crate) async fn migration_read_legacy_preferences(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn show_notification(app: AppHandle, title: String, body: String) -> Result<(), AppError> {
+pub(crate) fn show_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+) -> Result<(), AppError> {
     app.notification()
         .builder()
         .title(title)
@@ -384,7 +401,9 @@ pub(crate) fn set_spellcheck(app: AppHandle, enabled: bool) -> Result<(), AppErr
 #[specta::specta]
 pub(crate) fn set_zoom(app: AppHandle, state: State<AppState>, level: f64) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        window.set_zoom(level).map_err(|e| AppError::Other(e.to_string()))?;
+        window
+            .set_zoom(level)
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
     *state.ui.zoom_level.lock()? = level;
     Ok(())
@@ -446,9 +465,13 @@ pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<()
     #[cfg(desktop)]
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         if visible {
-            window.show_menu().map_err(|e| AppError::Other(e.to_string()))?;
+            window
+                .show_menu()
+                .map_err(|e| AppError::Other(e.to_string()))?;
         } else {
-            window.hide_menu().map_err(|e| AppError::Other(e.to_string()))?;
+            window
+                .hide_menu()
+                .map_err(|e| AppError::Other(e.to_string()))?;
         }
     }
 
@@ -542,8 +565,12 @@ pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(
             // popup_menu_at expects window-relative physical pixels (GdkWindow
             // origin, incl. CSD decorations): multiply by DPR, subtract the
             // window's outer position.
-            let window_pos = window.outer_position().map_err(|e| AppError::Other(e.to_string()))?;
-            let dpr = window.scale_factor().map_err(|e| AppError::Other(e.to_string()))?;
+            let window_pos = window
+                .outer_position()
+                .map_err(|e| AppError::Other(e.to_string()))?;
+            let dpr = window
+                .scale_factor()
+                .map_err(|e| AppError::Other(e.to_string()))?;
 
             let phys_x = (x * dpr) - window_pos.x as f64;
             let phys_y = (y * dpr) - window_pos.y as f64;
@@ -626,9 +653,15 @@ mod tests {
         fs::write(&log, &bytes).expect("write wal");
 
         let result = parse_localstorage_wal(&log).expect("parse");
-        assert_eq!(result.get("selected-font"), Some(&serde_json::Value::String("Arimo".into())));
+        assert_eq!(
+            result.get("selected-font"),
+            Some(&serde_json::Value::String("Arimo".into()))
+        );
         // Later write overrides the earlier one.
-        assert_eq!(result.get("color-scheme"), Some(&serde_json::Value::String("pink".into())));
+        assert_eq!(
+            result.get("color-scheme"),
+            Some(&serde_json::Value::String("pink".into()))
+        );
         // Deletion entry removes the key.
         assert!(result.get("theme").is_none());
         // Non-file:// origins and META records are ignored.

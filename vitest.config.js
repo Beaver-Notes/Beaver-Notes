@@ -11,6 +11,7 @@ export default mergeConfig(
       setupFiles: ['src/test-setup.js'],
       include: ['src/**/*.spec.{js,ts}', 'tests/**/*.test.{js,ts}'],
       fileParallelism: false,
+      exclude: ['**/node_modules/**', '**/.git/**'],
     },
   })
 );

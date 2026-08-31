@@ -44,18 +44,15 @@ fn validate_backup_db(path: &Path, label: &str) -> Result<(), AppError> {
         )));
     }
 
-    let conn = rusqlite::Connection::open_with_flags(
-        path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .map_err(|e| AppError::Other(e.to_string()))?;
+    let conn =
+        rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| AppError::Other(e.to_string()))?;
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(|e| AppError::Other(e.to_string()))?;
     if version > crate::db::SCHEMA_VERSION {
         return Err(AppError::Other(
-            "[backup] this backup was created by a newer app version — update the app first"
-                .into(),
+            "[backup] this backup was created by a newer app version — update the app first".into(),
         ));
     }
     for table in BACKUP_TABLES {
@@ -133,11 +130,8 @@ pub(crate) async fn backup_export(app: AppHandle, dir: String) -> Result<(), App
                 std::fs::remove_file(&target)?;
             }
             let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-            conn.execute(
-                "VACUUM INTO ?1",
-                params![target.to_string_lossy()],
-            )
-            .map_err(|e| AppError::Other(e.to_string()))?;
+            conn.execute("VACUUM INTO ?1", params![target.to_string_lossy()])
+                .map_err(|e| AppError::Other(e.to_string()))?;
         }
 
         let assets_src = app_storage_dir(&app, &state)?.join("assets");

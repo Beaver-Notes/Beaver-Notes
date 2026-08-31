@@ -14,11 +14,7 @@ const DOWNLOAD_CHUNK_SIZE: usize = 64 * 1024; // 64 KB
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn fs_copy(
-    app: AppHandle,
-    path: String,
-    dest: String,
-) -> Result<(), AppError> {
+pub(crate) async fn fs_copy(app: AppHandle, path: String, dest: String) -> Result<(), AppError> {
     // Recursive copy + per-file AES is I/O-heavy — run off the main thread.
     let app = app.clone();
     tokio::task::spawn_blocking(move || {
@@ -209,10 +205,7 @@ pub(crate) fn fs_read_file(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn fs_read_file_binary(
-    app: AppHandle,
-    path: String,
-) -> Result<String, AppError> {
+pub(crate) async fn fs_read_file_binary(app: AppHandle, path: String) -> Result<String, AppError> {
     let app = app.clone();
     tokio::task::spawn_blocking(move || {
         let state = app.state::<AppState>();
@@ -354,8 +347,8 @@ pub(crate) async fn fs_download_url(
 
     use futures_util::StreamExt;
     while let Some(chunk_result) = stream.next().await {
-        let chunk = chunk_result
-            .map_err(|e| AppError::Other(format!("Download stream error: {e}")))?;
+        let chunk =
+            chunk_result.map_err(|e| AppError::Other(format!("Download stream error: {e}")))?;
         file.write_all(&chunk)?;
         total += chunk.len() as u64;
     }

@@ -123,7 +123,11 @@ pub(crate) fn encrypt_store_row_with_key(
         key,
         &value,
         &storage_aad(row_key),
-        if key_id.is_empty() { None } else { Some(&*key_id) },
+        if key_id.is_empty() {
+            None
+        } else {
+            Some(key_id)
+        },
     )?;
     Ok(serde_json::to_value(envelope)?)
 }
@@ -211,11 +215,7 @@ fn load_store_root_inner(
     Ok(nested_store_value(plain))
 }
 
-fn pick_pool(
-    name: &str,
-    app: &AppHandle,
-    state: &AppState,
-) -> Result<crate::db::DbPool, AppError> {
+fn pick_pool(name: &str, app: &AppHandle, state: &AppState) -> Result<crate::db::DbPool, AppError> {
     match allowed_store_name(name)? {
         SETTINGS_STORE => Ok(settings_pool(app, state)?),
         DATA_STORE => Ok(data_pool(app, state)?),
@@ -242,9 +242,7 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
         // collection keys ("notes", …) fall through to load_store_root.
         [key] if !COLLECTION_NAMESPACES.contains(key) => Some((*key).to_string()),
         // "notes.<id>", "folders.<id>" → flat rows
-        ["notes", id] | ["folders", id] => {
-            Some(format!("{}.{}", segments[0], id))
-        }
+        ["notes", id] | ["folders", id] => Some(format!("{}.{}", segments[0], id)),
         _ => None,
     }
 }
@@ -288,7 +286,12 @@ pub(crate) fn reencrypt_legacy_store_rows(
             continue;
         }
         let encrypted = encrypt_store_row_with_key(&row_key, value, &key, &key_id)?;
-        crate::db::db_set(&pool, &row_key, &serde_json::to_string(&encrypted)?, Some(key))?;
+        crate::db::db_set(
+            &pool,
+            &row_key,
+            &serde_json::to_string(&encrypted)?,
+            Some(key),
+        )?;
         count += 1;
     }
     Ok(count)
@@ -431,7 +434,7 @@ fn storage_has_value(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        return Ok(crate::db::db_has(&pool, &flat_key)?);
+        return crate::db::db_has(&pool, &flat_key);
     }
 
     let root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
@@ -458,8 +461,10 @@ fn storage_replace_value(
             let changed = match existing.get(key) {
                 Some(existing_envelope) => {
                     let decrypted_existing = match &app_key {
-                        Some(k) => decrypt_json_from_storage(k, existing_envelope, &storage_aad(key))?
-                            .unwrap_or_else(|| existing_envelope.clone()),
+                        Some(k) => {
+                            decrypt_json_from_storage(k, existing_envelope, &storage_aad(key))?
+                                .unwrap_or_else(|| existing_envelope.clone())
+                        }
                         None => existing_envelope.clone(),
                     };
                     &decrypted_existing != plain_value
@@ -522,9 +527,10 @@ pub(crate) async fn storage_get_store(
         .map_err(AppError::from)?
         .current_items_key_id
         .clone();
-    let root = tokio::task::spawn_blocking(move || load_store_root_inner(&pool, &name, &app_key, &key_id))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))??;
+    let root =
+        tokio::task::spawn_blocking(move || load_store_root_inner(&pool, &name, &app_key, &key_id))
+            .await
+            .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(root.into())
 }
 
@@ -585,10 +591,11 @@ pub(crate) async fn storage_get(
         .current_items_key_id
         .clone();
 
-    let value =
-        tokio::task::spawn_blocking(move || storage_get_value(pool, name, key, def.0, app_key, key_id))
-            .await
-            .map_err(|e| AppError::Other(e.to_string()))??;
+    let value = tokio::task::spawn_blocking(move || {
+        storage_get_value(pool, name, key, def.0, app_key, key_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(value.into())
 }
 
@@ -620,7 +627,10 @@ pub(crate) async fn storage_reencrypt_legacy_rows(
 /// One-time repair: settings.db rows that were sealed with the content key
 /// (added by the kv-sealing refactor) are decrypted and rewritten plaintext
 /// so boot can read `onboardingCompleted` before unlock. Idempotent.
-pub(crate) fn repair_sealed_settings(pool: crate::db::DbPool, key: [u8; 32]) -> Result<usize, AppError> {
+pub(crate) fn repair_sealed_settings(
+    pool: crate::db::DbPool,
+    key: [u8; 32],
+) -> Result<usize, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
         .prepare("SELECT key, value FROM kv")
@@ -690,9 +700,11 @@ pub(crate) async fn storage_set(
         .current_items_key_id
         .clone();
 
-    tokio::task::spawn_blocking(move || storage_set_value(pool, name, key, value.0, app_key, key_id))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))??;
+    tokio::task::spawn_blocking(move || {
+        storage_set_value(pool, name, key, value.0, app_key, key_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
 
     if is_settings {
         invalidate_settings_cache(state.inner());
@@ -825,7 +837,10 @@ mod tests {
         let root_value =
             load_store_root_inner(&pool, DATA_STORE, &app_key, &key_id).expect("load root");
         let notes = root_value.get("notes").expect("notes root");
-        assert_eq!(notes.get("note-1").and_then(Value::as_object).is_some(), true);
+        assert_eq!(
+            notes.get("note-1").and_then(Value::as_object).is_some(),
+            true
+        );
         assert_eq!(
             notes
                 .get("note-1")
@@ -857,9 +872,13 @@ mod tests {
 
         let value = json!({"id": "note-2", "title": "Round trip"});
         let app_key = current_app_key(&state).expect("app key");
-        let encrypted =
-            encrypt_store_row_with_key("notes.note-2", value.clone(), app_key.as_ref().unwrap(), "kid2")
-                .expect("enc");
+        let encrypted = encrypt_store_row_with_key(
+            "notes.note-2",
+            value.clone(),
+            app_key.as_ref().unwrap(),
+            "kid2",
+        )
+        .expect("enc");
         assert_eq!(encrypted.get("ae").and_then(Value::as_u64), Some(4));
 
         let decrypted =
@@ -890,15 +909,17 @@ mod tests {
         let key = [9u8; 32];
         let key_id = "kid3";
 
-        let count = reencrypt_legacy_store_rows(pool.clone(), key, key_id.to_string())
-            .expect("reencrypt");
+        let count =
+            reencrypt_legacy_store_rows(pool.clone(), key, key_id.to_string()).expect("reencrypt");
         assert_eq!(count, 2);
 
         let raw = crate::db::db_all(&pool, Some(key)).expect("raw");
         for row_key in ["notes.note-1", "folders.f1"] {
             let row = raw.get(row_key).expect("row");
             assert_eq!(
-                row.as_object().and_then(|o| o.get("ae")).and_then(Value::as_u64),
+                row.as_object()
+                    .and_then(|o| o.get("ae"))
+                    .and_then(Value::as_u64),
                 Some(4),
                 "{row_key} should be whole-row encrypted"
             );

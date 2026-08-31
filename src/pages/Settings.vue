@@ -11,16 +11,10 @@
       <div class="w-64 shrink-0">
         <div class="sticky top-10 ltr:mr-8 rtl:ml-8 space-y-3">
           <div class="relative">
-            <v-remixicon
-              name="riSearchLine"
-              size="16"
-              class="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
-            />
-            <input
+            <ui-input
               v-model="searchQuery"
-              type="text"
+              prepend-icon="riSearchLine"
               :placeholder="translations.settings.search || 'Search settings'"
-              class="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-neutral-400"
             />
           </div>
           <ui-list
@@ -59,19 +53,13 @@
             {{ translations.settings.title || 'Settings' }}
           </h1>
         </div>
-        <div class="relative mb-4">
-          <v-remixicon
-            name="riSearchLine"
-            size="16"
-            class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none"
-          />
-          <input
-            v-model="searchQuery"
-            type="text"
-            :placeholder="translations.settings.search || 'Search settings'"
-            class="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border bg-neutral-50 dark:bg-neutral-900 dark:border-neutral-700 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-neutral-400"
-          />
-        </div>
+        <ui-input
+          v-model="searchQuery"
+          prepend-icon="riSearchLine"
+          :placeholder="translations.settings.search || 'Search settings'"
+          clearable
+          class="mb-4"
+        />
         <div
           class="divide-y divide-neutral-200 dark:divide-neutral-800 bg-neutral-50 dark:bg-neutral-900 rounded-xl border overflow-hidden"
         >
@@ -86,7 +74,9 @@
             >
               <v-remixicon :name="item.icon" size="18" />
             </span>
-            <span class="flex-1 text-sm font-medium text-neutral-800 dark:text-neutral-200">
+            <span
+              class="flex-1 text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
               {{ item.name }}
             </span>
             <v-remixicon
@@ -116,9 +106,15 @@
             :aria-label="translations.dialog?.back || 'Back to settings'"
             @click="exitSection"
           >
-            <v-remixicon name="riArrowLeftSLine" size="20" class="rtl:rotate-180" />
+            <v-remixicon
+              name="riArrowLeftSLine"
+              size="20"
+              class="rtl:rotate-180"
+            />
           </button>
-          <h1 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+          <h1
+            class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate"
+          >
             {{ pageTitle }}
           </h1>
         </div>
@@ -209,9 +205,9 @@ const settings = computed(() => {
 const mobileSettings = computed(() =>
   Object.fromEntries(
     Object.entries(settings.value).filter(
-      ([key]) => key !== 'Settings-Shortcuts'
-    )
-  )
+      ([key]) => key !== 'Settings-Shortcuts',
+    ),
+  ),
 );
 
 function matchesQuery(item) {
@@ -221,24 +217,27 @@ function matchesQuery(item) {
     item.name.toLowerCase().includes(query) ||
     item.icon.toLowerCase().includes(query) ||
     item.path.toLowerCase().includes(query) ||
-    (item.keywords && item.keywords.some((k) => k.toLowerCase().includes(query)))
+    (item.keywords &&
+      item.keywords.some((k) => k.toLowerCase().includes(query)))
   );
 }
 
 const filteredSettings = computed(() =>
   Object.fromEntries(
-    Object.entries(settings.value).filter(([, item]) => matchesQuery(item))
-  )
+    Object.entries(settings.value).filter(([, item]) => matchesQuery(item)),
+  ),
 );
 
 const filteredMobileSettings = computed(() =>
   Object.fromEntries(
-    Object.entries(mobileSettings.value).filter(([, item]) => matchesQuery(item))
-  )
+    Object.entries(mobileSettings.value).filter(([, item]) =>
+      matchesQuery(item),
+    ),
+  ),
 );
 
 const showMobileMenu = computed(
-  () => route.name === 'index' && !enteredGeneralOnMobile.value
+  () => route.name === 'index' && !enteredGeneralOnMobile.value,
 );
 
 const pageTitle = computed(() => {
@@ -269,7 +268,7 @@ watch(
   () => route.name,
   (name) => {
     if (name !== 'index') enteredGeneralOnMobile.value = false;
-  }
+  },
 );
 
 const mobileHeaderStyle = computed(() => ({
@@ -299,7 +298,9 @@ onUnmounted(() => {
 
 <style scoped>
 .settings-mobile-header {
-  transition: box-shadow 180ms ease, background-color 180ms ease;
+  transition:
+    box-shadow 180ms ease,
+    background-color 180ms ease;
   @apply border-y border-neutral-200 shadow-sm dark:border-neutral-800 dark:bg-neutral-900;
 }
 </style>

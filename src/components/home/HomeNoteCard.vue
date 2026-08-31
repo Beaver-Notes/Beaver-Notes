@@ -144,22 +144,20 @@
         </div>
       </div>
 
-      <button
-        v-if="note.isLocked"
+      <div
+        v-else
+        class="relative h-[140px] mt-1.5 flex flex-col items-center justify-center gap-2 p-4 cursor-pointer"
+        role="button"
+        tabindex="0"
         :aria-label="translations.card.unlock || 'Unlock'"
-        class="hover:text-neutral-600 dark:text-[color:var(--selected-dark-text)] h-full transition"
         @click.stop="unlockNote(note.id)"
+        @keydown.enter.stop="unlockNote(note.id)"
+        @keydown.space.prevent.stop="unlockNote(note.id)"
       >
-        <v-remixicon
-          class="w-24 h-auto text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
-          name="riLockLine"
-        />
-        <div
-          class="text-xs text-neutral-500 dark:text-neutral-400 invisible group-hover:visible dark:text-[color:var(--selected-dark-text)]"
-        >
-          {{ translations.card.unlockToEdit || '-' }}
-        </div>
-      </button>
+        <v-remixicon name="riLockLine" size="32" class="text-neutral-400 dark:text-neutral-500" />
+        <span class="text-xs font-medium text-neutral-600 dark:text-neutral-300">{{ translations.card.isLocked || 'Locked note' }}</span>
+        <span class="text-[11px] text-neutral-400 dark:text-neutral-500 text-center leading-tight">{{ translations.card.unlockToEdit || 'Tap to unlock — Face ID / vault password' }}</span>
+      </div>
     </div>
 
     <!-- Unified action bar: shows full actions on desktop, bookmark-only on mobile -->
@@ -261,6 +259,7 @@
 import dayjs from '@/lib/dayjs';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';
+import { isBiometricAvailable, authenticateWithBiometrics } from '@/lib/native/biometric.js';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { getSettingSync } from '@/lib/settings';
@@ -353,13 +352,27 @@ async function lockNote(note) {
   }
 }
 
-async function unlockNote(note) {
+let biometricAvailableCache = null;
+async function getBiometricAvailable() {
+  if (biometricAvailableCache !== null) return biometricAvailableCache;
+  try { biometricAvailableCache = await isBiometricAvailable(); } catch { biometricAvailableCache = false; }
+  return biometricAvailableCache;
+}
+
+async function unlockNote(noteId) {
   const noteStore = useNoteStore();
-  try {
-    await noteStore.unlockNote(note);
-  } catch (error) {
-    console.error('Error unlocking note:', error);
+  if (await getBiometricAvailable()) {
+    try {
+      await authenticateWithBiometrics('Unlock note');
+      await noteStore.unlockNote(noteId);
+      return;
+    } catch (e) {
+      const msg = String(e?.message || '');
+      if (/cancel/i.test(msg) || /User canceled/i.test(msg)) return;
+    }
   }
+  // vault-password fallback uses the same UnlockCard as AppEncryptionGate/editor — open the note where that card is shown
+  router.push(`/note/${noteId}`);
 }
 
 async function deleteNote(note) {

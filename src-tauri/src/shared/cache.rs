@@ -129,9 +129,17 @@ mod tests {
         cache.get("a");
         cache.put("c".to_string(), vec![0u8; 4]);
 
-        assert_eq!(cache.get("a"), Some(&vec![0u8; 4]), "a was promoted, should survive");
+        assert_eq!(
+            cache.get("a"),
+            Some(&vec![0u8; 4]),
+            "a was promoted, should survive"
+        );
         assert_eq!(cache.get("b"), None, "b was LRU, should have been evicted");
-        assert_eq!(cache.get("c"), Some(&vec![0u8; 4]), "c was just inserted, should survive");
+        assert_eq!(
+            cache.get("c"),
+            Some(&vec![0u8; 4]),
+            "c was just inserted, should survive"
+        );
     }
 
     #[test]

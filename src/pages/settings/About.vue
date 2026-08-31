@@ -84,13 +84,12 @@
 
     <section class="bg-input p-4 rounded-xl space-y-3">
       <div>
-        <p class="text-sm font-medium">Show onboarding again</p>
+        <p class="text-sm font-medium">{{ tr.showOnboardingAgain || 'Show onboarding again' }}</p>
         <p class="text-xs text-neutral-500 dark:text-neutral-400">
-          Reopen the first-run migration and setup screen without clearing your
-          current notes.
+          {{ tr.showOnboardingDescription || 'Reopen the first-run migration and setup screen without clearing your current notes.' }}
         </p>
       </div>
-      <ui-button @click="showOnboarding"> Show onboarding </ui-button>
+      <ui-button @click="showOnboarding"> {{ tr.showOnboarding || 'Show onboarding' }} </ui-button>
     </section>
   </div>
 </template>
@@ -100,7 +99,7 @@ const UPDATE_CHECK_DELAY_MS = 1000;
 const UPDATE_DOWNLOAD_DELAY_MS = 1000;
 const INITIAL_UPDATE_CHECK_DELAY_MS = 2000;
 
-import { onMounted, shallowReactive } from 'vue';
+import { onMounted, shallowReactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { setSetting } from '@/lib/settings';
@@ -119,6 +118,12 @@ export default {
   setup() {
     const router = useRouter();
     const { translations } = useTranslations();
+    const tr = computed(() => translations.value.about || {});
+    function fmt(key, params) {
+      const raw = tr.value[key] ?? key;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
     const links = [
       {
         name: 'website',
@@ -260,6 +265,8 @@ export default {
       state,
       links,
       translations,
+      tr,
+      fmt,
       handleUpdateAction,
       toggleAutoUpdate,
       showOnboarding,

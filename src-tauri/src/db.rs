@@ -1,8 +1,8 @@
 use std::{collections::HashMap, path::Path};
 
-use rayon::prelude::*;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
+use rayon::prelude::*;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{Map, Value};
 use y_octo::{Doc, StateVector, Update};
@@ -69,7 +69,8 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap_or(0);
     if current < SCHEMA_VERSION {
-        migrate(&conn, current).map_err(|e| AppError::Other(format!("migration v{current}→{SCHEMA_VERSION}: {e}")))?;
+        migrate(&conn, current)
+            .map_err(|e| AppError::Other(format!("migration v{current}→{SCHEMA_VERSION}: {e}")))?;
         conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
             .map_err(|e| AppError::Other(e.to_string()))?;
     }
@@ -98,7 +99,8 @@ fn open_kv_value(stored: Vec<u8>, enc_key: Option<[u8; 32]>) -> Result<String, A
         None if is_encrypted_yjs_blob(&stored) => return Err(AppError::EncryptionLocked),
         None => stored,
     };
-    String::from_utf8(plain).map_err(|e| AppError::Other(format!("kv value is not valid utf-8: {e}")))
+    String::from_utf8(plain)
+        .map_err(|e| AppError::Other(format!("kv value is not valid utf-8: {e}")))
 }
 
 pub(crate) fn db_get(
@@ -109,7 +111,9 @@ pub(crate) fn db_get(
     let _t = crate::shared::speed_log::scope("db.db_get");
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let stored: Option<Vec<u8>> = conn
-        .query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| row.get(0))
+        .query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| {
+            row.get(0)
+        })
         .optional()
         .map_err(|e| AppError::Other(e.to_string()))?;
     stored.map(|s| open_kv_value(s, enc_key)).transpose()
@@ -161,7 +165,10 @@ pub(crate) fn db_clear(pool: &DbPool) -> Result<(), AppError> {
     Ok(())
 }
 
-pub(crate) fn db_all(pool: &DbPool, enc_key: Option<[u8; 32]>) -> Result<Map<String, Value>, AppError> {
+pub(crate) fn db_all(
+    pool: &DbPool,
+    enc_key: Option<[u8; 32]>,
+) -> Result<Map<String, Value>, AppError> {
     let _t = crate::shared::speed_log::scope("db.db_all");
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
@@ -191,7 +198,9 @@ pub(crate) fn db_replace_all(
     enc_key: Option<[u8; 32]>,
 ) -> Result<(), AppError> {
     let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute("DELETE FROM kv", [])
         .map_err(|e| AppError::Other(e.to_string()))?;
 
@@ -219,13 +228,17 @@ pub(crate) fn db_apply_diff(
 ) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("db.db_apply_diff");
     let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
     if !deletes.is_empty() {
         let placeholders = deletes.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let sql = format!("DELETE FROM kv WHERE key IN ({placeholders})");
-        let params: Vec<&dyn rusqlite::types::ToSql> =
-            deletes.iter().map(|k| k as &dyn rusqlite::types::ToSql).collect();
+        let params: Vec<&dyn rusqlite::types::ToSql> = deletes
+            .iter()
+            .map(|k| k as &dyn rusqlite::types::ToSql)
+            .collect();
         tx.execute(&sql, params.as_slice())
             .map_err(|e| AppError::Other(e.to_string()))?;
     }
@@ -266,7 +279,12 @@ pub(crate) fn yjs_append(
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "INSERT INTO note_content (note_id, data, device, created_at) VALUES (?1, ?2, ?3, ?4)",
-        rusqlite::params![note_id, stored, device, chrono::Utc::now().timestamp_millis()],
+        rusqlite::params![
+            note_id,
+            stored,
+            device,
+            chrono::Utc::now().timestamp_millis()
+        ],
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
@@ -350,7 +368,8 @@ pub(crate) fn yjs_get_snapshot(
     let mut doc = Doc::new();
     for (_, blob) in rows {
         let update = Update::decode_v1(&blob).map_err(|e| AppError::Other(e.to_string()))?;
-        doc.apply_update(update).map_err(|e| AppError::Other(e.to_string()))?;
+        doc.apply_update(update)
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
     let snapshot = doc
         .encode_state_as_update_v1(&StateVector::default())
@@ -374,7 +393,8 @@ pub(crate) fn yjs_get_state_vector(
     let mut doc = Doc::new();
     for (_, blob) in rows {
         let update = Update::decode_v1(&blob).map_err(|e| AppError::Other(e.to_string()))?;
-        doc.apply_update(update).map_err(|e| AppError::Other(e.to_string()))?;
+        doc.apply_update(update)
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
     let sv = doc.get_state_vector();
     let mut map = std::collections::HashMap::new();
@@ -433,7 +453,7 @@ pub(crate) fn yjs_get_snapshots(
         .map_err(|e| AppError::Other(e.to_string()))?;
     let rows = stmt
         .query_map(rusqlite::params_from_iter(note_ids.iter()), |row| {
-            Ok(row.get::<_, String>(0)?)
+            row.get::<_, String>(0)
         })
         .map_err(|e| AppError::Other(e.to_string()))?;
     let stale_notes: std::collections::HashSet<String> = rows
@@ -447,7 +467,9 @@ pub(crate) fn yjs_get_snapshots(
     let decrypted: Vec<(String, Vec<u8>)> = snapshots
         .par_iter()
         .filter(|(note_id, data, _updated_at)| {
-            !data.is_empty() && !stale_notes.contains(note_id) && (key.is_some() || !is_encrypted_yjs_blob(data))
+            !data.is_empty()
+                && !stale_notes.contains(note_id)
+                && (key.is_some() || !is_encrypted_yjs_blob(data))
         })
         .map(|(note_id, data, _)| {
             let bytes = match key {
@@ -494,7 +516,9 @@ pub(crate) fn yjs_compact(
         None => snapshot.to_vec(),
     };
     let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute(
         "DELETE FROM note_content WHERE note_id = ?1",
         rusqlite::params![note_id],
@@ -535,7 +559,9 @@ pub(crate) fn yjs_compact_batch(
         None => snapshot.to_vec(),
     };
     let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute(
         "DELETE FROM note_content WHERE note_id = ?1",
         rusqlite::params![note_id],
@@ -546,8 +572,7 @@ pub(crate) fn yjs_compact_batch(
         rusqlite::params![note_id, stored, chrono::Utc::now().timestamp_millis()],
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
-    tx.commit()
-        .map_err(|e| AppError::Other(e.to_string()))?;
+    tx.commit().map_err(|e| AppError::Other(e.to_string()))?;
     write_snapshot(pool, note_id, &snapshot, key)?;
     Ok(())
 }
@@ -562,10 +587,14 @@ pub(crate) fn yjs_append_batch(
 ) -> Result<usize, AppError> {
     let _t = crate::shared::speed_log::scope("db.yjs_append_batch");
     if note_ids.len() != updates.len() || note_ids.len() != devices.len() {
-        return Err(AppError::Other("yjs_append_batch: array length mismatch".into()));
+        return Err(AppError::Other(
+            "yjs_append_batch: array length mismatch".into(),
+        ));
     }
     let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| AppError::Other(e.to_string()))?;
     {
         let mut stmt = tx
             .prepare(
@@ -578,13 +607,8 @@ pub(crate) fn yjs_append_batch(
                 Some(k) => encrypt_yjs_blob(&k, &updates[i])?,
                 None => updates[i].clone(),
             };
-            stmt.execute(rusqlite::params![
-                note_ids[i],
-                stored,
-                devices[i],
-                now,
-            ])
-            .map_err(|e| AppError::Other(e.to_string()))?;
+            stmt.execute(rusqlite::params![note_ids[i], stored, devices[i], now,])
+                .map_err(|e| AppError::Other(e.to_string()))?;
         }
     }
     tx.commit().map_err(|e| AppError::Other(e.to_string()))?;
@@ -626,7 +650,11 @@ fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<(Vec<u8>, i64)>,
 /// True when any stored update for `note_id` is newer than the cached snapshot.
 /// Encrypted rows count: sync-pulled updates are stored encrypted, and
 /// excluding them left snapshots permanently stale on sync-only devices.
-fn snapshot_is_stale(pool: &DbPool, note_id: &str, snapshot_updated_at: i64) -> Result<bool, AppError> {
+fn snapshot_is_stale(
+    pool: &DbPool,
+    note_id: &str,
+    snapshot_updated_at: i64,
+) -> Result<bool, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let latest: Option<Option<i64>> = conn
         .query_row(
@@ -636,7 +664,9 @@ fn snapshot_is_stale(pool: &DbPool, note_id: &str, snapshot_updated_at: i64) -> 
         )
         .optional()
         .map_err(|e| AppError::Other(e.to_string()))?;
-    Ok(latest.flatten().is_some_and(|latest| latest > snapshot_updated_at))
+    Ok(latest
+        .flatten()
+        .is_some_and(|latest| latest > snapshot_updated_at))
 }
 
 fn write_snapshot(
@@ -682,7 +712,10 @@ mod tests {
         let timeout: i64 = conn
             .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
             .expect("pragma");
-        assert_eq!(timeout, 5000, "busy_timeout must be set to avoid SQLITE_BUSY");
+        assert_eq!(
+            timeout, 5000,
+            "busy_timeout must be set to avoid SQLITE_BUSY"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -714,9 +747,16 @@ mod tests {
 
         let conn = pool.get().expect("conn");
         let stored: Vec<u8> = conn
-            .query_row("SELECT data FROM note_content WHERE note_id = 'n1'", [], |r| r.get(0))
+            .query_row(
+                "SELECT data FROM note_content WHERE note_id = 'n1'",
+                [],
+                |r| r.get(0),
+            )
             .expect("row");
-        assert!(is_encrypted_yjs_blob(&stored), "row must carry BNY1 magic at rest");
+        assert!(
+            is_encrypted_yjs_blob(&stored),
+            "row must carry BNY1 magic at rest"
+        );
 
         let rows = yjs_get_updates(&pool, "n1", Some([2u8; 32])).expect("read");
         assert_eq!(rows.len(), 1);
@@ -788,7 +828,10 @@ mod tests {
                 |r| r.get(0),
             )
             .expect("row");
-        assert!(is_encrypted_yjs_blob(&stored), "kv value must carry BNY1 magic at rest");
+        assert!(
+            is_encrypted_yjs_blob(&stored),
+            "kv value must carry BNY1 magic at rest"
+        );
 
         assert_eq!(
             db_get(&pool, "autoUpdateEnabled", Some(key)).expect("get"),
@@ -828,7 +871,10 @@ mod tests {
 
         let mut map = Map::new();
         map.insert("labels".to_string(), serde_json::json!(["red", "blue"]));
-        map.insert("labelColors".to_string(), serde_json::json!({"red": "#f00"}));
+        map.insert(
+            "labelColors".to_string(),
+            serde_json::json!({"red": "#f00"}),
+        );
         db_replace_all(&pool, map, Some(key)).expect("replace");
 
         let conn = pool.get().expect("conn");

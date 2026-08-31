@@ -14,9 +14,9 @@ use super::keys::{
     random_nonce, WrappedKeyEnvelope,
 };
 
+use aes_gcm::aead::{Aead, KeyInit};
 #[cfg(target_os = "linux")]
 use keyring::credential::CredentialBuilderApi;
-use aes_gcm::aead::{Aead, KeyInit};
 
 pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
 
@@ -124,11 +124,7 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
     if let Some(key) = migrate_legacy_master_key()? {
         return Ok(key);
     }
-    select_key_from_backends(
-        &platform_backends(),
-        random_key,
-        durable_store_available(),
-    )
+    select_key_from_backends(&platform_backends(), random_key, durable_store_available())
 }
 
 /// First backend holding a key wins; it is re-anchored into higher-priority
@@ -301,11 +297,14 @@ pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
     let raw = fs::read_to_string(&path)?;
     let key_bytes = BASE64.decode(raw.trim().as_bytes())?;
     if key_bytes.len() != 32 {
-        return Err(AppError::Crypto("Invalid file-based master key length".into()));
+        return Err(AppError::Crypto(
+            "Invalid file-based master key length".into(),
+        ));
     }
-    let key: [u8; 32] = key_bytes.as_slice().try_into().map_err(|_| {
-        AppError::Crypto("Invalid file-based master key length".into())
-    })?;
+    let key: [u8; 32] = key_bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| AppError::Crypto("Invalid file-based master key length".into()))?;
     let mut durable_written = false;
     for backend in platform_backends() {
         if backend.set(&key).is_ok() && is_durable_kind(backend.kind()) {
@@ -396,7 +395,9 @@ fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> Result<(), AppError> {
     fs::create_dir_all(dir)?;
     let tmp = dir.join(format!(
         ".{}.tmp",
-        path.file_name().and_then(|n| n.to_str()).unwrap_or("master-key")
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("master-key")
     ));
     fs::write(&tmp, bytes)?;
     #[cfg(unix)]
@@ -533,15 +534,13 @@ impl MasterKeyBackend for KeyringBackend {
             // No entry yet: verify write capability, else availability reports
             // true but set() later fails (locked keyring, D-Bus write denied)
             // and encryptString throws.
-            Err(keyring::Error::NoEntry) => {
-                match entry.set_password("__probe__") {
-                    Ok(()) => {
-                        let _ = entry.delete_password();
-                        true
-                    }
-                    Err(_) => false,
+            Err(keyring::Error::NoEntry) => match entry.set_password("__probe__") {
+                Ok(()) => {
+                    let _ = entry.delete_password();
+                    true
                 }
-            }
+                Err(_) => false,
+            },
             Err(_) => false,
         }
     }
@@ -659,17 +658,15 @@ fn master_key_wrapped_path(app: &tauri::AppHandle) -> Result<PathBuf, AppError> 
 
 pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppError> {
     let key = read_master_key()?;
-    let key_arr: [u8; 32] = key.as_slice().try_into().map_err(|_| {
-        AppError::Crypto("Invalid master key length".into())
-    })?;
+    let key_arr: [u8; 32] = key
+        .as_slice()
+        .try_into()
+        .map_err(|_| AppError::Crypto("Invalid master key length".into()))?;
     let cipher = aes_gcm::Aes256Gcm::new_from_slice(&key_arr)
         .map_err(|_| AppError::Crypto("Invalid master key length".into()))?;
     let iv = random_nonce();
     let encrypted = cipher
-        .encrypt(
-            aes_gcm::Nonce::from_slice(&iv),
-            bytes,
-        )
+        .encrypt(aes_gcm::Nonce::from_slice(&iv), bytes)
         .map_err(AppError::from)?;
     let mut payload = iv.to_vec();
     payload.extend_from_slice(&encrypted);
@@ -678,9 +675,10 @@ pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppErro
 
 pub(crate) fn safe_storage_decrypt_bytes(value: &str) -> Result<Vec<u8>, AppError> {
     let key = read_master_key()?;
-    let key_arr: [u8; 32] = key.as_slice().try_into().map_err(|_| {
-        AppError::Crypto("Invalid master key length".into())
-    })?;
+    let key_arr: [u8; 32] = key
+        .as_slice()
+        .try_into()
+        .map_err(|_| AppError::Crypto("Invalid master key length".into()))?;
     let cipher = aes_gcm::Aes256Gcm::new_from_slice(&key_arr)
         .map_err(|_| AppError::Crypto("Invalid master key length".into()))?;
     let payload = BASE64.decode(value.as_bytes())?;
@@ -827,10 +825,18 @@ mod tests {
         let key = select_key_from_backends(&backends, random_key, true).unwrap();
         assert_eq!(key.len(), 32);
         let written0 = log0.borrow();
-        assert_eq!(written0.len(), 1, "every backend must receive the minted key");
+        assert_eq!(
+            written0.len(),
+            1,
+            "every backend must receive the minted key"
+        );
         assert_eq!(written0[0], key);
         let written1 = log1.borrow();
-        assert_eq!(written1.len(), 1, "every backend must receive the minted key");
+        assert_eq!(
+            written1.len(),
+            1,
+            "every backend must receive the minted key"
+        );
         assert_eq!(written1[0], key);
     }
 
@@ -850,9 +856,13 @@ mod tests {
                 Rc::clone(&log1),
             )),
         ];
-        let err = select_key_from_backends(&backends, || {
-            panic!("mint must not run when no durable store is alive");
-        }, false)
+        let err = select_key_from_backends(
+            &backends,
+            || {
+                panic!("mint must not run when no durable store is alive");
+            },
+            false,
+        )
         .unwrap_err();
         assert!(matches!(err, AppError::SecureStorageUnavailable));
         assert!(
@@ -879,8 +889,16 @@ mod tests {
         ];
         let key = select_key_from_backends(&backends, random_key, true).unwrap();
         assert_eq!(key.len(), 32);
-        assert_eq!(log0.borrow().len(), 1, "durable backend must receive the minted key");
-        assert_eq!(log1.borrow().len(), 1, "non-durable backend must also receive the minted key");
+        assert_eq!(
+            log0.borrow().len(),
+            1,
+            "durable backend must receive the minted key"
+        );
+        assert_eq!(
+            log1.borrow().len(),
+            1,
+            "non-durable backend must also receive the minted key"
+        );
     }
 
     #[test]
@@ -966,9 +984,13 @@ mod tests {
                 Rc::clone(&log),
             )),
         ];
-        let err = select_key_from_backends(&backends, || {
-            panic!("mint must not run when a backend errors hard");
-        }, false)
+        let err = select_key_from_backends(
+            &backends,
+            || {
+                panic!("mint must not run when a backend errors hard");
+            },
+            false,
+        )
         .unwrap_err();
         assert!(matches!(err, AppError::Other(ref m) if m == "boom"));
         assert!(
@@ -996,9 +1018,16 @@ mod tests {
         let key = select_key_from_backends(&backends, random_key, true).unwrap();
         assert_eq!(key, vec![9_u8; 32]);
         let written0 = log0.borrow();
-        assert_eq!(written0.len(), 1, "the key must be re-anchored into the higher-priority empty backend");
+        assert_eq!(
+            written0.len(),
+            1,
+            "the key must be re-anchored into the higher-priority empty backend"
+        );
         assert_eq!(written0[0], vec![9_u8; 32]);
-        assert!(log1.borrow().is_empty(), "the source backend must not be rewritten");
+        assert!(
+            log1.borrow().is_empty(),
+            "the source backend must not be rewritten"
+        );
     }
 
     #[test]

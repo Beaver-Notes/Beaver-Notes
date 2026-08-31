@@ -119,7 +119,10 @@ pub(crate) fn open_file_external(
     let full_path = resolve_asset_path_from_uri(&app, &src).unwrap_or_else(|_| PathBuf::from(&src));
     assert_path_access(&app, &state, &full_path, "open file externally")?;
     if !full_path.exists() {
-        return Err(AppError::Other(format!("File not found: {}", full_path.display())));
+        return Err(AppError::Other(format!(
+            "File not found: {}",
+            full_path.display()
+        )));
     }
 
     if let Some(existing_temp) = tracked_temp_file(&app, &full_path) {

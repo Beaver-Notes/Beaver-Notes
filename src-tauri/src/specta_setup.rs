@@ -1,5 +1,5 @@
-use std::path::Path;
 use specta::Types;
+use std::path::Path;
 use tauri_specta::LanguageExt;
 
 pub fn generate_bindings() {
@@ -17,7 +17,9 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::app::migration_probe_path)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::migration_run_with_path)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::migration_read_legacy_data)(&mut types),
-                specta::_fn_datatype!(crate::commands::app::migration_write_legacy_data)(&mut types),
+                specta::_fn_datatype!(crate::commands::app::migration_write_legacy_data)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::app::show_notification)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::set_spellcheck)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::set_zoom)(&mut types),
@@ -63,45 +65,91 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::storage::storage_delete)(&mut types),
                 specta::_fn_datatype!(crate::commands::storage::storage_has)(&mut types),
                 specta::_fn_datatype!(crate::commands::storage::storage_clear)(&mut types),
-                specta::_fn_datatype!(crate::commands::storage::storage_reencrypt_legacy_rows)(&mut types),
-                specta::_fn_datatype!(crate::commands::storage::storage_repair_settings)(&mut types),
+                specta::_fn_datatype!(crate::commands::storage::storage_reencrypt_legacy_rows)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::storage::storage_repair_settings)(
+                    &mut types,
+                ),
                 // ── Encryption & security ────────────────────────────────────────
-                specta::_fn_datatype!(crate::commands::security::safe_storage_is_available)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::safe_storage_get_backend_info)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::safe_storage_is_available)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::safe_storage_get_backend_info)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::security::safe_storage_encrypt)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::safe_storage_decrypt)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::safe_storage_store_blob)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::safe_storage_fetch_blob)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::safe_storage_clear_blob)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::safe_storage_set_device_password)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::asset_crypto_set_passphrase)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::asset_crypto_clear_passphrase)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::asset_crypto_migrate_dir)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::safe_storage_store_blob)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::safe_storage_fetch_blob)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::safe_storage_clear_blob)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::safe_storage_set_device_password)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::asset_crypto_set_passphrase)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::asset_crypto_clear_passphrase)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::asset_crypto_migrate_dir)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::security::encryption_get_state)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_submit_password)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::encryption_submit_password)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::security::encryption_enable)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::encryption_unlock)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::encryption_lock)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_encrypt_note_payload)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_decrypt_note_payload)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::encryption_encrypt_note_payload)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::encryption_decrypt_note_payload)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::security::sync_encrypt_payload)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_decrypt_payload)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_encrypt_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_decrypt_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_key_ready)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_reconcile_key_params)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_adopt_key_params)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_has_remote_key_params)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::encryption_reconcile_key_params)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::encryption_adopt_key_params)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::encryption_has_remote_key_params)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::security::passwd_hash)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::passwd_compare)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::passwd_record_failure)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::passwd_reset_failures)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_decrypt_asset_stream)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_encrypt_asset_stream)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_cache_decrypted_note)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_get_cached_decrypted_note)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::encryption_clear_decrypted_caches)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::decrypt_legacy_cryptojs_note)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::encryption_decrypt_asset_stream)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::encryption_encrypt_asset_stream)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::encryption_cache_decrypted_note)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(
+                    crate::commands::security::encryption_get_cached_decrypted_note
+                )(&mut types),
+                specta::_fn_datatype!(crate::commands::security::encryption_clear_decrypted_caches)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::decrypt_legacy_cryptojs_note)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::security::derive_argon2_key)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::vault_derive_proof)(&mut types),
                 // ── Dialogs ──────────────────────────────────────────────────────
@@ -110,7 +158,9 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::dialogs::dialog_save)(&mut types),
                 specta::_fn_datatype!(crate::commands::dialogs::get_system_fonts)(&mut types),
                 // ── Updates ──────────────────────────────────────────────────────
-                specta::_fn_datatype!(crate::commands::updates::get_installation_source)(&mut types),
+                specta::_fn_datatype!(crate::commands::updates::get_installation_source)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::updates::check_for_updates)(&mut types),
                 specta::_fn_datatype!(crate::commands::updates::download_update)(&mut types),
                 specta::_fn_datatype!(crate::commands::updates::install_update)(&mut types),
@@ -136,18 +186,26 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::index::index_save)(&mut types),
                 specta::_fn_datatype!(crate::commands::index::index_load)(&mut types),
                 // ── Search index ──────────────────────────────────────────────────
-                specta::_fn_datatype!(crate::commands::search::search_extract_index_data)(&mut types),
+                specta::_fn_datatype!(crate::commands::search::search_extract_index_data)(
+                    &mut types,
+                ),
                 // ── Workspaces ───────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::workspace::workspace_list)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_get_active)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_create)(&mut types),
-                specta::_fn_datatype!(crate::commands::workspace::workspace_register_cloud)(&mut types),
+                specta::_fn_datatype!(crate::commands::workspace::workspace_register_cloud)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_switch)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_rename)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_delete)(&mut types),
             ];
 
-            eprintln!("Collected {} commands, {} types", all_fns.len(), types.len());
+            eprintln!(
+                "Collected {} commands, {} types",
+                all_fns.len(),
+                types.len()
+            );
 
             let mut cfg = tauri_specta::BuilderConfiguration::default();
             cfg.commands = all_fns;
