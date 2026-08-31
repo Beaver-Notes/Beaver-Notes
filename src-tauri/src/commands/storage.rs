@@ -136,7 +136,11 @@ fn load_store_root_inner(
     app_key: &Option<[u8; 32]>,
     key_id: &str,
 ) -> Result<Value, AppError> {
-    let flat = crate::db::db_all(pool, *app_key)?;
+    // Settings are always plaintext so boot can read onboardingCompleted before unlock.
+    // Only data store is sealed with the content key.
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { *app_key } else { None };
+    let flat = crate::db::db_all(pool, db_key)?;
 
     if name != DATA_STORE {
         return Ok(nested_store_value(flat));
@@ -191,7 +195,7 @@ fn load_store_root_inner(
         );
     }
 
-    if needs_migration {
+    if needs_migration && is_data {
         let mut encrypted = Map::new();
         for (row_key, value) in plain.clone() {
             if let Some(ref key) = app_key {
@@ -302,14 +306,18 @@ fn storage_get_value(
     if segments.is_empty() {
         return Ok(def);
     }
+    // Settings are always plaintext — never seal/unseal with the content key.
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { app_key } else { None };
+    let decrypt_key = if is_data { app_key } else { None };
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let raw = crate::db::db_get(&pool, &flat_key, app_key)?;
+        let raw = crate::db::db_get(&pool, &flat_key, db_key)?;
         let value = raw
             .and_then(|r| serde_json::from_str::<Value>(&r).ok())
             .map(|v| {
-                if name == DATA_STORE {
-                    decrypt_store_row_with_key(&flat_key, v, &app_key).unwrap_or(Value::Null)
+                if is_data {
+                    decrypt_store_row_with_key(&flat_key, v, &decrypt_key).unwrap_or(Value::Null)
                 } else {
                     v
                 }
@@ -334,9 +342,11 @@ fn storage_set_value(
     if segments.is_empty() {
         return Ok(());
     }
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { app_key } else { None };
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let payload = if name == DATA_STORE {
+        let payload = if is_data {
             match &app_key {
                 Some(k) => encrypt_store_row_with_key(&flat_key, value, k, &key_id)?,
                 None => value,
@@ -345,14 +355,14 @@ fn storage_set_value(
             value
         };
         let serialized = serde_json::to_string(&payload)?;
-        crate::db::db_set(&pool, &flat_key, &serialized, app_key)?;
+        crate::db::db_set(&pool, &flat_key, &serialized, db_key)?;
         return Ok(());
     }
 
     let mut root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     set_nested_value(&mut root, &segments, value);
     let mut flattened = flatten_store_value(root);
-    if name == DATA_STORE {
+    if is_data {
         let mut encrypted = Map::new();
         for (row_key, value) in flattened {
             encrypted.insert(
@@ -365,7 +375,7 @@ fn storage_set_value(
         }
         flattened = encrypted;
     }
-    crate::db::db_replace_all(&pool, flattened, app_key)?;
+    crate::db::db_replace_all(&pool, flattened, db_key)?;
     Ok(())
 }
 
@@ -380,6 +390,8 @@ fn storage_delete_value(
     if segments.is_empty() {
         return Ok(());
     }
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { app_key } else { None };
 
     if let Some(flat_key) = flat_db_key(&segments) {
         crate::db::db_delete(&pool, &flat_key)?;
@@ -389,7 +401,7 @@ fn storage_delete_value(
     let mut root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     let _ = delete_nested_value(&mut root, &segments);
     let mut flattened = flatten_store_value(root);
-    if name == DATA_STORE {
+    if is_data {
         let mut encrypted = Map::new();
         for (row_key, value) in flattened {
             encrypted.insert(
@@ -402,7 +414,7 @@ fn storage_delete_value(
         }
         flattened = encrypted;
     }
-    crate::db::db_replace_all(&pool, flattened, app_key)?;
+    crate::db::db_replace_all(&pool, flattened, db_key)?;
     Ok(())
 }
 
@@ -433,13 +445,15 @@ fn storage_replace_value(
     app_key: Option<[u8; 32]>,
     key_id: String,
 ) -> Result<(), AppError> {
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { app_key } else { None };
     let incoming = flatten_store_value(data);
-    let existing = crate::db::db_all(&pool, app_key)?;
+    let existing = crate::db::db_all(&pool, db_key)?;
 
     let mut upserts = Map::new();
     let mut delete_keys: Vec<String> = Vec::new();
 
-    if name == DATA_STORE {
+    if is_data {
         for (key, plain_value) in &incoming {
             let changed = match existing.get(key) {
                 Some(existing_envelope) => {
@@ -480,7 +494,7 @@ fn storage_replace_value(
     }
 
     if !upserts.is_empty() || !delete_keys.is_empty() {
-        crate::db::db_apply_diff(&pool, &upserts, &delete_keys, app_key)?;
+        crate::db::db_apply_diff(&pool, &upserts, &delete_keys, db_key)?;
     }
     Ok(())
 }
@@ -599,6 +613,56 @@ pub(crate) async fn storage_reencrypt_legacy_rows(
         .clone();
 
     tokio::task::spawn_blocking(move || reencrypt_legacy_store_rows(pool, app_key, key_id))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
+}
+
+/// One-time repair: settings.db rows that were sealed with the content key
+/// (added by the kv-sealing refactor) are decrypted and rewritten plaintext
+/// so boot can read `onboardingCompleted` before unlock. Idempotent.
+pub(crate) fn repair_sealed_settings(pool: crate::db::DbPool, key: [u8; 32]) -> Result<usize, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM kv")
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let rows = stmt
+        .query_map([], |row| {
+            let k: String = row.get(0)?;
+            let v: Vec<u8> = row.get(1)?;
+            Ok((k, v))
+        })
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .collect::<Result<Vec<(String, Vec<u8>)>, _>>()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    drop(stmt);
+    drop(conn);
+    let mut fixed = 0;
+    for (k, stored) in rows {
+        if !crate::shared::is_encrypted_yjs_blob(&stored) {
+            continue;
+        }
+        // Decrypt with the content key, then rewrite plaintext (enc_key=None).
+        let plain = crate::shared::decrypt_yjs_blob(&key, &stored)?;
+        let text = String::from_utf8(plain).map_err(|e| AppError::Other(e.to_string()))?;
+        crate::db::db_set(&pool, &k, &text, None)?;
+        fixed += 1;
+    }
+    if fixed > 0 {
+        eprintln!("[storage] repair_sealed_settings: fixed {fixed} rows");
+    }
+    Ok(fixed)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn storage_repair_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<usize, AppError> {
+    let pool = pick_pool(SETTINGS_STORE, &app, &state)?;
+    let app_key = current_app_key(state.inner())?
+        .ok_or_else(|| AppError::Other("App encryption is locked.".into()))?;
+    tokio::task::spawn_blocking(move || repair_sealed_settings(pool, app_key))
         .await
         .map_err(|e| AppError::Other(e.to_string()))?
 }

@@ -463,6 +463,10 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   const hasExistingWorkspaceData = async () => {
+    const isLocked = (e) => {
+      const msg = String(e?.message || e || '');
+      return msg.includes('EncryptionLocked') || msg.includes('App encryption is locked');
+    };
     // Yjs workspace doc is the source for notes/folders (KV `notes`/`folders`
     // are legacy, never written post-migration); KV is only a fallback for
     // not-yet-migrated users.
@@ -473,7 +477,9 @@ export function useAppShell(onboardingCompleted = true) {
         'yjs:getSnapshot'
       );
       if (snap?.data?.length) return true;
-    } catch {}
+    } catch (e) {
+      if (isLocked(e)) return true;
+    }
     try {
       const { useStorage: _useStorage } = await import('@/lib/storage');
       const legacy = _useStorage('data');
@@ -489,7 +495,8 @@ export function useAppShell(onboardingCompleted = true) {
         Object.keys(notesData || {}).length > 0 ||
         Object.keys(foldersData || {}).length > 0
       );
-    } catch {
+    } catch (e) {
+      if (isLocked(e)) return true;
       return false;
     }
   };
@@ -565,6 +572,11 @@ export function useAppShell(onboardingCompleted = true) {
     // titles/folder metadata on disk).
     backend.invoke('storage:reencryptLegacyRows').catch((err) => {
       console.warn('[app] legacy row re-encryption failed:', err?.message || err);
+    });
+    // One-time repair: rows sealed while settings were incorrectly encrypted
+    // become plaintext after the fix; decrypt with the now-loaded key.
+    backend.invoke('storage:repairSettings').catch((err) => {
+      console.warn('[app] settings repair failed:', err?.message || err);
     });
 
     await refreshSyncLockBanner();

@@ -303,7 +303,7 @@ export default {
     });
 
     const THEME_COLOR_CLASSES = [
-      'red', 'amber', 'green', 'blue', 'purple', 'pink', 'neutral', 'light',
+      'red', 'amber', 'green', 'blue', 'purple', 'pink', 'neutral', 'light', 'dark',
     ];
 
     const accentColors = [
@@ -318,7 +318,8 @@ export default {
 
     const setColor = (color) => {
       const root = document.documentElement;
-      root.classList.forEach((cls) => {
+      // ponytail: copy to array — forEach on live DOMTokenList skips next item when removing
+      ;[...root.classList].forEach((cls) => {
         if (THEME_COLOR_CLASSES.includes(cls)) {
           root.classList.remove(cls);
         }

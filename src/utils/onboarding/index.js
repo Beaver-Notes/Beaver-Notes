@@ -45,7 +45,7 @@ export const ONBOARDING_THEMES = [
 
 export const ONBOARDING_ACCENT_COLORS = [
   { name: 'red', className: 'bg-red-500' },
-  { name: 'light', className: 'bg-amber-400' },
+  { name: 'amber', className: 'bg-amber-400' },
   { name: 'green', className: 'bg-emerald-500' },
   { name: 'blue', className: 'bg-blue-400' },
   { name: 'purple', className: 'bg-purple-400' },
@@ -123,8 +123,10 @@ export async function applyOnboardingFreshPreferences(preferences, { theme }) {
   );
 
   const root = document.documentElement;
-  root.classList.forEach((cls) => {
-    if (ONBOARDING_ACCENT_COLOR_NAMES.includes(cls)) {
+  // include legacy light/dark aliases — amber canonical, light/dark are same color in tailwind.config.cjs
+  const allAccentNames = [...ONBOARDING_ACCENT_COLOR_NAMES, 'light', 'dark'];
+  ;[...root.classList].forEach((cls) => {
+    if (allAccentNames.includes(cls)) {
       root.classList.remove(cls);
     }
   });

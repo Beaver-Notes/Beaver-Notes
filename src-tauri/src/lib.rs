@@ -178,6 +178,7 @@ pub fn run() {
             commands::storage::storage_has,
             commands::storage::storage_clear,
             commands::storage::storage_reencrypt_legacy_rows,
+            commands::storage::storage_repair_settings,
             commands::debug::debug_dump_state,
             commands::security::safe_storage_is_available,
             commands::security::safe_storage_get_backend_info,
