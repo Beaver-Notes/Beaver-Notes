@@ -28,7 +28,17 @@ export function isIPadRuntime() {
 export function isTabletRuntime() {
   if (typeof navigator === 'undefined' || typeof window === 'undefined')
     return false;
-  return isIPadRuntime() || (isPhoneRuntime() && window.innerWidth >= 768);
+  return isIPadRuntime() || (isFoldablePhoneRuntime() && window.innerWidth >= 768);
+}
+
+export function isFoldablePhoneRuntime() {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined')
+    return false;
+  if (!isPhoneRuntime()) return false;
+  // ponytail: min-side >=600dp distinguishes unfolded foldables/tablets from candybar phones (~390dp)
+  const w = window.screen?.width ?? window.innerWidth;
+  const h = window.screen?.height ?? window.innerHeight;
+  return Math.min(w, h) >= 600;
 }
 
 export function isIOSRuntime() {

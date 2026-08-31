@@ -1,17 +1,13 @@
 (function () {
-  var t = localStorage.getItem('theme');
-  if (t === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else if (t === 'system' || !t) {
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add('dark');
-    }
-  }
-})();
-(function () {
-  var t = localStorage.getItem('theme');
-  var isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  var bg = isDark ? '#171717' : '#fafafa';
-  document.documentElement.style.backgroundColor = bg;
-  if (document.body) document.body.style.backgroundColor = bg;
+  try {
+    var t = localStorage.getItem('theme');
+    var m = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var d = t === 'dark' || ((t === 'system' || !t) && m);
+    if (d) document.documentElement.classList.add('dark');
+    // bg now set inline in index.html before first paint; keep in sync here for SPA navigations
+    var bg = d ? '#171717' : '#fafafa';
+    document.documentElement.style.backgroundColor = bg;
+    var mc = document.querySelector('meta[name="theme-color"]');
+    if (mc) mc.setAttribute('content', bg);
+  } catch (e) {}
 })();

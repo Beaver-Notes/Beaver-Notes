@@ -74,6 +74,7 @@
           class="w-6/12 mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
           :disabled="
             isMoving ||
+            isNoopTarget ||
             ((props.mode === 'folder' || props.mode === 'mixed') &&
               disabledTargetIds.has(selectedId || undefined))
           "
@@ -164,6 +165,29 @@ const disabledTargetIds = computed(() => {
   return out;
 });
 
+const isNoopTarget = computed(() => {
+  const target = selectedId.value ?? null;
+  if (props.mode === 'note') {
+    if (!props.notes.length) return false;
+    return props.notes.every((n) => (n?.folderId ?? null) === target);
+  }
+  if (props.mode === 'folder') {
+    if (!props.folders.length) return false;
+    return props.folders.every((f) => (f?.parentId ?? null) === target);
+  }
+  if (props.mode === 'mixed') {
+    if (!props.notes.length && !props.folders.length) return false;
+    const foldersNoop = props.folders.length
+      ? props.folders.every((f) => (f?.parentId ?? null) === target)
+      : true;
+    const notesNoop = props.notes.length
+      ? props.notes.every((n) => (n?.folderId ?? null) === target)
+      : true;
+    return foldersNoop && notesNoop;
+  }
+  return false;
+});
+
 watch(
   () => props.modelValue,
   (value) => {
@@ -172,7 +196,8 @@ watch(
     if (props.mode === 'note') selectedId.value = commonNoteFolderId.value;
     else if (props.mode === 'folder') selectedId.value = commonFolderParentId.value;
     else selectedId.value = null;
-  }
+  },
+  { immediate: true }
 );
 
 function onSelect(id) {
@@ -208,8 +233,14 @@ const folderCountLabel = computed(() =>
 
   async function handleMove() {
     if (isMoving.value) return;
+    if (isNoopTarget.value) {
+      show.value = false;
+      emit('update:modelValue', false);
+      return;
+    }
     isMoving.value = true;
     const targetId = selectedId.value ?? null;
+    let moved = false;
     try {
       const { useUndoStore } = await import('@/store/undo');
       const undo = useUndoStore();
@@ -217,19 +248,26 @@ const folderCountLabel = computed(() =>
       try {
         if (props.folders.length) {
           for (const f of props.folders) {
-            if (!folderStore.wouldCreateCircularReference(f.id, targetId)) {
-              await folderStore.move(f.id, targetId);
-            }
+            if ((f?.parentId ?? null) === targetId) continue;
+            if (folderStore.wouldCreateCircularReference(f.id, targetId)) continue;
+            await folderStore.move(f.id, targetId);
+            moved = true;
           }
         }
         if (props.notes.length) {
-          const ids = props.notes.map((n) => n.id).filter(Boolean);
-          if (ids.length) await noteStore.moveToFolder(ids, targetId);
+          const ids = props.notes
+            .filter((n) => (n?.folderId ?? null) !== targetId)
+            .map((n) => n.id)
+            .filter(Boolean);
+          if (ids.length) {
+            await noteStore.moveToFolder(ids, targetId);
+            moved = true;
+          }
         }
       } finally {
         undo.commitBatch();
       }
-      emit('moved', { folderId: targetId, notes: [...props.notes], folders: [...props.folders] });
+      if (moved) emit('moved', { folderId: targetId, notes: [...props.notes], folders: [...props.folders] });
     } catch (error) {
       console.error('Move failed:', error);
     } finally {

@@ -47,6 +47,7 @@ import { getSyncEngine } from '@/utils/sync/engine.js';
 import { initAppSync } from '@/utils/sync/app-sync.js';
 
 import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
+import { useSidebar } from '@/composable/useSidebar';
 
 // Re-exported here so it stays unit-testable via this module
 // (see src/composable/__tests__/menu-context.spec.js).
@@ -148,6 +149,21 @@ export function useAppShell(onboardingCompleted = true) {
         : 'var(--app-safe-area-bottom)',
     };
   });
+  const { expanded: sidebarExpanded } = useSidebar();
+  const undoBannerWrapperStyle = computed(() => {
+    if (isMobileRuntime.value) {
+      return {
+        ...bottomBannerStyle.value,
+        left: '0',
+        right: '0',
+      };
+    }
+    if (!showSidebar.value) return undefined;
+    return {
+      left: sidebarExpanded.value ? '16rem' : '4rem',
+      right: '0',
+    };
+  });
   const mobileNavbarStyle = computed(() => {
     if (!isMobileRuntime.value || !showMobileNavbar.value) return undefined;
     return {
@@ -237,14 +253,28 @@ export function useAppShell(onboardingCompleted = true) {
     { immediate: true }
   );
 
+  // ponytail: 1.5s ceiling — real safe-area plugin can hang on cold iOS launch, never block first paint
+  const withTimeout = (p, ms, label) =>
+    Promise.race([
+      p,
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error(`${label} timeout after ${ms}ms`)), ms)
+      ),
+    ]);
+
   const initializeSafeAreaInsets = async () => {
     if (!isMobileRuntime.value) return;
     try {
-      const { getTopInset, getBottomInset } = await import(
-        '@saurl/tauri-plugin-safe-area-insets-css-api'
+      const { getTopInset, getBottomInset } = await withTimeout(
+        import('@saurl/tauri-plugin-safe-area-insets-css-api'),
+        1500,
+        'safe-area import'
       );
-      const topInset = await getTopInset();
-      const bottomInset = await getBottomInset();
+      const [topInset, bottomInset] = await withTimeout(
+        Promise.all([getTopInset(), getBottomInset()]),
+        1500,
+        'safe-area insets'
+      );
       const bottomInsetValue = `${bottomInset?.inset ?? 0}px`;
       const rootStyle = document.documentElement.style;
       rootStyle.setProperty(
@@ -437,16 +467,24 @@ export function useAppShell(onboardingCompleted = true) {
     // are legacy, never written post-migration); KV is only a fallback for
     // not-yet-migrated users.
     try {
-      const snap = await backend.invoke('yjs:getSnapshot', { noteId: 'meta' });
+      const snap = await withTimeout(
+        backend.invoke('yjs:getSnapshot', { noteId: 'meta' }),
+        2000,
+        'yjs:getSnapshot'
+      );
       if (snap?.data?.length) return true;
     } catch {}
     try {
       const { useStorage: _useStorage } = await import('@/lib/storage');
       const legacy = _useStorage('data');
-      const [notesData, foldersData] = await Promise.all([
-        legacy.get('notes', {}),
-        legacy.get('folders', {}),
-      ]);
+      const [notesData, foldersData] = await withTimeout(
+        Promise.all([
+          legacy.get('notes', {}),
+          legacy.get('folders', {}),
+        ]),
+        2000,
+        'legacy storage'
+      );
       return (
         Object.keys(notesData || {}).length > 0 ||
         Object.keys(foldersData || {}).length > 0
@@ -681,24 +719,22 @@ export function useAppShell(onboardingCompleted = true) {
       })
     );
 
-    try {
-      await appReady();
-      await initializeSafeAreaInsets();
-    } catch (error) {
-      console.error(
-        'Error notifying the Tauri backend that the app is ready:',
-        error
-      );
-    }
+    // ponytail: native ready + safe-area must never block first paint on iOS — run in background with timeouts
+    const nativeReady = Promise.allSettled([
+      withTimeout(appReady(), 2000, 'appReady').catch((e) =>
+        console.warn('[app] appReady failed:', e?.message || e)
+      ),
+      withTimeout(initializeSafeAreaInsets(), 2000, 'safeArea').catch((e) =>
+        console.warn('[app] safeArea failed:', e?.message || e)
+      ),
+    ]);
 
     initializeMobileKeyboardTracking(unlistenFns);
 
     try {
-      const managed = await isUpdateManaged();
-
+      const managed = await withTimeout(isUpdateManaged(), 1500, 'isUpdateManaged');
       if (!managed) {
-        const autoUpdateEnabled = await getAutoUpdateStatus();
-
+        const autoUpdateEnabled = await withTimeout(getAutoUpdateStatus(), 1500, 'getAutoUpdateStatus').catch(() => false);
         if (autoUpdateEnabled) {
           setTimeout(async () => {
             try {
@@ -710,17 +746,19 @@ export function useAppShell(onboardingCompleted = true) {
         }
       }
     } catch (error) {
-      console.error('Error checking auto-update status:', error);
+      console.warn('Error checking auto-update status:', error?.message || error);
     }
 
+    // Always run workspace init even if nativeReady is still pending — retrieved
+    // is set synchronously inside initializeWorkspace so the UI paints.
     try {
-      await initializeWorkspace();
+      await withTimeout(initializeWorkspace(), 8000, 'initializeWorkspace');
     } catch (error) {
-      console.error('Error initializing workspace:', error);
+      console.error('Error initializing workspace:', error?.message || error);
       try {
         const [hasData, onboardingCompleted] = await Promise.all([
-          hasExistingWorkspaceData(),
-          settingsStorage.get('onboardingCompleted', false),
+          withTimeout(hasExistingWorkspaceData(), 2000, 'hasExistingWorkspaceData').catch(() => false),
+          withTimeout(settingsStorage.get('onboardingCompleted', false), 1500, 'onboardingCompleted').catch(() => false),
         ]);
         if (!hasData && !onboardingCompleted) {
           retrieved.value = true;
@@ -731,6 +769,9 @@ export function useAppShell(onboardingCompleted = true) {
         console.error('Fallback onboarding check failed:', innerError);
       }
       retrieved.value = true;
+    } finally {
+      // Don't await — just let it settle in background
+      void nativeReady;
     }
 
     void refreshSyncLockBanner();
@@ -880,6 +921,7 @@ export function useAppShell(onboardingCompleted = true) {
     importFileType,
     showImportDialog,
     bottomBannerStyle,
+    undoBannerWrapperStyle,
     dismissSyncBanner,
     getTopLevelRouteKey,
     handleUpdateDismiss,

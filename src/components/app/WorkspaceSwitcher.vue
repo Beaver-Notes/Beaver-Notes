@@ -152,6 +152,14 @@
         </button>
       </div>
     </ui-popover>
+
+    <WorkspaceFormDialog
+      v-model:show="formDialogShow"
+      :mode="formDialogMode"
+      :workspace="formDialogWorkspace"
+      @confirm="handleFormConfirm"
+      @close="() => (formDialogShow = false)"
+    />
   </div>
 </template>
 
@@ -162,6 +170,7 @@ import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useAccountStore } from '@/store/account';
 import { getPlans } from '@/lib/api/plans';
+import WorkspaceFormDialog from './WorkspaceFormDialog.vue';
 
 function clearSettingsLocalStorage() {
   const settingsKeys = [
@@ -192,6 +201,9 @@ function clearSettingsLocalStorage() {
 }
 
 export default {
+  components: {
+    WorkspaceFormDialog,
+  },
   props: {
     expanded: { type: Boolean, default: false },
   },
@@ -202,6 +214,9 @@ export default {
     const triggerEl = ref(null);
     const popoverOpen = ref(false);
     const dashboardFlag = ref(false);
+    const formDialogShow = ref(false);
+    const formDialogMode = ref('create');
+    const formDialogWorkspace = ref(null);
 
     const workspaces = computed(() => workspaceStore.workspaces);
     const activeId = computed(() => workspaceStore.activeId);
@@ -244,42 +259,54 @@ export default {
     }
 
     function promptCreate() {
-      emitter.emit('show-dialog', 'prompt', {
-        title: 'New Workspace',
-        placeholder: 'Workspace name',
-        okText: 'Create',
-        password: false,
-        async onConfirm(name) {
-          if (!name || !name.trim()) return;
+      formDialogMode.value = 'create';
+      formDialogWorkspace.value = null;
+      formDialogShow.value = true;
+    }
+
+    async function handleFormConfirm({ name, emoji, color }) {
+      if (!name.trim()) return;
+      try {
+        if (formDialogMode.value === 'create') {
           const ws = await workspaceStore.create(name.trim(), {
             copySettings: true,
+            emoji,
+            color,
           });
           await workspaceStore.switchTo(ws.id);
-          clearSettingsLocalStorage();
-          window.location.reload();
-        },
-      });
+        } else {
+          const wsId = formDialogWorkspace.value?.id;
+          if (wsId) {
+            const cloud = await import('@/composable/useCloudWorkspaces');
+            await cloud.useCloudWorkspaces().updateWorkspaceDecoration(wsId, { emoji, color });
+            // Also update the name if it changed
+            if (name !== formDialogWorkspace.value.name) {
+              await workspaceStore.rename(wsId, name);
+            } else {
+              // Update local store with new emoji/color
+              const ws = workspaceStore.workspaces.find(w => w.id === wsId);
+              if (ws) {
+                ws.emoji = emoji;
+                ws.color = color;
+              }
+            }
+          }
+        }
+        formDialogShow.value = false;
+        clearSettingsLocalStorage();
+        window.location.reload();
+      } catch (err) {
+        emitter.emit('show-dialog', 'alert', {
+          title: formDialogMode.value === 'create' ? 'Create Failed' : 'Update Failed',
+          description: err?.message || 'Failed to update workspace.',
+        });
+      }
     }
 
     function promptRename(ws) {
-      emitter.emit('show-dialog', 'prompt', {
-        title: 'Rename Workspace',
-        placeholder: 'Workspace name',
-        okText: 'Rename',
-        password: false,
-        defaultValue: ws.name,
-        async onConfirm(name) {
-          if (!name || !name.trim()) return;
-          try {
-            await workspaceStore.rename(ws.id, name.trim());
-          } catch (err) {
-            emitter.emit('show-dialog', 'alert', {
-              title: 'Rename Failed',
-              description: err?.message || 'Failed to rename workspace.',
-            });
-          }
-        },
-      });
+      formDialogMode.value = 'edit';
+      formDialogWorkspace.value = ws;
+      formDialogShow.value = true;
     }
 
     function goToTeamSettings() {
@@ -329,6 +356,10 @@ export default {
       promptRename,
       goToTeamSettings,
       promptJoin,
+      formDialogShow,
+      formDialogMode,
+      formDialogWorkspace,
+      handleFormConfirm,
     };
   },
 };

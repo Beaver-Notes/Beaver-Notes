@@ -124,9 +124,12 @@ export async function getWorkspaces({ baseUrl, signal } = {}) {
   return workspaces;
 }
 
-export async function createWorkspace(name, { baseUrl, signal } = {}) {
+export async function createWorkspace(name, options = {}) {
+  const { baseUrl, signal, emoji, color } = options;
   const client = getClient(baseUrl);
   const { body, workspaceKeyHex } = await provisionWorkspacePayload(name);
+  if (emoji) body.emoji = emoji;
+  if (color) body.color = color;
   const res = await client.post('/workspaces', body, { signal });
   if (res?.id) setCachedWorkspaceKey(res.id, workspaceKeyHex);
   return res;
@@ -135,6 +138,11 @@ export async function createWorkspace(name, { baseUrl, signal } = {}) {
 export async function renameWorkspace(id, nameEncrypted, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   return client.patch(`/workspaces/${encodeURIComponent(id)}`, { nameEncrypted }, { signal });
+}
+
+export async function updateWorkspaceDecoration(id, { emoji, color, baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.patch(`/workspaces/${encodeURIComponent(id)}`, { emoji, color }, { signal });
 }
 
 export async function deleteWorkspace(id, { baseUrl, signal } = {}) {

@@ -1,6 +1,6 @@
 <template>
   <transition name="undo-banner">
-    <ui-pill v-show="visible" :style="positionStyle">
+    <ui-pill v-show="visible" :fixed="fixed" :style="positionStyle" class="pointer-events-auto">
       <div class="flex items-center gap-1.5 py-1 pl-1.5 pr-1.5">
         <v-remixicon name="riArrowGoBackLine" class="text-lg text-primary" />
 
@@ -28,6 +28,7 @@ export default {
   name: 'UndoBanner',
   props: {
     positionStyle: { type: Object, default: () => ({}) },
+    fixed: { type: Boolean, default: true },
   },
   setup() {
     const undoStore = useUndoStore();

@@ -4,6 +4,7 @@ import {
   getWorkspaces as apiGetWorkspaces,
   createWorkspace as apiCreateWorkspace,
   renameWorkspace as apiRenameWorkspace,
+  updateWorkspaceDecoration as apiUpdateWorkspaceDecoration,
   deleteWorkspace as apiDeleteWorkspace,
   addMember as apiAddMember,
   removeMember as apiRemoveMember,
@@ -141,10 +142,10 @@ export function useCloudWorkspaces() {
     return fetchInFlight;
   }
 
-  async function createWorkspace(name) {
+  async function createWorkspace(name, { emoji, color } = {}) {
     if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
     try {
-      const raw = await apiCreateWorkspace(name, { baseUrl: activeBaseUrl() });
+      const raw = await apiCreateWorkspace(name, { baseUrl: activeBaseUrl(), emoji, color });
       const ws = {
         id: raw.id,
         name: raw.name || name,
@@ -152,6 +153,8 @@ export function useCloudWorkspaces() {
         ownerId: null,
         storageUsedBytes: 0,
         createdAt: raw.createdAt || null,
+        emoji: raw.emoji,
+        color: raw.color,
       };
       workspaces.value.push(ws);
       activeId.value = ws.id;
@@ -207,6 +210,19 @@ export function useCloudWorkspaces() {
     await apiRenameWorkspace(id, nameEncrypted, { baseUrl: activeBaseUrl() });
 
     ws.name = newName;
+    return ws;
+  }
+
+  async function updateWorkspaceDecoration(id, { emoji, color }) {
+    if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
+
+    const ws = workspaces.value.find((w) => w.id === id);
+    if (!ws) throw new Error('Workspace not found');
+
+    await apiUpdateWorkspaceDecoration(id, { emoji, color, baseUrl: activeBaseUrl() });
+
+    if (emoji !== undefined) ws.emoji = emoji;
+    if (color !== undefined) ws.color = color;
     return ws;
   }
 
@@ -329,6 +345,7 @@ export function useCloudWorkspaces() {
     fetchWorkspaces,
     createWorkspace,
     renameWorkspace,
+    updateWorkspaceDecoration,
     deleteWorkspace,
     switchWorkspace,
     addMember,

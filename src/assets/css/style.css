@@ -4,7 +4,7 @@
     Inter, sans-serif;
   --selected-font-code: 'JetBrainsMono', monospace;
   --selected-dark-text: white;
-  --app-theme-background: theme('colors.white');
+  --app-theme-background: #fafafa;
   --motion-fast: 140ms;
   --motion-base: 220ms;
   --motion-slow: 300ms;
@@ -48,7 +48,7 @@
 }
 
 :root.dark {
-  --app-theme-background: theme('colors.neutral.900');
+  --app-theme-background: #171717;
   --text-dark: white;
   --text-muted: theme('colors.neutral.400');
   --bg-code: theme('colors.neutral.900');
@@ -65,14 +65,15 @@ body,
 }
 
 html {
-  @apply bg-white dark:bg-neutral-900;
+  background-color: var(--app-theme-background);
 }
 
 body {
   position: relative;
   font-family: var(--selected-font);
   min-height: 100dvh;
-  @apply bg-white dark:bg-neutral-900 dark:text-[color:var(--text-dark)];
+  background-color: var(--app-theme-background);
+  @apply dark:text-[color:var(--text-dark)];
 }
 
 #app {

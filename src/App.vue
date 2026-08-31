@@ -30,7 +30,7 @@
     @unlocked="handleEncryptionUnlocked"
   />
   <div
-    v-if="appEncryptionGate.show && appEncryptionGate.deriving"
+    v-if="appEncryptionGate.deriving"
     class="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm"
   >
     <div class="flex flex-col items-center gap-3">
@@ -123,7 +123,12 @@
         />
       </div>
 
-      <undo-banner :position-style="bottomBannerStyle" />
+      <div
+        class="fixed bottom-6 z-[70] flex justify-center pointer-events-none"
+        :style="undoBannerWrapperStyle"
+      >
+        <undo-banner :position-style="bottomBannerStyle" :fixed="false" />
+      </div>
 
       <div class="route-stage">
         <router-view v-slot="{ Component, route: viewRoute }">
@@ -250,6 +255,14 @@ export default {
     watch(devicePasswordSetupState, async (state) => {
       if (state !== 'done') return;
       await hydrateAccountSessionAfterDeviceUnlock();
+      // Keychain blob may now be decryptable after the user supplied the
+      // device password — retry the automatic unlock so the passphrase gate
+      // doesn't stay visible unnecessarily.
+      try {
+        await shell.restoreEncryptionKeys();
+      } catch (e) {
+        console.warn('[app] encryption restore after device unlock failed:', e);
+      }
     });
 
     // When onboarding completes and we leave the Onboarding route, flip the

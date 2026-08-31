@@ -12,6 +12,8 @@ import {
   isMobileRuntime,
   isPhoneRuntime,
   isIPadRuntime,
+  isFoldablePhoneRuntime,
+  isTabletRuntime,
   isIOSRuntime,
   isMacOSRuntime,
   isAppleRuntime,
@@ -38,6 +40,12 @@ export const backend = {
   },
   isIPadRuntime() {
     return isIPadRuntime();
+  },
+  isFoldablePhoneRuntime() {
+    return isFoldablePhoneRuntime();
+  },
+  isTabletRuntime() {
+    return isTabletRuntime();
   },
   isIOSRuntime() {
     return isIOSRuntime();

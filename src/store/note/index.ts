@@ -579,15 +579,17 @@ export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folde
     const undoNotes: { id: string; prevFolderId: string | null | undefined }[] = [];
     const updatePromises: Promise<NoteData | null>[] = [];
     for (const noteId of noteIds) {
-      if (this.data[noteId]) {
-        undoNotes.push({
-          id: noteId,
-          prevFolderId: this.data[noteId].folderId,
-        });
-        this.patchLocal(noteId, { folderId: targetFolderId });
-        updatePromises.push(this.persistMeta(noteId));
-      }
+      if (!this.data[noteId]) continue;
+      if ((this.data[noteId].folderId ?? null) === targetFolderId) continue;
+      undoNotes.push({
+        id: noteId,
+        prevFolderId: this.data[noteId].folderId,
+      });
+      this.patchLocal(noteId, { folderId: targetFolderId });
+      updatePromises.push(this.persistMeta(noteId));
     }
+
+    if (!undoNotes.length) return [];
 
     await Promise.all(updatePromises);
 
