@@ -103,7 +103,7 @@ export default {
     const router = useRouter();
     const appStore = useAppStore();
 
-    const isYjs = !!props.ydoc;
+    const isYjs = computed(() => !!props.ydoc);
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
 
     const showDragHandle = ref(
@@ -268,7 +268,7 @@ export default {
     });
 
     const exts = [
-      ...(isYjs && props.ydoc ? createBaseExtensions({ yjs: true }) : extensions),
+      ...(isYjs.value && props.ydoc ? createBaseExtensions({ yjs: true }) : extensions),
       dropFile.configure({ id: props.id }),
       NodeRangeSelection,
     ];
@@ -277,7 +277,7 @@ export default {
     }
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
-    if (isYjs && props.ydoc) {
+    if (isYjs.value && props.ydoc) {
       exts.push(
         Collaboration.configure({
           document: props.ydoc,
@@ -285,15 +285,19 @@ export default {
         })
       );
       if (props.awareness && canEdit(props.role)) {
-        exts.push(
-          CollaborationCursor.configure({
-            provider: { awareness: props.awareness },
-            user: {
-              name: props.userName || 'Anonymous',
-              color: getColorFromId(props.userName || props.id || 'anon'),
-            },
-          })
-        );
+        try {
+          exts.push(
+            CollaborationCursor.configure({
+              provider: { awareness: props.awareness },
+              user: {
+                name: props.userName || 'Anonymous',
+                color: getColorFromId(props.userName || props.id || 'anon'),
+              },
+            })
+          );
+        } catch (e) {
+          console.warn('[editor] cursor init skipped:', e?.message);
+        }
       }
       exts.push(
         CommentExtension.configure({
@@ -310,7 +314,7 @@ export default {
     let _lastContent = null;
     let _lastSanitized = null;
     const safeContent = computed(() => {
-      if (isYjs) return '';
+      if (isYjs.value) return '';
       if (isEncryptedContent(props.modelValue)) return '';
       if (props.modelValue === _lastContent) return _lastSanitized;
       _lastContent = props.modelValue;
@@ -322,7 +326,7 @@ export default {
     let pendingProgrammaticUpdates = 0;
 
     const editor = useEditor({
-      content: isYjs ? undefined : safeContent.value,
+      content: isYjs.value ? undefined : safeContent.value,
       editable: canEdit(props.role),
       autofocus: props.cursorPosition,
       extensions: exts,
@@ -390,7 +394,7 @@ export default {
       if (!editor.value) return;
       emit('init', editor.value);
 
-      if (!isYjs && safeContent.value) {
+      if (!isYjs.value && safeContent.value) {
         editor.value.commands.setContent(safeContent.value);
       }
 
@@ -404,7 +408,7 @@ export default {
       }
 
       editor.value.on('update', () => {
-        if (isYjs) {
+        if (isYjs.value) {
           emit('update', null);
           return;
         }
@@ -419,7 +423,7 @@ export default {
       });
     });
 
-    if (!isYjs) {
+    if (!isYjs.value) {
       watch(safeContent, (val) => {
         if (!editor.value || !val) return;
         if (!hasUserEdited.value) {

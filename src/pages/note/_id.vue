@@ -795,7 +795,8 @@ export default {
         stopTitleObserver();
         if (!newDoc) return;
         stopTitleObserver = yjsObserveTitle((title) => {
-          if (note.value && note.value.title !== title) {
+          // Don't overwrite a real title with empty yjs title (initial doc race)
+          if (note.value && note.value.title !== title && !(note.value.title && title === '')) {
             updateNote(id.value, { title });
           }
           // Skip while the title is focused
