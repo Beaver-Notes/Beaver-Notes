@@ -28,7 +28,6 @@ export async function captureNoteSnapshot(noteId) {
 
   try {
     const contentFrag = doc.getXmlFragment('content');
-    const titleFrag = doc.getXmlFragment('title');
 
     let content = '';
     if (contentFrag.length > 0) {
@@ -40,17 +39,30 @@ export async function captureNoteSnapshot(noteId) {
     }
 
     let title = '';
-    if (titleFrag.length > 0) {
-      // Title XmlFragment contains XmlText nodes — extract plain text
-      const json = await yXmlFragmentToProsemirrorJSON(titleFrag);
-      if (json?.content) {
-        // Structure: { content: [[{ type: 'text', text: '...' }, ...], ...] }
-        title = json.content
-          .flat()
-          .filter((node) => node.type === 'text')
-          .map((node) => node.text || '')
-          .join('');
+    try {
+      const titleFrag = doc.getXmlFragment('title');
+      if (titleFrag.length > 0) {
+        // Title XmlFragment contains XmlText nodes — extract plain text
+        const json = await yXmlFragmentToProsemirrorJSON(titleFrag);
+        if (json?.content) {
+          // Structure: { content: [[{ type: 'text', text: '...' }, ...], ...] }
+          title = json.content
+            .flat()
+            .filter((node) => node.type === 'text')
+            .map((node) => node.text || '')
+            .join('');
+        }
+      } else {
+        try {
+          const ytext = doc.getText('title');
+          title = ytext.toString() || '';
+        } catch {}
       }
+    } catch {
+      try {
+        const ytext = doc.getText('title');
+        title = ytext.toString() || '';
+      } catch {}
     }
 
     if (!content && !title) return null;

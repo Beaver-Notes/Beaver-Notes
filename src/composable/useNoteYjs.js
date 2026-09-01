@@ -229,17 +229,57 @@ export function useNoteYjs() {
       }
     }
 
-    // Seed title if the fragment is empty (first load from store)
-    const titleFrag = newDoc.getXmlFragment('title');
-    if (titleFrag.length === 0 && initialTitle) {
+    // Yjs single-type-per-key: probe share before claiming the key as YText or XmlFragment.
+    // Legacy docs store title as XmlFragment; new code uses YText. Claiming the wrong
+    // type first corrupts the value (length mismatch) and throws on the second accessor.
+    let ytext;
+    const existing = newDoc.share.get('title');
+    if (existing) {
+      const start = existing._start;
+      const content = start?.content;
+      const isLegacyXml = content && content.constructor && content.constructor.name === 'ContentType';
+      if (isLegacyXml) {
+        let seed = '';
+        try {
+          const frag = newDoc.getXmlFragment('title');
+          seed = frag.toJSON() || '';
+          if (!seed) {
+            try { seed = frag.get(0)?.toString() || ''; } catch {}
+          }
+        } catch (e) {
+          console.warn('[yjs] legacy title migration failed to extract seed:', e);
+        }
+        try {
+          newDoc.share.delete('title');
+        } catch (e) {
+          console.warn('[yjs] failed to delete legacy title key:', e);
+        }
+        try {
+          ytext = newDoc.getText('title');
+          if (seed) {
+            newDoc.transact(() => ytext.insert(0, seed), 'migrate');
+          }
+        } catch (e) {
+          console.warn('[yjs] failed to migrate legacy title to YText:', e);
+          ytext = newDoc.getText('title');
+        }
+      } else {
+        try {
+          ytext = newDoc.getText('title');
+        } catch (e) {
+          console.warn('[yjs] failed to get YText title:', e);
+          ytext = newDoc.getText('title');
+        }
+      }
+    } else {
+      ytext = newDoc.getText('title');
+    }
+    // seed if both empty
+    if (ytext.length === 0 && initialTitle) {
       try {
-        newDoc.transact(() => {
-          const text = new Y.XmlText();
-          text.insert(0, initialTitle);
-          titleFrag.push([text]);
-        }, 'load');
+        newDoc.transact(() => ytext.insert(0, initialTitle), 'load');
       } catch (e) {
-        console.error('[yjs] title seeding failed:', e);
+        console.warn('[yjs] failed to seed title:', e);
       }
     }
 
@@ -270,33 +310,36 @@ export function useNoteYjs() {
     t?.end();
   }
 
-  function getTitle() {
-    if (!currentDoc) return '';
-    const titleFrag = currentDoc.getXmlFragment('title');
-    return titleFrag.toJSON() || '';
+  function titleDiff(prev, next) {
+    let start = 0; const n = Math.min(prev.length, next.length);
+    while (start < n && prev[start] === next[start]) start++;
+    if (start === prev.length && start === next.length) return { pos: 0, del: 0, ins: '' };
+    let endPrev = prev.length, endNext = next.length;
+    while (endPrev > start && endNext > start && prev[endPrev - 1] === next[endNext - 1]) { endPrev--; endNext--; }
+    return { pos: start, del: endPrev - start, ins: next.slice(start, endNext) };
   }
-
-  function setTitle(title) {
+  // ponytail: exported for test
+  function applyTitleDelta(next) {
     if (!currentDoc) return;
-    const titleFrag = currentDoc.getXmlFragment('title');
+    const ytext = currentDoc.getText('title');
+    const prev = ytext.toString();
+    const n = next ?? '';
+    if (prev === n) return;
+    const { pos, del, ins } = titleDiff(prev, n);
     currentDoc.transact(() => {
-      titleFrag.delete(0, titleFrag.length);
-      if (title) {
-        const text = new Y.XmlText();
-        text.insert(0, title);
-        titleFrag.push([text]);
-      }
+      if (del) ytext.delete(pos, del);
+      if (ins) ytext.insert(pos, ins);
     });
   }
 
-  function observeTitle(callback) {
+  function getTitle() { return currentDoc ? currentDoc.getText('title').toString() : ''; }
+  function setTitle(title) { applyTitleDelta(title ?? ''); }
+  function observeTitle(cb) {
     if (!currentDoc) return () => {};
-    const titleFrag = currentDoc.getXmlFragment('title');
-    const handler = () => {
-      callback(titleFrag.toJSON() || '');
-    };
-    titleFrag.observe(handler);
-    return () => titleFrag.unobserve(handler);
+    const ytext = currentDoc.getText('title');
+    const h = () => cb(ytext.toString());
+    ytext.observe(h);
+    return () => ytext.unobserve(h);
   }
 
   onUnmounted(async () => {
@@ -324,5 +367,5 @@ export function useNoteYjs() {
     }
   });
 
-  return { doc, ready, pendingSetup, load, getTitle, setTitle, observeTitle };
+  return { doc, ready, pendingSetup, load, getTitle, setTitle, observeTitle, applyTitleDelta };
 }
