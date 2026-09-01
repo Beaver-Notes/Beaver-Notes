@@ -555,18 +555,8 @@ export function useNoteMenu(props) {
     setStoredZoomLevel(level);
   }
 
-  function toggleReaderMode() {
-    setZoom(getStoredZoomLevel());
-    store.inReaderMode = !store.inReaderMode;
-    if (store.inReaderMode) {
-      document.documentElement.requestFullscreen();
-      props.editor.commands.focus();
-      props.editor.setOptions({ editable: false });
-    } else {
-      document.exitFullscreen();
-      props.editor.setOptions({ editable: true });
-    }
-  }
+  function exitReader(){ store.inReaderMode=false; try{ if(document.fullscreenElement) document.exitFullscreen(); }catch{} props.editor?.setOptions?.({editable:true}); document.documentElement.removeAttribute('data-reader-theme-legacy'); }
+  function toggleReaderMode(){ setZoom(getStoredZoomLevel()); const next=!store.inReaderMode; store.inReaderMode=next; if(next){ try{ document.documentElement.requestFullscreen?.(); }catch{} props.editor?.setOptions?.({editable:false}); } else exitReader(); }
 
   function deleteNode() {
     dialog.confirm({
@@ -603,23 +593,16 @@ export function useNoteMenu(props) {
   });
   onUnmounted(() => _unregShortcuts?.());
 
-  function onKeydown(e) {
-    if (e.key === 'Escape' && store.inReaderMode) {
-      toggleReaderMode();
-    }
-  }
-
-  onMounted(() => {
-    if (props.editor) {
-      props.editor.on('selectionUpdate', handleSelectionUpdate);
-    }
-    document.addEventListener('keydown', onKeydown);
+  let _unregShortcuts2;
+  onMounted(()=>{
+    const onFs=()=>{ if(!document.fullscreenElement && store.inReaderMode) exitReader(); };
+    const onKey=(e)=>{ if(e.key==='Escape' && store.inReaderMode) exitReader(); };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('keydown', onKey);
+    _unregShortcuts2=()=>{document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('keydown', onKey);};
+    if (props.editor) props.editor.on('selectionUpdate', handleSelectionUpdate);
   });
-
-  onUnmounted(() => {
-    props.editor?.off?.('selectionUpdate', handleSelectionUpdate);
-    document.removeEventListener('keydown', onKeydown);
-  });
+  onUnmounted(()=>{ props.editor?.off?.('selectionUpdate', handleSelectionUpdate); _unregShortcuts2?.(); });
 
   // --- Original computed properties ---
   const visibleItemIds = computed(
@@ -705,6 +688,7 @@ export function useNoteMenu(props) {
     insertVideo,
     showHeadingsTree,
     toggleReaderMode,
+    exitReader,
     updateFontSize,
     videoUrl,
   };

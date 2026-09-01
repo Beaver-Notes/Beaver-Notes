@@ -48,10 +48,10 @@
     <div
       class="editor note-editor-page self-center w-full px-4 mobile:pt-0 pt-10"
       :class="{ 'mobile-search-open': showSearch }"
-      :style="{
-        '--selected-width': note?.isFullWidth ? '100%' : '54rem',
-        'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
-      }"
+      :data-reader-theme="uiState.inReaderMode ? prefs.theme : null"
+      :data-reader-family="prefs.family"
+      :style="uiState.inReaderMode ? { '--selected-width': '42rem', 'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)', '--reader-size': prefs.size + 'px', '--reader-line': prefs.line } : { '--selected-width': note?.isFullWidth ? '100%' : '54rem', 'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)' }"
+      @mousedown.self="uiState.inReaderMode && exitReader()"
     >
       <template v-if="editor && !isLocked">
         <div :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)' }">
@@ -179,6 +179,7 @@
       </div>
       <note-backlinks v-if="!isLocked" />
     </div>
+    <ReaderChrome v-if="uiState.inReaderMode" @exit="exitReader" @change="() => {}" />
 
     <note-headings-progress
       v-if="editor"
@@ -254,6 +255,8 @@ import CommentSidebar from '@/components/note/CommentSidebar.vue';
 import UnlockCard from '@/components/app/UnlockCard.vue';
 import { canEdit } from '@/utils/permissions';
 import { displayName } from '@/utils/displayName';
+import ReaderChrome from '@/components/note/ReaderChrome.vue';
+import { useReaderPrefs } from '@/composable/useReaderPrefs';
 
 export default {
   components: {
@@ -266,10 +269,12 @@ export default {
     NoteBacklinks,
     CommentSidebar,
     UnlockCard,
+    ReaderChrome,
   },
   inheritAttrs: false,
   setup() {
     const uiState = useUiState();
+    const { prefs } = useReaderPrefs();
     const { expanded: sidebarExpanded } = useSidebar();
     const route = useRoute();
     const store = useStore();
@@ -279,6 +284,7 @@ export default {
     const appStore = useAppStore();
 
     const editor = shallowRef(null);
+    function exitReader(){ uiState.inReaderMode=false; try{ if(document.fullscreenElement) document.exitFullscreen(); }catch{} editor.value?.setOptions?.({editable:true}); document.documentElement.removeAttribute('data-reader-theme-legacy'); }
     const noteEditor = ref();
     const showSearch = shallowRef(false);
     const showHistory = ref(false);
@@ -694,6 +700,21 @@ export default {
       return updateNote(id.value, { title: text });
     }, 150);
 
+    let isComposing = false;
+    function onCompositionStart() {
+      isComposing = true;
+    }
+    function onCompositionEnd(e) {
+      isComposing = false;
+      handleTitleInput(e);
+    }
+    watch(titleDiv, (el, oldEl) => {
+      oldEl?.removeEventListener('compositionstart', onCompositionStart);
+      oldEl?.removeEventListener('compositionend', onCompositionEnd);
+      el?.addEventListener('compositionstart', onCompositionStart);
+      el?.addEventListener('compositionend', onCompositionEnd);
+    }, { immediate: true });
+
     function handleContentUpdate(content) {
       if (ydoc.value) return; // Yjs manages content persistence
       return updateNote(id.value, { content });
@@ -875,11 +896,13 @@ export default {
       async (newNote) => {
         await nextTick();
         if (!titleDiv.value) return;
+        if (isTitleFocused(titleDiv.value) || isComposing) {
+          titleInitialized = true;
+          autoResizeTitle();
+          return;
+        }
         const stored = newNote?.title || yjsGetTitle() || '';
-        if (
-          !isTitleFocused(titleDiv.value) &&
-          titleDiv.value.textContent !== stored
-        ) {
+        if (titleDiv.value.textContent !== stored) {
           titleDiv.value.textContent = stored;
         }
         autoResizeTitle();
@@ -904,12 +927,8 @@ export default {
           ) {
             updateNote(id.value, { title });
           }
-          // Skip while the title is focused
-          if (
-            !isTitleFocused(titleDiv.value) &&
-            titleDiv.value &&
-            titleDiv.value.textContent !== title
-          ) {
+          if (isTitleFocused(titleDiv.value) || isComposing) return;
+          if (titleDiv.value && titleDiv.value.textContent !== title) {
             titleDiv.value.textContent = title;
             autoResizeTitle();
           }
@@ -968,6 +987,8 @@ export default {
       canEdit,
       syncingContent,
       yjsError,
+      prefs,
+      exitReader,
     };
   },
 };
@@ -987,6 +1008,7 @@ export default {
 
 .editor {
   max-width: var(--selected-width);
+  transition: max-width 200ms var(--ease-standard), width 200ms var(--ease-standard);
 }
 
 .editor-skeleton-wrapper {

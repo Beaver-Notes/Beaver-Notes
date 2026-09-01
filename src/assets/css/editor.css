@@ -913,3 +913,61 @@ th.is-active {
   white-space: nowrap;
   pointer-events: none;
 }
+
+.editor[data-reader-theme] { --reader-max-w: 42rem; --reader-outer: clamp(1rem, 4vw, 2.5rem); --drag-handle-gutter: 0px; max-width: var(--reader-max-w); margin-inline:auto; border-radius: 0.75rem; overflow: hidden; width: min(calc(100% - var(--reader-outer) * 2), var(--reader-max-w)); padding-left: 0 !important; padding-right: 0 !important; }
+.editor[data-reader-theme] .ProseMirror { padding-inline: 1.5rem; }
+.editor[data-reader-theme] .title-placeholder { padding-inline: 1.5rem !important; }
+.editor[data-reader-theme="light"] { background:#fff; color:#1a1a1a; }
+.editor[data-reader-theme="sepia"] { background:#f4ecd8; color:#5b4636; }
+.editor[data-reader-theme="dark"] { background:#1a1a1a; color:#e5e5e5; border: 1px solid rgba(255,255,255,0.06); }
+.editor[data-reader-theme="light"] .ProseMirror,
+.editor[data-reader-theme="light"] .ProseMirror p,
+.editor[data-reader-theme="light"] .ProseMirror h1,
+.editor[data-reader-theme="light"] .ProseMirror h2,
+.editor[data-reader-theme="light"] .ProseMirror h3,
+.editor[data-reader-theme="light"] .ProseMirror h4,
+.editor[data-reader-theme="light"] .ProseMirror h5,
+.editor[data-reader-theme="light"] .ProseMirror h6,
+.editor[data-reader-theme="light"] .ProseMirror li,
+.editor[data-reader-theme="light"] .ProseMirror li::marker,
+.editor[data-reader-theme="light"] .ProseMirror blockquote,
+.editor[data-reader-theme="light"] .ProseMirror strong { color:#1a1a1a !important; border-color: rgba(0,0,0,0.12) !important; }
+.editor[data-reader-theme="light"] .ProseMirror pre,
+.editor[data-reader-theme="light"] .ProseMirror .inline-code { background: #f5f5f5 !important; color:#1a1a1a !important; border-color: rgba(0,0,0,0.08) !important; }
+.editor[data-reader-theme="light"] .ProseMirror a { color: hsl(var(--twc-primary)) !important; }
+.editor[data-reader-theme="sepia"] .ProseMirror,
+.editor[data-reader-theme="sepia"] .ProseMirror p,
+.editor[data-reader-theme="sepia"] .ProseMirror h1,
+.editor[data-reader-theme="sepia"] .ProseMirror h2,
+.editor[data-reader-theme="sepia"] .ProseMirror h3,
+.editor[data-reader-theme="sepia"] .ProseMirror h4,
+.editor[data-reader-theme="sepia"] .ProseMirror h5,
+.editor[data-reader-theme="sepia"] .ProseMirror h6,
+.editor[data-reader-theme="sepia"] .ProseMirror li,
+.editor[data-reader-theme="sepia"] .ProseMirror li::marker,
+.editor[data-reader-theme="sepia"] .ProseMirror blockquote,
+.editor[data-reader-theme="sepia"] .ProseMirror strong { color:#5b4636 !important; border-color: rgba(91,70,54,0.2) !important; }
+.editor[data-reader-theme="sepia"] .ProseMirror pre,
+.editor[data-reader-theme="sepia"] .ProseMirror .inline-code { background: rgba(91,70,54,0.08) !important; color:#5b4636 !important; border-color: rgba(91,70,54,0.12) !important; }
+.editor[data-reader-theme="sepia"] .ProseMirror a { color: #8b5e3c !important; }
+.editor[data-reader-theme="dark"] .ProseMirror,
+.editor[data-reader-theme="dark"] .ProseMirror p,
+.editor[data-reader-theme="dark"] .ProseMirror h1,
+.editor[data-reader-theme="dark"] .ProseMirror h2,
+.editor[data-reader-theme="dark"] .ProseMirror h3,
+.editor[data-reader-theme="dark"] .ProseMirror h4,
+.editor[data-reader-theme="dark"] .ProseMirror h5,
+.editor[data-reader-theme="dark"] .ProseMirror h6,
+.editor[data-reader-theme="dark"] .ProseMirror li,
+.editor[data-reader-theme="dark"] .ProseMirror li::marker,
+.editor[data-reader-theme="dark"] .ProseMirror blockquote,
+.editor[data-reader-theme="dark"] .ProseMirror strong { color:#e5e5e5 !important; border-color: rgba(255,255,255,0.15) !important; }
+.editor[data-reader-theme="dark"] .ProseMirror pre,
+.editor[data-reader-theme="dark"] .ProseMirror .inline-code { background: rgba(255,255,255,0.08) !important; color:#e5e5e5 !important; border-color: rgba(255,255,255,0.12) !important; }
+.editor[data-reader-theme="dark"] .ProseMirror a { color: #a5b4fc !important; }
+.editor[data-reader-theme] .ProseMirror { font-size: var(--reader-size,18px); line-height: var(--reader-line,1.75); }
+.editor[data-reader-theme][data-reader-family="serif"] .ProseMirror { font-family: ui-serif, Georgia, serif; }
+.editor[data-reader-theme][data-reader-family="sans"] .ProseMirror { font-family: ui-sans-serif, system-ui, sans-serif; }
+.editor[data-reader-theme][data-reader-family="default"] .ProseMirror { font-family: inherit; }
+@media (prefers-reduced-motion: reduce) { .reader-chrome { transition:none !important; } }
+@media (prefers-reduced-motion: reduce) { .reader-chrome--hidden { opacity:1 !important; pointer-events:auto !important; } }
