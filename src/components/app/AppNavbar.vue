@@ -155,7 +155,7 @@
                 @click="switchWs(ws.id)"
               >
                 <span class="truncate">{{ ws.name || 'Workspace' }}</span>
-                <v-remixicon v-if="ws.id === activeWorkspaceId" name="riCheckLine" size="14" class="ml-auto text-primary" />
+                <v-remixicon v-if="ws.id === activeWorkspaceId" name="riCheckLine" size="14" class="ltr:ml-auto rtl:mr-auto text-primary" />
               </button>
             </div>
           </template>

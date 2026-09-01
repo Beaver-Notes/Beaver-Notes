@@ -73,6 +73,7 @@ export interface NoteData {
   preview?: string;
   searchText?: string;
   cardPreview?: CardPreview;
+  dir?: 'auto' | 'ltr' | 'rtl';
 }
 
 export interface NoteState {
@@ -320,6 +321,7 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
       isFullWidth: false,
       showWordCount: false,
       wordCountLimit: null,
+      dir: 'auto' as const,
       ...note,
       folderId,
     } as NoteData;

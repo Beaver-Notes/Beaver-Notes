@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 border-r border-neutral-200/40 dark:border-neutral-800/40 select-none"
+    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] will-change-[width] bg-white dark:bg-neutral-900 ltr:border-r rtl:border-l border-neutral-200/40 dark:border-neutral-800/40 select-none"
     :class="expanded ? 'w-64' : 'w-16'"
     :style="{ paddingTop: titlebarInset }"
   >
@@ -32,19 +32,24 @@
         "
         :aria-label="translations.sidebar.addNotes"
         data-testid="add-note-button"
-        class="transition-[width,height,padding,gap] duration-200 ease-[var(--ease-snappy)] text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center justify-center overflow-hidden"
-        :class="expanded ? 'px-4 gap-2 h-10 w-full' : 'p-0 w-9 h-9'"
+        class="relative text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center h-10 w-full overflow-hidden transition-colors"
+        :class="expanded ? 'px-3' : 'justify-center'"
         @click="addNote"
       >
-        <v-remixicon
-          name="riAddFill"
-          size="20"
-          class="transition-transform duration-200 ease-[var(--ease-snappy)] shrink-0"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+        >
+          <v-remixicon
+            name="riAddFill"
+            size="20"
+            class="transition-transform duration-200 ease-[var(--ease-snappy)] shrink-0"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="text-sm font-medium whitespace-nowrap truncate"
+            class="ltr:ml-8 rtl:mr-8 text-sm font-medium whitespace-nowrap truncate"
           >
             {{ translations.sidebar.addNotes }}
           </span>
@@ -62,18 +67,22 @@
             : undefined
         "
         :aria-label="translations.sidebar.newFolder || 'New Folder'"
-        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="relative w-full rounded-lg flex items-center h-9 overflow-hidden transition-colors"
         :class="[
-          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
         @click="openCreateFolderModal"
       >
-        <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+        >
+          <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="text-sm font-medium whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm font-medium whitespace-nowrap truncate"
           >
             {{ translations.sidebar.newFolder || 'New Folder' }}
           </span>
@@ -83,7 +92,7 @@
 
     <nav class="flex flex-col gap-1 px-3 shrink-0 relative">
       <div
-        class="absolute left-0 w-1 bg-primary rounded-r-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
+        class="absolute ltr:left-0 rtl:right-0 w-1 bg-primary ltr:rounded-r-full rtl:rounded-l-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
         :style="pillStyle"
       />
 
@@ -96,25 +105,29 @@
         "
         :aria-label="translations.sidebar.notes"
         data-testid="nav-notes-button"
-        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="relative w-full rounded-lg flex items-center h-9 overflow-hidden transition-colors"
         :class="[
-          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           isAllNotesActive
             ? 'text-primary bg-primary/10'
             : 'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
         @click="goHome"
       >
-        <v-remixicon
-          name="riBookletLine"
-          size="20"
-          class="shrink-0 transition-transform duration-200"
-          :class="{ 'scale-105': isAllNotesActive }"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+        >
+          <v-remixicon
+            name="riBookletLine"
+            size="20"
+            class="shrink-0 transition-transform duration-200"
+            :class="{ 'scale-105': isAllNotesActive }"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="text-sm font-medium whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm font-medium whitespace-nowrap truncate"
           >
             {{ translations.sidebar.notes || 'All Notes' }}
           </span>
@@ -130,25 +143,29 @@
         "
         :aria-label="translations.sidebar.archive"
         data-testid="nav-archive-button"
-        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="relative w-full rounded-lg flex items-center h-9 overflow-hidden transition-colors"
         :class="[
-          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           isArchiveActive
             ? 'text-primary bg-primary/10'
             : 'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
         @click="goArchive"
       >
-        <v-remixicon
-          name="riArchiveDrawerLine"
-          size="20"
-          class="shrink-0 transition-transform duration-200"
-          :class="{ 'scale-105': isArchiveActive }"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+        >
+          <v-remixicon
+            name="riArchiveDrawerLine"
+            size="20"
+            class="shrink-0 transition-transform duration-200"
+            :class="{ 'scale-105': isArchiveActive }"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="text-sm font-medium whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm font-medium whitespace-nowrap truncate"
           >
             {{ translations.sidebar.archive || 'Archive' }}
           </span>
@@ -218,7 +235,7 @@
       class="flex flex-col items-center gap-1 px-3 pb-4 pt-3 border-t border-neutral-200/50 dark:border-neutral-800/50 shrink-0 relative"
     >
       <div
-        class="absolute left-0 w-1 bg-primary rounded-r-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
+        class="absolute ltr:left-0 rtl:right-0 w-1 bg-primary ltr:rounded-r-full rtl:rounded-l-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
         :style="footerPillStyle"
       />
 
@@ -229,23 +246,25 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleSync"
-        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
-        :class="[
-          expanded ? 'w-full px-3' : 'justify-center w-9',
-          { '!text-primary': spinning },
-        ]"
+        class="relative w-full rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
+        :class="[{ '!text-primary': spinning }]"
         @click="manualSync"
       >
-        <v-remixicon
-          name="riLoopRightLine"
-          size="20"
-          :class="{ 'animate-spin': spinning }"
-          class="shrink-0 transition-transform duration-200"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+        >
+          <v-remixicon
+            name="riLoopRightLine"
+            size="20"
+            :class="{ 'animate-spin': spinning }"
+            class="shrink-0 transition-transform duration-200"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
             Sync
           </span>
@@ -302,20 +321,24 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleDarkTheme"
-        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
-        :class="expanded ? 'w-full px-3' : 'justify-center w-9'"
+        class="relative w-full rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
         @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
       >
-        <v-remixicon
-          size="20"
-          :class="theme.isDark() ? 'text-primary' : ''"
-          :name="theme.isDark() ? 'riSunLine' : 'riMoonClearLine'"
-          class="shrink-0 transition-transform duration-200"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+        >
+          <v-remixicon
+            size="20"
+            :class="theme.isDark() ? 'text-primary' : ''"
+            :name="theme.isDark() ? 'riSunLine' : 'riMoonClearLine'"
+            class="shrink-0 transition-transform duration-200"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
             {{ theme.isDark() ? 'Light' : 'Dark' }}
           </span>
@@ -331,24 +354,28 @@
         "
         :aria-label="translations.settings.title"
         to="/settings"
-        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9"
+        class="relative w-full rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 overflow-hidden transition-colors"
         active-class="text-primary bg-primary/10"
         :class="[
           !isSettingsActive
             ? 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
             : '',
-          expanded ? 'w-full px-3' : 'justify-center w-9',
         ]"
       >
-        <v-remixicon
-          name="riSettingsLine"
-          size="20"
-          class="shrink-0 transition-transform duration-200"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+        >
+          <v-remixicon
+            name="riSettingsLine"
+            size="20"
+            class="shrink-0 transition-transform duration-200"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
             {{ translations.settings.title }}
           </span>

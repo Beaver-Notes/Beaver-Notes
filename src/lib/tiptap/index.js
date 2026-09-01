@@ -60,9 +60,9 @@ import { getTranslations } from '@/utils/i18n/getTranslations';
 import { getSettingSync } from '@/lib/settings';
 const translations = getTranslations();
 
-const directionPreference = getSettingSync('directionPreference');
-
-const defaultDirection = directionPreference === 'rtl' ? 'rtl' : 'ltr';
+function getDefaultDirection() {
+  return getSettingSync('directionPreference') === 'rtl' ? 'rtl' : 'ltr';
+}
 
 function createBaseExtensions({ yjs = false } = {}) {
   return [
@@ -138,7 +138,8 @@ function createBaseExtensions({ yjs = false } = {}) {
     }),
     Superscript,
     TextDirection.configure({
-      defaultDirection: defaultDirection,
+      types: ['heading', 'paragraph', 'blockquote', 'listItem', 'codeBlock'],
+      defaultDirection: getDefaultDirection(),
     }),
     Image,
     Audio,

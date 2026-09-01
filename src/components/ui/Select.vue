@@ -3,7 +3,7 @@
     <label
       v-if="label"
       :for="selectId"
-      class="text-neutral-200 text-sm ml-2 rtl:ml-0 rtl:mr-2"
+      class="text-neutral-200 text-sm ltr:ml-2 rtl:mr-2"
     >
       {{ label }}
     </label>
@@ -15,7 +15,7 @@
       <v-remixicon
         v-if="prependIcon"
         :name="prependIcon"
-        class="absolute text-neutral-600 dark:text-neutral-200 left-0 ml-2 rtl:left-auto rtl:right-0 rtl:mr-2 rtl:ml-0"
+        class="absolute text-neutral-600 dark:text-neutral-200 ltr:left-0 rtl:right-0 ltr:ml-2 rtl:mr-2"
       />
 
       <!-- Custom Select Button -->
@@ -23,8 +23,8 @@
         :id="selectId"
         ref="selectButton"
         :class="[
-          prependIcon ? 'pl-8 rtl:pl-0 rtl:pr-8' : '',
-          'px-4 pr-8 py-2 z-10 w-full h-full text-left rtl:text-right bg-transparent focus:outline-none',
+          prependIcon ? 'ltr:pl-8 rtl:pr-8' : '',
+          'px-4 ltr:pr-8 rtl:pl-8 py-2 z-10 w-full h-full ltr:text-left rtl:text-right bg-transparent focus:outline-none',
         ]"
         type="button"
         :aria-labelledby="label ? `${selectId}-label` : undefined"
@@ -46,7 +46,7 @@
       <v-remixicon
         name="riArrowDownSLine"
         :class="{ 'rotate-180': isOpen }"
-        class="absolute right-2 rtl:right-auto rtl:left-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-200 transition-transform duration-200 pointer-events-none"
+        class="absolute ltr:right-2 rtl:left-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-200 transition-transform duration-200 pointer-events-none"
       />
 
       <!-- Dropdown Menu (teleported so it is never clipped by an

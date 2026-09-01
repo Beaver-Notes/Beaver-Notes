@@ -64,6 +64,7 @@ export function hydrateNote(note) {
   if (!note || typeof note !== 'object') return note;
 
   const persisted = stripTransientFields(note);
+  if (persisted.dir !== 'ltr' && persisted.dir !== 'rtl') persisted.dir = 'auto';
   const hidden = persisted.isLocked || isEncryptedContent(persisted.content);
 
   // Fast path: both computed fields already present — skip content traversal.

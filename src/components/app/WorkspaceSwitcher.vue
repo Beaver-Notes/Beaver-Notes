@@ -103,7 +103,7 @@
           </button>
           <button
             v-if="canManageWorkspace(ws)"
-            class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
+            class="absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
             @click.stop="promptRename(ws)"
             aria-label="Rename workspace"
           >
@@ -111,8 +111,7 @@
           </button>
           <button
             v-if="canManageWorkspace(ws)"
-            class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
-            style="right: 1.5rem"
+            class="absolute ltr:right-6 rtl:left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
             @click.stop="goToTeamSettings"
             aria-label="Team settings"
           >

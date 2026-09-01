@@ -44,6 +44,7 @@ const NOTE_META_FIELDS = [
   'updatedAt',
   'preview',
   'cardPreview',
+  'dir',
 ];
 
 let observerAttached = false;

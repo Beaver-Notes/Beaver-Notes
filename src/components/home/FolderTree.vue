@@ -24,7 +24,7 @@
         }"
         @click="selectedId = null"
       >
-        <div class="mr-2 flex items-center justify-center">
+        <div class="ltr:mr-2 rtl:ml-2 flex items-center justify-center">
           <v-remixicon
             name="riFolder5Fill"
             class="w-5 h-5"
@@ -65,7 +65,7 @@
       <!-- Action buttons -->
       <div class="mt-8 flex gap-2 mobile:flex-col-reverse mobile:gap-3">
         <ui-button
-          class="w-6/12 mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3 rtl:ml-2 mobile:rtl:ml-0"
+          class="w-6/12 mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
           @click="closeModal"
         >
           {{ translations.dialog.cancel }}

@@ -1,9 +1,9 @@
 <template>
   <div
-    class="flex flex-col md:flex-row items-start md:space-x-4 space-y-2 md:space-y-0 mb-6"
+    class="flex flex-col md:flex-row items-start ltr:md:space-x-4 rtl:md:space-x-4 rtl:md:space-x-reverse space-y-2 md:space-y-0 mb-6"
   >
     <!-- Search input -->
-    <div class="w-full md:flex-1 rtl:ml-4">
+    <div class="w-full md:flex-1">
       <div class="flex items-center btn-group">
         <ui-input
           :model-value="query"
@@ -21,7 +21,7 @@
     </div>
 
     <!-- Sort filter -->
-    <div class="flex flex-row w-full md:w-auto space-x-2 border rounded-lg">
+    <div class="flex flex-row w-full md:w-auto ltr:space-x-2 rtl:space-x-2 rtl:space-x-reverse border rounded-lg">
       <div class="flex items-center divide-x btn-group flex-1">
         <ui-button
           v-tooltip="
@@ -67,13 +67,13 @@
       </button>
       <button
         v-else
-        class="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg text-sm font-medium bg-primary/10 text-primary shrink-0 hover:opacity-80 transition-opacity"
+        class="inline-flex items-center gap-1 ltr:pl-2 rtl:pr-2 ltr:pr-1 rtl:pl-1 py-1 rounded-lg text-sm font-medium bg-primary/10 text-primary shrink-0 hover:opacity-80 transition-opacity"
         :style="selectedEntry?.color ? { color: selectedEntry.color, backgroundColor: selectedEntry.color + '1a' } : {}"
         aria-label="Clear label filter"
         @click="toggleLabel(label)"
       >
         #{{ label }}
-        <span class="inline-flex items-center justify-center size-5 -mr-0.5 pointer-events-none">
+        <span class="inline-flex items-center justify-center size-5 ltr:-mr-0.5 rtl:-ml-0.5 pointer-events-none">
           <v-remixicon name="riCloseLine" size="14" />
         </span>
       </button>

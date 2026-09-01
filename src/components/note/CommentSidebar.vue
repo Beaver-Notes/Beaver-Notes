@@ -3,7 +3,7 @@
     <div
       :class="docked
         ? 'relative shrink-0 flex w-[380px] max-w-[42%] self-start sticky top-4 h-[calc(100vh-2rem)] flex-col bg-[#fbfbfa] dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden max-lg:hidden'
-        : 'fixed inset-y-0 right-0 z-50 flex w-[380px] max-w-[92vw] flex-col bg-[#fbfbfa] dark:bg-neutral-950 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl'"
+        : 'fixed inset-y-0 ltr:right-0 rtl:left-0 z-50 flex w-[380px] max-w-[92vw] flex-col bg-[#fbfbfa] dark:bg-neutral-950 ltr:border-l rtl:border-r border-neutral-200 dark:border-neutral-800 shadow-2xl'"
     >
       <!-- Header — Notion-style: small caps, count badge -->
       <div
@@ -104,7 +104,7 @@
                         </span>
                         <button
                           v-if="ci === 0"
-                          class="ml-auto -mr-1 opacity-0 group-hover:opacity-100 focus:opacity-100 w-6 h-6 grid place-items-center rounded-md text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
+                          class="ltr:ml-auto rtl:mr-auto ltr:-mr-1 rtl:-ml-1 opacity-0 group-hover:opacity-100 focus:opacity-100 w-6 h-6 grid place-items-center rounded-md text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
                           :aria-label="translationsComments.delete || 'Delete'"
                           @click="deleteComment(comment.id)"
                         >
@@ -128,7 +128,7 @@
                   <v-remixicon name="riCheckLine" size="13" class="text-emerald-600" />
                   {{ translationsComments.resolve || 'Resolve' }}
                 </button>
-                <span class="ml-auto text-[11px] text-neutral-400 hidden group-hover:inline">{{ thread.comments.length }} {{ thread.comments.length === 1 ? 'comment' : 'comments' }}</span>
+                <span class="ltr:ml-auto rtl:mr-auto text-[11px] text-neutral-400 hidden group-hover:inline">{{ thread.comments.length }} {{ thread.comments.length === 1 ? 'comment' : 'comments' }}</span>
               </div>
 
               <!-- reply composer — Notion inline -->
@@ -148,7 +148,7 @@
                       @keydown.enter="submitReply(thread.id)"
                     />
                     <button
-                      class="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 grid place-items-center rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition"
+                      class="absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 w-6 h-6 grid place-items-center rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition"
                       :disabled="!replyInputs[thread.id]?.trim()"
                       aria-label="Reply"
                       @click="submitReply(thread.id)"
@@ -169,7 +169,7 @@
             >
               <v-remixicon :name="showResolved ? 'riArrowDownSLine' : 'riArrowRightSLine'" size="14" />
               {{ resolvedThreads.length }} resolved
-              <span class="h-px flex-1 bg-neutral-200 dark:bg-neutral-800 ml-2" />
+              <span class="h-px flex-1 bg-neutral-200 dark:bg-neutral-800 ltr:ml-2 rtl:mr-2" />
             </button>
             <div v-if="showResolved" class="space-y-2.5 mt-1">
               <div
@@ -244,7 +244,7 @@
               @keydown.enter.exact.prevent="submitComment"
             />
             <button
-              class="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition"
+              class="absolute ltr:right-1.5 rtl:left-1.5 top-1/2 -translate-y-1/2 w-7 h-7 grid place-items-center rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition"
               :disabled="!newComment.trim()"
               aria-label="Send comment"
               @click="submitComment"
@@ -253,7 +253,7 @@
             </button>
           </div>
         </div>
-        <p class="hidden sm:block text-[11px] text-neutral-400 mt-1.5 ml-9">↵ to send · ⇧↵ for new line</p>
+        <p class="hidden sm:block text-[11px] text-neutral-400 mt-1.5 ltr:ml-9 rtl:mr-9">↵ to send · ⇧↵ for new line</p>
       </div>
     </div>
   </transition>

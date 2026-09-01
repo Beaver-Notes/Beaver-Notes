@@ -43,7 +43,7 @@
 
   <a
     href="#app-main"
-    class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none"
+    class="sr-only focus:not-sr-only focus:fixed focus:top-2 ltr:focus:left-2 rtl:focus:right-2 focus:z-[200] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none"
     @click.prevent="skipToMain"
   >
     Skip to content
@@ -75,7 +75,7 @@
     >
       <div
         v-show="uiState.inReaderMode"
-        class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"
+        class="fixed top-0 ltr:left-0 rtl:right-0 w-full h-full pointer-events-none z-50"
       ></div>
 
       <div
@@ -146,7 +146,7 @@
 
   <div
     v-show="appStore.loading"
-    class="fixed w-full h-full top-0 left-0 z-50 flex justify-center items-center bg-opacity-40 bg-black"
+    class="fixed w-full h-full top-0 ltr:left-0 rtl:right-0 z-50 flex justify-center items-center bg-opacity-40 bg-black"
   >
     <ui-spinner :size="50" />
   </div>

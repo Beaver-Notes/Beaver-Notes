@@ -1030,6 +1030,7 @@ export async function buildWebExportDocument(editor, options = {}) {
     title = 'Untitled',
     mode = 'folder',
     noteId = '',
+    dir = document.documentElement.dir || 'auto',
     extraStyles = '',
     isPaginated = false,
     pageWidth = A4_CSS_W,
@@ -1053,7 +1054,7 @@ export async function buildWebExportDocument(editor, options = {}) {
     : '';
 
   return `<!DOCTYPE html>
-<html lang="en" class="${theme}">
+<html lang="en" dir="${dir}" class="${theme}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1069,7 +1070,7 @@ export async function buildWebExportDocument(editor, options = {}) {
       ? `<h1 class="export-title">${escapeHtml(title)}</h1>`
       : ''
   }
-  <div class="export-root note-editor__content prose prose-stone max-w-none ${
+  <div dir="${dir}" class="export-root note-editor__content prose prose-stone max-w-none ${
     isDark ? 'dark:text-neutral-100' : ''
   }">
     ${clone.outerHTML}

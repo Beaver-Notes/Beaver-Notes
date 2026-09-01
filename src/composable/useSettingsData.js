@@ -507,6 +507,9 @@ export function useSettingsData({
   const updateLanguage = () => {
     const languageCode = selectedLanguage.value;
     const dir = getLanguageDirection(languageCode);
+    directionPreference.value = dir;
+    document.documentElement.setAttribute('dir', dir);
+    document.documentElement.setAttribute('lang', languageCode);
     const i18n = useI18nStore();
     void Promise.all([
       i18n.setLanguage(languageCode),

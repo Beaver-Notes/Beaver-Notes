@@ -11,7 +11,7 @@
         @change="changeHandler"
       />
       <div
-        class="border rounded-lg absolute top-0 left-0 bg-input checkbox-ui__mark"
+        class="border rounded-lg absolute top-0 ltr:left-0 rtl:right-0 bg-input checkbox-ui__mark"
       >
         <v-remixicon
           name="riCheckLine"
