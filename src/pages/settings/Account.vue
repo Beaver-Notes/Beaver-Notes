@@ -6,7 +6,7 @@
         {{ translations.account?.title || 'Beaver Account' }}
       </p>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div class="flex flex-col gap-3 px-4 py-4">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
@@ -105,7 +105,7 @@
               </ui-button>
             </div>
             <button class="mt-2 text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">{{ tr.forgotPassword || 'Forgot password?' }}</button>
-            <div v-if="showForgot" class="mt-2 flex flex-col gap-2 border rounded-lg p-3 bg-neutral-50 dark:bg-neutral-800">
+            <div v-if="showForgot" class="mt-2 flex flex-col gap-2 border rounded-lg p-3 bg-neutral-50 dark:bg-neutral-900">
               <ui-input v-model="forgotEmail" type="email" :placeholder="tr.emailPlaceholder || 'Email for reset link'" :aria-label="tr.emailPlaceholder || 'Email for reset link'" class="w-full" />
               <ui-button variant="secondary" :loading="forgotBusy" :aria-label="tr.sendResetLink || 'Send reset link'" @click="handleForgot">{{ tr.sendResetLink || 'Send reset link' }}</ui-button>
               <p v-if="forgotMessage" class="text-xs" :class="forgotSent ? 'text-green-600' : 'text-amber-600'">{{ forgotMessage }}</p>
@@ -203,7 +203,7 @@
         {{ translations.account?.title || 'Beaver Account' }}
       </p>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div class="flex items-center gap-3 px-4 py-3.5">
           <div
@@ -536,7 +536,7 @@
         {{ translations.account?.devices || 'Devices' }}
       </p>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div
           v-for="device in accountStore.devices"
@@ -582,7 +582,7 @@
         </ui-button>
       </div>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div v-if="loadingSessions" class="px-4 py-6 text-center">
           <div class="animate-spin inline-block">
@@ -630,7 +630,7 @@
         {{ translations.account?.security || 'Security' }}
       </p>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div class="flex items-center gap-3 px-4 py-3.5">
           <div class="min-w-0 flex-1">
@@ -699,7 +699,7 @@
         {{ translations.account?.server || 'Server' }}
       </p>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div
           v-if="!showServerUrlEditor"
