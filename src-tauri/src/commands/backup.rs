@@ -9,7 +9,6 @@ use crate::shared::*;
 const BACKUP_TABLES: &[&str] = &["kv", "note_content", "yjs_snapshots"];
 const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /// Byte-for-byte recursive copy (no re-encryption): assets are already
 /// encrypted-at-rest where applicable, so the archive mirrors disk.
@@ -106,7 +105,6 @@ fn import_db(pool: &crate::db::DbPool, src: &Path) -> Result<(), AppError> {
     result
 }
 
-// ─── Commands ─────────────────────────────────────────────────────────────────
 
 /// Export a full-state backup folder (clean DB copies + global assets):
 /// `<dir>/data.db`, `<dir>/settings.db`, `<dir>/assets/`

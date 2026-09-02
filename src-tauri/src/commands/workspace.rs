@@ -210,7 +210,6 @@ pub(crate) fn workspace_delete(
     Ok(())
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 fn slugify(name: &str) -> String {
     let slug: String = name

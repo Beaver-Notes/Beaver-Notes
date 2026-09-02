@@ -9,7 +9,6 @@ pub fn generate_bindings() {
             let mut types = Types::default();
 
             let all_fns = vec![
-                // ── App lifecycle ────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::app::app_info)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::app_directory)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::migration_status)(&mut types),
@@ -34,12 +33,9 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::app::helper_get_path)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::helper_is_dark_theme)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::show_edit_context_menu)(&mut types),
-                // ── Backup ──────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::backup::backup_export)(&mut types),
                 specta::_fn_datatype!(crate::commands::backup::backup_import)(&mut types),
-                // ── External files ───────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::external::open_file_external)(&mut types),
-                // ── Filesystem ───────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::fs::fs_copy)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_output_json)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_read_json)(&mut types),
@@ -57,7 +53,6 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::fs::fs_is_file)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_access)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_download_url)(&mut types),
-                // ── KV storage ───────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::storage::storage_get_store)(&mut types),
                 specta::_fn_datatype!(crate::commands::storage::storage_replace)(&mut types),
                 specta::_fn_datatype!(crate::commands::storage::storage_get)(&mut types),
@@ -71,7 +66,6 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::storage::storage_repair_settings)(
                     &mut types,
                 ),
-                // ── Encryption & security ────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::security::safe_storage_is_available)(
                     &mut types,
                 ),
@@ -152,12 +146,10 @@ pub fn generate_bindings() {
                 ),
                 specta::_fn_datatype!(crate::commands::security::derive_argon2_key)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::vault_derive_proof)(&mut types),
-                // ── Dialogs ──────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::dialogs::dialog_open)(&mut types),
                 specta::_fn_datatype!(crate::commands::dialogs::dialog_message)(&mut types),
                 specta::_fn_datatype!(crate::commands::dialogs::dialog_save)(&mut types),
                 specta::_fn_datatype!(crate::commands::dialogs::get_system_fonts)(&mut types),
-                // ── Updates ──────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::updates::get_installation_source)(
                     &mut types,
                 ),
@@ -168,12 +160,9 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::updates::get_auto_update_status)(&mut types),
                 specta::_fn_datatype!(crate::commands::updates::is_update_downloading)(&mut types),
                 specta::_fn_datatype!(crate::commands::updates::get_update_info)(&mut types),
-                // ── Imports ──────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::imports::import_evernote)(&mut types),
                 specta::_fn_datatype!(crate::commands::imports::import_apple_notes)(&mut types),
-                // ── PDF ──────────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::pdf::render_pdf)(&mut types),
-                // ── Yjs CRDT ─────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::yjs::yjs_append)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_append_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_get_updates)(&mut types),
@@ -182,14 +171,11 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::yjs::yjs_compact)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_compact_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_delete)(&mut types),
-                // ── Index persistence ────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::index::index_save)(&mut types),
                 specta::_fn_datatype!(crate::commands::index::index_load)(&mut types),
-                // ── Search index ──────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::search::search_extract_index_data)(
                     &mut types,
                 ),
-                // ── Workspaces ───────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::workspace::workspace_list)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_get_active)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_create)(&mut types),

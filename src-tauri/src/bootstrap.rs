@@ -764,7 +764,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("bootstrap.setup_app");
     let state = app.state::<AppState>();
 
-    // ── Workspace migration (must run BEFORE any settings_pool call) ──────
+    // Workspace migration (must run BEFORE any settings_pool call)
     migrate_to_workspace_layout(app.handle(), state.inner())?;
 
     // Retired separate app-password store: one workspace passphrase protects

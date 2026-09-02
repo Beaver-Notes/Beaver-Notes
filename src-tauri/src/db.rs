@@ -78,7 +78,7 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
     Ok(pool)
 }
 
-// ─── Basic KV operations ─────────────────────────────────────────────────────
+// Basic KV operations
 
 /// Seal a kv value for at-rest storage: AES-256-GCM under the app content key
 /// when one is available, plaintext bytes otherwise. Sealed output carries the
@@ -103,6 +103,15 @@ fn open_kv_value(stored: Vec<u8>, enc_key: Option<[u8; 32]>) -> Result<String, A
         .map_err(|e| AppError::Other(format!("kv value is not valid utf-8: {e}")))
 }
 
+fn kv_bytes(row: &rusqlite::Row, idx: usize) -> rusqlite::Result<Vec<u8>> {
+    // KV was historically TEXT; sealed rows are BLOBs. Accept both.
+    if let Ok(b) = row.get::<_, Vec<u8>>(idx) {
+        return Ok(b);
+    }
+    let s = row.get::<_, String>(idx)?;
+    Ok(s.into_bytes())
+}
+
 pub(crate) fn db_get(
     pool: &DbPool,
     key: &str,
@@ -112,7 +121,7 @@ pub(crate) fn db_get(
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let stored: Option<Vec<u8>> = conn
         .query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| {
-            row.get(0)
+            kv_bytes(row, 0)
         })
         .optional()
         .map_err(|e| AppError::Other(e.to_string()))?;
@@ -177,7 +186,7 @@ pub(crate) fn db_all(
     let rows = stmt
         .query_map([], |row| {
             let key: String = row.get(0)?;
-            let stored: Vec<u8> = row.get(1)?;
+            let stored = kv_bytes(row, 1)?;
             Ok((key, stored))
         })
         .map_err(|e| AppError::Other(e.to_string()))?;
@@ -258,7 +267,7 @@ pub(crate) fn db_apply_diff(
     tx.commit().map_err(|e| AppError::Other(e.to_string()))
 }
 
-// ─── Yjs note-content helpers ─────────────────────────────────────────────────
+// Yjs note-content helpers
 
 /// Append a raw Yjs update for a note (append-only so every peer's version is
 /// preserved). The snapshot cache is NOT folded here: rebuilding it per write
@@ -631,7 +640,7 @@ pub(crate) fn yjs_delete(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-// ─── Yjs snapshot cache helpers (y-octo-backed) ────────────────────────────────
+// Yjs snapshot cache helpers (y-octo-backed)
 
 fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<(Vec<u8>, i64)>, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;

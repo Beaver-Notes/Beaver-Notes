@@ -730,7 +730,7 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
     Ok(())
 }
 
-// ── Shared helpers ─────────────────────────────────────────────────
+// Shared helpers
 
 #[cfg(any(
     target_os = "ios",

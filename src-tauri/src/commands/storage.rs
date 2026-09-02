@@ -9,7 +9,7 @@ fn key_segments(key: &str) -> Vec<&str> {
         .collect()
 }
 
-// ─── Nested-value helpers ────────────────────────────────────────────────────
+// Nested-value helpers
 
 fn get_nested_value<'a>(value: &'a Value, segments: &[&str]) -> Option<&'a Value> {
     let mut current = value;
@@ -225,7 +225,7 @@ fn pick_pool(name: &str, app: &AppHandle, state: &AppState) -> Result<crate::db:
     }
 }
 
-// ─── Flat-key helpers ─────────────────────────────────────────────────────────
+// Flat-key helpers
 //
 // A key is "flat-addressable" when it maps 1:1 to a KV row: a single segment
 // (e.g. "deletedIds") or a note-like namespace with one sub-key ("notes.<id>",
@@ -262,7 +262,7 @@ fn decrypt_store_row_with_key(
     Ok(decrypt_json_from_storage(key, &value, &storage_aad(row_key))?.unwrap_or(value))
 }
 
-// ─── Pure worker functions (state-free; run inside spawn_blocking) ───────────
+// Pure worker functions (state-free; run inside spawn_blocking)
 //
 // The async commands extract owned key material and the pool up front, then
 // dispatch these workers to a blocking thread so SQLite I/O and per-row AES
@@ -504,7 +504,7 @@ fn storage_replace_value(
     Ok(())
 }
 
-// ─── Commands ────────────────────────────────────────────────────────────────
+// Commands
 
 /// Full store as a nested JSON object; only used on startup / sync
 /// (intentionally loads everything). Note content is no longer encrypted at the
@@ -638,7 +638,13 @@ pub(crate) fn repair_sealed_settings(
     let rows = stmt
         .query_map([], |row| {
             let k: String = row.get(0)?;
-            let v: Vec<u8> = row.get(1)?;
+            let v = {
+                if let Ok(b) = row.get::<_, Vec<u8>>(1) {
+                    b
+                } else {
+                    row.get::<_, String>(1)?.into_bytes()
+                }
+            };
             Ok((k, v))
         })
         .map_err(|e| AppError::Other(e.to_string()))?

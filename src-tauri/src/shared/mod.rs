@@ -585,8 +585,8 @@ pub(crate) fn data_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, App
     let path = workspace_data_path(app, state, &workspace_id)?;
     let pool = crate::db::open_pool(&path)?;
     let mut guard = state.db.data.lock()?;
-    if guard.is_some() {
-        return Ok(guard.as_ref().unwrap().clone());
+    if let Some(v) = guard.as_ref() {
+        return Ok(v.clone());
     }
     *guard = Some(pool.clone());
     Ok(pool)
@@ -616,8 +616,8 @@ pub(crate) fn settings_pool(app: &AppHandle, state: &AppState) -> Result<DbPool,
     let path = workspace_settings_path(app, state, &workspace_id)?;
     let pool = crate::db::open_pool(&path)?;
     let mut guard = state.db.settings.lock()?;
-    if guard.is_some() {
-        return Ok(guard.as_ref().unwrap().clone());
+    if let Some(v) = guard.as_ref() {
+        return Ok(v.clone());
     }
     *guard = Some(pool.clone());
     Ok(pool)
@@ -635,7 +635,6 @@ pub(crate) fn swap_settings_pool(
     Ok(())
 }
 
-// ─── Workspace registry (workspaces.json) ─────────────────────────────────────
 
 pub(crate) const DEFAULT_WORKSPACE_ID: &str = "default";
 pub(crate) const DEFAULT_WORKSPACE_NAME: &str = "Default";
