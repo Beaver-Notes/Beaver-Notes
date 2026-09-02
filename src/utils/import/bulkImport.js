@@ -36,7 +36,6 @@ import {
   resolveRelativeFileValue,
 } from './helpers';
 
-// ─── HTML to Tiptap conversion ───────────────────────────────────────────────
 
 function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -212,7 +211,6 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   }
 }
 
-// ─── Concurrency helper ──────────────────────────────────────────────────────
 
 async function processWithConcurrency(items, fn, concurrency = 4) {
   for (let i = 0; i < items.length; i += concurrency) {
@@ -222,7 +220,6 @@ async function processWithConcurrency(items, fn, concurrency = 4) {
   }
 }
 
-// ─── Native Rust import ──────────────────────────────────────────────────────
 
 async function processRustImportNote(note, state, appDirectory) {
   const noteStore = useNoteStore();
@@ -365,7 +362,6 @@ export function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
   };
 }
 
-// ─── Bulk platform importers ─────────────────────────────────────────────────
 
 export async function importObsidian(
   vaultPath,

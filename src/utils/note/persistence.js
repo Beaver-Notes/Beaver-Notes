@@ -97,7 +97,7 @@ export function useNotePersistence({
     return {
       labels: [...labels],
       ...(currentContent ? { content: currentContent } : {}),
-      ...(currentTitle !== undefined ? { title: currentTitle } : {}),
+      title: currentTitle,
       ...(Number.isFinite(currentCursorPosition)
         ? { lastCursorPosition: currentCursorPosition }
         : {}),

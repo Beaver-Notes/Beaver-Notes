@@ -1,4 +1,3 @@
-// ─── Memoized array sort ──────────────────────────────────────────────────────
 
 const cache = new WeakMap();
 

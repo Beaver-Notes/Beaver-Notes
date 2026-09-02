@@ -1,4 +1,3 @@
-// src/utils/i18n/getTranslations.js
 import { getSettingSync } from '@/lib/settings';
 
 const locales = import.meta.glob('@/assets/locales/*.json', { eager: true });

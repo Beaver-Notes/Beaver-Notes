@@ -9,8 +9,8 @@ import {
 } from './pending-writes.js';
 import { applyRemote } from '@/composable/useNoteYjs.js';
 import { appendUpdate, appendBatch } from '@/lib/native/yjs.js';
-import { getAppDirectory, notify } from '@/lib/native/app';
-import { backend, path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
+import { path } from '@/lib/tauri-bridge';
 import { emit } from '@tauri-apps/api/event';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
@@ -25,54 +25,6 @@ import { getActiveDoc } from '@/lib/yjs/shared.js';
 import { logger } from '@/utils/logger';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
-
-// Background pull-only cycles run every 30s while the app is visible, so
-// failure/lock notifications are throttled to avoid spamming the user.
-const ERROR_NOTIFY_THROTTLE_MS = 5 * 60_000;
-let lastErrorNotifyAt = 0;
-let unlockNotified = false;
-
-async function getAppCopy() {
-  try {
-    const { useI18nStore } = await import('@/store/i18n');
-    return useI18nStore().messages?.app || {};
-  } catch {
-    return {};
-  }
-}
-
-function desktopNotify(title, body) {
-  if (typeof backend?.isTouchRuntime === 'function' && backend.isTouchRuntime()) return Promise.resolve(false);
-  return notify({ title, body }).catch(() => false);
-}
-
-function notifySyncCompleted() {
-  getAppCopy().then((copy) => {
-    desktopNotify('Beaver Notes', copy.syncComplete || 'Sync complete');
-  });
-}
-
-function notifySyncFailed() {
-  const now = Date.now();
-  if (now - lastErrorNotifyAt < ERROR_NOTIFY_THROTTLE_MS) return;
-  lastErrorNotifyAt = now;
-  getAppCopy().then((copy) => {
-    desktopNotify('Beaver Notes', copy.syncFailed || 'Sync failed');
-  });
-}
-
-function notifySyncLocked() {
-  if (unlockNotified) return;
-  unlockNotified = true;
-  getAppCopy().then((copy) => {
-    desktopNotify(
-      'Beaver Notes',
-      copy.syncLockContent ||
-        'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.'
-    );
-  });
-}
-
 
 let engine = null;
 
@@ -259,7 +211,6 @@ export class SyncEngine {
       if (!readiness.keyReady) {
         logger.info('[sync] encryption key not ready — deferring cycle');
         try { emit('sync:status', { status: 'unlock-required' }); } catch {}
-        notifySyncLocked();
         outcome = { ok: true };
         return;
       }
@@ -333,7 +284,6 @@ export class SyncEngine {
               if (e?.code === 'unlock-required') {
                 logger.warn('[sync] pull deferred — encryption is locked or not configured');
                 try { emit('sync:status', { status: 'unlock-required' }); } catch {}
-                notifySyncLocked();
                 if (name === 'cloud') cloudBlocked = true;
                 break;
               }
@@ -515,14 +465,11 @@ export class SyncEngine {
 
       outcome = { ok: true };
       try { emit('sync:status', { status: 'complete' }); } catch {}
-      unlockNotified = false;
-      if (gotUpdates || pushedAny) notifySyncCompleted();
       logger.info('[sync] cycle complete ok');
     } catch (err) {
       logger.error('[sync] Sync failed:', err);
       logger.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
-      notifySyncFailed();
       const status = err?.code === 'unlock-required' ? 'unlock-required' :
         err?.status === 401 || err?.status === 403 ? 'authorization-failed' : 'offline';
       try { emit('sync:status', { status }); } catch {}

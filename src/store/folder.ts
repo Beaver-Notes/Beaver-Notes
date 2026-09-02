@@ -27,7 +27,6 @@ interface FolderState {
   _childrenIndex: Map<string | null, Set<string>> | null;
 }
 
-// Children index helpers
 
 function buildChildIndex(data: Record<string, FolderData>): Map<string | null, Set<string>> {
   const index = new Map<string | null, Set<string>>();
@@ -171,13 +170,11 @@ export const useFolderStore = defineStore('folder', {
   },
 
   actions: {
-    // ── Index maintenance ─────────────────────────────────────────────────
 
     _rebuildIndex() {
       this._childrenIndex = buildChildIndex(this.data);
     },
 
-    // ── Load & hydration ──────────────────────────────────────────────────
 
     async retrieve(): Promise<Record<string, FolderData>> {
       try {
@@ -191,7 +188,6 @@ export const useFolderStore = defineStore('folder', {
       }
     },
 
-    // ── CRUD ──────────────────────────────────────────────────────────────
 
     async add(folder: Partial<FolderData> = {}): Promise<FolderData> {
       try {
@@ -341,7 +337,6 @@ export const useFolderStore = defineStore('folder', {
       return { targetFolderId, affectedFolders: childIds };
     },
 
-    // ── Archive / Unarchive ────────────────────────────────────────────
 
     async archive(id: string): Promise<{ archivedFolderIds: string[] }> {
       try {

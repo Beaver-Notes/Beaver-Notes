@@ -134,7 +134,6 @@ async function persistWorkspace(update) {
   }
 }
 
-// ── Load / observe ───────────────────────────────────────────────────────────
 
 export async function loadWorkspaceDoc() {
   // Flush buffered meta updates BEFORE reading SQLite so freshly seeded

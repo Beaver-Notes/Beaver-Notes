@@ -69,7 +69,6 @@ export function mergeStateVectors(docId, remoteSV) {
   return merged;
 }
 
-// ── Server checkpoint storage ────────────────────────────────────────────────
 // Per-device { ts, sequence } checkpoints sent back on each pull so the server
 // returns only NEW updates instead of re-downloading everything.
 

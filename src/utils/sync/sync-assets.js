@@ -189,8 +189,8 @@ export async function syncAssets(
             remoteListingCache.delete(path.dirname(op.src));
             break;
         }
-      } catch {
-      // individual file failures are non-fatal
+      } catch (e) {
+      console.warn('[sync] asset op failed', op, e?.message);
     }
 
     processed += 1;

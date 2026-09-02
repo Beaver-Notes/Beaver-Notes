@@ -20,8 +20,6 @@ export function getLanguageDirection(languageCode) {
   return ONBOARDING_LANGUAGE_CONFIG[languageCode]?.dir || 'ltr';
 }
 
-// ─── Animation timing constants ──────────────────────────────────────────────
-
 export const ENTRANCE_DELAYS = {
   logo: 120,
   text: 580,
@@ -34,7 +32,6 @@ export const CURTAIN_DURATIONS = {
   open: 1200,
 };
 
-// ─── Language / theme config data ────────────────────────────────────────────
 // ONBOARDING_LANGUAGE_CONFIG and ONBOARDING_LANGUAGES are re-exported from @/utils/i18n/languages.js
 
 export const ONBOARDING_THEMES = [
@@ -82,8 +79,6 @@ export const ONBOARDING_FONTS = [
   { label: 'Roboto Mono', value: 'Roboto Mono', class: 'font-roboto-mono' },
   { label: 'Ubuntu', value: 'Ubuntu', class: 'font-ubuntu' },
 ];
-
-// ─── Onboarding actions ──────────────────────────────────────────────────────
 
 export async function applyOnboardingFreshPreferences(preferences, { theme }) {
   const languageCode = preferences.language;

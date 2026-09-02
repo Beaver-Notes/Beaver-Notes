@@ -90,7 +90,6 @@ export function setSkipUndo(value: boolean): void {
 const contentSignature: Map<string, object> = new Map();
 const indexSignature: Map<string, string> = new Map();
 
-// ── Incremental folder counts ──
 // Maintained by add/delete/patchLocal to avoid O(n) rebuild on every getter access.
 // `folderCountsVersion` is the reactive dep so the `notesCountByFolder` getter
 // (Pinia caches getters) invalidates when a count changes — otherwise it would
@@ -122,18 +121,15 @@ function decrementFolderCount(folderId: string | null) {
 function initFolderCounts(data: Record<string, NoteData>) {
   folderCounts.clear();
   for (const note of Object.values(data)) {
-    if (!note?.id) continue;
     incrementFolderCount(note.folderId);
   }
   bumpFolderCounts();
 }
 
-// ── search (from search.js) ──
 
-// ─── Simple getters (kept together for discoverability) ──────────────────────
 
 export function notes(state: NoteState) {
-  return Object.values(state.data).filter(({ id }) => id);
+  return Object.values(state.data);
 }
 
 export function getById(state: NoteState) {
@@ -142,16 +138,14 @@ export function getById(state: NoteState) {
 
 export function getByFolder(state: NoteState) {
   return (folderId: string | null = null) =>
-    Object.values(state.data).filter(
-      (note) => note.folderId === folderId && note.id
-    );
+    Object.values(state.data).filter((note) => note.folderId === folderId);
 }
 
 export function getNotesCountByFolder(state: NoteState) {
   return (folderId: string | null = null) => {
     let count = 0;
     for (const note of Object.values(state.data)) {
-      if (note.id && note.folderId === folderId) count++;
+      if (note.folderId === folderId) count++;
     }
     return count;
   };
@@ -168,12 +162,11 @@ export function notesCountByFolder(_state: NoteState): Map<string | null, number
   return new Map(folderCounts);
 }
 
-// ─── Search-related getters ──────────────────────────────────────────────────
 
 export function getFolderContents(state: NoteState) {
   return (folderId: string | null = null) => {
     const notes = Object.values(state.data)
-      .filter((note) => note.folderId === folderId && note.id)
+      .filter((note) => note.folderId === folderId)
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
     const folders = useFolderStore()
@@ -194,7 +187,6 @@ export function searchNotes(state: NoteState) {
   return (query: string) => {
     const searchTerm = query.toLowerCase();
     return Object.values(state.data).filter((note) => {
-      if (!note.id) return false;
       const labels = Array.isArray(note.labels) ? note.labels.join(' ') : '';
       return (
         note.title.toLowerCase().includes(searchTerm) ||
@@ -205,7 +197,6 @@ export function searchNotes(state: NoteState) {
   };
 }
 
-// ─── Actions ─────────────────────────────────────────────────────────────────
 
 export interface NoteStoreThis {
   data: Record<string, NoteData>;
@@ -228,9 +219,7 @@ export async function searchNotesSql(this: NoteStoreThis, query: string): Promis
   }
 }
 
-// ── crud (from crud.js) ──
 
-// ─── Load & hydration ────────────────────────────────────────────────────────
 
 export async function retrieve(this: NoteStoreThis): Promise<Record<string, NoteData>> {
   try {
@@ -301,7 +290,6 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
   }
 }
 
-// ─── CRUD ────────────────────────────────────────────────────────────────────
 
 export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<string, any> = {}): Promise<NoteData> {
   try {
@@ -566,7 +554,6 @@ export async function cleanupDeletedIds(this: NoteStoreThis, _days = 30): Promis
   return [];
 }
 
-// ─── Folder operations ───────────────────────────────────────────────────────
 
 export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folderId: string | null): Promise<NoteData[]> {
   try {
@@ -617,7 +604,6 @@ export async function normalizeInvalidFolderIds(this: NoteStoreThis): Promise<st
   return invalid.map((note) => note.id);
 }
 
-// ─── Labels ──────────────────────────────────────────────────────────────────
 
 export async function addLabel(this: NoteStoreThis, id: string, labelId: string): Promise<string | undefined> {
   try {
@@ -676,7 +662,6 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
   }
 }
 
-// ── helpers (from helpers.js) ──
 
 /**
  * Silently sync a note into the local search index after it is written to storage.
