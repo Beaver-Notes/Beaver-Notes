@@ -1,5 +1,4 @@
 <template>
-  <!-- ── Link popover ── -->
   <ui-popover
     v-if="isItemVisible('link')"
     :model-value="linkPopoverOpen"

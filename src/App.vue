@@ -14,7 +14,7 @@
     role="status"
   >
     <p class="text-xs font-medium text-amber-900 dark:text-amber-100">
-      Please verify your email — check your inbox for a verification link.
+      Please verify your email. Check your inbox for a verification link.
     </p>
     <button
       class="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -26,20 +26,9 @@
   </div>
   <recording-pill />
   <app-encryption-gate
-    v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
+    v-if="appEncryptionGate.show"
     @unlocked="handleEncryptionUnlocked"
   />
-  <div
-    v-if="appEncryptionGate.deriving"
-    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm"
-  >
-    <div class="flex flex-col items-center gap-3">
-      <ui-spinner :size="36" />
-      <span class="text-sm text-neutral-500 dark:text-neutral-400">
-        Unlocking…
-      </span>
-    </div>
-  </div>
 
   <a
     href="#app-main"
@@ -92,25 +81,9 @@
       </div>
 
       <div
-        v-show="syncLockBanner.show"
-        class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
-        :class="updateBanner.show ? 'mb-16' : ''"
-        :style="bottomBannerStyle"
-      >
-        <ui-banner
-          icon="riLockLine"
-          :content="syncLockBannerCopy.content"
-          :primary-text="syncLockBannerCopy.primaryText"
-          :secondary-text="syncLockBannerCopy.secondaryText"
-          @button-1="openSyncSettings"
-          @button-2="dismissSyncBanner"
-        />
-      </div>
-
-      <div
         v-show="appEncryptionMigrationBanner.show"
         class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
-        :class="updateBanner.show || syncLockBanner.show ? 'mb-16' : ''"
+        :class="updateBanner.show ? 'mb-16' : ''"
         :style="bottomBannerStyle"
       >
         <ui-banner
@@ -142,13 +115,6 @@
         </router-view>
       </div>
     </main>
-  </div>
-
-  <div
-    v-show="appStore.loading"
-    class="fixed w-full h-full top-0 ltr:left-0 rtl:right-0 z-50 flex justify-center items-center bg-opacity-40 bg-black"
-  >
-    <ui-spinner :size="50" />
   </div>
 
   <ui-dialog />

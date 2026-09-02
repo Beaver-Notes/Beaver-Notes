@@ -1,5 +1,4 @@
 <template>
-  <!-- Desktop -->
   <div
     ref="container"
     class="bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-lg shadow-sm no-print max-w-content mobile:hidden"
@@ -258,7 +257,6 @@
     </div>
   </div>
 
-  <!-- Mobile -->
   <div
     ref="shellRef"
     class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white/90 dark:bg-neutral-900/90 top-0 mb-4 hidden mobile:flex"

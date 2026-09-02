@@ -1015,7 +1015,7 @@ export default {
     }
 
     function goToSecurity() {
-      router.push('/settings/security');
+      router.push('/settings');
     }
 
     async function importVaultDialog() {
@@ -1093,7 +1093,7 @@ export default {
             body: 'You should add a passkey so you do not need the recovery code for daily sign-in.',
             okText: 'Add passkey',
             cancelText: 'Later',
-            onConfirm: () => router.push('/settings/security'),
+            onConfirm: () => router.push('/settings'),
           });
         }
       } catch (e) {

@@ -1,7 +1,6 @@
 <template>
   <nav class="w-full" role="navigation" aria-label="Main navigation" data-selection-keep>
     <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
-      <!-- ── Left Rail ── -->
       <div
         class="flex items-center rounded-full bg-white dark:bg-neutral-900 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-[width] duration-300 ease-[var(--ease-snappy)] overflow-hidden"
         :class="railWidthClass"
@@ -248,14 +247,12 @@ export default {
       window.location.reload();
     }
 
-    // ── Rail width ──
     const railWidthClass = computed(() => {
       if (selectionBar.hasSelection) return 'flex-1 min-w-0';
       if (showAddMenu.value) return 'w-[156px]';
       return 'w-[216px]';
     });
 
-    // ── Emitter listeners ──
     emitter.on('new-note', addNote);
     emitter.on('new-folder', addFolder);
     emitter.on('open-settings', openSettings);
@@ -270,7 +267,6 @@ export default {
     });
     onUnmounted(() => _unregNavbarShortcuts?.());
 
-    // ── Close add menu when clicking outside ──
     function onDocumentClick(event) {
       if (!showAddMenu.value) return;
       // Ignore clicks inside the navbar
@@ -279,7 +275,6 @@ export default {
       showAddMenu.value = false;
     }
 
-    // ── Add menu ──
     function toggleAddMenu() {
       showAddMenu.value = !showAddMenu.value;
     }
@@ -294,7 +289,6 @@ export default {
       addFolder();
     }
 
-    // ── Selection actions ──
     function handleClearSelection() {
       selectionBar.clearSelection();
     }
@@ -317,7 +311,6 @@ export default {
       }
     }
 
-    // ── Active pill ──
     onMounted(() => {
       document.addEventListener('click', onDocumentClick, true);
       window.addEventListener('resize', updateActivePill);

@@ -11,14 +11,12 @@
     <div
       class="ui-select__content flex items-center w-full block transition focus-within:ring-1 ring-secondary bg-input rounded-lg appearance-none focus:outline-none relative"
     >
-      <!-- Prepend icon -->
       <v-remixicon
         v-if="prependIcon"
         :name="prependIcon"
         class="absolute text-neutral-600 dark:text-neutral-200 ltr:left-0 rtl:right-0 ltr:ml-2 rtl:mr-2"
       />
 
-      <!-- Custom Select Button -->
       <button
         :id="selectId"
         ref="selectButton"
@@ -68,7 +66,6 @@
             role="listbox"
             :aria-activedescendant="focusedIndex >= 0 ? `${selectId}-option-${focusedIndex}` : undefined"
           >
-          <!-- Search Input -->
           <div v-if="search" class="mb-2">
             <ui-input
               ref="searchInput"
@@ -80,7 +77,6 @@
             />
           </div>
 
-          <!-- Options -->
           <div class="max-h-48 overflow-y-auto space-y-0.5">
             <div
               v-if="placeholder && !hideePlaceholderInDropdown"

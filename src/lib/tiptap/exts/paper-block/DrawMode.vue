@@ -840,9 +840,7 @@ watch(
   { deep: true, immediate: true }
 );
 
-// ---------------------------------------------------------------------------
 // Lifecycle — register keyboard listener on document for Shift key
-// ---------------------------------------------------------------------------
 
 const preventScroll = (e) => {
   if (e.touches?.length > 1) return;

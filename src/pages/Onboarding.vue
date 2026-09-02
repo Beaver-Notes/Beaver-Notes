@@ -33,7 +33,6 @@
       :key="topLevelKey"
       class="ob-page-content relative z-10 w-full px-5 sm:px-0"
     >
-      <!-- ── Welcome ── -->
       <div
         v-if="step === 'welcome'"
         class="ob-screen flex flex-col items-center justify-center gap-8 mobile:gap-0 w-full mobile:p-1"
@@ -90,10 +89,6 @@
         </div>
       </div>
 
-      <!-- ── Wizard: account → sync → password → import → customize ──
-           One persistent modal frame (ui-modal renders as a fixed centered
-           card on desktop and a bottom sheet on mobile automatically). Only
-           the inner content transitions between steps. -->
       <ui-modal
         v-else-if="isCardStep"
         :model-value="true"
@@ -1248,7 +1243,6 @@
         </div>
       </ui-modal>
 
-      <!-- ── Finish ── -->
       <div
         v-else
         class="ob-screen flex flex-col items-center justify-center gap-8 mobile:gap-0 w-full mobile:p-1"

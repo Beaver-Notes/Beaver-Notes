@@ -8,7 +8,6 @@
       >
         <!-- Desktop Layout -->
         <div class="max-md:hidden">
-          <!-- Header -->
           <div class="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-700">
             <div class="flex items-center gap-3">
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -37,7 +36,6 @@
             </div>
           </div>
 
-          <!-- Loading State -->
           <div v-if="history.loading.value && !filteredCommits.length" class="flex items-center justify-center py-12">
             <div class="flex flex-col items-center gap-3">
               <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
@@ -45,33 +43,27 @@
             </div>
           </div>
 
-          <!-- Error State -->
           <div v-else-if="history.error.value" class="flex items-center justify-center py-12 px-6">
             <div class="text-center">
               <p class="text-sm text-red-600 dark:text-red-400">{{ history.error.value }}</p>
             </div>
           </div>
 
-          <!-- Empty State -->
           <div v-else-if="!filteredCommits.length" class="flex items-center justify-center py-12 px-6">
             <div class="text-center">
               <p class="text-sm text-neutral-500">{{ tr.noHistory || 'No history available' }}</p>
             </div>
           </div>
 
-          <!-- Main Content -->
           <div v-else class="flex overflow-hidden">
-            <!-- Scatter Chart -->
             <div class="flex-1 p-4 min-h-[220px]">
               <div class="relative w-full h-full min-h-[180px]">
-                <!-- Y-axis labels -->
-                <div class="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-[10px] text-neutral-400 dark:text-neutral-500 pr-1">
+                                <div class="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-[10px] text-neutral-400 dark:text-neutral-500 pr-1">
                   <span>6AM</span>
                   <span>2PM</span>
                   <span>10PM</span>
                 </div>
-                <!-- Chart area -->
-                <div class="ml-8 relative h-[calc(100%-24px)] border-b border-l border-neutral-200 dark:border-neutral-700">
+                                <div class="ml-8 relative h-[calc(100%-24px)] border-b border-l border-neutral-200 dark:border-neutral-700">
                   <div class="absolute inset-0 flex flex-col justify-between pointer-events-none">
                     <div class="border-t border-dashed border-neutral-200 dark:border-neutral-700 w-full h-0" style="top: 25%"></div>
                     <div class="border-t border-dashed border-neutral-200 dark:border-neutral-700 w-full h-0" style="top: 50%"></div>
@@ -103,7 +95,6 @@
               </div>
             </div>
 
-            <!-- Inspector Card -->
             <transition
               enter-active-class="transition-all duration-200 ease-out"
               enter-from-class="translate-x-4 opacity-0"
@@ -191,7 +182,6 @@
             </transition>
           </div>
 
-          <!-- Rotary Wheel Timeline -->
           <div v-if="filteredCommits.length" class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-2">
             <div class="flex items-center gap-3">
               <button
@@ -240,7 +230,6 @@
 
         <!-- Mobile Layout -->
         <div class="hidden max-md:block">
-          <!-- Header Row -->
           <div class="flex items-center justify-between px-3 py-2 border-b border-neutral-200 dark:border-neutral-700">
             <div class="flex items-center gap-2">
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -270,24 +259,19 @@
             </div>
           </div>
 
-          <!-- Loading -->
           <div v-if="history.loading.value && !filteredCommits.length" class="flex items-center justify-center py-8">
             <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
 
-          <!-- Error -->
           <div v-else-if="history.error.value" class="flex items-center justify-center py-8 px-4">
             <p class="text-sm text-red-600 dark:text-red-400 text-center">{{ history.error.value }}</p>
           </div>
 
-          <!-- Empty -->
           <div v-else-if="!filteredCommits.length" class="flex items-center justify-center py-8 px-4">
             <p class="text-sm text-neutral-500">{{ tr.noHistory || 'No history available' }}</p>
           </div>
 
-          <!-- Mobile Content -->
           <div v-else>
-            <!-- Compact Chart -->
             <div class="px-3 pt-3">
               <div class="relative w-full h-24">
                 <div class="absolute left-0 top-0 bottom-4 w-6 flex flex-col justify-between text-[8px] text-neutral-400 dark:text-neutral-500">
@@ -321,7 +305,6 @@
               </div>
             </div>
 
-            <!-- Mobile Inspector (collapsible) -->
             <div
               :class="[
                 'transition-[max-height,opacity] duration-200 ease-in-out overflow-hidden',
@@ -391,7 +374,6 @@
               </div>
             </div>
 
-            <!-- Mobile Timeline -->
             <div v-if="filteredCommits.length" class="border-t border-neutral-200 dark:border-neutral-700 px-3 py-2">
               <div class="flex items-center gap-2">
                 <button
@@ -469,7 +451,7 @@ export default {
     const wheelOffset = ref(0);
     let previewEditor = null;
 
-    // --- Scatter chart ---
+    // Scatter chart
     function dotPosition(commit) {
       const d = new Date(commit.createdAt);
       const hours = d.getHours() + d.getMinutes() / 60;
@@ -505,7 +487,7 @@ export default {
       await history.loadSnapshot(commit.hash);
     }
 
-    // --- Inspector card ---
+    // Inspector card
     const selectedCommitData = computed(() => {
       const idx = history.selectedCommitIndex.value;
       if (idx < 0) return null;
@@ -539,7 +521,7 @@ export default {
       return selectedCommitData.value?.snippet || '';
     });
 
-    // --- Preview editor ---
+    // Preview editor
     async function togglePreview() {
       showPreview.value = !showPreview.value;
       if (showPreview.value && history.selectedCommit.value?.content) {
@@ -566,7 +548,7 @@ export default {
       }
     }
 
-    // --- Rotary wheel ---
+    // Rotary wheel
     const wheelTickCount = computed(() => Math.max(history.filteredCommits.value.length, 20));
 
     function getTickHeight(i) {
@@ -630,7 +612,7 @@ export default {
       rotateWheel(e.deltaX || e.deltaY);
     }
 
-    // --- Formatting helpers ---
+    // Formatting helpers
     function formatDateTime(dateStr) {
       if (!dateStr) return '';
       const d = new Date(dateStr);
@@ -656,7 +638,7 @@ export default {
       return fmt('daysAgo', { count: days });
     }
 
-    // --- Lifecycle ---
+    // Lifecycle
     onMounted(() => {
       history.loadCommits(props.workspaceId, props.noteId);
     });

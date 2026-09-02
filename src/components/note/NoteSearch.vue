@@ -1,7 +1,7 @@
 <template>
   <div
     class="fixed inset-x-0 z-40 flex justify-center px-2 transition-all duration-300 ease-[var(--ease-standard)] md:pl-16"
-    :style="{ bottom: 'var(--app-keyboard-inset-bottom, 1rem)' }"
+    :style="{ bottom: 'var(--app-keyboard-inset-bottom, 1rem)'}"
   >
     <div
       class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
@@ -10,7 +10,6 @@
       <div
         class="flex items-center p-2 space-x-2 max-md:flex-wrap max-md:hidden"
       >
-        <!-- Regex Toggle Button -->
         <ui-button
           v-keep-focus
           v-tooltip="translations.search.useRegex"
@@ -23,7 +22,6 @@
           />
         </ui-button>
 
-        <!-- Search Term Input -->
         <div class="relative flex-1">
           <ui-input
             v-model="state.query"
@@ -42,7 +40,6 @@
           </div>
         </div>
 
-        <!-- Replace Term Input -->
         <ui-input
           v-model="state.replaceWith"
           :placeholder="translations.search.replacePlaceholder"
@@ -50,7 +47,6 @@
           @keyup="startSearch"
         />
 
-        <!-- Clear Search Button -->
         <ui-button
           v-keep-focus
           v-tooltip="translations.search.clear"
@@ -60,7 +56,6 @@
           <v-remixicon name="riDeleteBackLine" />
         </ui-button>
 
-        <!-- Replace Button -->
         <ui-button
           v-keep-focus
           v-tooltip="translations.searchReplace?.altEnter || 'Alt+Enter'"
@@ -70,7 +65,6 @@
           {{ translations.search.replace || 'Replace' }}
         </ui-button>
 
-        <!-- Replace All Button -->
         <ui-button
           v-keep-focus
           v-tooltip="
@@ -82,7 +76,6 @@
           {{ translations.search.replaceAll || 'Replace All' }}
         </ui-button>
 
-        <!-- Case Sensitivity Toggle -->
         <ui-button
           v-keep-focus
           :class="{ 'text-primary': state.caseSensitive }"
@@ -91,7 +84,6 @@
           <v-remixicon name="riFontSize" />
         </ui-button>
 
-        <!-- Find Previous Button -->
         <ui-button
           v-keep-focus
           :disabled="!state.query"
@@ -103,7 +95,6 @@
           />
         </ui-button>
 
-        <!-- Find Next Button -->
         <ui-button v-keep-focus :disabled="!state.query" @click="findNextResult">
           <v-remixicon
             name="riArrowDownLine"
@@ -123,7 +114,6 @@
       <div class="hidden max-md:block">
         <!-- Search Row -->
         <div class="flex items-center p-2 space-x-2">
-          <!-- Search Term Input -->
           <div class="relative flex-1">
             <ui-input
               v-model="state.query"
@@ -146,9 +136,7 @@
             </div>
           </div>
 
-          <!-- Navigation Controls -->
           <div class="flex items-center space-x-1">
-            <!-- Find Previous Button -->
             <ui-button
               v-keep-focus
               :disabled="
@@ -166,7 +154,6 @@
               />
             </ui-button>
 
-            <!-- Find Next Button -->
             <ui-button
               v-keep-focus
               :disabled="
@@ -185,7 +172,6 @@
             </ui-button>
           </div>
 
-          <!-- Toggle Replace Button -->
           <ui-button
             v-keep-focus
             icon
@@ -198,7 +184,6 @@
             />
           </ui-button>
 
-          <!-- Close Button -->
           <ui-button v-keep-focus icon class="p-2" @click="$emit('close')">
             <v-remixicon
               name="riCloseLine"
@@ -216,7 +201,6 @@
         >
           <div class="border-t border-neutral-200 dark:border-neutral-700 p-2">
             <div class="flex items-center space-x-2">
-              <!-- Replace Input -->
               <ui-input
                 v-model="state.replaceWith"
                 :placeholder="translations.search.replacePlaceholder"
@@ -224,9 +208,7 @@
                 @keyup="startSearch"
               />
 
-              <!-- Replace Controls -->
               <div class="flex items-center space-x-1">
-                <!-- Replace Button -->
                 <ui-button
                   v-keep-focus
                   :disabled="!state.replaceWith || !state.query"
@@ -236,7 +218,6 @@
                   {{ translations.search.replace || 'Replace' }}
                 </ui-button>
 
-                <!-- Replace All Button -->
                 <ui-button
                   v-keep-focus
                   :disabled="!state.replaceWith || !state.query"
@@ -246,7 +227,6 @@
                   {{ translations.search.replaceAll || 'All' }}
                 </ui-button>
 
-                <!-- Case Sensitivity Toggle -->
                 <ui-button
                   v-keep-focus
                   :class="[

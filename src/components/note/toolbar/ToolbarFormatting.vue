@@ -1,5 +1,4 @@
 <template>
-  <!-- Inline text-formatting buttons (bold / italic / underline / strike / inline code) -->
   <button
     v-for="item in visibleInlineFormatItems"
     :key="item.id"

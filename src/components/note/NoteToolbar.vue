@@ -19,7 +19,6 @@
           <!-- All panels live inside the scroll track so the pill width
              is always driven by the active panel's natural content width -->
 
-          <!-- ── MAIN PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-1.5 whitespace-nowrap h-full',
@@ -158,7 +157,6 @@
             />
           </div>
 
-          <!-- ── HEADINGS SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
@@ -205,7 +203,6 @@
             </button>
           </div>
 
-          <!-- ── FONT SIZE SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
@@ -292,7 +289,6 @@
             </button>
           </div>
 
-          <!-- ── COLOR SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
@@ -373,7 +369,6 @@
             />
           </div>
 
-          <!-- ── LISTS SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
@@ -408,7 +403,6 @@
             </button>
           </div>
 
-          <!-- ── IMAGE SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
@@ -442,7 +436,6 @@
             </button>
           </div>
 
-          <!-- ── FILE SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
@@ -476,7 +469,6 @@
             </button>
           </div>
 
-          <!-- ── VIDEO SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
@@ -510,7 +502,6 @@
             </button>
           </div>
 
-          <!-- ── AUDIO SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
@@ -557,7 +548,6 @@
             </button>
           </div>
 
-          <!-- ── PARAGRAPH / ALIGN SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
@@ -908,7 +898,6 @@ export default {
       }
     }
 
-    // ── Sub-panel morph ───────────────────────────────────────────
     const activePanel = ref('main');
     const prevPanel = shallowRef(null);
     let exitTimer = null;
@@ -940,7 +929,6 @@ export default {
       return 'panel-hidden';
     }
 
-    // ── Swipe-to-dismiss (edge swipe only) ─────────────────────────
     let swipeX = 0;
     let swipeY = 0;
     let swipeEdge = false;

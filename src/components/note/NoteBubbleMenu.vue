@@ -1,5 +1,4 @@
 <template>
-  <!-- Selection-based bubble menu for text formatting and images -->
   <bubble-menu
     v-if="editor"
     :editor="editor"

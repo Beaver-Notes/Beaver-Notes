@@ -1,5 +1,4 @@
 <template>
-  <!-- ── Text family: paragraph / headings / font size ── -->
   <template v-if="section === 'text'">
     <button
       v-if="isItemVisible('paragraph')"
@@ -38,7 +37,6 @@
     </button>
   </template>
 
-  <!-- ── Block family: lists / blockquote / code block ── -->
   <template v-else-if="section === 'block'">
     <button
       v-if="!isTableActive && isItemVisible('lists')"
@@ -80,7 +78,6 @@
     </button>
   </template>
 
-  <!-- ── Actions family: delete / customize / custom items ── -->
   <template v-else-if="section === 'actions'">
     <button
       v-if="isItemVisible('delete')"

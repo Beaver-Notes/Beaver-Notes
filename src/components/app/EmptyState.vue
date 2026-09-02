@@ -1,7 +1,6 @@
 <template>
   <div class="flex-1 flex items-center justify-center p-10 antialiased">
     <div class="flex flex-col items-center text-center max-w-sm w-full">
-      <!-- Mascot -->
       <div class="relative mb-8 flex items-center justify-center w-full h-56">
         <div class="relative z-10">
           <ui-beaver-character
@@ -12,7 +11,6 @@
         </div>
       </div>
 
-      <!-- Text -->
       <h1
         class="text-2xl font-bold text-neutral-800 dark:text-neutral-100 mb-2 leading-snug"
       >
@@ -27,7 +25,6 @@
         }}
       </p>
 
-      <!-- Shortcuts -->
       <div class="flex items-center justify-center mt-4 gap-4 flex-wrap">
         <div
           v-for="sc in shortcuts"

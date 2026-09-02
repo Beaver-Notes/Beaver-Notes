@@ -16,20 +16,26 @@
             translations.sidebar[item.name]
           }}
         </p>
-        <kbd v-for="key in item.keys" :key="key" class="mr-1">
-          {{
-            key === 'Drag'
-              ? translations.shortcuts.drag
-              : key === 'Arrow left'
-              ? translations.shortcuts.arrowLeft
-              : getFormattedKey(key)
-          }}
-        </kbd>
+        <span class="flex items-center gap-1 shrink-0">
+          <template v-for="(key, idx) in item.keys" :key="key">
+            <span v-if="idx > 0" class="text-xs text-neutral-400 select-none">+</span>
+            <kbd>
+              {{
+                key === 'Drag'
+                  ? translations.shortcuts.drag
+                  : key === 'Arrow left'
+                  ? translations.shortcuts.arrowLeft
+                  : getFormattedKey(key)
+              }}
+            </kbd>
+          </template>
+        </span>
       </div>
     </settings-group>
   </div>
 </template>
 
+// ponytail: customizable shortcuts explored — needs settings key for keybinding map + backend persistence + conflict UI; defer until requested.
 <script setup>
 import { useTranslations } from '@/composable/useTranslations';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';

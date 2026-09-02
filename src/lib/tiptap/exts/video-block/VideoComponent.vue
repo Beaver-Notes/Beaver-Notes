@@ -115,6 +115,7 @@
 <script>
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted, computed } from 'vue';
+import { formatMediaTime } from '@/utils/mediaTime.js';
 
 export default {
   components: {
@@ -252,16 +253,8 @@ export default {
         : '0%';
     });
 
-    const formattedCurrentTime = computed(() => formatTime(currentTime.value));
-    const formattedDuration = computed(() => formatTime(duration.value));
-
-    const formatTime = (time) => {
-      const minutes = Math.floor(time / 60);
-      const seconds = Math.floor(time % 60)
-        .toString()
-        .padStart(2, '0');
-      return `${minutes}:${seconds}`;
-    };
+    const formattedCurrentTime = computed(() => formatMediaTime(currentTime.value));
+    const formattedDuration = computed(() => formatMediaTime(duration.value));
 
     return {
       fileName,

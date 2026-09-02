@@ -1,6 +1,5 @@
 <template>
   <ui-modal :model-value="state.show" content-class="max-w-md" overlay-class="z-[70]" persist>
-    <!-- Alert -->
     <template v-if="state.type === 'alert'">
       <div class="text-left mb-6 mobile:text-center">
         <div
@@ -45,7 +44,6 @@
       </ui-button>
     </template>
 
-    <!-- Confirm / Prompt / Auth -->
     <template v-else>
       <div
         class="flex flex-col items-start text-left mobile:flex-col mobile:items-center mobile:text-center gap-3 mb-4 mobile:mt-6"
@@ -101,7 +99,6 @@
         </div>
       </div>
 
-      <!-- Actions -->
       <div class="flex gap-3 mobile:flex-col-reverse">
         <ui-button
           class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
