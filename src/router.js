@@ -7,10 +7,8 @@ import SettingsAppearance from './pages/settings/Appearance.vue';
 import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
 import SettingsLabels from './pages/settings/Labels.vue';
-import SettingsSecurity from './pages/settings/Security.vue';
 import SettingsAccount from './pages/settings/Account.vue';
 import SettingsTeamAdmin from './pages/settings/TeamAdmin.vue';
-import SettingsData from './pages/settings/Data.vue';
 import JoinNote from './pages/join/[token].vue';
 import VerifyEmail from './pages/VerifyEmail.vue';
 import ResetPassword from './pages/ResetPassword.vue';
@@ -29,8 +27,6 @@ const routeTitles = {
   'Settings-Shortcuts': `Shortcuts — ${APP_NAME}`,
   'Settings-About': `About — ${APP_NAME}`,
   'Settings-Labels': `Labels — ${APP_NAME}`,
-  'Settings-Security': `Security — ${APP_NAME}`,
-  'Settings-Data': `Data — ${APP_NAME}`,
   'Settings-Team': `Team — ${APP_NAME}`,
   Onboarding: `Welcome — ${APP_NAME}`,
 };
@@ -95,16 +91,6 @@ const routes = [
         path: 'labels',
         name: 'Settings-Labels',
         component: SettingsLabels,
-      },
-      {
-        path: 'security',
-        name: 'Settings-Security',
-        component: SettingsSecurity,
-      },
-      {
-        path: 'data',
-        name: 'Settings-Data',
-        component: SettingsData,
       },
     ],
   },

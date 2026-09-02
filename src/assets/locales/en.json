@@ -21,7 +21,7 @@
   },
   "appearance": {
     "appTheme": "App Theme",
-    "clearFont": "Clear Font - OLED",
+    "clearFont": "Softer text in dark mode",
     "colorScheme": "Accent Color",
     "dark": "Dark",
     "default": "Default",

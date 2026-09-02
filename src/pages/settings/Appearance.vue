@@ -1,106 +1,247 @@
 <template>
   <div class="general mb-14 w-full max-w-xl space-y-6">
-    <settings-group :title="translations.appearance.appTheme || 'Theme'">
-      <div class="px-4 py-4 flex gap-3">
-        <button
-          v-for="item in themes"
-          :key="item.name"
-          class="flex-1 rounded-lg border-2 p-2 transition text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
-          :class="theme.currentTheme.value === item.name ? 'border-primary' : 'border-transparent'"
-          :aria-pressed="theme.currentTheme.value === item.name"
-          @click="theme.setTheme(item.name)"
-        >
-          <img
-            :src="item.img"
-            decoding="async"
-            width="160"
-            height="100"
-            class="w-full border mb-1 rounded-lg"
+    <!-- Theme picker -->
+    <div class="space-y-3">
+      <h3 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+        {{ translations.appearance.appTheme || 'Theme' }}
+      </h3>
+      <div class="grid grid-cols-3 gap-3 sm:gap-4">
+        <label class="cursor-pointer min-w-0 select-none">
+          <input
+            type="radio"
+            name="theme"
+            value="light"
+            class="peer sr-only"
+            :checked="theme.currentTheme.value === 'light'"
+            @change="theme.setTheme('light')"
           />
-          <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-            {{ translations.appearance[item.name] || item.name }}
-          </p>
-        </button>
-      </div>
-    </settings-group>
-
-    <settings-group :title="translations.appearance.colorScheme || 'Accent color'">
-      <div class="px-4 py-4 flex flex-wrap gap-3">
-        <button
-          v-for="c in accentColors"
-          :key="c.key"
-          type="button"
-          class="w-10 h-10 rounded-full transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-neutral-900"
-          :class="c.class"
-          :aria-label="c.label"
-          :aria-pressed="state.accentColor === c.key"
-          :title="c.label"
-          @click="setColor(c.key)"
-        >
-          <span
-            v-if="state.accentColor === c.key"
-            class="flex items-center justify-center w-full h-full"
+          <div
+            class="relative w-full h-[84px] sm:h-[96px] rounded-2xl border-2 overflow-hidden bg-[#f4f4f6] transition-colors"
+            :class="
+              theme.currentTheme.value === 'light'
+                ? 'border-primary ring-2 ring-primary/20'
+                : 'border-neutral-200 dark:border-neutral-700'
+            "
           >
-            <v-remixicon name="riCheckLine" size="18" class="text-white drop-shadow" />
-          </span>
-        </button>
+            <div
+              class="absolute bottom-0 left-[14px] sm:left-[16px] right-0 h-[56px] sm:h-[64px] bg-white rounded-tl-2xl pt-2 sm:pt-2.5 pl-3 sm:pl-3.5 flex items-start"
+            >
+              <span
+                class="text-xl sm:text-2xl font-extrabold text-black tracking-tight"
+                >Aa</span
+              >
+            </div>
+          </div>
+          <span
+            class="mt-1.5 block text-xs sm:text-sm font-medium text-center"
+            :class="
+              theme.currentTheme.value === 'light'
+                ? 'text-primary'
+                : 'text-neutral-600 dark:text-neutral-400'
+            "
+            >{{ translations.appearance.light || 'Light' }}</span
+          >
+        </label>
+
+        <label class="cursor-pointer min-w-0 select-none">
+          <input
+            type="radio"
+            name="theme"
+            value="dark"
+            class="peer sr-only"
+            :checked="theme.currentTheme.value === 'dark'"
+            @change="theme.setTheme('dark')"
+          />
+          <div
+            class="relative w-full h-[84px] sm:h-[96px] rounded-2xl border-2 overflow-hidden bg-[#3c3c3c] transition-colors"
+            :class="
+              theme.currentTheme.value === 'dark'
+                ? 'border-primary ring-2 ring-primary/20'
+                : 'border-neutral-200 dark:border-neutral-700'
+            "
+          >
+            <div
+              class="absolute bottom-0 left-[14px] sm:left-[16px] right-0 h-[56px] sm:h-[64px] bg-[#121212] rounded-tl-2xl pt-2 sm:pt-2.5 pl-3 sm:pl-3.5 flex items-start"
+            >
+              <span
+                class="text-xl sm:text-2xl font-extrabold text-white tracking-tight"
+                >Aa</span
+              >
+            </div>
+          </div>
+          <span
+            class="mt-1.5 block text-xs sm:text-sm font-medium text-center"
+            :class="
+              theme.currentTheme.value === 'dark'
+                ? 'text-primary'
+                : 'text-neutral-600 dark:text-neutral-400'
+            "
+            >{{ translations.appearance.dark || 'Dark' }}</span
+          >
+        </label>
+
+        <label class="cursor-pointer min-w-0 select-none">
+          <input
+            type="radio"
+            name="theme"
+            value="system"
+            class="peer sr-only"
+            :checked="theme.currentTheme.value === 'system'"
+            @change="theme.setTheme('system')"
+          />
+          <div
+            class="relative w-full h-[84px] sm:h-[96px] rounded-2xl border-2 overflow-hidden flex transition-colors"
+            :class="
+              theme.currentTheme.value === 'system'
+                ? 'border-primary ring-2 ring-primary/20'
+                : 'border-neutral-200 dark:border-neutral-700'
+            "
+          >
+            <div class="w-1/2 h-full bg-[#3c3c3c]"></div>
+            <div class="w-1/2 h-full bg-[#f4f4f6]"></div>
+            <div
+              class="absolute bottom-0 left-[14px] sm:left-[16px] right-1/2 h-[56px] sm:h-[64px] bg-[#121212] rounded-tl-2xl pt-2 sm:pt-2.5 pl-3 sm:pl-3.5"
+            >
+              <span
+                class="text-xl sm:text-2xl font-extrabold text-white tracking-tight"
+                >Aa</span
+              >
+            </div>
+            <div
+              class="absolute bottom-0 left-[52%] right-0 h-[56px] sm:h-[64px] bg-white rounded-tl-2xl pt-2 sm:pt-2.5 pl-3 sm:pl-3.5 flex items-start border-l border-black/10"
+            >
+              <span
+                class="text-xl sm:text-2xl font-extrabold text-black tracking-tight"
+                >Aa</span
+              >
+            </div>
+          </div>
+          <span
+            class="mt-1.5 block text-xs sm:text-sm font-medium text-center"
+            :class="
+              theme.currentTheme.value === 'system'
+                ? 'text-primary'
+                : 'text-neutral-600 dark:text-neutral-400'
+            "
+            >{{ translations.appearance.system || 'System' }}</span
+          >
+        </label>
       </div>
+    </div>
+
+    <settings-group
+      :title="translations.appearance.colorScheme || 'Accent color'"
+    >
+      <settings-row
+        :label="translations.appearance.colorScheme || 'Accent color'"
+        description="Pick the highlight used for selections and buttons."
+      >
+        <div class="flex flex-wrap gap-2.5">
+          <button
+            v-for="c in accentColors"
+            :key="c.key"
+            type="button"
+            class="w-8 h-8 rounded-full transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-neutral-900"
+            :class="c.class"
+            :aria-label="c.label"
+            :aria-pressed="state.accentColor === c.key"
+            :title="c.label"
+            @click="setColor(c.key)"
+          >
+            <span
+              v-if="state.accentColor === c.key"
+              class="flex items-center justify-center w-full h-full"
+            >
+              <v-remixicon
+                name="riCheckLine"
+                size="16"
+                class="text-white drop-shadow"
+              />
+            </span>
+          </button>
+        </div>
+      </settings-row>
     </settings-group>
 
-    <settings-group :title="translations.appearance.interfaceSize || 'Interface size'">
-      <div class="px-4 py-4 grid grid-cols-4 gap-3">
-        <button
+    <div :title="translations.appearance.interfaceSize || 'Interface size'">
+      <div class="px-4 pt-3 pb-1">
+        <p
+          class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+        >
+          Adjust text and UI size. Smaller shows more content.
+        </p>
+      </div>
+      <div class="p-4 pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div
           v-for="opt in [
             {
-              s: 1.2,
-              key: '1.2',
-              label: translations.appearance.large || 'Large',
-            },
-            {
-              s: 1.1,
-              key: '1.1',
-              label: translations.appearance.medium || 'Medium',
+              s: 0.9,
+              key: '0.9',
+              label: translations.appearance.moreSpace || 'More Space',
+              px: 15,
             },
             {
               s: 1.0,
               key: '1.0',
               label: translations.appearance.default || 'Default',
+              px: 17,
             },
             {
-              s: 0.9,
-              key: '0.9',
-              label: translations.appearance.moreSpace || 'More Space',
+              s: 1.1,
+              key: '1.1',
+              label: translations.appearance.medium || 'Medium',
+              px: 19,
+            },
+            {
+              s: 1.2,
+              key: '1.2',
+              label: translations.appearance.large || 'Large',
+              px: 22,
             },
           ]"
           :key="opt.key"
-          class="bg-white dark:bg-neutral-950 p-2 rounded-lg border-2 transition focus:outline-none focus:ring-1 focus:ring-primary"
-          :class="String(state.zoomLevel) === opt.key ? 'border-primary' : 'border-neutral-200 dark:border-neutral-800'"
-          :aria-pressed="String(state.zoomLevel) === opt.key"
-          type="button"
-          @click="setZoom(Number(opt.key))"
+          class="flex flex-col items-center gap-1.5"
         >
-          <div
-            class="w-full h-16 bg-neutral-50 dark:bg-neutral-900 rounded mb-2 overflow-hidden relative"
-            :style="`--s:${opt.s}`"
+          <button
+            type="button"
+            class="relative w-full bg-white dark:bg-neutral-900 p-4 rounded-xl border-2 transition flex flex-col items-center gap-2 focus:outline-none"
+            :class="
+              String(state.zoomLevel) === opt.key
+                ? 'border-primary ring-2 ring-primary/20'
+                : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
+            "
+            :aria-pressed="String(state.zoomLevel) === opt.key"
+            @click="setZoom(Number(opt.key))"
           >
-            <div class="fit-scale">
-              <div class="p-1 text-center text-xs leading-4">
-                <div class="font-semibold mb-1 truncate">{{ tr.loremIpsum || 'Lorem Ipsum' }}</div>
-                <div class="text-neutral-600 dark:text-neutral-300 line-clamp-3">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                </div>
-              </div>
-            </div>
-          </div>
-          <p class="capitalize text-center text-xs">{{ opt.label }}</p>
-        </button>
+            <span
+              v-if="String(state.zoomLevel) === opt.key"
+              class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center text-white shadow-sm"
+              ><v-remixicon name="riCheckLine" size="12"
+            /></span>
+            <span
+              class="font-bold leading-none tabular-nums text-neutral-900 dark:text-white"
+              :style="{ fontSize: opt.px + 'px' }"
+              >A</span
+            >
+          </button>
+          <span
+            class="text-[11px] font-medium tracking-wide uppercase text-center"
+            :class="
+              String(state.zoomLevel) === opt.key
+                ? 'text-primary'
+                : 'text-neutral-500 dark:text-neutral-400'
+            "
+            >{{ opt.label }}</span
+          >
+        </div>
       </div>
-    </settings-group>
+    </div>
 
     <settings-group :title="translations.appearance.font || 'Typography'">
       <settings-row
         control-id="appearance-font"
         :label="translations.appearance.selectFont || 'Interface font'"
+        description="Font for the app shell and note list."
         control-class="w-full sm:w-56"
       >
         <ui-select
@@ -136,6 +277,7 @@
       <settings-row
         control-id="appearance-code-font"
         :label="translations.appearance.selectCodeFont || 'Code font'"
+        description="Font for code blocks and inline code."
         control-class="w-full sm:w-56"
       >
         <ui-select
@@ -147,7 +289,9 @@
           <option value="Anonymous Pro" class="anonymous-pro">
             Anonymous Pro
           </option>
-          <option value="Hack" class="font-hack">{{ tr.hack || 'Hack' }}</option>
+          <option value="Hack" class="font-hack">
+            {{ tr.hack || 'Hack' }}
+          </option>
           <option value="JetBrains Mono" class="font-JetBrainsMono">
             JetBrains Mono
           </option>
@@ -158,11 +302,13 @@
       </settings-row>
     </settings-group>
 
-    <settings-group :title="translations.appearance.interfaceOptions || 'Interface options'">
+    <settings-group
+      :title="translations.appearance.interfaceOptions || 'Interface options'"
+    >
       <settings-row
         control-id="appearance-clear-font"
-        :label="translations.appearance.clearFont || 'High contrast text'"
-        description="Sharper text color, easier to read on OLED screens."
+        :label="translations.appearance.clearFont || 'Softer text in dark mode'"
+        description="Use a lighter gray for text in dark mode — easier on OLED screens."
       >
         <ui-switch id="appearance-clear-font" v-model="ClearFontChecked" />
       </settings-row>
@@ -193,14 +339,18 @@
       </settings-row>
     </settings-group>
 
-    <settings-group v-if="isMobileRuntime && iconsSupported" :title="translations.appearance.appIcon || 'App icon'">
+    <settings-group
+      v-if="isMobileRuntime && iconsSupported"
+      :title="translations.appearance.appIcon || 'App icon'"
+    >
       <div class="px-4 py-4 grid grid-cols-4 gap-3">
         <button
           v-for="icon in alternateIcons"
           :key="icon.key"
           class="flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition focus:outline-none focus:ring-1 focus:ring-primary"
           :class="
-            currentIconName === icon.name || (!currentIconName && icon.isDefault)
+            currentIconName === icon.name ||
+            (!currentIconName && icon.isDefault)
               ? 'border-primary'
               : 'border-transparent'
           "
@@ -240,10 +390,11 @@ import {
   setStoredZoomLevel,
 } from '@/utils/ui/zoom';
 import { useAppStore } from '@/store/app';
-import lightImg from '@/assets/images/light.png';
-import darkImg from '@/assets/images/dark.png';
-import systemImg from '@/assets/images/system.png';
-import { getSystemFonts, setMenuVisibility, setReducedMotion } from '@/lib/native/app';
+import {
+  getSystemFonts,
+  setMenuVisibility,
+  setReducedMotion,
+} from '@/lib/native/app';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { backend } from '@/lib/tauri-bridge';
 import {
@@ -263,28 +414,17 @@ export default {
     function fmt(key, params) {
       const raw = tr.value[key] ?? key;
       if (!params) return raw;
-      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+      return Object.entries(params).reduce(
+        (s, [k, v]) => s.replace(`{${k}}`, String(v)),
+        raw,
+      );
     }
     const appStore = useAppStore();
-    const themes = [
-      { name: 'light', img: lightImg },
-      { name: 'dark', img: darkImg },
-      { name: 'system', img: systemImg },
-    ];
-
-    const layouts = [
-      { name: 'default', img: lightImg },
-      { name: 'columns', img: darkImg },
-    ];
 
     const theme = useTheme();
 
     const rawAccent = getSettingSync('colorScheme');
     const state = shallowReactive({
-      defaultPath: '',
-      password: '',
-      withPassword: false,
-      lastUpdated: null,
       accentColor: rawAccent === 'light' ? 'amber' : rawAccent,
       zoomLevel: formatZoomLevel(getStoredZoomLevel()),
       directionPreference: getSettingSync('directionPreference'),
@@ -292,8 +432,6 @@ export default {
       selectedCodeFont: getSettingSync('selectedCodeFont'),
     });
     if (rawAccent === 'light') void setSetting('colorScheme', 'amber');
-
-    let defaultPath = '';
 
     const isMacOS = computed(() => isMacOSRuntime());
 
@@ -303,13 +441,21 @@ export default {
         void setSetting('selectedDarkText', value ? '#CCCCCC' : 'white');
         document.documentElement.style.setProperty(
           '--selected-dark-text',
-          value ? '#CCCCCC' : 'white'
+          value ? '#CCCCCC' : 'white',
         );
       },
     });
 
     const THEME_COLOR_CLASSES = [
-      'red', 'amber', 'green', 'blue', 'purple', 'pink', 'neutral', 'light', 'dark',
+      'red',
+      'amber',
+      'green',
+      'blue',
+      'purple',
+      'pink',
+      'neutral',
+      'light',
+      'dark',
     ];
 
     const accentColors = [
@@ -324,8 +470,7 @@ export default {
 
     const setColor = (color) => {
       const root = document.documentElement;
-      // ponytail: copy to array — forEach on live DOMTokenList skips next item when removing
-      ;[...root.classList].forEach((cls) => {
+      [...root.classList].forEach((cls) => {
         if (THEME_COLOR_CLASSES.includes(cls)) {
           root.classList.remove(cls);
         }
@@ -350,11 +495,7 @@ export default {
     });
 
     const defaultFonts = [
-      {
-        label: 'Default',
-        value: DEFAULT_UI_FONT_STACK,
-        class: '',
-      },
+      { label: 'Default', value: DEFAULT_UI_FONT_STACK, class: '' },
       { label: 'Arimo', value: 'Arimo', class: 'font-arimo' },
       { label: 'Avenir', value: 'avenir', class: 'font-avenir' },
       { label: 'EB Garamond', value: 'EB Garamond', class: 'font-eb-faramond' },
@@ -383,32 +524,28 @@ export default {
     });
 
     onMounted(() => {
-      defaultPath = localStorage.getItem('default-path') || '';
-      state.defaultPath = defaultPath;
-
       document.documentElement.style.setProperty(
         '--selected-font',
-        state.selectedFont
+        state.selectedFont,
       );
       document.documentElement.style.setProperty(
         '--selected-font-code',
-        state.selectedCodeFont
+        state.selectedCodeFont,
       );
       document.documentElement.dir = state.directionPreference;
     });
-
-    const toggleClearFont = () => {
-      ClearFontChecked.value = !ClearFontChecked.value;
-    };
 
     const toggleVisibilityOfMenubar = async () => {
       await setMenuVisibility(!getSettingSync('visibilityMenubar'));
     };
 
     const toggleReducedMotion = async (val) => {
-      const enabled = typeof val === 'boolean' ? val : !getSettingSync('reducedMotion');
-      // class drives CSS `prefers-reduced-motion` polyfill in style.css (src/assets/css/style.css:280)
-      document.documentElement.classList.toggle('prefers-reduced-motion', enabled);
+      const enabled =
+        typeof val === 'boolean' ? val : !getSettingSync('reducedMotion');
+      document.documentElement.classList.toggle(
+        'prefers-reduced-motion',
+        enabled,
+      );
       void setReducedMotion(enabled).catch(() => {});
     };
 
@@ -423,7 +560,7 @@ export default {
       void setSetting('selectedFont', state.selectedFont);
       document.documentElement.style.setProperty(
         '--selected-font',
-        state.selectedFont
+        state.selectedFont,
       );
     };
 
@@ -431,7 +568,7 @@ export default {
       void setSetting('selectedCodeFont', state.selectedCodeFont);
       document.documentElement.style.setProperty(
         '--selected-font-code',
-        state.selectedCodeFont
+        state.selectedCodeFont,
       );
     };
 
@@ -525,12 +662,9 @@ export default {
     return {
       state,
       theme,
-      themes,
-      layouts,
       translations,
       tr,
       fmt,
-      toggleClearFont,
       ClearFontChecked,
       visibilityMenubar,
       toggleVisibilityOfMenubar,
@@ -558,27 +692,6 @@ export default {
 };
 </script>
 <style scoped>
-/* Absolutely center the preview; size-compensate so scale never overflows */
-.fit-scale {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  /* compensate size so the scaled content fits within the frame */
-  width: calc(100% / var(--s));
-  height: calc(100% / var(--s));
-  transform: translate(-50%, -50%) scale(var(--s));
-  transform-origin: center center;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  /* crisp rendering; avoids subpixel fuzz */
-  transform-style: preserve-3d;
-  will-change: transform;
-}
-
-/* Optional: reduce jitter on some browsers */
 button {
   -webkit-tap-highlight-color: transparent;
 }

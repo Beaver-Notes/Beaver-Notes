@@ -123,7 +123,7 @@ function applyResolvedTheme(isDarkTheme) {
 }
 
 function clearSystemThemeSync() {
-  if (themeSurfaceSyncFrame !== null && typeof window !== 'undefined') {
+  if (themeSurfaceSyncFrame !== null) {
     window.cancelAnimationFrame(themeSurfaceSyncFrame);
     themeSurfaceSyncFrame = null;
   }

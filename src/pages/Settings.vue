@@ -163,23 +163,11 @@ const settings = computed(() => {
         'accessibility',
       ],
     },
-    'Settings-Security': {
-      name: t.settings.security || 'Security',
-      icon: 'riShieldLine',
-      path: '/settings/security',
-      keywords: [t.settings.security?.toLowerCase() || 'security'],
-    },
     'Settings-Account': {
       name: t.settings.account || 'Account',
       icon: 'riUserLine',
       path: '/settings/account',
       keywords: [t.settings.account?.toLowerCase() || 'account'],
-    },
-    'Settings-Data': {
-      name: t.settings.data || 'Data',
-      icon: 'riDatabase2Line',
-      path: '/settings/data',
-      keywords: [t.settings.data?.toLowerCase() || 'data'],
     },
     'Settings-Labels': {
       name: t.labels?.title || 'Labels',

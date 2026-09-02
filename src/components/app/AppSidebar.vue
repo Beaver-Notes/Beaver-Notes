@@ -556,7 +556,7 @@ export default {
     }
 
     function openSyncSettings() {
-      router.push({ name: 'Settings-Data' });
+      router.push('/settings');
     }
 
     const recentItems = computed(() => {
