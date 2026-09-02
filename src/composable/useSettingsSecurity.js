@@ -35,7 +35,7 @@ export function useSettingsSecurity({
         'Change Encryption Passphrase',
       body:
         translations.value.settings.changePassphraseDesc ||
-        'Enter your current passphrase to change it. The underlying encryption key will be re-wrapped — your notes are not re-encrypted.',
+        'Enter your current passphrase to change it. The encryption key will be re-wrapped. Your notes stay as they are.',
       icon: 'riLockLine',
       okText: translations.value.settings.next || 'Next',
       cancelText: translations.value.settings.cancel || 'Cancel',

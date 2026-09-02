@@ -66,7 +66,7 @@ export function useOnboardingFlow({
   const theme = useTheme();
   const accountStore = useAccountStore();
 
-  //  Wizard state
+  // Wizard state
 
   const step = ref('welcome');
   const importPhase = ref('pick');
@@ -287,7 +287,6 @@ export function useOnboardingFlow({
     }
   }
 
-  //  Computed
 
   const isMobileRuntime = backend.isMobileRuntime();
 
@@ -367,7 +366,6 @@ export function useOnboardingFlow({
       state.legacyHasLockedNotes,
   );
 
-  //  Navigation
 
   // All nav helpers route through here so slide-direction tracking lives in one place.
   const goToStep = (s) => {
@@ -419,7 +417,6 @@ export function useOnboardingFlow({
   const appearance = useOnboardingAppearance({ fresh, state, theme, goToStep });
   const { selectAccentColor, selectZoomLevel } = appearance;
 
-  //  Import
 
   const resetImport = () => {
     importPhase.value = 'pick';
@@ -800,7 +797,6 @@ export function useOnboardingFlow({
     }
   }
 
-  //  Sync
 
   async function chooseSyncPath() {
     state.error = '';
@@ -864,7 +860,6 @@ export function useOnboardingFlow({
     }
   }
 
-  //  Confetti
 
   const prefersReducedMotion = () =>
     typeof window !== 'undefined' &&
@@ -912,7 +907,6 @@ export function useOnboardingFlow({
     }, 3800);
   }
 
-  //  Lifecycle
 
   watch(step, async (next) => {
     if (next === 'finish') {

@@ -89,7 +89,6 @@ export function useNoteMenu(props) {
   const editorImage = useEditorImage(props.editor);
   useGroupTooltip();
 
-  // --- useNoteMenuActions inlined ---
   const isTableActive = computed(
     () => props.editor.isActive('tableCell') || props.editor.isActive('tableHeader')
   );
@@ -465,7 +464,6 @@ export function useNoteMenu(props) {
     }
   }
 
-  // --- useNoteMenuState inlined ---
   const fontSize = ref(16);
   const imgUrl = shallowRef('');
   const fileUrl = shallowRef('');
@@ -604,7 +602,6 @@ export function useNoteMenu(props) {
   });
   onUnmounted(()=>{ props.editor?.off?.('selectionUpdate', handleSelectionUpdate); _unregShortcuts2?.(); });
 
-  // --- Original computed properties ---
   const visibleItemIds = computed(
     () => new Set(visibleItems.value.map((item) => item.id))
   );

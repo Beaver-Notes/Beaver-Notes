@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, isRef } from 'vue';
 
 const PEER_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
@@ -17,10 +17,8 @@ export function getColorFromId(id) {
 function resolveAwareness(a) {
   if (!a) return null;
   if (typeof a === 'function') return a() || null;
-  // shallowRef unwrapping
-  if (typeof a === 'object' && 'value' in a && a.value !== undefined && (a.value === null || typeof a.value === 'object')) {
-    if (a.value === null || typeof a.value.getStates === 'function' || typeof a.value.setLocalStateField === 'function') return a.value;
-  }
+  const v = isRef(a) ? a.value : a;
+  if (v && typeof v.getStates === 'function') return v;
   return a;
 }
 

@@ -353,24 +353,12 @@ export function useAppShell(onboardingCompleted = true) {
     secondaryText: '',
     version: '',
   });
-  const syncLockBanner = reactive({
-    show: false,
-    dismissed: false,
-  });
   const appEncryptionMigrationBanner = reactive({
     show: false,
     dismissed: false,
     status: null,
     error: null,
   });
-
-  const syncLockBannerCopy = computed(() => ({
-    content:
-      translations.value.app?.syncLockContent ||
-      'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.',
-    primaryText: translations.value.app?.openSettings || 'Open Settings',
-    secondaryText: translations.value.app?.dismiss || 'Dismiss',
-  }));
 
   const appEncryptionMigrationBannerCopy = computed(() => ({
     content:
@@ -390,33 +378,6 @@ export function useAppShell(onboardingCompleted = true) {
 
   const handleUpdateDismiss = () => {
     updateBanner.show = false;
-  };
-
-  const openSyncSettings = () => {
-    syncLockBanner.show = false;
-    router.push(SETTINGS_ROUTE_PREFIX);
-  };
-
-  const dismissSyncBanner = () => {
-    syncLockBanner.dismissed = true;
-    syncLockBanner.show = false;
-  };
-
-  const refreshSyncLockBanner = async () => {
-    const inSettings = router.currentRoute.value.path.startsWith(
-      SETTINGS_ROUTE_PREFIX
-    );
-    if (
-      inSettings ||
-      syncLockBanner.dismissed ||
-      route.name === ONBOARDING_ROUTE_NAME
-    ) {
-      syncLockBanner.show = false;
-      return;
-    }
-    const configured = await encryptionIsConfigured();
-    syncLockBanner.show = configured && !isKeyLoaded();
-    await refreshEncryptionGate(configured);
   };
 
   const dismissAppEncryptionMigrationBanner = () => {
@@ -578,8 +539,6 @@ export function useAppShell(onboardingCompleted = true) {
     backend.invoke('storage:repairSettings').catch((err) => {
       console.warn('[app] settings repair failed:', err?.message || err);
     });
-
-    await refreshSyncLockBanner();
 
     // One-time backfill of previews for notes predating persisted `cardPreview`.
     if (!(await settingsStorage.get('preview_backfill_done', false))) {
@@ -786,14 +745,12 @@ export function useAppShell(onboardingCompleted = true) {
       void nativeReady;
     }
 
-    void refreshSyncLockBanner();
     removeBeforeRouteGuard = router.beforeEach((to, from, next) => {
       animateRouteChange.value =
         Boolean(from.name) && to.fullPath !== from.fullPath;
       next();
     });
     removeRouteGuard = router.afterEach(async () => {
-      void refreshSyncLockBanner();
       await nextTick();
       const mainEl = document.querySelector('[data-testid="app-main"]');
       if (mainEl) mainEl.scrollTop = 0;
@@ -934,21 +891,17 @@ export function useAppShell(onboardingCompleted = true) {
     showImportDialog,
     bottomBannerStyle,
     undoBannerWrapperStyle,
-    dismissSyncBanner,
     getTopLevelRouteKey,
     handleUpdateDismiss,
     handleUpdateInstall: () => handleUpdateInstall(installUpdate),
     initializeWorkspace,
     mainStyle,
     mobileNavbarStyle,
-    openSyncSettings,
     retrieved,
     showMobileNavbar,
     showSidebar,
     state,
     store,
-    syncLockBanner,
-    syncLockBannerCopy,
     appEncryptionGate,
     refreshEncryptionGate,
     handleEncryptionUnlocked,
