@@ -39,7 +39,6 @@ vi.mock('@/lib/account-storage', () => ({
   useAccountStorage: () => ({}),
 }));
 
-// ----- probe backend reachability (top-level, before importing heavy modules) -----
 let reachable = false;
 try {
   const r = await fetch(`${API}/health`);

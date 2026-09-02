@@ -523,26 +523,24 @@ describe('SyncEngine notifications', () => {
     });
   });
 
-  it('notifies when a completed cycle pulled updates', async () => {
+  it('does not notify when a completed cycle pulled updates', async () => {
     mockCloudTransport.pull.mockReturnValue({
       updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1, sequence: 1 }],
     });
 
     await engine.enqueueSync(true);
 
-    await vi.waitFor(() => {
-      expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: 'Sync complete' });
-    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(notify).not.toHaveBeenCalled();
   });
 
-  it('notifies when a completed cycle pushed changes', async () => {
+  it('does not notify when a completed cycle pushed changes', async () => {
     mockCloudTransport.push.mockReturnValue({ updates: [], pushed: 2 });
 
     await engine.enqueueSync(true);
 
-    await vi.waitFor(() => {
-      expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: 'Sync complete' });
-    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it('does not notify on a no-op completion', async () => {
@@ -552,35 +550,19 @@ describe('SyncEngine notifications', () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it('throttles failure notifications to once per five minutes', async () => {
+  it('does not notify on sync failure', async () => {
     mockLocalTransport.push.mockRejectedValue(new Error('offline'));
 
-    const base = Date.now() + 10 * 60_000;
-    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(base);
-    try {
-      await expect(engine.enqueueSync(true)).rejects.toThrow('offline');
-      await vi.waitFor(() => {
-        expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: 'Sync failed' });
-      });
+    await expect(engine.enqueueSync(true)).rejects.toThrow('offline');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(notify).not.toHaveBeenCalled();
 
-      notify.mockClear();
-      dateNow.mockReturnValue(base + 5_000);
-      await expect(engine.enqueueSync(true)).rejects.toThrow('offline');
-      await new Promise((r) => setTimeout(r, 10));
-      expect(notify).not.toHaveBeenCalled();
-
-      dateNow.mockReturnValue(base + 5 * 60_000 + 1);
-      await expect(engine.enqueueSync(true)).rejects.toThrow('offline');
-      await vi.waitFor(() => {
-        expect(notify).toHaveBeenCalledTimes(1);
-      });
-    } finally {
-      dateNow.mockRestore();
-    }
+    await expect(engine.enqueueSync(true)).rejects.toThrow('offline');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(notify).not.toHaveBeenCalled();
   });
 
-  it('notifies once for repeated locked cycles and again after a successful cycle', async () => {
-    const lockBody = 'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.';
+  it('does not notify on locked cycles', async () => {
     const { getSyncReadiness } = await import('../readiness.js');
     getSyncReadiness.mockResolvedValue({
       isAuth: true, plan: 'team', transport: 'remote', wantsCloud: true,
@@ -594,36 +576,15 @@ describe('SyncEngine notifications', () => {
     });
 
     await engine.enqueueSync(true);
-    await vi.waitFor(() => {
-      expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: lockBody });
-    });
-    expect(notify).toHaveBeenCalledTimes(1);
-
-    notify.mockClear();
-    await engine.enqueueSync(true);
     await new Promise((r) => setTimeout(r, 10));
     expect(notify).not.toHaveBeenCalled();
 
-    getSyncReadiness.mockResolvedValue({
-      isAuth: true, plan: 'team', transport: 'remote', wantsCloud: true,
-      syncAllowed: true, keyReady: true, workspaceId: 'test-ws',
-    });
     await engine.enqueueSync(true);
     await new Promise((r) => setTimeout(r, 10));
-
-    notify.mockClear();
-    getSyncReadiness.mockResolvedValue({
-      isAuth: true, plan: 'team', transport: 'remote', wantsCloud: true,
-      syncAllowed: true, keyReady: false, workspaceId: 'test-ws',
-    });
-    await engine.enqueueSync(true);
-    await vi.waitFor(() => {
-      expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: lockBody });
-    });
-    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).not.toHaveBeenCalled();
   });
 
-  it('suppresses notifications when isTouchRuntime() is true', async () => {
+  it('does not notify even when isTouchRuntime() is true', async () => {
     isTouchRuntime.mockReturnValue(true);
     const { getSyncReadiness } = await import('../readiness.js');
     getSyncReadiness.mockResolvedValue({
@@ -637,7 +598,6 @@ describe('SyncEngine notifications', () => {
     await engine.enqueueSync(true);
     await new Promise((r) => setTimeout(r, 10));
 
-    expect(isTouchRuntime).toHaveBeenCalled();
     expect(notify).not.toHaveBeenCalled();
   });
 });

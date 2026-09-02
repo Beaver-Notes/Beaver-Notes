@@ -3,7 +3,6 @@ import * as Y from 'yjs';
 
 const API = process.env.VITE_TEST_BACKEND_URL || 'http://localhost:4000';
 
-// ─── Shared, process-wide state (same module instance for both "devices") ───
 // In a real deployment device A and device B would each have their own native
 // security backend, but they converge on the SAME key because they share the
 // same passphrase + the same vault key-params (which are synced via the
@@ -23,7 +22,6 @@ const ctx = vi.hoisted(() => ({
   workspaceId: null,
 }));
 
-// ─── WebCrypto AES-GCM that mirrors the real Rust cipher contract ───
 // key = SHA-256(passphrase + keyParams), imported as AES-GCM.
 // envelope = { v:5, meta, iv (b64), enc (b64) }; AAD = `${noteId}-${ts}`.
 async function deriveKey() {
@@ -74,7 +72,6 @@ async function decryptOne(raw, aad) {
   return { meta: env.meta, update: bytesToB64(new Uint8Array(pt)) };
 }
 
-// ─── Mock the Rust/Tauri security backend (the ONLY thing mocked) ───
 vi.mock('@/lib/native/security.js', () => ({
   isEncryptionAvailable: () => Promise.resolve(true),
   syncKeyReady: () => Promise.resolve(true),
@@ -111,7 +108,6 @@ vi.mock('@/lib/native/security.js', () => ({
     Promise.resolve({ enabled: true, unlocked: true }),
 }));
 
-// ─── Mock the Tauri fs layer used by vault-key-params (key params file) ───
 vi.mock('@/lib/native/fs', () => ({
   ensureDir: () => Promise.resolve(),
   writeFile: (p, data) => {
@@ -198,7 +194,6 @@ vi.mock('@/lib/yjs/meta-doc.js', () => ({
   onWorkspaceDocDestroy: vi.fn(),
 }));
 
-// ─── Probe backend reachability ───
 let reachable = false;
 try {
   const r = await fetch(`${API}/health`);
