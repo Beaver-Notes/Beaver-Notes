@@ -1069,6 +1069,28 @@ pub(crate) fn clear_external_open_dir(state: &AppState) {
     let _ = fs::remove_dir_all(&state.files.external_open_dir);
 }
 
+/// Write decrypted bytes so only the owner can read them (0o600 on unix).
+/// Callers stage plaintext to the app cache or the external-open dir, both
+/// wiped on exit; restrictive perms close the gap while the app is running.
+pub(crate) fn write_private_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    fs::write(path, bytes)?;
+    restrict_private(path)
+}
+
+/// Restrict an existing file to owner-only access (0o600 on unix).
+pub(crate) fn restrict_private(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
+    Ok(())
+}
+
 pub(crate) fn decrypted_cache_path(
     asset_cache_dir: &Path,
     source: &Path,

@@ -150,6 +150,7 @@ pub(crate) fn decrypt_asset_streaming(
         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
             drop(reader);
             fs::copy(input_path, output_path)?;
+            crate::shared::restrict_private(output_path)?;
             return Ok(());
         }
         Err(e) => return Err(AppError::from(e)),
@@ -159,7 +160,7 @@ pub(crate) fn decrypt_asset_streaming(
         drop(reader);
         let data = fs::read(input_path)?;
         let plain = decrypt_asset_bytes_with_key(&data, key)?;
-        fs::write(output_path, plain)?;
+        crate::shared::write_private_bytes(output_path, &plain)?;
         return Ok(());
     }
 
@@ -227,6 +228,8 @@ pub(crate) fn decrypt_asset_streaming(
     }
 
     writer.flush()?;
+    drop(writer);
+    crate::shared::restrict_private(output_path)?;
     Ok(())
 }
 

@@ -545,7 +545,9 @@ pub(crate) async fn sync_decrypt_batch(
                 let envelope: Value = match serde_json::from_str(enc) {
                     Ok(v) => v,
                     Err(e) => {
-                        eprintln!("[sync][rust][debug] [{}] json_parse failed: {}", i, e);
+                        if cfg!(debug_assertions) {
+                            eprintln!("[sync][rust][debug] [{}] json_parse failed: {}", i, e);
+                        }
                         return None;
                     }
                 };
@@ -563,10 +565,12 @@ pub(crate) async fn sync_decrypt_batch(
                     let bytes = match aead_decrypt_bytes(&key, iv, enc_str, aad) {
                         Ok(b) => b,
                         Err(e) => {
-                            eprintln!(
-                                "[sync][rust][debug] [{}] decrypt failed v{}: {} (aad={})",
-                                i, v, e, aad
-                            );
+                            if cfg!(debug_assertions) {
+                                eprintln!(
+                                    "[sync][rust][debug] [{}] decrypt failed v{}: {} (aad={})",
+                                    i, v, e, aad
+                                );
+                            }
                             return None;
                         }
                     };
@@ -575,10 +579,12 @@ pub(crate) async fn sync_decrypt_batch(
                     ) {
                         Ok(m) => m,
                         Err(e) => {
-                            eprintln!(
-                                "[sync][rust][debug] [{}] meta_parse failed v{}: {}",
-                                i, v, e
-                            );
+                            if cfg!(debug_assertions) {
+                                eprintln!(
+                                    "[sync][rust][debug] [{}] meta_parse failed v{}: {}",
+                                    i, v, e
+                                );
+                            }
                             return None;
                         }
                     };
@@ -595,20 +601,24 @@ pub(crate) async fn sync_decrypt_batch(
                     let value = match aead_decrypt_json(&key, &legacy, aad) {
                         Ok(v) => v,
                         Err(e) => {
-                            eprintln!(
-                                "[sync][rust][debug] [{}] decrypt_legacy failed v{}: {}",
-                                i, v, e
-                            );
+                            if cfg!(debug_assertions) {
+                                eprintln!(
+                                    "[sync][rust][debug] [{}] decrypt_legacy failed v{}: {}",
+                                    i, v, e
+                                );
+                            }
                             return None;
                         }
                     };
                     let meta: SyncMeta = match serde_json::from_value(value.clone()) {
                         Ok(m) => m,
                         Err(e) => {
-                            eprintln!(
-                                "[sync][rust][debug] [{}] meta_parse_legacy failed v{}: {}",
-                                i, v, e
-                            );
+                            if cfg!(debug_assertions) {
+                                eprintln!(
+                                    "[sync][rust][debug] [{}] meta_parse_legacy failed v{}: {}",
+                                    i, v, e
+                                );
+                            }
                             return None;
                         }
                     };
@@ -626,17 +636,19 @@ pub(crate) async fn sync_decrypt_batch(
                         update: BASE64.encode(bytes),
                     })
                 } else {
-                    eprintln!(
-                        "[sync][rust][debug] [{}] unsupported envelope version: {}",
-                        i, v
-                    );
+                    if cfg!(debug_assertions) {
+                        eprintln!(
+                            "[sync][rust][debug] [{}] unsupported envelope version: {}",
+                            i, v
+                        );
+                    }
                     None
                 }
             })
             .collect();
 
         let null_count = results.iter().filter(|r| r.is_none()).count();
-        if null_count > 0 {
+        if null_count > 0 && cfg!(debug_assertions) {
             eprintln!(
                 "[sync][rust][debug] sync_decrypt_batch: {}/{} items failed",
                 null_count,
@@ -1082,7 +1094,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
             &path_buf,
             &metadata,
         )?;
-        fs::write(&cache_path, &cached)?;
+        crate::shared::write_private_bytes(&cache_path, &cached)?;
         return Ok(cache_path.to_string_lossy().to_string());
     }
 
@@ -1101,7 +1113,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
             decrypt_asset_streaming(&path_buf, &output_path, &key)?;
         } else {
             let plain = decrypt_asset(&app, state_inner, &path_buf, &raw)?;
-            fs::write(&output_path, &plain)?;
+            crate::shared::write_private_bytes(&output_path, &plain)?;
             cache_decrypted_asset(state_inner, &path, &plain);
         }
         Ok(output_path.to_string_lossy().to_string())

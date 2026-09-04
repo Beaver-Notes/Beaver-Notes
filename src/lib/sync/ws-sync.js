@@ -13,7 +13,7 @@ import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces'
 import { forceSyncNow } from '@/utils/sync/engine'
-import { ROLES } from '@/utils/permissions'
+import { ROLES, canEdit } from '@/utils/permissions'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
@@ -332,10 +332,12 @@ export function useWsSync() {
     joinNoteRoom(noteId, doc)
   }
 
+  // Fail-closed role resolution: unknown roles get VIEWER. The server remains
+  // authoritative; this only gates local editing UI and Yjs sends.
   function getRoomRole(noteId) {
     const accountStore = useAccountStore()
     const userId = accountStore.profile?.id
-    if (!userId) return ROLES.EDITOR
+    if (!userId) return ROLES.VIEWER
 
     // 1. Check per-note collaborator role (most specific)
     const collaboratorStore = useCollaboratorStore()
@@ -348,11 +350,12 @@ export function useWsSync() {
 
     // 2. Fall back to workspace role
     const workspaceStore = useWorkspaceStore()
-    const activeWs = workspaceStore.activeWorkspace
-    if (activeWs?.role) return activeWs.role
+    const wsRole = workspaceStore.activeWorkspace?.role
+    if (wsRole) return wsRole === 'admin' || canEdit(wsRole) ? ROLES.EDITOR : ROLES.VIEWER
 
-    // 3. Default to editor for backwards compatibility
-    return ROLES.EDITOR
+    // 3. No sharing context (local note): owner
+    if (!collaboratorStore.noteId) return ROLES.EDITOR
+    return ROLES.VIEWER
   }
 
   return {

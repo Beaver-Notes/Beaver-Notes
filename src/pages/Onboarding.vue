@@ -1097,6 +1097,8 @@
                           />
                           <ui-input
                             v-model="recoverCode"
+                            type="password"
+                            autocomplete="off"
                             class="w-full font-mono text-xs"
                             :placeholder="
                               trAuth.recoveryCodePlaceholder ||

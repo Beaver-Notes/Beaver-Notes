@@ -820,7 +820,7 @@
 </template>
 
 <script>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
@@ -883,6 +883,11 @@ export default {
     }
     const recoveryCode = ref('');
     const recoveryBusy = ref(false);
+    let recoveryClearTimer = null;
+    onUnmounted(() => {
+      if (recoveryClearTimer) clearTimeout(recoveryClearTimer);
+      recoveryCode.value = '';
+    });
     const billingBusy = ref(false);
     const billingError = ref('');
     const billingMessage = ref('');
@@ -895,14 +900,36 @@ export default {
       { key: 'team-monthly', plan: 'team', interval: 'monthly', label: 'Team Monthly' },
       { key: 'team-yearly', plan: 'team', interval: 'yearly', label: 'Team Yearly' },
     ];
+    // Server-supplied billing URLs are untrusted input: only open https links
+    // on Stripe checkout/portal hosts or the configured sync server itself.
+    const BILLING_HOSTS = new Set(['checkout.stripe.com', 'billing.stripe.com', 'js.stripe.com']);
+    function isAllowedBillingUrl(url) {
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch {
+        return false;
+      }
+      if (parsed.protocol !== 'https:') return false;
+      if (BILLING_HOSTS.has(parsed.hostname)) return true;
+      try {
+        return parsed.hostname === new URL(accountStore.serverUrl).hostname;
+      } catch {
+        return false;
+      }
+    }
     async function openBillingUrl(url) {
       billingError.value = '';
       if (!url) return;
+      if (!isAllowedBillingUrl(url)) {
+        billingError.value = 'Refusing to open an unexpected billing URL.';
+        return;
+      }
       try {
         const { openUrl } = await import('@tauri-apps/plugin-opener');
         await openUrl(url);
       } catch {
-        window.open(url, '_blank', 'noopener');
+        window.open(url, '_blank', 'noopener,noreferrer');
       }
     }
     async function handleCheckout(plan, interval) {
@@ -1078,6 +1105,12 @@ export default {
       try {
         const res = await apiGenerateRecoveryCode({ baseUrl: accountStore.serverUrl });
         recoveryCode.value = res?.recoveryCode || '';
+        // Auto-clear the displayed code so it does not linger in the DOM.
+        if (recoveryClearTimer) clearTimeout(recoveryClearTimer);
+        recoveryClearTimer = setTimeout(() => {
+          recoveryCode.value = '';
+          recoveryClearTimer = null;
+        }, 120000);
         dialog.alert({
           title: 'Recovery code generated',
           body: 'Store this code securely: it will not be shown again. Regenerating invalidates the old code. This restores ACCOUNT access only; E2E data needs vault passphrase.',

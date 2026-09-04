@@ -175,11 +175,8 @@ async function runEngineCycle({ envelopes }) {
     },
   });
 
-  const cloud = new CloudTransport({
-    passphraseProvider: vi.fn(),
-    getTransportSetting: () => 'remote',
-    getAccountState: () => ({ isAuth: true, plan: 'starter' }),
-  });
+  const cloud = new CloudTransport();
+  cloud.setReadiness({ isAuth: true, plan: 'starter', syncAllowed: true });
   cloud.syncAssets = vi.fn(async () => {});
   cloud.seedOnce = vi.fn(async () => {});
   cloud.compact = vi.fn(async () => {});
@@ -304,11 +301,8 @@ describe('server checkpoint is not poisoned by an undecodable page', () => {
       Object.assign(new Error('decrypt failed'), { code: 'DECRYPT_FAILED' })
     );
 
-    const cloud = new CloudTransport({
-      passphraseProvider: vi.fn(),
-      getTransportSetting: () => 'remote',
-      getAccountState: () => ({ isAuth: true, plan: 'starter' }),
-    });
+    const cloud = new CloudTransport();
+    cloud.setReadiness({ isAuth: true, plan: 'starter', syncAllowed: true });
     cloud.syncAssets = vi.fn(async () => {});
     cloud.seedOnce = vi.fn(async () => {});
     cloud.compact = vi.fn(async () => {});
@@ -327,25 +321,3 @@ describe('server checkpoint is not poisoned by an undecodable page', () => {
     expect(saveServerCheckpoint).not.toHaveBeenCalled();
   });
 });
-
-  it('refreshes the store after content-only updates (no meta)', async () => {
-    // Simulate: pull returns content updates for note 'abc' but no meta.
-    // Before fix: writeStoresFromWorkspace was never called → store stale.
-    // After fix: store refreshes with affected note IDs.
-    await import('@/utils/sync/engine.js');
-    await import('@/lib/yjs/workspace-doc.js');
-
-    // The engine pull loop calls writeStoresFromWorkspace when hasMetaUpdates
-    // is true. We verify it ALSO calls it for content-only batches by
-    // checking the conditional logic directly: this is a design test, not
-    // a full integration test.
-    const updates = [
-      { noteId: 'abc', update: new Uint8Array([1, 2, 3]) },
-    ];
-    const hasMetaUpdates = updates.some((u) => u.noteId === 'meta');
-    expect(hasMetaUpdates).toBe(false);
-
-    // After our fix, the engine should call writeStoresFromWorkspace
-    // regardless of whether meta is in the batch.
-    // This test documents the expected behavior.
-  });

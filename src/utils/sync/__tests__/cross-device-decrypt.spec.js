@@ -3,9 +3,11 @@ import * as Y from 'yjs';
 
 const API = process.env.VITE_TEST_BACKEND_URL || 'http://localhost:4000';
 
-// In a real deployment device A and device B would each have their own native
-// security backend, but they converge on the SAME key because they share the
-// same passphrase + the same vault key-params (which are synced via the
+// Scope: envelope shape + AAD binding + REST push/pull round-trip. Key
+// derivation itself is mocked (SHA-256 here, Argon2id KEK in prod via Rust),
+// so this proves both devices converge given the same key, not KDF convergence.
+// In a real deployment device A and device B converge on the same key because
+// they share the same passphrase + the same vault key-params (synced via the
 // backend by publishCloudKeyParams/fetchCloudKeyParams).
 const ctx = vi.hoisted(() => ({
   blobs: new Map(),

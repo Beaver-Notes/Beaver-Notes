@@ -288,6 +288,20 @@ export function useCloudWorkspaces() {
     }
     if (!memberPubKey) return false;
 
+    // TOFU pin: warn if a member's key differs from the first one seen.
+    // Full transparency needs a server-signed key directory (follow-up).
+    try {
+      const pinKey = `kem-pin:${memberUserId}`;
+      const pinned = localStorage.getItem(pinKey);
+      if (pinned && pinned !== memberPubKey) {
+        console.warn(`[useCloudWorkspaces] member key changed for ${memberUserId}; refusing to provision until re-verified`);
+        return false;
+      }
+      if (!pinned) localStorage.setItem(pinKey, memberPubKey);
+    } catch {
+      // Pin storage unavailable: provision anyway, server remains authoritative.
+    }
+
     const wrappedForTarget = await wrapNoteKeyForRecipient(memberPubKey, workspaceKeyHex);
     await apiProvisionWorkspaceKey(workspaceId, memberUserId, wrappedForTarget, { baseUrl: activeBaseUrl() });
     // success clears any prior terminal marker for this member

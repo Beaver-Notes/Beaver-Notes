@@ -60,7 +60,7 @@ export async function decryptJSON(raw, aad = '') {
       return { ...res.meta, update: base64ToBuf(res.update) };
     } catch (e) {
       const msg = String(e?.message ?? e);
-      console.warn('[sync][debug] decryptJSON v4/v5 failed:', msg, 'aad:', aad);
+      if (import.meta.env.DEV) console.warn('[sync][debug] decryptJSON v4/v5 failed:', msg, 'aad:', aad);
       if (msg.includes('KEY_LOCKED')) {
         throw new SyncCryptoError(
           'Encryption is locked. Unlock it in Settings to sync.',
@@ -85,7 +85,7 @@ export async function decryptBatch(rawEnvelopes, aads) {
   if (!rawEnvelopes.length) return [];
   const results = await syncDecryptBatch(rawEnvelopes, aads);
   const nullCount = results.filter((r) => !r).length;
-  if (nullCount > 0) {
+  if (nullCount > 0 && import.meta.env.DEV) {
     console.warn(`[sync][debug] decryptBatch: ${nullCount}/${results.length} items returned null from Rust`);
   }
   return results.map((res) => {

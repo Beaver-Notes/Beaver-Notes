@@ -38,8 +38,11 @@ export function useSettingsAccount({ dialog, translations }) {
 
   async function saveServerUrl() {
     const next = (draftServerUrl.value || '').trim() || defaultServerUrl;
-    accountStore.setServerUrl(next);
-    await setSetting('beaverAccountServerUrl', next);
+    if (!accountStore.setServerUrl(next)) {
+      accountStore.setError('Server URL must start with http:// or https://.');
+      return;
+    }
+    await setSetting('beaverAccountServerUrl', accountStore.serverUrl);
     showServerUrlEditor.value = false;
   }
 

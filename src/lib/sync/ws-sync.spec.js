@@ -48,6 +48,7 @@ vi.mock('@/lib/api/workspaces', () => ({
 }))
 vi.mock('@/utils/permissions', () => ({
   ROLES: { OWNER: 'owner', EDITOR: 'editor', VIEWER: 'viewer', GUEST: 'guest' },
+  canEdit: (role) => role === 'owner' || role === 'editor',
 }))
 vi.mock('y-websocket', () => {
   const { EventEmitter } = require('events')
@@ -93,7 +94,7 @@ describe('ws-sync', () => {
     expect(typeof sync.getRoomRole).toBe('function')
   })
 
-  it('getRoomRole returns editor by default', () => {
+  it('getRoomRole returns editor for editable workspace role', () => {
     const sync = getWsSync()
     expect(sync.getRoomRole('note-1')).toBe('editor')
   })

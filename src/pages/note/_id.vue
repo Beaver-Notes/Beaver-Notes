@@ -412,7 +412,7 @@ export default {
 
     const accountStore = useAccountStore();
     const wsSync = getWsSync();
-    const noteRole = ref('editor');
+    const noteRole = ref(wsSync.getRoomRole(id.value));
     watch(
       () => sharing.collaborators.value,
       (list) => {

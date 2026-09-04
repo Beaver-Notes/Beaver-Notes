@@ -152,7 +152,7 @@ pub(crate) fn open_file_external(
     });
     let raw = fs::read(&full_path)?;
     let payload = decrypt_asset(&app, &state, &full_path, &raw)?;
-    fs::write(&temp_file, payload)?;
+    write_private_bytes(&temp_file, &payload)?;
     track_temp_file(&app, &full_path, &temp_file);
     watch_external_temp_file(app.clone(), full_path.clone(), temp_file.clone())?;
     app.opener()

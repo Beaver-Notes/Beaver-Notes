@@ -135,7 +135,6 @@ export function useOnboardingFlow({
     vaultJoinMode.value = false;
     try {
       let detected = false;
-      console.warn('[onboarding][vault-detect] starting vault join detection');
       if (accountStore.isAuthenticated) {
         // fetchCloudKeyParams needs an active workspace; not loaded yet on fresh onboarding.
         const workspaceStore = useWorkspaceStore();
@@ -146,7 +145,6 @@ export function useOnboardingFlow({
             console.warn('[onboarding] workspace retrieve during vault detect failed:', e);
           }
         }
-        console.warn('[onboarding][vault-detect] workspaceId:', workspaceStore.activeId);
         detected = await detectRemoteVaultJoin({
           fetchCloudKeyParams,
           hasRemoteVaultKeyParams: async () => hasRemoteVaultKeyParams(),
@@ -154,16 +152,13 @@ export function useOnboardingFlow({
           console.warn('[onboarding][vault-detect] detectRemoteVaultJoin threw:', err);
           return {};
         });
-        console.warn('[onboarding][vault-detect] detectRemoteVaultJoin result:', detected);
       } else {
         console.warn('[onboarding][vault-detect] not authenticated, skipping remote detection');
       }
       if (!detected) {
         detected = await hasRemoteVaultKeyParams();
-        console.warn('[onboarding][vault-detect] hasRemoteVaultKeyParams fallback:', detected);
       }
       vaultJoinMode.value = detected;
-      console.warn('[onboarding][vault-detect] final vaultJoinMode:', vaultJoinMode.value);
     } catch (e) {
       console.warn('[onboarding] vault-join detection failed:', e);
       vaultJoinMode.value = false;
@@ -183,7 +178,6 @@ export function useOnboardingFlow({
     try {
       const workspaceId = useWorkspaceStore().activeId;
       const fetched = getFetchedCloudKeyParams();
-      console.warn('[onboarding][vault-adopt] workspaceId:', workspaceId, 'vaultJoinMode:', vaultJoinMode.value, 'fetched:', !!fetched, 'fetchedKeys:', fetched ? Object.keys(fetched) : null);
       if (workspaceId && vaultJoinMode.value && fetched) {
         // Wait for session token to be available (may not be saved yet after sign-in)
         let token = null;
@@ -208,7 +202,6 @@ export function useOnboardingFlow({
             getApiClient({ baseUrl: accountStore.serverUrl }).verifyVaultPassphrase(id, proof, challenge),
           adopt: adoptVaultKey,
         });
-        console.warn('[onboarding][vault-adopt] completeRemoteVaultJoin result:', result?.ok, result?.error);
         if (!result?.ok) {
           encryptionPasswordError.value = result?.error || 'Failed to join this vault.';
           return;
@@ -225,9 +218,7 @@ export function useOnboardingFlow({
         goToNextStep();
         return;
       }
-      console.warn('[onboarding][vault-adopt] FALLBACK path: adoptVaultKey with paramsBlob:', !!fetched?.paramsBlob);
       const result = await adoptVaultKey(pw, fetched?.paramsBlob);
-      console.warn('[onboarding][vault-adopt] adoptVaultKey result:', result?.ok, result?.error);
       if (!result.ok) {
         encryptionPasswordError.value =
           result.error || 'Failed to join this vault.';
@@ -270,9 +261,7 @@ export function useOnboardingFlow({
     }
     encryptionPasswordLoading.value = true;
     try {
-      console.warn('[onboarding][encrypt-setup] calling setupEncryption (fresh vault, NOT adopting existing vault)');
       const result = await setupEncryption(pw);
-      console.warn('[onboarding][encrypt-setup] setupEncryption result:', result?.ok, result?.error);
       if (!result.ok) {
         encryptionPasswordError.value =
           result.error || 'Failed to set up encryption.';

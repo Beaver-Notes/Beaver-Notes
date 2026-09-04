@@ -72,8 +72,19 @@ export const useAccountStore = defineStore('account', {
       this.busy = !!value;
     },
 
+    // Fail-closed: only http(s) URLs are stored. Returns false when refused.
+    // Non-loopback cleartext is additionally blocked by the desktop CSP.
     setServerUrl(url) {
-      this.serverUrl = (url || '').trim();
+      const next = (url || '').trim().replace(/\/+$/, '');
+      let protocol = '';
+      try {
+        protocol = new URL(next).protocol;
+      } catch {
+        return false;
+      }
+      if (protocol !== 'http:' && protocol !== 'https:') return false;
+      this.serverUrl = next;
+      return true;
     },
 
     setToken(token) {
