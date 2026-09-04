@@ -15,9 +15,6 @@
 .note-editor-page {
   --drag-handle-gutter: clamp(3rem, 6vw, 3.5rem);
 }
-.note-editor-page[data-full-width="true"] {
-  padding-inline-end: var(--drag-handle-gutter);
-}
 
 @media (prefers-reduced-transparency: reduce) {
   .drag-handle-inner,
@@ -107,6 +104,7 @@ img.ProseMirror-selectednode {
 .ProseMirror {
   min-height: 800px;
   padding-inline-start: var(--drag-handle-gutter);
+  padding-inline-end: var(--drag-handle-gutter);
   & > :first-child {
     margin-top: 0;
   }

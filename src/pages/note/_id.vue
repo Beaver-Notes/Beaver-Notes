@@ -67,7 +67,7 @@
       @mousedown.self="uiState.inReaderMode && exitReader()"
     >
       <template v-if="editor && !isLocked">
-        <div :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)', paddingInlineEnd: note?.isFullWidth ? 'var(--drag-handle-gutter, 0px)' : undefined }">
+        <div :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)', paddingInlineEnd: 'var(--drag-handle-gutter, 0px)' }">
           <transition
             v-if="showSearch"
             enter-active-class="transition duration-200 ease-out"
@@ -122,7 +122,7 @@
           class="outline-none bg-transparent cursor-text title-placeholder"
           :class="editor ? '' : 'invisible'"
           :data-placeholder="translations.editor.untitledNote"
-          :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)', paddingInlineEnd: note?.isFullWidth ? 'var(--drag-handle-gutter, 0px)' : undefined }"
+          :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)', paddingInlineEnd: 'var(--drag-handle-gutter, 0px)' }"
           @input="handleTitleInput"
           @keydown="disallowedEnter"
         ></h1>
