@@ -46,6 +46,7 @@ export default Extension.create({
           let popup;
           let cleanup;
           let virtualEl;
+          let updatePosition;
 
           return {
             onStart: (props) => {
@@ -73,15 +74,16 @@ export default Extension.create({
 
               virtualEl = { getBoundingClientRect: props.clientRect };
 
-              const updatePosition = () => {
+              updatePosition = () => {
                 computePosition(virtualEl, popup, {
                   placement: 'bottom-start',
-                  middleware: [offset(0), flip(), shift({ padding: 8 })],
+                  middleware: [offset(8), flip(), shift({ padding: 8 })],
                 }).then(({ x, y }) => {
                   Object.assign(popup.style, { left: `${x}px`, top: `${y}px` });
                 });
               };
 
+              updatePosition();
               cleanup = autoUpdate(virtualEl, popup, updatePosition);
             },
 
@@ -98,6 +100,7 @@ export default Extension.create({
               if (!props.clientRect) return;
 
               virtualEl.getBoundingClientRect = props.clientRect;
+              updatePosition?.();
             },
 
             onKeyDown(props) {

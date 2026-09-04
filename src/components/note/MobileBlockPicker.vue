@@ -47,7 +47,6 @@
 
 <script>
 import { computed, ref } from 'vue';
-import mime from 'mime';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
@@ -120,17 +119,13 @@ export default {
 
         for (const path of filePaths) {
           const { relativePath } = await saveFile(path, props.id);
-          const type = mime.getType(path) || '';
-
-          if (type.startsWith('video/')) {
-            command({
-              editor: props.editor,
-              range: range.value,
-              props: {
-                action: () => props.editor.commands.setVideo(relativePath),
-              },
-            });
-          }
+          command({
+            editor: props.editor,
+            range: range.value,
+            props: {
+              action: () => props.editor.commands.setVideo(relativePath),
+            },
+          });
         }
       } catch (error) {
         console.error(error);
@@ -147,18 +142,13 @@ export default {
 
         for (const path of filePaths) {
           const { fileName, relativePath } = await saveFile(path, props.id);
-          const type = mime.getType(path) || '';
-
-          if (type.startsWith('audio/')) {
-            command({
-              editor: props.editor,
-              range: range.value,
-              props: {
-                action: () =>
-                  props.editor.commands.setAudio(relativePath, fileName),
-              },
-            });
-          }
+          command({
+            editor: props.editor,
+            range: range.value,
+            props: {
+              action: () => props.editor.commands.setAudio(relativePath, fileName),
+            },
+          });
         }
       } catch (error) {
         console.error(error);

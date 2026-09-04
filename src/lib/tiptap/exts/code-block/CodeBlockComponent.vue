@@ -1,7 +1,7 @@
 <template>
   <node-view-wrapper class="relative">
     <div
-      class="absolute right-2 top-2 z-10 flex items-center gap-1 border rounded-lg px-2 py-1 print:hidden bg-[var(--float-surface)] dark:bg-[var(--float-surface-dark)] border-[var(--float-border)] dark:border-[var(--float-border-dark)] backdrop-blur-xl"
+      class="absolute right-2 top-2 z-10 flex items-center gap-1 border rounded-lg px-2 py-1 print:hidden bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
     >
       <ui-select
         v-model="selectedLanguage"

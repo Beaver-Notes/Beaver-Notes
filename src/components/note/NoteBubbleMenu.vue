@@ -46,6 +46,7 @@ import {
   shift,
   autoUpdate,
 } from '@floating-ui/dom';
+import { CellSelection } from '@tiptap/pm/tables';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
@@ -187,6 +188,8 @@ export default {
       const { selection } = state;
       const { empty } = selection;
 
+      if (selection instanceof CellSelection) return false;
+
       // Always show for images
       if (editor.isActive('image')) return true;
 
@@ -207,6 +210,7 @@ export default {
       if (!props.editor) return null;
       if (props.editor.isActive('image')) return 'note-bubble-menu-image';
 
+      if (props.editor.state.selection instanceof CellSelection) return null;
       if (props.editor.state.selection.empty) return null;
 
       if (

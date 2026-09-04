@@ -53,7 +53,8 @@
             :placeholder="
               translations.noteActions?.searchHeadings || 'Search headings…'
             "
-            class="w-full rounded-lg p-2 text-sm"
+            radius="lg"
+            class="w-full p-2 text-sm"
           />
           <div class="p-2 max-h-80 overflow-y-auto space-y-1 no-scrollbar">
             <button

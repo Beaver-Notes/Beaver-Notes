@@ -145,7 +145,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getTranslations } from '@/utils/i18n/getTranslations';
-import { getTable, getRowCells, getColumnCells, selectLastCell, TABLE_COLOR_SWATCHES, TABLE_ALIGN_OPTIONS } from './tiptap-table-utils.js';
+import { getTable, getRowCells, getColumnCells, selectLastCell, getIndexCoordinates, selectCellsByCoords, TABLE_COLOR_SWATCHES, TABLE_ALIGN_OPTIONS } from './tiptap-table-utils.js';
 import { moveTableRow, moveTableColumn } from '@tiptap/pm/tables';
 
 export default {
@@ -231,19 +231,44 @@ export default {
       close();
     }
 
+    function ensureSelection() {
+      const isRow = props.orientation === 'row';
+      const idx = isRow ? props.state?.rowIndex : props.state?.colIndex;
+      const tp = props.state?.blockPos;
+      if (idx == null || tp == null) return false;
+      const coords = getIndexCoordinates({ editor: props.editor, index: idx, orientation: isRow ? 'row' : 'column', tablePos: tp });
+      if (!coords?.length) return false;
+      selectCellsByCoords(props.editor, tp, coords, { mode: 'dispatch', dispatch: props.editor.view.dispatch.bind(props.editor.view) });
+      return true;
+    }
+
     function setBg(color) {
       if (!props.editor) return;
+      const isRow = props.orientation === 'row';
+      const idx = isRow ? props.state?.rowIndex : props.state?.colIndex;
+      const tp = props.state?.blockPos;
+      if (idx != null && tp != null) {
+        const cells = isRow ? getRowCells(props.editor, idx, tp).cells : getColumnCells(props.editor, idx, tp).cells;
+        if (cells.length) {
+          let tr = props.editor.state.tr;
+          cells.forEach((c) => { if (c.node) tr = tr.setNodeMarkup(c.pos, undefined, { ...c.node.attrs, background: color }); });
+          props.editor.view.dispatch(tr);
+          return;
+        }
+      }
       props.editor.chain().focus().setCellAttribute('background', color).run();
     }
 
     function setAlign(align) {
       currentAlign.value = align;
       if (!props.editor) return;
+      ensureSelection();
       props.editor.chain().focus().setTextAlign(align).run();
     }
 
     function add(side) {
       if (!props.editor) return;
+      ensureSelection();
       if (props.orientation === 'row') {
         props.editor.chain().focus()[side === 'above' ? 'addRowBefore' : 'addRowAfter']().run();
       } else {

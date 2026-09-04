@@ -1,8 +1,8 @@
 <template>
   <div
-    class="border p-1.5 max-w-[18rem] min-w-[8rem] rounded-xl shadow-md bg-[var(--float-surface)] dark:bg-[var(--float-surface-dark)] border-[var(--float-border)] dark:border-[var(--float-border-dark)] backdrop-blur-xl"
+    class="border p-1.5 max-w-[18rem] min-w-[8rem] rounded-xl shadow-md bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
   >
-    <ui-list class="overflow-y-auto no-scrollbar max-h-80">
+    <ui-list ref="listRef" class="overflow-y-auto no-scrollbar max-h-80">
       <ui-list-item
         v-for="(item, index) in filteredItems"
         small
@@ -47,8 +47,7 @@
 </template>
 
 <script>
-import { ref, computed, getCurrentInstance } from 'vue';
-import mime from 'mime';
+import { ref, computed, getCurrentInstance, watch, nextTick } from 'vue';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
@@ -85,6 +84,7 @@ export default {
     const editorImage = useEditorImage(props.editor);
     const recorder = useAudioRecorder();
     const selectedIndex = ref(0);
+    const listRef = ref(null);
 
     const { translations } = useTranslations();
 
@@ -155,24 +155,19 @@ export default {
 
         for (const path of filePaths) {
           const { relativePath } = await saveFile(path, props.id);
-          const type = mime.getType(path) || '';
-
-          if (type.startsWith('video/')) {
-            props.command({
-              editor: props.editor,
-              range: props.range,
-              props: {
-                action: (chain) => chain.setVideo(relativePath),
-              },
-            });
-          }
+          props.command({
+            editor: props.editor,
+            range: props.range,
+            props: {
+              action: (chain) => chain.setVideo(relativePath),
+            },
+          });
         }
       } catch (error) {
         console.error(error);
       }
     };
 
-    // Audio handler
     const handleAudioSelect = async () => {
       try {
         const { canceled, filePaths = [] } = await openDialog({
@@ -182,18 +177,14 @@ export default {
         if (canceled || !filePaths.length) return;
 
         for (const path of filePaths) {
-          const { relativePath } = await saveFile(path, props.id);
-          const type = mime.getType(path) || '';
-
-          if (type.startsWith('audio/')) {
-            props.command({
-              editor: props.editor,
-              range: props.range,
-              props: {
-                action: (chain) => chain.setAudio(relativePath),
-              },
-            });
-          }
+          const { fileName, relativePath } = await saveFile(path, props.id);
+          props.command({
+            editor: props.editor,
+            range: props.range,
+            props: {
+              action: (chain) => chain.setAudio(relativePath, fileName),
+            },
+          });
         }
       } catch (error) {
         console.error(error);
@@ -394,15 +385,24 @@ export default {
       },
     ]);
 
-    function scrollToSelected() {
-      const container = document.querySelector('.ui-list');
-      const selectedEl = container?.children[selectedIndex.value];
-      if (selectedEl) {
+    watch(filteredItems, () => {
+      selectedIndex.value = 0;
+    });
+
+    async function scrollToSelected() {
+      if (!filteredItems.value.length) return;
+      await nextTick();
+      const raw = listRef.value;
+      const container = raw?.$el ?? raw;
+      const selectedEl = container?.children?.[selectedIndex.value];
+      // $el fallback handles component ref vs element ref
+      if (selectedEl?.scrollIntoView) {
         selectedEl.scrollIntoView({ block: 'nearest' });
       }
     }
 
     function upHandler() {
+      if (!filteredItems.value.length) return;
       selectedIndex.value =
         (selectedIndex.value + filteredItems.value.length - 1) %
         filteredItems.value.length;
@@ -410,6 +410,7 @@ export default {
     }
 
     function downHandler() {
+      if (!filteredItems.value.length) return;
       selectedIndex.value =
         (selectedIndex.value + 1) % filteredItems.value.length;
       scrollToSelected();
@@ -438,6 +439,7 @@ export default {
       handleFileSelect,
       handleVideoSelect,
       selectedIndex,
+      listRef,
       onKeyDown,
     };
   },

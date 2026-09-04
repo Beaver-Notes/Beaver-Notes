@@ -146,7 +146,7 @@ export class TableHandleView {
     const cellEl = rowEl?.children[colIndex];
     if (!cellEl) return;
 
-    const wrapper = this.tableElement.closest('.tableWrapper');
+    const wrapper = this.tableElement.closest('.tableWrapper') || this.tableElement.querySelector('.tableWrapper');
 
     const newCell = cellEl.getBoundingClientRect();
     const newTable = tableBody.getBoundingClientRect();
@@ -431,7 +431,7 @@ export class TableHandleView {
     }
 
     const newReferencePosTable = tableBody.getBoundingClientRect();
-    const newReferencePosWrapper = this.tableElement.closest('.tableWrapper')?.getBoundingClientRect();
+    const newReferencePosWrapper = (this.tableElement.closest('.tableWrapper') || this.tableElement.querySelector('.tableWrapper'))?.getBoundingClientRect();
     const blockChanged = this.state.block !== tableInfo.node || this.state.blockPos !== tableInfo.pos;
     const indicesChanged = newRowIndex !== this.state.rowIndex || newColIndex !== this.state.colIndex;
     const refPosChanged = newReferencePosCell !== this.state.referencePosCell || newReferencePosTable !== this.state.referencePosTable;

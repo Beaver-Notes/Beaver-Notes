@@ -510,10 +510,9 @@ export default {
 <style src="@/assets/css/editor.css"></style>
 
 <style>
-/* Notion-style inline comment: warm yellow wash + dotted underline + gutter badge */
 .comment-highlight {
   background: rgba(254, 240, 138, 0.42);
-  border-bottom: 1.5px solid #fde047;
+  border-bottom: 1.5px solid hsl(var(--twc-primary));
   border-radius: 3px;
   padding: 0 1px;
   box-decoration-break: clone;
@@ -532,7 +531,6 @@ export default {
   border-bottom-color: #eab308;
   box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.14);
 }
-/* inline gutter badge — Notion shows a • / comment dot at the end of the range */
 .comment-highlight[data-comment-id]::after {
   content: '';
   display: inline-block;
