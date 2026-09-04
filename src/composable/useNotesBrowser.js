@@ -456,7 +456,19 @@ export function useNotesBrowser({
       });
     }
 
+    const isTypingTarget = () => {
+      const el = document.activeElement;
+      if (!el) return false;
+      const tag = el.tagName;
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        el.isContentEditable
+      );
+    };
+
     Mousetrap.bind(['del', 'backspace'], (event) => {
+      if (isTypingTarget()) return;
       if (selectedItems.value.size > 0) {
         event.preventDefault();
         bulkDelete();
@@ -464,11 +476,13 @@ export function useNotesBrowser({
     });
 
     Mousetrap.bind(['command+z', 'ctrl+z'], async (event) => {
+      if (isTypingTarget()) return;
       event.preventDefault();
       await undoStack.undo();
     });
 
     Mousetrap.bind(['command+a', 'ctrl+a'], (event) => {
+      if (isTypingTarget()) return;
       event.preventDefault();
       selectAll();
     });
