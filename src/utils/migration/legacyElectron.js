@@ -189,7 +189,7 @@ export async function validateLegacyLockedPassword(dir, password) {
     return { ok: true, count: 0 };
   }
 
-  // First locked note only — enough to prove the password. Nothing persisted.
+  // First locked note only: proves password, persists nothing.
   const first = lockedNotes[0];
   const ciphertext = first?.content?.content?.[0];
   if (typeof ciphertext === 'string' && ciphertext) {
@@ -232,7 +232,7 @@ export async function migrateLegacyLockedNotes(dir, password) {
         );
         plaintext = new TextDecoder().decode(buf);
       } else {
-        // Legacy CryptoJS or unknown — generic helper derives internally.
+        // Legacy CryptoJS or unknown: helper derives internally.
         ({ plaintext } = await decryptNoteWithPassword(ciphertext, password));
       }
 

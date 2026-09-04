@@ -112,7 +112,7 @@ const selectedFolders = computed(() => {
     .filter(Boolean);
 });
 
-// Archive logic — notes + folders
+// Archive logic: notes plus folders.
 const shouldArchive = computed(() => {
   const notes = selectedNotes.value;
   const folders = selectedFolders.value;

@@ -21,7 +21,7 @@ describe('cardPreview structural', () => {
     ]}
     const p = buildCardPreview(content)
     expect(p.blocks.length).toBe(3)
-    expect(p.blocks[1].text).toBe('—')
+    expect(p.blocks[1].text).toBe('---')
   })
   it('MEDIA_TYPES labels respect setCardPreviewLabels', () => {
     setCardPreviewLabels({ diagram:'Diagramme' })
@@ -32,7 +32,7 @@ describe('cardPreview structural', () => {
   })
   it('caps at 5/240', () => {
     // 100-char paragraphs truncate to 96 but hit 240-char budget after ~3 blocks
-    // so total caps before block count — assert both limits hold
+    // so total caps before block count: assert both limits hold
     const content = { type:'doc', content: Array(10).fill(0).map(()=>({type:'paragraph', content:[{type:'text', text:'x'.repeat(100)}]}))}
     const p = buildCardPreview(content)
     expect(p.blocks.length).toBeLessThanOrEqual(5)

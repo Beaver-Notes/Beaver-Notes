@@ -229,8 +229,7 @@ fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<b
         }
     }
 
-    // Notes/folders collections are converted to Yjs by the frontend, not
-    // written as KV rows — only top-level scalar keys (labels, …) land here.
+    // Notes/folders convert to Yjs in frontend, not KV rows. Only scalar keys (labels, etc.) land here.
     match crate::db::db_all(pool, None) {
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
@@ -350,9 +349,7 @@ fn run_migration_core(
     let mut merged_store_files = Vec::new();
     let data_pool = data_pool(app, state)?;
 
-    // Count every file to be copied (store JSON + assets) so the progress bar
-    // has a real total. Legacy config.json/data.json notes/folders are NOT
-    // imported — the frontend converts them straight to Yjs.
+    // Count files for progress total. Legacy config/data notes/folders convert straight to Yjs in frontend.
     eprintln!(
         "[migration]   skipping legacy notes/folders import (config.json/data.json) — the data KV store stays empty of note rows"
     );
@@ -396,8 +393,7 @@ fn run_migration_core(
             copied_asset_dirs.push(folder.to_string());
         }
     }
-    // Also copy a consolidated source `assets/` dir, skipping notes-assets/ and
-    // file-assets/ inside it — already handled above; copying would nest duplicates.
+    // Copy consolidated assets dir, skip nested notes-assets/file-assets (already handled, avoids duplicates).
     if old_assets.exists() {
         let dest_assets = new_dir.join("assets");
         fs::create_dir_all(&dest_assets)?;
@@ -423,12 +419,9 @@ fn run_migration_core(
         copied_asset_dirs.push("assets".to_string());
     }
 
-    // Intentionally non-destructive while migration is being tested.
-    // Do not remove or mutate the legacy Electron directory here.
-    // let _ = fs::remove_dir_all(&old_dir);
+    // Non-destructive while migration tested: never remove legacy Electron dir here.
 
-    // Final KV summary before the marker is written (data store intentionally
-    // has no legacy note/folder rows — the frontend converts them to Yjs).
+    // Final KV summary before marker: data store has no legacy note rows (frontend converts to Yjs).
     match crate::db::db_all(&data_pool, None) {
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
@@ -669,7 +662,7 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
     let ws_root = app_dir.join(crate::shared::WORKSPACES_DIR);
     let marker = app_dir.join(".workspace-migrated");
 
-    // Already migrated — just ensure default workspace is registered
+    // Already migrated: ensure default workspace registered.
     if marker.exists() || ws_root.exists() {
         ensure_default_workspace_in_registry(app, state)?;
         return Ok(());
@@ -793,12 +786,8 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     // Fold any legacy plaintext `master.key` into the secure chain, then delete; never fails startup.
     let _ = crate::shared::migrate_legacy_master_key();
 
-    // Warm the Keychain-backed master key on a background thread so the
-    // frontend's first `loadSecureBlob('encryptionPassphraseBlob')` hits the
-    // in-memory cache instead of a ~2.5s cold Keychain read. SKIPPED on
-    // daemon-less Linux (no durable store) so the frontend sees `available=false`
-    // and prompts for a device password BEFORE any key is minted into the
-    // reboot-ephemeral kernel keyring.
+    // Warm Keychain master key in background so first load hits cache, not 2.5s cold read.
+    // Skipped on daemon-less Linux so frontend prompts for device password before ephemeral mint.
     if crate::shared::durable_store_available() {
         std::thread::spawn(|| {
             let _ = read_master_key();

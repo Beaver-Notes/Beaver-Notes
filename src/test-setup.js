@@ -13,14 +13,9 @@ if (typeof window !== 'undefined' && typeof window.__TAURI_INTERNALS__ === 'unde
   window.__TAURI_INTERNALS__ = globalThis.__TAURI_INTERNALS__;
 }
 
-// Do not stub fetch for localhost:4000 — integration tests probe /health
-// and use `reachable ? describe : describe.skip` to auto-skip when no backend.
-// Stubbing health to ok:true breaks that guard and turns skips into failures.
+// Never stub localhost:4000 fetch: integration probes /health and auto-skips without backend.
 
-// happy-dom exposes a `localStorage` slot on the window, but its value is
-// `undefined` unless Node runs with `--localstorage-file`. Several app modules
-// (e.g. src/utils/sync/sync-repository.js, src/lib/settings) read
-// localStorage at import time, so give every test an in-memory shim.
+// happy-dom localStorage undefined without flag: shim in-memory since modules read at import.
 if (typeof globalThis.localStorage === 'undefined') {
   const store = new Map();
   globalThis.localStorage = {

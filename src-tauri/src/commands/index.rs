@@ -20,7 +20,7 @@ pub(crate) async fn index_save(
     signatures_json: String,
 ) -> Result<(), AppError> {
     let pool = data_pool(&app, &state)?;
-    // Index mirrors note content — never write it plaintext while locked.
+    // Index mirrors content: never write plaintext while locked.
     let enc_key = kv_encryption_key(&state)?;
     tokio::task::spawn_blocking(move || {
         crate::db::db_set(&pool, "_index:search", &search_json, enc_key)?;

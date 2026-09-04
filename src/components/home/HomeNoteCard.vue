@@ -13,7 +13,7 @@
       <v-remixicon name="riErrorWarningLine" size="14" class="flex-shrink-0" />
       <span class="flex-1">{{
         translations.card.conflictCopy ||
-        'Conflict copy — review and delete one version'
+        'Conflict copy: review and delete one version'
       }}</span>
     </div>
 
@@ -74,7 +74,7 @@
       >
         <v-remixicon name="riLockLine" size="32" class="text-neutral-400 dark:text-neutral-500" />
         <span class="text-xs font-medium text-neutral-600 dark:text-neutral-300">{{ translations.card.isLocked || 'Locked note' }}</span>
-        <span class="text-[11px] text-neutral-400 dark:text-neutral-500 text-center leading-tight">{{ translations.card.unlockToEdit || 'Tap to unlock — Face ID / vault password' }}</span>
+        <span class="text-[11px] text-neutral-400 dark:text-neutral-500 text-center leading-tight">{{ translations.card.unlockToEdit || 'Tap to unlock: Face ID / vault password' }}</span>
       </div>
     </div>
 
@@ -290,7 +290,7 @@ async function unlockNote(noteId) {
       if (/cancel/i.test(msg) || /User canceled/i.test(msg)) return;
     }
   }
-  // vault-password fallback uses the same UnlockCard as AppEncryptionGate/editor — open the note where that card is shown
+  // Vault fallback shares UnlockCard with gate/editor: open note where card shows.
   router.push(`/note/${noteId}`);
 }
 
@@ -399,13 +399,7 @@ function toggleArchive(note) {
   contain: layout paint style;
 }
 
-/* Preview — editor-faithful tokens
-   Source A: src/assets/css/editor.css — ProseMirror pre/code border bg-neutral-50/dark:neutral-900 rounded-lg,
-             blockquote dark:border-neutral-700, tableWrapper border-neutral-200/dark:neutral-700 th bg-neutral-100,
-             rounded .75rem (--float-radius), bn-image-node
-   Source B: src/lib/tiptap/exts/callouts/* — p-1 border-l-4 border-*-300 pl-4 bg-*-500 bg-opacity-10 (+dark variants)
-             code-block uses --selected-font-code, table uses theme colors above
-*/
+/* Preview tokens mirror editor.css and callout styles. */
 .note-card-preview-stack {
   display: flex;
   min-height: 100%;
@@ -509,7 +503,7 @@ function toggleArchive(note) {
   color: var(--text-dark);
 }
 
-/* Callouts — faithful to src/lib/tiptap/exts/callouts/* cssClass */
+/* Callouts mirror callout cssClass. */
 .note-card-preview-block.is-callout {
   border-left-width: 4px;
   border-left-style: solid;
@@ -542,7 +536,7 @@ function toggleArchive(note) {
   @apply border-neutral-700 dark:border-neutral-500 bg-neutral-900/10 dark:bg-neutral-400/10;
 }
 
-/* Code — faithful to .ProseMirror pre/.inline-code in editor.css */
+/* Code mirrors ProseMirror pre/inline-code. */
 .note-card-preview-block.is-code {
   margin: 0.55em 0;
   @apply border bg-neutral-50 dark:bg-neutral-900 rounded-lg dark:text-neutral-200;

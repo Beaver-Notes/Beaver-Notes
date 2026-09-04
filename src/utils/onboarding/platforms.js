@@ -1,7 +1,4 @@
-/**
- * Canonical registry for all migration source platforms.
- * Single source of truth for labels, icons, descriptions, and import mappings.
- */
+/** Canonical registry for migration source platforms: labels, icons, descriptions, mappings. */
 
 const PLATFORMS = [
   {
@@ -18,8 +15,7 @@ const PLATFORMS = [
     iconBg: 'rgba(245, 158, 11, 0.12)',
     sourceMap: null,
     macOnly: false,
-    // The legacy Electron migration runs in Rust behind `#[cfg(desktop)]` —
-    // it is not available on mobile.
+    // Legacy Electron migration runs in Rust behind cfg(desktop): desktop only.
     desktopOnly: true,
   },
   {

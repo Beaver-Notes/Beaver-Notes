@@ -16,7 +16,7 @@ performance.mark('app:init');
 
 initializeThemeHandling();
 
-// ponytail: iOS WKWebView shows black if JS throws before mount — log and keep bg white
+// ponytail: iOS WKWebView shows black if JS throws before mount, log and keep bg white
 window.addEventListener('error', (e) => console.error('[app] global error:', e.message, e.error));
 window.addEventListener('unhandledrejection', (e) => console.error('[app] unhandled rejection:', e.reason));
 
@@ -46,7 +46,7 @@ function updateRuntimeClass() {
 // Run once at startup
 let isPhoneDevice = updateRuntimeClass();
 
-// React to viewport changes — only relevant on phone UA
+// React to viewport changes: only relevant on phone UA.
 if (isPhoneRuntime) {
   window.matchMedia('(min-width: 768px)').addEventListener('change', () => {
     isPhoneDevice = updateRuntimeClass();

@@ -1,11 +1,4 @@
-/**
- * Workspace Yjs document — single shared Y.Doc for all workspace metadata
- * (folders, labels, deleted-id tombstones, per-note meta). Note *content*
- * lives in separate per-note Y.Docs managed by useNoteYjs.
- *
- * This module owns the document lifecycle (load, persist, observe) and
- * sync helpers. Store hydration lives in meta-store.js.
- */
+/** Workspace Y.Doc for metadata (folders, labels, tombstones, note meta). Content lives per-note. Owns lifecycle and sync. */
 
 import * as Y from 'yjs';
 import { appendUpdate, getSnapshot, getUpdates } from '@/lib/native/yjs.js';
@@ -109,7 +102,7 @@ async function persistWorkspace(update) {
       `SQLite appendUpdate for meta`
     );
   } catch {
-    // Update lost despite retries — console.error in retryWrite documents it
+    // Update lost despite retries: documented in retryWrite.
   }
   try {
     const commitsDir = await getCommitsDir();
@@ -130,7 +123,7 @@ async function persistWorkspace(update) {
       queueSyncWrite(commitsDir, META_DOC_ID, update);
     }
   } catch {
-    // Sync folder write failure is non-fatal — the update is already in SQLite
+    // Sync folder write failure non-fatal: update already in SQLite.
   }
 }
 
@@ -164,11 +157,10 @@ export async function loadWorkspaceDoc() {
       snapshotLoaded = true;
     }
   } catch (err) {
-    console.error('[meta-yjs] snapshot corrupted — attempting recovery from updates:', err?.message);
+    console.error('[meta-yjs] snapshot corrupted: attempting recovery from updates:', err?.message);
   }
 
-  // Recovery: replay individual updates, skipping corrupted ones —
-  // snapshot invalid but the SQLite update history may be partially intact.
+  // Recovery: replay individual updates, skip corrupted: snapshot invalid but history may be intact.
   if (!snapshotLoaded) {
     try {
       const updates = await getUpdates(META_DOC_ID);
@@ -186,13 +178,13 @@ export async function loadWorkspaceDoc() {
               applied++;
             }
           } catch {
-            // Skip corrupted individual updates — best-effort recovery
+            // Skip corrupted updates: best-effort recovery.
           }
         }
         if (applied > 0) {
           console.warn(`[meta-yjs] recovered ${applied}/${updates.length} updates from history`);
         } else {
-          console.warn('[meta-yjs] all updates corrupted — starting with empty workspace doc');
+          console.warn('[meta-yjs] all updates corrupted: starting with empty workspace doc');
         }
       }
     } catch (updateErr) {
@@ -206,11 +198,7 @@ export async function loadWorkspaceDoc() {
   const workspaceStore = useWorkspaceStore();
   const wsId = workspaceStore.activeId;
   if (wsId) {
-    // The workspace meta doc is encrypted with the WORKSPACE key (the same
-    // key used to decrypt the workspace doc). Supply it to the Hocuspocus
-    // meta room BEFORE joining so inbound encrypted meta updates can be
-    // decrypted — without this the meta doc corrupts and the notes grid
-    // goes blank on other devices.
+    // Supply WORKSPACE key to Hocuspocus meta room before join, else inbound meta corrupts and grid goes blank.
     await ensureMetaRoomKey(wsId).catch((err) => {
       console.warn('[meta-yjs] could not derive workspace meta key:', err?.message || err);
     });
@@ -220,11 +208,7 @@ export async function loadWorkspaceDoc() {
   return doc;
 }
 
-/**
- * Derive the workspace key and register it on the Hocuspocus meta room.
- * Mirrors per-note key wiring in useNoteYjs but uses the WORKSPACE key.
- * Precedence: local workspace-key cache → store's wrapped key → API fetch.
- */
+/** Derive workspace key and register on Hocuspocus meta room. Cache to store wrapped key to API fetch. */
 export async function ensureMetaRoomKey(wsId) {
   if (!wsId) return;
   let workspaceKeyHex = getCachedWorkspaceKey(wsId);
@@ -321,11 +305,7 @@ export function removeFolder(id) {
   });
 }
 
-/**
- * Merge a partial set of entries into a Yjs Map. Unlike syncTombstoneMap,
- * does NOT delete keys absent from the incoming object — used by the
- * asset-sync loop so remote deletions added after the local snapshot survive.
- */
+/** Merge partial entries into Yjs Map without deleting absent keys: remote deletions after snapshot survive. */
 export function mergeIntoMap(mapName, entries) {
   if (!entries || typeof entries !== 'object') return;
   const map = getWorkspaceDoc().getMap(mapName);
@@ -336,10 +316,7 @@ export function mergeIntoMap(mapName, entries) {
   });
 }
 
-/**
- * Diff a Yjs Map against a desired plain-object state, applying only the
- * minimal set/delete operations — O(changed keys) instead of clear()+reinsert.
- */
+/** Diff Yjs Map against desired state, apply minimal set/deletes: O(changed) not clear plus reinsert. */
 function syncTombstoneMap(mapName, desired) {
   const map = getWorkspaceDoc().getMap(mapName);
   transactWorkspace(() => {
@@ -396,8 +373,7 @@ export function syncNoteMeta(note) {
     const meta = {};
     for (const field of NOTE_META_FIELDS) {
       if (field === 'preview') {
-        // Short snippet only — full search text here bloats the meta doc and
-        // makes every launch transfer megabytes; search lives in the index.
+        // Short snippet only: full text bloats meta doc, search lives in index.
         meta.preview = String(
           note.preview || note.searchText || note.cardPreview?.text || ''
         ).slice(0, 400);
@@ -424,12 +400,7 @@ export function syncDeletedAssets(deletedAssets) {
   syncTombstoneMap('deletedAssets', deletedAssets || {});
 }
 
-/**
- * Create untitled placeholder meta entries for note ids that arrived via a
- * remote pull/bootstrap but are not yet in the `notes` map. Existing ids are
- * skipped so real titles are never shadowed by a fresher empty placeholder,
- * and META_DOC_ID is filtered so the meta doc never materializes as a note.
- */
+/** Create untitled placeholders for pulled note ids missing from notes map. Skips existing and META_DOC_ID. */
 export function reconcileUnknownNotePlaceholders(noteIds) {
   const doc = getWorkspaceDoc();
   const yNotes = doc.getMap('notes');

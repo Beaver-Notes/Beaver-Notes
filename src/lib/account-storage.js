@@ -50,7 +50,7 @@ export async function saveSessionToken(token) {
     const cipher = await encryptString(toBase64(token));
     localStorage.setItem(SESSION_BLOB_KEY, cipher);
   } catch {
-    // encryption failed — do not persist a plaintext backup
+    // Encryption failed: never persist plaintext backup.
   }
   // Also save to secure storage if available
   if (await safeStorageAvailable()) {

@@ -167,7 +167,7 @@
               :key="log.id"
               class="text-xs text-neutral-500 dark:text-neutral-400"
             >
-              {{ log.createdAt }} — {{ log.action }}
+              {{ log.createdAt }} · {{ log.action }}
             </li>
           </ul>
         </div>
@@ -363,7 +363,7 @@ export default {
         slug: cfg.slug,
         idpEntityId: cfg.idpEntityId || '',
         idpSsoUrl: cfg.idpSsoUrl || '',
-        idpCert: cfg.idpCert ? '(exists — leave blank to keep)' : '',
+        idpCert: cfg.idpCert ? '(exists; leave blank to keep)' : '',
         spCert: '',
         spPrivateKey: '',
         oidcIssuer: cfg.oidcIssuer || '',

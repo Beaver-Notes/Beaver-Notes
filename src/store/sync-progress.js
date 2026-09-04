@@ -14,12 +14,12 @@ const PHASE_MESSAGES = {
 };
 
 const STATUS_TAXONOMY = {
-  'unlock-required': { tone: 'action', text: 'Notes are locked — unlock to sync' },
+  'unlock-required': { tone: 'action', text: 'Notes are locked. Unlock to sync.' },
   'decrypt-failed': { tone: 'action', text: 'Couldn’t decrypt an update' },
-  'authorization-failed': { tone: 'action', text: 'Session expired — sign in again' },
+  'authorization-failed': { tone: 'action', text: 'Session expired. Sign in again.' },
   'workspace-reset': { tone: 'action', text: 'Workspace was reset on the server' },
   retrying: { tone: 'transient', text: 'Retrying…' },
-  offline: { tone: 'transient', text: 'Offline — will retry automatically' },
+  offline: { tone: 'transient', text: 'Offline. Will retry automatically.' },
 };
 
 export function describeStatus(status, message) {
@@ -28,7 +28,7 @@ export function describeStatus(status, message) {
   if (status === 'decrypt-failed') {
     return {
       tone: entry.tone,
-      text: message ? `${entry.text} — ${message}` : entry.text,
+      text: message ? `${entry.text}: ${message}` : entry.text,
     };
   }
   return { tone: entry.tone, text: message || entry.text };

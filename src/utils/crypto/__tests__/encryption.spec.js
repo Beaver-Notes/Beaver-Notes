@@ -66,7 +66,7 @@ describe('cloud key params on encryption lifecycle', () => {
   beforeEach(() => vi.clearAllMocks());
 
   // setup/verify must fetch server params (so reconcile adopts the vault
-  // owner's keys) but NEVER publish — publishing here could overwrite the
+  // owner's keys) but NEVER publish: publishing here could overwrite the
   // owner's keys with this device's fresh key.
   it('fetches server key params and does not auto-publish after setupEncryption', async () => {
     submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });

@@ -9,7 +9,6 @@
       :aria-expanded="items.length > 0"
       @keydown.escape="onShellEscape"
     >
-      <!-- Search bar -->
       <div
         class="command-prompt-panel flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 shadow-xl"
       >
@@ -31,7 +30,6 @@
         />
       </div>
 
-      <!-- Results card -->
       <Transition name="command-prompt-results">
         <ui-card
           v-if="state.query.length > 0"
@@ -40,7 +38,6 @@
           bg="bg-white dark:bg-neutral-900"
           class="command-prompt-results mt-1 overflow-hidden"
         >
-          <!-- Filters -->
           <div
             v-if="!isCommand"
             class="flex items-center gap-2 px-2 py-2 border-b border-neutral-100 dark:border-neutral-800 overflow-x-auto no-scrollbar"
@@ -66,7 +63,6 @@
           </div>
 
           <div class="flex min-h-0 max-h-[340px]">
-            <!-- Results list -->
             <div
               class="flex-1 min-w-0 overflow-y-auto no-scrollbar scroll-py-2"
             >
@@ -165,7 +161,6 @@
               </TransitionGroup>
             </div>
 
-            <!-- Preview pane -->
             <div
               v-if="previewItem && previewItem.type === 'note'"
               class="hidden lg:flex flex-col w-80 shrink-0 border-l overflow-hidden"
@@ -205,7 +200,6 @@
             </div>
           </div>
 
-          <!-- Footer -->
           <div
             class="flex items-center justify-between px-4 py-1.5 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400"
           >

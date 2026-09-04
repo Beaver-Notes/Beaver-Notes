@@ -263,16 +263,13 @@ impl DbState {
     }
 }
 
-/// Snapshot of the app-encryption session behind one `RwLock` in `AppState`:
-/// items-key ring, current key id, cached KEK, data key, and active flag are
-/// always mutated/observed atomically (no TOCTOU). All key material is
-/// zeroized on drop/reset instead of lingering in the heap after lock/shutdown.
+/// App-encryption session behind one RwLock in AppState: key ring, key id, KEK, data key, active flag mutate atomically (no TOCTOU).
+/// Key material zeroized on drop/reset, never lingers after lock/shutdown.
 #[derive(Default, Debug)]
 pub(crate) struct CryptoSession {
     /// Items data key (decrypted). Present only while the app is unlocked.
     pub(crate) app_data_key: Option<[u8; 32]>,
-    /// Items key ring (current + previous), keyed by items-key id — enables
-    /// lazy rotation while old data stays decryptable.
+    /// Items key ring (current plus previous) by key id: lazy rotation keeps old data decryptable.
     pub(crate) items_keys: HashMap<String, [u8; 32]>,
     /// ID of the current items key (empty when locked / unconfigured).
     pub(crate) current_items_key_id: String,
@@ -1210,10 +1207,8 @@ pub(crate) fn protocol_response(
     protocol_response_with_range(status, path, bytes, None)
 }
 
-/// Response for a custom-protocol asset request. With `content_range` set the
-/// body is a byte range replied as `206 Partial Content`; `Accept-Ranges:
-/// bytes` is always advertised so the renderer can range-request media
-/// (seeking, streaming) without loading whole decrypted files into memory.
+/// Custom-protocol asset response. With content_range set, body is byte range as 206 Partial Content.
+/// Accept-Ranges bytes always advertised so renderer range-requests media without loading whole files.
 pub(crate) fn protocol_response_with_range(
     status: StatusCode,
     path: &Path,

@@ -67,7 +67,7 @@ export function hydrateNote(note) {
   if (persisted.dir !== 'ltr' && persisted.dir !== 'rtl') persisted.dir = 'auto';
   const hidden = persisted.isLocked || isEncryptedContent(persisted.content);
 
-  // Fast path: both computed fields already present — skip content traversal.
+  // Fast path: both computed fields present, skip traversal.
   if (!hidden && persisted.cardPreview && persisted.searchText) {
     return { ...persisted, cardPreview: persisted.cardPreview, searchText: persisted.searchText };
   }

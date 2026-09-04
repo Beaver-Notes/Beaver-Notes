@@ -33,10 +33,7 @@ impl SecureBlobCache {
 
         self.memory.lock()?.insert(key.to_string(), value.clone());
 
-        // Persist an encrypted copy to disk, encrypted with the master key.
-        // The OS keychain holds exactly one entry (the master key) — blobs no
-        // longer create per-blob keychain entries, which previously cluttered
-        // the keychain and prompted for unlock on every write.
+        // Persist encrypted disk copy with master key. Keychain holds only master key, no per-blob entries.
         let encrypted = safe_storage_encrypt_bytes(&value)?;
         let _guard = self.disk_lock.lock()?;
         let mut disk = self.read_disk(state)?;

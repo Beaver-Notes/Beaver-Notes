@@ -1,9 +1,4 @@
-/**
- * Pending-sync-update queue: local edits are queued and flushed once per sync
- * cycle instead of writing a file per 300ms debounced flush (~200 files/min
- * while typing). Drained atomically — a crashed session may lose up to 10s of
- * sync writes (still present in SQLite).
- */
+/** Pending update queue: flush once per cycle, not per keystroke. Drained atomically, crash may lose 10s (still in SQLite). */
 
 import { writeYjsUpdate } from './sync-yjs.js';
 import { encryptJSON } from './crypto.js';
@@ -32,10 +27,7 @@ export function hasPendingWrites() {
   return pendingSyncWrites.length > 0;
 }
 
-/**
- * Drain pending writes into an array of {commitsDir, noteId, update} entries.
- * Does NOT touch cloudBuffer — callers handle that themselves.
- */
+/** Drain pending writes to commit entries. Never touches cloudBuffer, callers handle it. */
 function drainPending() {
   return pendingSyncWrites.splice(0).map((w) => ({
     commitsDir: w.commitsDir,
@@ -79,7 +71,7 @@ export async function flushPendingSyncWritesTo(writeFn) {
   return flushed;
 }
 
-/** Discard pending writes after vault key adoption — they were encrypted with the pre-adoption key. */
+/** Discard pending writes after vault adoption: encrypted with pre-adoption key. */
 export function clearPendingWrites() {
   pendingSyncWrites.length = 0;
 }

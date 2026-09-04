@@ -1,7 +1,7 @@
 import { createMlKem768 } from 'mlkem';
 import { importCollabKey, isValidCollabKey } from './collab.js';
 
-// Cache unwrapped note key hex values — avoids repeated ML-KEM768 decap + AES-GCM unwrap.
+// Cache unwrapped note keys: avoids repeated ML-KEM decap plus unwrap.
 const unwrappedKeyCache = new Map();
 
 export function clearUnwrappedKeyCache(noteId) {
@@ -41,10 +41,7 @@ export async function unwrapNoteKey(privateKeyHex, envelopeStr) {
   return new TextDecoder().decode(plaintext);
 }
 
-/**
- * Injected API fns (getKey/listPublicKeys/storeRecipients) keep this pure and
- * unit-testable. Returns the note key hex, or null — never provision/rotate on ambiguity.
- */
+/** Injected API fns keep this pure and testable. Returns key hex or null, never rotates on ambiguity. */
 /** Try each envelope with the local private key; cache the first valid unwrap. */
 export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _log = console) {
   for (const env of envelopes || []) {
@@ -57,7 +54,7 @@ export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _
         return k;
       }
     } catch {
-      // envelope not for this device — try the next one
+      // Envelope not for this device: try next.
     }
   }
   return null;
@@ -87,7 +84,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
     return null;
   }
 
-  // Note already has a key — recover this caller's envelope, if any.
+  // Note already has key: recover caller envelope if any.
   if (raw?.noteHasKey === true) {
     if (raw?.wrappedKey) {
       try {
@@ -100,12 +97,11 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
         log.warn?.('[provisionNoteKey] failed to unwrap note key envelope:', err);
       }
     }
-    // Late joiner (or unwrap failure): no usable envelope for this caller.
-    // Do NOT provision/rotate — an owner must re-wrap the existing key for us.
+    // No usable envelope: owner must re-wrap, never provision/rotate.
     return null;
   }
 
-  // 2. Fresh note — provision a new key for every keypair'd collaborator.
+  // Fresh note: provision key for every keypair collaborator.
   try {
     const publicKeys = await listPublicKeys();
     const keypairCollabs = Array.isArray(publicKeys?.collaborators)

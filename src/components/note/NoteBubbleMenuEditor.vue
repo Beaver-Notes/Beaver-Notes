@@ -329,7 +329,7 @@
               class="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 text-xs font-medium transition-colors"
               @click="editor.commands.unsetHighlight()"
             >
-              —
+              -
             </button>
 
             <button

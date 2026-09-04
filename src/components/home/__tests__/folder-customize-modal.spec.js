@@ -35,7 +35,7 @@ function mountModal(props) {
 }
 
 describe('FolderCustomizeModal', () => {
-  // Delete lives in the card's ... menu / selection rail since 8d230b11 —
+  // Delete lives in the card's ... menu / selection rail since 8d230b11:
   // this modal is customize-only (name, color, emoji).
   it('shows Done in edit mode and never a Delete action', () => {
     const wrapper = mountModal({ modelValue: true, folder: { id: 'f1', name: 'Work' } });

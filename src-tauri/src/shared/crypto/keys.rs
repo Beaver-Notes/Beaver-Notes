@@ -31,10 +31,7 @@ pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
 pub(crate) const ARGON2_MEMORY_KIB: u32 = 131_072; // 128 MiB (Amendment 1)
 pub(crate) const ARGON2_ITERATIONS: u32 = 3;
 pub(crate) const ARGON2_PARALLELISM: u32 = 4;
-/// Original Argon2id parameters of historical v3 note envelopes and v3
-/// manifests (pre-Amendment 1). Pinned forever: the legacy Electron migration
-/// flow (`derive_argon2_key`) derives note KEKs through these constants; a bump
-/// would make every existing locked note undecryptable.
+/// Pinned legacy Argon2id params for v3 envelopes/manifests (pre-Amendment 1). Bump would strand locked notes.
 pub(crate) const LEGACY_ARGON2_MEMORY_KIB: u32 = 32768; // 32 MiB
 pub(crate) const LEGACY_ARGON2_ITERATIONS: u32 = 2;
 pub(crate) const LEGACY_ARGON2_PARALLELISM: u32 = 2;
@@ -45,8 +42,7 @@ pub(crate) const STREAM_CHUNK_SIZE: usize = 256 * 1024;
 pub(crate) const SYNC_ROOT_DIR: &str = "BeaverNotesSync";
 pub(crate) const PROTOCOL_VERSION: u8 = 4;
 /// Envelope version for binary sync payloads. v5 encrypts raw bytes directly;
-/// v4 embedded the update as a giant JSON number array inside an encrypted JSON
-/// object (~950ms per multi-MB sync file). v4 still decrypted for compat.
+/// v4 (JSON number arrays) still decrypted for compat.
 pub(crate) const SYNC_PAYLOAD_VERSION: u8 = 5;
 pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
 /// AAD binding for note-content encryption. Fixed domain string: it proves the
@@ -331,9 +327,7 @@ pub(crate) fn aead_decrypt_json(
     Ok(serde_json::from_slice(&plaintext)?)
 }
 
-/// Encrypt raw bytes (e.g. a Yjs binary update) with XChaCha20-Poly1305.
-/// Returns `(iv_hex, enc_base64)` — same envelope layout as
-/// `aead_encrypt_json` without the serde_json round-trip.
+/// Encrypt raw bytes with XChaCha20-Poly1305. Returns (iv_hex, enc_base64), same layout without JSON round-trip.
 pub(crate) fn aead_encrypt_bytes(
     key: &[u8; 32],
     plaintext: &[u8],
@@ -434,10 +428,8 @@ pub(crate) fn decrypt_json_from_storage(
     Ok(Some(decrypted))
 }
 
-// Shared key params: the items key is random and wrapped by the master key. To
-// let a second device derive the SAME master key (and unwrap the SAME items
-// key) we publish the public KDF parameters (salt) plus the wrapped items key
-// in the sync folder — only a device with the correct passphrase can unwrap it.
+// Items key is random, wrapped by master key. Publish KDF salt plus wrapped key in sync folder.
+// Only correct passphrase unwraps it, so second device derives same master key.
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -692,9 +684,7 @@ pub(crate) fn recover_key_from_code(
     Ok(key)
 }
 
-/// Unwrap the items key from the manifest and return it with the KEK derived
-/// from `passphrase` — callers reuse the KEK (Argon2id is expensive, ~200ms)
-/// to populate the key ring without re-running the KDF.
+/// Unwrap items key from manifest, return with derived KEK. Callers reuse KEK (Argon2id ~200ms).
 pub(crate) fn unlock_key_from_manifest(
     manifest: &EncryptionManifest,
     passphrase: &str,
@@ -737,11 +727,8 @@ pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, AppE
         .app_data_key)
 }
 
-/// Resolve the kv-layer at-rest encryption key. `Ok(None)` only when encryption
-/// is not configured (pre-onboarding) — plaintext is correct then. When
-/// encryption is configured but locked, returns `EncryptionLocked` so callers
-/// fail closed instead of writing plaintext among encrypted rows or reading
-/// ciphertext as garbage.
+/// KV at-rest key. None only pre-onboarding (plaintext correct). Locked returns EncryptionLocked: fail closed.
+/// Blocks writing plaintext among encrypted rows or reading ciphertext as garbage.
 pub(crate) fn kv_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
     let s = state.crypto.session.read().map_err(AppError::from)?;
     match (s.active, s.app_data_key) {

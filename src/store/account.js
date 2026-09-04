@@ -12,7 +12,7 @@ export const useAccountStore = defineStore('account', {
     activeAccountId: null,
     activeOrgId: null,
     activeWorkspaceId: null,
-    // Legacy fields kept for backward compatibility
+    // Legacy fields for compat.
     profile: null,
     subscription: null,
     devices: [],
@@ -41,7 +41,7 @@ export const useAccountStore = defineStore('account', {
     },
 
     plan(state) {
-      // Prefer org subscription, fall back to legacy — fail-closed to free
+      // Org subscription first, legacy fallback, fail-closed to free.
       return this.activeOrg?.subscription?.plan ?? state.subscription?.plan ?? PLAN_NAMES.FREE;
     },
 

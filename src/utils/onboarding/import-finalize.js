@@ -1,10 +1,4 @@
-/**
- * Post-import finalization shared by the Electron legacy migration and the
- * generic importers. Both sub-steps are non-fatal safety nets — callers wrap
- * them in try/catch and continue if they fail. Heavy dependencies (search,
- * link index, security) stay lazy via dynamic imports so they never enter the
- * onboarding chunk until a migration actually runs.
- */
+/** Post-import finalization for legacy and generic importers. Non-fatal safety nets, lazy deps stay out of onboarding chunk. */
 
 export async function buildImportedSearchIndex(notesOverride) {
   const { useNoteStore } = await import('@/store/note');

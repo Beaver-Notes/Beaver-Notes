@@ -520,7 +520,7 @@ export default {
       }
       const dt = Math.min(0.05, (now - lastNow) / 1000);
       lastNow = now;
-      // natural cursor follow — critically damped spring (no overshoot)
+      // Natural cursor follow: critically damped spring (no overshoot).
       cursorS.x += (cursorX - cursorS.x) * Math.min(1, dt * 7);
       cursorS.y += (cursorY - cursorS.y) * Math.min(1, dt * 7);
 

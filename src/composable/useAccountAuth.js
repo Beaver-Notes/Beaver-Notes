@@ -119,9 +119,8 @@ export function useAccountAuth() {
       return data;
     } catch (err) {
       if (err && err.status === 401) {
-        // Don't nuke auth state on profile fetch 401 — it may be a wrong
-        // server URL or transient issue. The token is still valid.
-        console.warn('[auth] fetchProfile 401 — keeping auth state, token may still be valid');
+        // Keep auth on 401: may be wrong URL or transient, token still valid.
+        console.warn('[auth] fetchProfile 401: keeping auth state, token may still be valid');
       } else {
         console.error('[auth] fetchProfile failed:', err);
       }
@@ -172,7 +171,6 @@ export function useAccountAuth() {
     return { token, user, subscription };
   }
 
-  // Shared scaffolding for the sign-in/sign-up flows.
   async function runAuthFlow(fn) {
     clearAuthError();
     setStatus('authenticating');
@@ -447,8 +445,7 @@ export function useAccountAuth() {
 
       accountStore.setSeedStatus('seeding');
       accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
-      // Trigger a force sync — this will handle seeding through the
-      // proper serialized path (seedCloudOnce) in the normal sync cycle.
+      // Force sync: seeding runs via serialized seedCloudOnce in normal cycle.
       await engine.forceSyncNow();
       if (accountStore.seedStatus === 'seeding') {
         accountStore.setSeedStatus('done');

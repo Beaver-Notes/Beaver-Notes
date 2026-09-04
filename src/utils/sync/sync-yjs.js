@@ -180,15 +180,7 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, st
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
-/**
- * List Yjs update files from other devices, sorted by timestamp.
- *
- * @param {string} commitsDir
- * @param {Object} cursors — legacy cursor map (kept for backwards compat)
- * @param {Function} decryptJSON
- * @param {Record<string, number>} [stateVector] — optional { [deviceId]: maxClock }
- *   for pre-decrypt filtering: sequence <= clock is skipped without reading/decrypting.
- */
+/** List Yjs update files from other devices, sorted by timestamp. Cursors legacy, stateVector optional for pre-decrypt filter. */
 export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, stateVector) {
   let files;
   try {
@@ -206,7 +198,7 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
     // Cheap pre-decrypt filtering from filename metadata:
     if (parsed.device === deviceId) continue;
 
-    // Primary filter — skip if sequence <= maxClock for this device.
+    // Primary filter: skip if sequence <= maxClock for device.
     if (stateVector) {
       const maxClock = stateVector[parsed.device];
       if (maxClock != null && (parsed.sequence ?? 0) <= maxClock) continue;

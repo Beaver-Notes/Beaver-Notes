@@ -66,7 +66,6 @@ export function useOnboardingFlow({
   const theme = useTheme();
   const accountStore = useAccountStore();
 
-  // Wizard state
 
   const step = ref('welcome');
   const importPhase = ref('pick');
@@ -226,7 +225,7 @@ export function useOnboardingFlow({
         goToNextStep();
         return;
       }
-      console.warn('[onboarding][vault-adopt] FALLBACK path — adoptVaultKey with paramsBlob:', !!fetched?.paramsBlob);
+      console.warn('[onboarding][vault-adopt] FALLBACK path: adoptVaultKey with paramsBlob:', !!fetched?.paramsBlob);
       const result = await adoptVaultKey(pw, fetched?.paramsBlob);
       console.warn('[onboarding][vault-adopt] adoptVaultKey result:', result?.ok, result?.error);
       if (!result.ok) {
@@ -301,7 +300,7 @@ export function useOnboardingFlow({
     ),
   );
 
-  // Sync step hidden for beta — Beaver Sync not ready yet.
+  // Sync step hidden for beta: Sync not ready yet.
   const activeFlow = computed(() => {
     const flow = ['welcome', 'account', 'password', 'import', 'customize', 'finish'];
     return flow;
@@ -311,7 +310,7 @@ export function useOnboardingFlow({
 
   const migrationDetectionCopy = computed(() => {
     if (customLegacyStatus.value?.hasLegacyData) {
-      return 'Custom folder verified — ready to import.';
+      return 'Custom folder verified. Ready to import.';
     }
     if (customLegacyPath.value && !customLegacyStatus.value?.hasLegacyData) {
       return 'The selected folder does not contain a recognisable Beaver Notes app.';
@@ -606,8 +605,7 @@ export function useOnboardingFlow({
         JSON.stringify(seedResult)
       );
 
-      // importLegacyPreferences routes syncPath through setSyncPath (invalidating
-      // the memoized cache) and skips it for cloud-sync users — no re-assert needed.
+      // importLegacyPreferences routes syncPath via setSyncPath, skips for cloud users: no re-assert.
       try {
         const { importLegacyPreferences } = await import(
           '@/utils/onboarding/import-preferences.js'
@@ -628,8 +626,7 @@ export function useOnboardingFlow({
         console.warn('[onboarding] debug state dump failed:', err);
       }
 
-      // Build search/link indexes from imported notes (which still carry
-      // searchText) — keeps search working without bloating the workspace doc.
+      // Build indexes from imported notes (carry searchText): keeps search without bloating doc.
       try {
         await buildImportedSearchIndex(legacyData?.notes || {});
       } catch (err) {
@@ -841,8 +838,7 @@ export function useOnboardingFlow({
     state.openingWorkspace = true;
     try {
       await markOnboardingCompleted();
-      // Hydrate Pinia stores from the workspace Y.Doc — seeding during
-      // onboarding does not populate them automatically. Best-effort only.
+      // Hydrate Pinia from workspace Y.Doc: seeding does not populate, best-effort.
       try {
         await writeStoresFromWorkspace();
       } catch (e) {
@@ -1004,7 +1000,6 @@ export function useOnboardingFlow({
   );
 
   return {
-    // State
     step,
     importPhase,
     state,
@@ -1019,7 +1014,6 @@ export function useOnboardingFlow({
     customLegacyStatus,
     navDirection,
 
-    // Static config
     logoUrl,
     ...appearance,
 
@@ -1035,7 +1029,6 @@ export function useOnboardingFlow({
     migrationSourceBadgeClass,
     showLegacyLockedPrompt,
 
-    // Navigation
     goToStep,
     goToPreviousStep,
     goToNextStep,
@@ -1045,7 +1038,6 @@ export function useOnboardingFlow({
     backToPick,
     selectImportSource,
 
-    // Actions
     refreshStatus,
     runSelectedMigration,
     browseForPortableData,
@@ -1057,7 +1049,6 @@ export function useOnboardingFlow({
     handleLegacyPasswordSubmit,
     handleLegacyPasswordSkip,
 
-    // Encryption password
     encryptionPassword,
     encryptionConfirmPassword,
     encryptionPasswordError,
@@ -1068,7 +1059,6 @@ export function useOnboardingFlow({
     adoptVaultPassword,
     startFreshVault,
 
-    // Step progress
     trackedSteps,
     showStepProgress,
     currentStepNumber,

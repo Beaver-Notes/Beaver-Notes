@@ -32,7 +32,7 @@ export function useAppEncryptionGate({ finishWorkspaceInit, onUnlockError }) {
         const configured = await encryptionIsConfigured().catch(() => false);
         console.warn('[gate] encryptionIsConfigured:', configured);
         if (!configured) {
-          console.warn('[gate] skipping auto biometric — encryption not configured');
+          console.warn('[gate] skipping auto biometric: encryption not configured');
         } else {
           let biometricAvailable = false;
           try {
@@ -44,7 +44,7 @@ export function useAppEncryptionGate({ finishWorkspaceInit, onUnlockError }) {
           if (biometricAvailable) {
           try {
             console.warn('[gate] auto-triggering biometrics...');
-            // ponytail: 8s ceiling — FaceID prompt can hang on iOS if dismissed, must not block startup forever
+            // ponytail: 8s ceiling, FaceID prompt can hang on iOS if dismissed, must not block startup forever
             const timeout = (ms) =>
               new Promise((_, rej) => setTimeout(() => rej(new Error('biometric timeout')), ms));
             await Promise.race([
@@ -61,7 +61,7 @@ export function useAppEncryptionGate({ finishWorkspaceInit, onUnlockError }) {
             if (!isCancel) console.warn('[gate] auto biometric failed:', e);
           }
         } else {
-          console.warn('[gate] skipping auto biometric — not available');
+          console.warn('[gate] skipping auto biometric: not available');
         }
         }
       }

@@ -75,7 +75,7 @@ describe('backfill isolation regression', () => {
     const updB = Y.encodeStateAsUpdate(b);
     Y.applyUpdate(tmpBuggy, updA);
     Y.applyUpdate(tmpBuggy, updB);
-    // buggy tmp now contains A+B — assert that naive reuse produces superset
+    // buggy tmp now contains A+B: assert naive reuse produces superset
     expect(tmpBuggy.getXmlFragment('content').length).toBeGreaterThan(1);
 
     // fixed: fresh doc per snapshot

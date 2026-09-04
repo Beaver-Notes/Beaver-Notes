@@ -47,7 +47,7 @@ export class LocalFolderTransport extends Transport {
         if (sv) allStateVectors[noteId] = sv;
       }
     } catch {
-      // non-critical — proceed without state vectors
+      // Non-critical: proceed without state vectors.
     }
 
     const remoteYjsUpdates = await listRemoteYjsUpdates(

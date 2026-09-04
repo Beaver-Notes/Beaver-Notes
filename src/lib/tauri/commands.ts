@@ -151,9 +151,7 @@ function withKeyVariants(
 }
 
 function normalizeBinaryData(data: unknown): string {
-  // Binary crosses the JSON IPC as base64 — the Rust side decodes it. This is
-  // ~3x smaller than the previous JSON number-array encoding (and the sync
-  // layer already uses base64), cutting IPC + parse cost on large snapshots.
+  // Binary crosses JSON IPC as base64, Rust decodes. ~3x smaller than JSON number array, cuts IPC cost.
   if (data == null) return '';
   if (typeof data === 'string') {
     // Plain-text callers (e.g. writing markdown) must be utf-8 encoded before
@@ -170,9 +168,7 @@ function normalizeBinaryData(data: unknown): string {
   return bufToBase64(textEncoder.encode(String(data)));
 }
 
-// Yjs payloads are binary, never plain text. A string arriving here is already
-// base64 (encoded once by src/lib/native/yjs.js) and must pass through
-// untouched — normalizeBinaryData would utf8+base64 it a second time.
+// Yjs payloads are binary, never text. String here is already base64, must pass untouched: double encode otherwise.
 function normalizeYjsBinary(data: unknown): string {
   if (typeof data === 'string') return data;
   return normalizeBinaryData(data);

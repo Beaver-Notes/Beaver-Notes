@@ -298,7 +298,7 @@
       <settings-row
         control-id="appearance-clear-font"
         :label="translations.appearance.clearFont || 'Softer text in dark mode'"
-        description="Use a lighter gray for text in dark mode — easier on OLED screens."
+        description="Use a lighter gray for text in dark mode. Easier on OLED screens."
       >
         <ui-switch id="appearance-clear-font" v-model="ClearFontChecked" />
       </settings-row>

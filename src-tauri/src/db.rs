@@ -228,7 +228,7 @@ pub(crate) fn db_replace_all(
     tx.commit().map_err(|e| AppError::Other(e.to_string()))
 }
 
-/// Apply a targeted diff — upsert `upserts`, delete `deletes` — atomically in one transaction.
+/// Apply targeted diff: upsert upserts, delete deletes, atomically in one transaction.
 pub(crate) fn db_apply_diff(
     pool: &DbPool,
     upserts: &Map<String, Value>,
@@ -269,10 +269,8 @@ pub(crate) fn db_apply_diff(
 
 // Yjs note-content helpers
 
-/// Append a raw Yjs update for a note (append-only so every peer's version is
-/// preserved). The snapshot cache is NOT folded here: rebuilding it per write
-/// would cost a full decrypt + CRDT merge + re-encrypt on every keystroke
-/// flush — `yjs_get_snapshot` rebuilds lazily only when stale, so writes stay O(1).
+/// Append raw Yjs update (append-only preserves peer versions). Snapshot cache not folded here.
+/// Rebuilding per write costs full decrypt plus merge plus re-encrypt each keystroke, so lazy rebuild keeps writes O(1).
 pub(crate) fn yjs_append(
     pool: &DbPool,
     note_id: &str,
@@ -335,10 +333,7 @@ pub(crate) fn yjs_get_updates(
                 }
             },
             None if is_encrypted_yjs_blob(&blob) => {
-                // Encrypted at rest but no key is available: fail closed so the
-                // ciphertext is never handed to the Yjs decoder (which aborts on
-                // invalid UTF-8) or built into a partial snapshot that would
-                // shadow the encrypted rows.
+                // Encrypted at rest with no key: fail closed, never hand ciphertext to Yjs decoder or partial snapshot.
                 return Err(AppError::EncryptionLocked);
             }
             None => result.push((id, blob)),
@@ -347,9 +342,7 @@ pub(crate) fn yjs_get_updates(
     Ok(result)
 }
 
-/// Merged Yjs state snapshot via the `y-octo` CRDT engine (wire-compatible
-/// with the JS `yjs` library). Cached in `yjs_snapshots`; rebuilt once when any
-/// update is newer than the cache.
+/// Merged Yjs snapshot via y-octo (wire-compatible with JS yjs). Cached, rebuilt once any update is newer.
 pub(crate) fn yjs_get_snapshot(
     pool: &DbPool,
     note_id: &str,
@@ -446,11 +439,8 @@ pub(crate) fn yjs_get_snapshots(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| AppError::Other(e.to_string()))?;
 
-    // Stale when ANY content row — plaintext or encrypted — is newer than the
-    // snapshot, or when no snapshot exists. Encrypted rows must count:
-    // sync-pulled updates are persisted encrypted (yjs_append_batch), so
-    // ignoring them served forever-stale snapshots on devices that join a
-    // vault and receive content exclusively via sync.
+    // Stale when any content row is newer than snapshot, or no snapshot exists. Encrypted rows count.
+    // Sync-pulled encrypted updates would otherwise serve forever-stale snapshots to vault joiners.
     let stale_query = format!(
         "SELECT DISTINCT nc.note_id FROM note_content nc \
          LEFT JOIN yjs_snapshots ys ON nc.note_id = ys.note_id \
@@ -471,8 +461,7 @@ pub(crate) fn yjs_get_snapshots(
         .into_iter()
         .collect();
 
-    // Decrypt cached snapshots in parallel (AES-GCM per blob) — the bulk of
-    // this function's cost on 100+ note vaults.
+    // Parallel decrypt of cached snapshots (AES-GCM per blob): bulk of cost on 100+ note vaults.
     let decrypted: Vec<(String, Vec<u8>)> = snapshots
         .par_iter()
         .filter(|(note_id, data, _updated_at)| {

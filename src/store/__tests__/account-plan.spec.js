@@ -36,7 +36,7 @@ test('fail-closed when subscription missing/undefined/error', () => {
 
 test('fail-closed shows locked UI when API unreachable (no subscription)', () => {
   const store = useAccountStore();
-  // Simulates profile fetch failed — status stays anonymous or subscription null
+  // Simulates failed profile fetch: status stays anonymous or subscription null
   store.setStatus('authenticated');
   store.setToken('tok');
   store.accounts = [{ id: 'a1', organizations: [{ id: 'o1', subscription: null, workspaces: [] }] }];

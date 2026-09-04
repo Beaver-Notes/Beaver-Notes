@@ -217,8 +217,7 @@ export default {
 
       const query = currentLinkVal.value.substring(1).toLowerCase();
 
-      // Cap the candidate pool before filtering — scanning 10k+ notes per
-      // keystroke with the popover open janked typing.
+      // Cap pool before filtering: scanning 10k notes per keystroke janked typing.
       const candidates =
         noteStore.notes.length > 200 ? noteStore.notes.slice(0, 200) : noteStore.notes;
 

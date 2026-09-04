@@ -39,7 +39,7 @@ export function buildAadSuffix(parsed) {
     : `${parsed.docId}-${parsed.ts}`;
 }
 
-/** Idempotent seed guarded by the '._seeded' marker — safe to call repeatedly. */
+/** Idempotent seed guarded by ._seeded marker: safe to repeat. */
 export async function seedOnce(commitsDir) {
   try {
     const files = await readDir(commitsDir).catch(() => []);

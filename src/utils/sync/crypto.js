@@ -11,10 +11,8 @@ import {
 import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
 import { ENCRYPTED_ASSET_EXT } from './constants.js';
 
-// Encryption runs entirely in Rust; the renderer never sees the items key —
-// it only asks the backend to encrypt/decrypt payloads with an AAD binding.
-// Sync payloads carry the Yjs update as raw bytes (base64 `data` + small `meta`),
-// avoiding the old JSON number-array round-trip that cost ~950ms per multi-MB file.
+// Encryption runs in Rust, renderer never sees items key: backend encrypts with AAD binding.
+// Payloads carry Yjs update as base64 data plus meta, never JSON number arrays.
 
 export async function ensureSyncKeyReadyForWrite() {
   const ready = await syncKeyReady().catch(() => false);

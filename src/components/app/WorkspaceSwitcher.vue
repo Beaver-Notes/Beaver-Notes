@@ -278,11 +278,9 @@ export default {
           if (wsId) {
             const cloud = await import('@/composable/useCloudWorkspaces');
             await cloud.useCloudWorkspaces().updateWorkspaceDecoration(wsId, { emoji, color });
-            // Also update the name if it changed
             if (name !== formDialogWorkspace.value.name) {
               await workspaceStore.rename(wsId, name);
             } else {
-              // Update local store with new emoji/color
               const ws = workspaceStore.workspaces.find(w => w.id === wsId);
               if (ws) {
                 ws.emoji = emoji;

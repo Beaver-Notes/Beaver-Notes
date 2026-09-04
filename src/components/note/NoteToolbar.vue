@@ -616,12 +616,10 @@
         </div>
         <!-- /scroll track -->
 
-        <!-- Left fade edge — hidden when fully scrolled left -->
         <div
           class="pointer-events-none absolute left-0 inset-y-0 w-8 bg-gradient-to-r from-white dark:from-neutral-900 to-transparent rounded-xl transition-opacity duration-150"
           :class="scrolledLeft ? 'opacity-0' : 'opacity-100'"
         />
-        <!-- Right fade edge — hidden when fully scrolled right -->
         <div
           class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-white dark:from-neutral-900 to-transparent rounded-xl transition-opacity duration-150"
           :class="scrolledRight ? 'opacity-0' : 'opacity-100'"
@@ -694,8 +692,7 @@ export default {
     const linkPopoverOpen = ref(false);
     const noteStore = useNoteStore();
 
-    // Only recompute the candidate pool when the notes list itself changes,
-    // not on every keystroke — filtering below is the cheap part.
+    // Recompute pool only when notes list changes, not each keystroke: filtering is cheap.
     const linkCandidates = computed(() => {
       const notes = noteStore.notes;
       const currentId = route.params.id;

@@ -42,7 +42,7 @@ export async function captureNoteSnapshot(noteId) {
     try {
       const titleFrag = doc.getXmlFragment('title');
       if (titleFrag.length > 0) {
-        // Title XmlFragment contains XmlText nodes — extract plain text
+        // Title fragment holds XmlText nodes: extract plain text.
         const json = await yXmlFragmentToProsemirrorJSON(titleFrag);
         if (json?.content) {
           // Structure: { content: [[{ type: 'text', text: '...' }, ...], ...] }

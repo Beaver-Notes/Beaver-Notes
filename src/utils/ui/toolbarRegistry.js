@@ -1,41 +1,23 @@
-/**
- * toolbarRegistry.js — lightweight singleton registry letting plugins
- * register additional toolbar items before the app mounts:
- *
- *   import { toolbarRegistry } from '@/utils/toolbarRegistry';
- *   toolbarRegistry.register({
- *     id: 'myPlugin:button',
- *     label: 'My Button',
- *     icon: 'riStarLine',
- *     group: 'plugins',          // can be any group string
- *     // component: MyComponent, // optional – NoteMenu renders it instead
- *   });
- *
- * The toolbar reads `all()` at computed time, so items registered before
- * the component mounts appear automatically.
- */
+/** Plugin toolbar registry: register items before mount, toolbar reads all() at computed time. */
 
 /** @typedef {{ id: string, label: string, icon: string|null, group: string, isDivider?: boolean, component?: object }} ToolbarItemMeta */
 
 const _items = [];
 
 export const toolbarRegistry = {
-  /**
-   * Register a new toolbar item; duplicate ids are ignored.
-   * @param {ToolbarItemMeta} item
-   */
+  /** Register item; duplicate ids ignored. */
   register(item) {
     if (!item?.id) throw new Error('[toolbarRegistry] item must have an id');
     if (_items.some((i) => i.id === item.id)) {
       console.warn(
-        `[toolbarRegistry] "${item.id}" is already registered – skipping`
+        `[toolbarRegistry] "${item.id}" is already registered: skipping`
       );
       return;
     }
     _items.push(item);
   },
 
-  /** Return a shallow copy of all registered items (built-ins + plugins). */
+  /** Shallow copy of all items (built-ins plus plugins). */
   all() {
     return [..._items];
   },
@@ -45,17 +27,15 @@ export const toolbarRegistry = {
     return _items.some((i) => i.id === id);
   },
 
-  /** Get metadata for one item (used by the customizer). */
+  /** Get metadata for one item (customizer). */
   get(id) {
     return _items.find((i) => i.id === id) ?? null;
   },
 };
 
-// Built-ins registered here so they share the same source-of-truth as plugin items.
+// Built-ins share source of truth with plugin items.
 
-// defaultVisible: false  →  hidden for first-time users (fresh install).
-// Reset always restores ALL items to visible regardless of defaultVisible.
-// Omitting defaultVisible means shown by default.
+// No defaultVisible means shown; false hides for fresh installs, reset restores all visible.
 const BUILTIN_ITEMS = [
   {
     id: 'paragraph',

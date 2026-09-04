@@ -1,9 +1,4 @@
-/**
- * Per-note state-vector storage for Yjs sync: a plain JSON map
- * `{ [deviceId]: clock }` derived from the Rust backend's y-octo state vector.
- * Deliberately NOT a binary Yjs state vector — y-octo uses string client IDs
- * vs. yjs's numeric ones.
- */
+/** Per-note state vector: JSON map deviceId to clock from y-octo. Not binary: y-octo uses string IDs, yjs numeric. */
 
 import { getStateVector } from '@/lib/native/yjs.js';
 
@@ -23,7 +18,7 @@ export function saveStateVector(docId, sv) {
   try {
     localStorage.setItem(`${STORAGE_KEY}:${docId}`, JSON.stringify(sv));
   } catch {
-    // storage full or unavailable — non-critical
+    // Storage full or unavailable: non-critical.
   }
 }
 
@@ -90,7 +85,7 @@ export function saveServerCheckpoint(noteId, checkpoint) {
       localStorage.setItem(`${CHECKPOINT_STORAGE_KEY}:${noteId}`, JSON.stringify(checkpoint));
     }
   } catch {
-    // storage full or unavailable — non-critical
+    // Storage full or unavailable: non-critical.
   }
 }
 

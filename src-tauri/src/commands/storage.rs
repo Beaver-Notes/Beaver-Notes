@@ -225,11 +225,8 @@ fn pick_pool(name: &str, app: &AppHandle, state: &AppState) -> Result<crate::db:
     }
 }
 
-// Flat-key helpers
-//
-// A key is "flat-addressable" when it maps 1:1 to a KV row: a single segment
-// (e.g. "deletedIds") or a note-like namespace with one sub-key ("notes.<id>",
-// "folders.<id>") — both stored as flat rows, so they skip the whole-store load.
+// Flat-addressable key maps 1:1 to a KV row: single segment or notes.<id>/folders.<id>.
+// Flat rows skip the whole-store load.
 
 /// Collection namespaces whose entries are stored as individual flat rows
 /// (e.g. "notes.abc123"). Requests for the bare key (`storage_get("notes")`)
@@ -262,16 +259,11 @@ fn decrypt_store_row_with_key(
     Ok(decrypt_json_from_storage(key, &value, &storage_aad(row_key))?.unwrap_or(value))
 }
 
-// Pure worker functions (state-free; run inside spawn_blocking)
-//
-// The async commands extract owned key material and the pool up front, then
-// dispatch these workers to a blocking thread so SQLite I/O and per-row AES
-// never block the Tauri event loop.
+// Pure workers (state-free) for spawn_blocking: commands extract key material and pool first.
+// SQLite I/O and per-row AES stay off the Tauri event loop.
 
-/// One-time pass: whole-row-encrypt legacy `notes.*` / `folders.*` rows the
-/// migration left with only note content encrypted (titles/folder metadata as
-/// plaintext JSON). Idempotent: already-encrypted rows are skipped, and mixed
-/// plaintext/encrypted reads are handled transparently.
+/// One-time pass: whole-row-encrypt legacy notes.*/folders.* rows left with plaintext titles/metadata.
+/// Idempotent, skips encrypted rows, handles mixed reads transparently.
 pub(crate) fn reencrypt_legacy_store_rows(
     pool: crate::db::DbPool,
     key: [u8; 32],
@@ -309,7 +301,7 @@ fn storage_get_value(
     if segments.is_empty() {
         return Ok(def);
     }
-    // Settings are always plaintext — never seal/unseal with the content key.
+    // Settings always plaintext: never seal/unseal with content key.
     let is_data = name == DATA_STORE;
     let db_key = if is_data { app_key } else { None };
     let decrypt_key = if is_data { app_key } else { None };
@@ -506,10 +498,8 @@ fn storage_replace_value(
 
 // Commands
 
-/// Full store as a nested JSON object; only used on startup / sync
-/// (intentionally loads everything). Note content is no longer encrypted at the
-/// KV layer — Yjs blobs are encrypted in note_content / yjs_snapshots instead.
-/// DB read + per-row decryption run on a blocking thread.
+/// Full store as nested JSON, only startup/sync (loads everything). Content not encrypted at KV layer.
+/// Yjs blobs encrypted in note_content/yjs_snapshots. DB read plus decrypt on blocking thread.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_get_store(
@@ -534,10 +524,7 @@ pub(crate) async fn storage_get_store(
     Ok(root.into())
 }
 
-/// Replace the entire store (sync / import flows). Optimised: only rows whose
-/// content actually changed are re-encrypted and written; unchanged rows keep
-/// their existing DB envelope, avoiding AES-GCM re-encryption and I/O. Runs on
-/// a blocking thread.
+/// Replace entire store (sync/import). Only changed rows re-encrypted and written, avoids AES-GCM and I/O. Blocking thread.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_replace(
@@ -568,9 +555,8 @@ pub(crate) async fn storage_replace(
     Ok(())
 }
 
-/// Get one value by dot-separated key: single-row lookup for flat-addressable
-/// keys, otherwise full-store load (legacy path). Runs off the main thread —
-/// the collection-namespace fallback reads and decrypts the entire KV table.
+/// Get one value by dot-separated key: single-row lookup for flat keys, else full-store load (legacy).
+/// Runs off main thread: collection fallback reads and decrypts entire KV table.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_get(

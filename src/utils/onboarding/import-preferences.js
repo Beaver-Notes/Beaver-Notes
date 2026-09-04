@@ -38,9 +38,7 @@ export async function importLegacyPreferences(dir) {
     if (value == null || value === '') continue;
 
     if (newKey === 'syncPath') {
-      // Cloud-sync users have no local sync path — an explicitly cleared
-      // syncPath must not be resurrected from legacy prefs. Only local
-      // (folder) transport imports the legacy default path.
+      // Cloud users have no local path: never resurrect cleared syncPath, only folder transport imports default.
       const transport = getSettingSync('syncTransport');
       if (transport === SYNC_TRANSPORT.REMOTE || transport === 'cloud') {
         continue;
@@ -57,7 +55,7 @@ export async function importLegacyPreferences(dir) {
       continue;
     }
 
-    // Arimo was the legacy default but is no longer shipped — map to system default
+    // Arimo legacy default unshipped: map to system default.
     const importValue = newKey === 'selectedFont' && value === 'Arimo' ? DEFAULT_UI_FONT_STACK : value;
     try {
       await setSetting(newKey, importValue);

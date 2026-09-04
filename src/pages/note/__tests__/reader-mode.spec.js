@@ -157,7 +157,7 @@ describe('reader mode trap', () => {
     expect(idVue).toContain('ReaderPill');
     expect(idVue).toContain('@mousedown.self');
     expect(idVue).toContain('@exit="exitReader"');
-    // title must follow reader prefs too — guarded in editor.css, not just ProseMirror
+    // title must follow reader prefs too, guarded in editor.css, not just ProseMirror
     const editorCss = fs.readFileSync('src/assets/css/editor.css', 'utf8');
     expect(editorCss).toContain('.editor[data-reader-theme] .title-placeholder');
     expect(editorCss).toContain(".editor[data-reader-theme='light'] .title-placeholder");

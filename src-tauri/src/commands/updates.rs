@@ -71,7 +71,7 @@ fn emit_update_progress(
 pub(crate) fn load_auto_update_enabled(app: &AppHandle) -> Result<bool, AppError> {
     let state = app.state::<AppState>();
     let pool = settings_pool(app, state.inner())?;
-    // Tolerant read: before unlock the flag can't be decrypted — default true.
+    // Tolerant read: flag undecryptable before unlock, default true.
     let enc_key = crate::shared::kv_encryption_key(state.inner())
         .ok()
         .flatten();

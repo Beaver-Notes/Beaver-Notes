@@ -15,7 +15,7 @@ const DOWNLOAD_CHUNK_SIZE: usize = 64 * 1024; // 64 KB
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn fs_copy(app: AppHandle, path: String, dest: String) -> Result<(), AppError> {
-    // Recursive copy + per-file AES is I/O-heavy — run off the main thread.
+    // Recursive copy plus per-file AES is I/O heavy: run off main thread.
     let app = app.clone();
     tokio::task::spawn_blocking(move || {
         let state = app.state::<AppState>();

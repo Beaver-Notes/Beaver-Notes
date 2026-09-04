@@ -335,7 +335,7 @@ export default {
         let isMatch = false;
         if (queryLower.trim() !== '') {
           if (matchedIds === null) {
-            // Index unavailable — linear fallback
+            // Index unavailable: linear fallback.
             isMatch = isLabelQuery
               ? labels.some((label) =>
                   label.toLocaleLowerCase().includes(labelQuery),

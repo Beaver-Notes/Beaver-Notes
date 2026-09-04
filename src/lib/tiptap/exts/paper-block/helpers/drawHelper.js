@@ -1,17 +1,4 @@
-/**
- * drawHelper.js - drawing utilities facade (rendering in freehand.js)
- *
- * Stroke format (canonical v2):
- *   {
- *     id:      string,
- *     tool:    'pen' | 'highlighter',
- *     color:   string,      // CSS color
- *     size:    number,      // base diameter px
- *     opacity: number,      // 0–1
- *     _isPen:  boolean,     // whether drawn with a real stylus
- *     points:  [x, y, pressure][]   // pressure 0–1
- *   }
- */
+/** Drawing utilities facade (rendering in freehand.js). Canonical v2 stroke: id, tool, color, size, opacity 0-1, points with pressure 0-1. */
 
 import {
   getRenderablePath,
@@ -19,13 +6,13 @@ import {
   getLineBounds,
 } from './freehand.js';
 
-// Pen-mode / Palm-rejection (from tldraw)
+// Pen-mode / palm-rejection.
 
 export function isPen(e) {
   return e.pointerType === 'pen';
 }
 
-/** Palm rejection heuristic — deliberately applies only to touch input. */
+/** Palm rejection: touch input only. */
 export function isPalmTouch(e) {
   if (e.pointerType === 'pen' || e.pointerType === 'mouse') return false;
   return (e.width ?? 0) > 60 || (e.height ?? 0) > 60;
@@ -42,15 +29,12 @@ export function isDeliberateInput(e, isPenMode = false) {
   );
 }
 
-/**
- * Stylus eraser button detection (button 5).
- * From tldraw — some styluses (Surface Pen, Wacom) have a hardware eraser.
- */
+/** Stylus eraser button detection (button 5, hardware eraser on some pens). */
 export function isStylusEraser(e) {
   return e.button === 5;
 }
 
-// Double-tap zoom fix (from tldraw's useFixSafariDoubleTapZoomPencilEvents)
+// Double-tap zoom fix for pencil events.
 
 /** Call on touchstart/touchend when isPen(e); needs a real DOM event. */
 export function preventPencilDoubleTapZoom(e) {
@@ -84,7 +68,7 @@ export function normalisePressure(_e) {
 
 // Point interpolation / smoothing
 
-/** Douglas–Peucker thinning + Chaikin corner-cutting over [x, y, pressure] triplets. */
+/** Thinning plus corner-cutting over [x, y, pressure] triplets. */
 export function interpolatePoints(
   points,
   { passes = 2, threshold = 2.5 } = {}
@@ -191,15 +175,7 @@ export function cloneDrawingToolDefaults() {
   };
 }
 
-/**
- * Convert old stroke arrays (lines / linesV2) to the canonical v2 format.
- *
- * Old formats:
- *  - v1 `lines`:   `{ tool, color, size, points: [[x,y], ...] }`
- *  - v2 `linesV2`: `{ id, tool, color, size, opacity, points: [[x,y], ...] }`
- *
- * In both cases pressure is unknown. Default to 0.5.
- */
+/** Convert old stroke arrays (v1/v2) to canonical v2. Pressure unknown, defaults 0.5. */
 export function migrateStrokes(rawLines, rawLinesV2) {
   const source =
     Array.isArray(rawLinesV2) && rawLinesV2.length > 0

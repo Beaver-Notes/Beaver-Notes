@@ -102,7 +102,7 @@ export const useUndoStore = defineStore('undo', () => {
             }
             pending = next;
           }
-          // fallback for remaining (circular/missing parent) — try anyway
+          // Fallback for leftovers (circular/missing parent): try anyway.
           for (const item of pending) {
             try {
               await folderStore.add({ ...item.data, parentId: null } as Record<string, unknown>);

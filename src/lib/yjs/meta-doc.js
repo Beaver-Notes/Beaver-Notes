@@ -1,8 +1,4 @@
-/**
- * Meta Yjs document singleton — owns the shared Y.Doc instance
- * for all workspace metadata. Kept separate to avoid circular imports
- * between the workspace doc and the meta store.
- */
+/** Workspace Y.Doc singleton for metadata. Separate to avoid circular imports. */
 
 import * as Y from 'yjs';
 
@@ -16,19 +12,12 @@ export function getWorkspaceDoc() {
   return wsDoc;
 }
 
-/**
- * Register a callback to run when the workspace doc is destroyed.
- * Used by workspace-doc.js to reset observer/persist flags.
- */
+/** Register callback on workspace doc destroy (resets observer flags). */
 export function onWorkspaceDocDestroy(cb) {
   _onDestroy = cb;
 }
 
-/**
- * Destroy the workspace doc singleton and release all resources.
- * Required for account/workspace switches to avoid stale observers
- * and memory leaks. The next getWorkspaceDoc() call creates a fresh doc.
- */
+/** Destroy singleton, release resources. Required for account/switch to avoid stale observers. Next get creates fresh doc. */
 export function destroyWorkspaceDoc() {
   if (wsDoc) {
     wsDoc.destroy();

@@ -1,8 +1,4 @@
-/**
- * Realtime conversion of legacy Electron note content (plaintext ProseMirror
- * JSON) into per-note Yjs docs. Note content never touches the KV store —
- * it is converted and batched straight into Yjs at import time.
- */
+/** Convert legacy Electron ProseMirror JSON into per-note Yjs docs at import time, never via KV. */
 
 import * as Y from 'yjs';
 import { appendBatch } from '@/lib/native/yjs.js';
@@ -15,10 +11,7 @@ const CHUNK_SIZE = 20;
 
 const ASSET_NODE_TYPES = new Set(['image', 'Audio', 'Video', 'fileEmbed']);
 
-/**
- * Normalize broken asset paths from legacy v4 versions that stored full
- * filesystem paths or relative paths without the protocol prefix.
- */
+/** Normalize legacy v4 asset paths that stored full paths or missed protocol prefix. */
 function normalizeAssetPaths(node, noteId) {
   if (!node || typeof node !== 'object') return;
 
@@ -37,7 +30,7 @@ function normalizeAssetPaths(node, noteId) {
       // fsMatch[1] = "noteId/" (if present), fsMatch[2] = filename
       fileName = fsMatch[2];
     } else {
-      // Relative path like "file-assets/noteId/file" — strip prefix to filename
+      // Relative path like file-assets/noteId/file: strip prefix to filename.
       const relMatch = src.match(/^(?:notes-assets|file-assets)(?:\/[^/]+)*\/([^/]+)$/);
       if (relMatch) {
         fileName = relMatch[1];
@@ -113,16 +106,11 @@ export async function convertLegacyNotesToYjs(
           const { isAppEncryptedEnvelope, decryptContent } = await import(
             '@/utils/crypto/encryption.js'
           );
-          // App-encrypted envelope (ae:3/ae:6) — decrypt with the workspace
-          // key, which is always available during onboarding. These appear
-          // when a legacy config.json was previously re-encrypted by
-          // migrateLegacyLockedNotes; the legacy password does not apply to
-          // them, so this branch must run regardless of legacyPassword.
+          // App-encrypted (ae:3/ae:6): workspace key always available here, runs regardless of legacyPassword.
           if (isAppEncryptedEnvelope(note.content)) {
             content = await decryptContent(note.content);
           } else {
-            // Legacy CryptoJS or JSON envelope — decrypt with the legacy
-            // password captured during onboarding.
+            // Legacy CryptoJS/JSON: decrypt with onboarding legacy password.
             if (!legacyPassword) {
               skipped++;
               continue;
@@ -193,7 +181,7 @@ export function ensureLegacyNotesPreview(notesMap) {
       typeof content?.content?.[0] === 'string' &&
       (content.content[0].startsWith('U2FsdGVk') || content.content[0].startsWith('{'));
     const isLocked = note.isLocked === true || isAeEnvelope || hasLegacyCipher;
-    // Encrypted envelopes aren't structured content — hidden preview only.
+    // Encrypted envelopes not structured content: hidden preview only.
     let contentForPreview = note.content;
     if (isLocked) contentForPreview = null;
     else if (contentForPreview && typeof contentForPreview === 'object' && contentForPreview.type !== 'doc') {

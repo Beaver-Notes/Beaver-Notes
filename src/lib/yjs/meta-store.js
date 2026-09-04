@@ -1,7 +1,4 @@
-/**
- * Meta Yjs store hydration — pushes workspace-doc changes into
- * Pinia stores and backfills missing card previews.
- */
+/** Meta Yjs hydration: pushes workspace-doc changes into Pinia, backfills previews. */
 
 import * as Y from 'yjs';
 import { getSnapshots } from '@/lib/native/yjs.js';
@@ -38,11 +35,7 @@ async function yXmlFragmentToProsemirrorJSON(xmlFragment) {
   return mod.yXmlFragmentToProsemirrorJSON(xmlFragment);
 }
 
-/**
- * Batch-load note CONTENT as ProseMirror JSON from per-note Yjs snapshots
- * (the only place content lives post-migration). Missing/locked/failed notes
- * are absent from the result so callers fall back to their in-memory copy.
- */
+/** Batch-load note CONTENT as ProseMirror JSON from Yjs snapshots (only content store). Missing notes absent, caller falls back. */
 export async function readNoteContents(noteIds) {
   const contents = {};
   if (!Array.isArray(noteIds) || noteIds.length === 0) return contents;
@@ -71,17 +64,7 @@ export async function readNoteContents(noteIds) {
   return contents;
 }
 
-/**
- * Push workspace-doc changes into the Pinia stores (one-way: doc -> store).
- * Idempotent. The workspace Y.Doc is the source of truth for metadata;
- * note CONTENT lives in per-note Yjs docs.
- *
- * @param {Set<string>|undefined} [changedNoteIds] when provided, only those
- *   notes are re-merged and removed ids evicted; omitted = full re-merge.
- * @param {{folders?: boolean, labels?: boolean, labelColors?: boolean}|undefined} [metaChanges]
- *   per-collection flags (from `observeWorkspace`); folders/labels rebuild
- *   only when flagged; omitted (initial hydration) rebuilds everything.
- */
+/** Push workspace-doc changes into Pinia (one-way doc to store). Idempotent, Y.Doc is metadata truth, content lives per-note. */
 export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   const doc = getWorkspaceDoc();
   const folderStore = useFolderStore();
@@ -99,9 +82,7 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   let foldersNeedRebuild = isInitialHydration || metaChanges.folders;
   let labelsNeedRebuild = isInitialHydration || metaChanges.labels || metaChanges.labelColors;
 
-  // Incremental batches rebuild a collection only when its flag is set —
-  // rebuilding every folder/label per note edit cascaded app-wide reactive
-  // re-renders (the dominant cost at scale). Initial hydration rebuilds all.
+  // Incremental batches rebuild only when flagged: avoids app-wide re-renders at scale. Initial rebuilds all.
   if (foldersNeedRebuild) {
     const folders = {};
     for (const [id, yFolder] of yFolders.entries()) {
@@ -199,19 +180,7 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   }
 }
 
-/**
- * Import-time: seed the workspace Y.Doc directly from parsed legacy data
- * (no KV reads). Writes note meta, folders, the labels array and label colors
- * in a single `'seed'` transaction. Deleted-id tombstones are no longer used
- * — deletion is the Yjs map delete + per-note doc wipe (yjs_delete).
- *
- * @param {Record<string, object>} notes  id -> note meta (content excluded)
- * @param {Record<string, object>} folders id -> folder
- * @param {string[]} labels
- * @param {Record<string, string>} labelColors
- * @param {Record<string, number>} [deletedIds] ignored, kept for compat
- * @param {Record<string, number>} [deletedFolderIds] ignored, kept for compat
- */
+/** Seed workspace Y.Doc from legacy data (no KV reads) in one seed transaction. Yjs delete plus doc wipe is tombstone. */
 export async function seedWorkspaceDocFromData(
   notes,
   folders,
@@ -278,12 +247,7 @@ export async function seedWorkspaceDocFromData(
   return { seededNotes, seededFolders, seededLabels };
 }
 
-/**
- * One-time backfill: notes written before `cardPreview` was persisted (or
- * migrated notes whose content left KV) have blank cards on launch until
- * re-saved. Loads each note's Yjs snapshot, rebuilds `cardPreview` + `preview`
- * and persists them. Deferred, non-blocking, once per device.
- */
+/** One-time backfill: rebuild missing cardPreview plus preview from Yjs snapshots. Deferred, non-blocking, once per device. */
 export async function backfillNotePreviews() {
   const noteStore = useNoteStore();
   const needsSnapshot = [];

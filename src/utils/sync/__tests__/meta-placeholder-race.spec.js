@@ -321,7 +321,7 @@ describe('server checkpoint is not poisoned by an undecodable page', () => {
     });
 
     // All-null decrypt surfaces as 'unlock-required', which the engine defers
-    // gracefully (cycle resolves) — the page was never applied either way.
+    // gracefully (cycle resolves); the page was never applied either way.
     await engine.enqueueSync(true);
 
     expect(saveServerCheckpoint).not.toHaveBeenCalled();
@@ -337,7 +337,7 @@ describe('server checkpoint is not poisoned by an undecodable page', () => {
 
     // The engine pull loop calls writeStoresFromWorkspace when hasMetaUpdates
     // is true. We verify it ALSO calls it for content-only batches by
-    // checking the conditional logic directly — this is a design test, not
+    // checking the conditional logic directly: this is a design test, not
     // a full integration test.
     const updates = [
       { noteId: 'abc', update: new Uint8Array([1, 2, 3]) },

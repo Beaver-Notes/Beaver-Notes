@@ -40,7 +40,7 @@ export async function deriveVaultPassphraseProof(passphrase, workspaceId, keyPar
   // by workspace + key params. The proof is stable across publish and verify
   // so the server can store it hashed and compare later. The per-request
   // `challenge` is kept in the signature for call-site compatibility but is a
-  // freshness token checked separately by the server — never part of the proof.
+  // Freshness token checked separately, never part of proof.
   return backend.invoke('vault:deriveProof', { passphrase, workspaceId, keyParamsBlob });
 }
 

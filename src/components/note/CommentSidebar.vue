@@ -5,7 +5,6 @@
         ? 'relative shrink-0 flex w-[380px] max-w-[42%] self-start sticky top-4 h-[calc(100vh-2rem)] flex-col bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden max-lg:hidden'
         : 'fixed inset-y-0 ltr:right-0 rtl:left-0 z-50 flex w-[380px] max-w-[92vw] flex-col bg-white dark:bg-neutral-950 ltr:border-l rtl:border-r border-neutral-200 dark:border-neutral-800 shadow-2xl'"
     >
-      <!-- Header — Notion-style: small caps, count badge -->
       <div
         class="shrink-0 flex items-center justify-between gap-3 px-4 h-[52px] bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800"
       >
@@ -32,7 +31,6 @@
         </button>
       </div>
 
-      <!-- Scrollable threads -->
       <div class="flex-1 overflow-y-auto overscroll-contain">
         <div v-if="loading" class="py-16 flex flex-col items-center gap-3 text-neutral-400">
           <div class="w-5 h-5 border-2 border-neutral-300 border-t-neutral-900 dark:border-neutral-600 dark:border-t-white rounded-full animate-spin" />
@@ -40,7 +38,6 @@
         </div>
 
         <template v-else>
-          <!-- Pending — new thread draft (Notion: dashed card + blue tint) -->
           <div v-if="pendingThreadId" class="p-3">
             <div class="rounded-xl border border-dashed border-primary/30 bg-primary/[0.04] dark:bg-primary/10 p-3">
               <p class="text-[11px] font-medium tracking-wide uppercase text-neutral-500 dark:text-neutral-400 mb-2">
@@ -68,7 +65,6 @@
             </div>
           </div>
 
-          <!-- Unresolved threads -->
           <div v-if="unresolvedThreads.length" class="p-3 space-y-3">
             <div
               v-for="thread in unresolvedThreads"
@@ -78,7 +74,6 @@
                 ? 'border-primary/20 ring-1 ring-primary/15 shadow-sm'
                 : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-sm'"
             >
-              <!-- thread comments -->
               <div class="divide-y divide-neutral-100 dark:divide-neutral-800">
                 <div
                   v-for="(comment, ci) in thread.comments"
@@ -119,7 +114,6 @@
                 </div>
               </div>
 
-              <!-- actions — Notion: subtle text + check -->
               <div class="flex items-center gap-1 px-3 py-2 bg-neutral-50/80 dark:bg-neutral-900 border-t border-neutral-100 dark:border-neutral-800">
                 <button
                   class="inline-flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition"
@@ -131,7 +125,6 @@
                 <span class="ltr:ml-auto rtl:mr-auto text-[11px] text-neutral-400 hidden group-hover:inline">{{ thread.comments.length }} {{ thread.comments.length === 1 ? 'comment' : 'comments' }}</span>
               </div>
 
-              <!-- reply composer — Notion inline -->
               <div class="px-3 py-2.5 bg-white dark:bg-neutral-900 border-t border-neutral-100 dark:border-neutral-800">
                 <div class="flex gap-2 items-end">
                   <div
@@ -161,7 +154,6 @@
             </div>
           </div>
 
-          <!-- Resolved — collapsible, muted -->
           <div v-if="resolvedThreads.length" class="px-3 pb-3">
             <button
               class="w-full flex items-center gap-1.5 py-2 text-[12px] font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition"
@@ -210,7 +202,6 @@
             </div>
           </div>
 
-          <!-- Empty — Notion centered illustration -->
           <div
             v-if="!unresolvedThreads.length && !resolvedThreads.length && !pendingThreadId"
             class="px-6 py-14 flex flex-col items-center text-center"
@@ -220,13 +211,12 @@
             </div>
             <p class="text-[13px] font-medium text-neutral-900 dark:text-neutral-100">{{ translationsComments.empty || 'No comments yet' }}</p>
             <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-[22ch] leading-relaxed">
-              Select text in the note and add a comment — threads appear here.
+              Select text in the note and add a comment. Threads appear here.
             </p>
           </div>
         </template>
       </div>
 
-      <!-- Footer composer — sticky, Notion bottom bar -->
       <div class="shrink-0 p-3 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
         <div class="flex gap-2.5 items-end">
           <div

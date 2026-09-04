@@ -17,7 +17,7 @@ export function useFocusTrap(containerRef, options = {}) {
       trap.activate();
       isActive.value = true;
     } catch {
-      // Silently catch — component functions without trapping
+      // Silent catch: component works without trapping.
     }
   }
 

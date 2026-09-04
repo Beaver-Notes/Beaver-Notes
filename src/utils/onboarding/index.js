@@ -118,7 +118,7 @@ export async function applyOnboardingFreshPreferences(preferences, { theme }) {
   );
 
   const root = document.documentElement;
-  // include legacy light/dark aliases — amber canonical, light/dark are same color in tailwind.config.cjs
+  // Include legacy aliases: amber canonical, light/dark same color.
   const allAccentNames = [...ONBOARDING_ACCENT_COLOR_NAMES, 'light', 'dark'];
   ;[...root.classList].forEach((cls) => {
     if (allAccentNames.includes(cls)) {

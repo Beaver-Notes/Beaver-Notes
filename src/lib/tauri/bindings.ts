@@ -59,7 +59,7 @@ export const commands = {
 	fsDownloadUrl: (url: string, dest: string) => typedError<number, AppError>(__TAURI_INVOKE("fs_download_url", { url, dest })),
 	/**
 	 *  Returns the full store as a nested JSON object.
-	 *  Only used on startup / sync — intentionally loads everything.
+	 *  Only used on startup / sync: intentionally loads everything.
 	 *  Note content is no longer encrypted at the KV layer; Yjs blobs are
 	 *  encrypted at rest in the note_content / yjs_snapshots tables instead.
 	 * 
@@ -134,10 +134,9 @@ export const commands = {
 	 *  XChaCha20-Poly1305. `aad` binds the ciphertext to its identity (e.g. the file
 	 *  stem) so it cannot be swapped between sync entries.
 	 * 
-	 *  The Yjs update is passed as base64-encoded raw bytes (`data`) rather than a
-	 *  JSON number array, so multi-MB payloads never hit a serde_json round-trip on
-	 *  a huge array (the previous ~950ms cost). `meta` (device/ts/sequence/noteId) is
-	 *  stored inside the encrypted envelope so it round-trips with the payload.
+	 *  The Yjs update is base64-encoded raw bytes (`data`), never a JSON number
+	 *  array. `meta` (device/ts/sequence/noteId) is stored inside the encrypted
+	 *  envelope so it round-trips with the payload.
 	 */
 	syncEncryptPayload: (meta: string, data: string, aad: string) => typedError<string, AppError>(__TAURI_INVOKE("sync_encrypt_payload", { meta, data, aad })),
 	/**
@@ -250,7 +249,7 @@ export const commands = {
 	/**
 	 *  Read all updates for a note, merge them into a single snapshot via y-octo,
 	 *  replace the old rows with one compacted row, and keep the snapshot cache in
-	 *  sync — all in a single SQLite transaction.
+	 *  sync: all in a single SQLite transaction.
 	 */
 	yjsCompactBatch: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact_batch", { noteId })),
 	/**  Delete every Yjs update for a note.  Called when the note itself is deleted. */

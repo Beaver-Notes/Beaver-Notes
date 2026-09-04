@@ -84,7 +84,7 @@ export function useNoteSharing() {
       // Ignore abort errors (expected during navigation)
       if (err?.name === 'AbortError' || signal.aborted) return;
 
-      // 403 means user is not invited — treat as "no collaborators" rather than error
+      // 403 means not invited: treat as no collaborators, not error.
       if (err?.status === 403) {
         collaborators.value = [];
         return;
@@ -159,10 +159,7 @@ export function useNoteSharing() {
       return noteKeyHex;
     }
 
-    // Fresh note — provision a new key fanning out to every device of every
-    // collaborator. If the note already has a key but this device has no
-    // envelope yet (late joiner), provisionNoteKey refuses to rotate and we
-    // request an online device of this account to re-distribute to us.
+    // Fresh note: provision key for every device of every collaborator. Late joiner without envelope waits for re-distribute.
     const fresh = await provisionNoteKey({
       getKey,
       listPublicKeys: () => fetchCollaboratorPublicKeys(noteId),

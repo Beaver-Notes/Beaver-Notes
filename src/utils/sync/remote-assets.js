@@ -1,14 +1,4 @@
-/**
- * Remote asset sync — mirrors the folder asset protocol over HTTP.
- *
- * listAssets()   → GET /assets          (returns list of keys)
- * uploadAsset()  → PUT /assets/:key     (raw binary upload)
- * downloadAsset()→ GET /assets/:key     (returns presigned URL, then fetch)
- * deleteAsset()  → DELETE /assets/:key
- *
- * The server stores assets under {userId}/assets/{key}.
- * Keys use '--' as separator: {type}--{noteId}--{filename}
- */
+/** Remote asset transport over HTTP: list/upload/download/delete, stored under user/assets/key with -- separator. */
 
 import { getApiClient } from '@/lib/api/client.js';
 import { uint8ArrayToBase64 } from '@/utils/helpers/index.js';
@@ -91,7 +81,7 @@ export async function batchUploadAssets(items) {
   return result || { results: [], uploaded: 0, skipped: 0 };
 }
 
-/** Seed-time batch upload — higher limits, no rate limit. */
+/** Seed-time batch upload: higher limits, no rate limit. */
 export async function seedBatchUploadAssets(items) {
   const client = getClient();
   const payload = {

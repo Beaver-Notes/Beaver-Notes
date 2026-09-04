@@ -65,7 +65,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn(),
 }));
 
-// Dynamically imported modules — mock so they resolve instantly (no file I/O)
+// Dynamically imported modules: mocked to resolve instantly (no file I/O).
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
   loadSecureBlob: vi.fn(() => Promise.resolve(null)),
 }));

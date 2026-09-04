@@ -22,11 +22,7 @@ mod characterization {
         );
     }
 
-    /// The `derive_argon2_key` command is the sole derivation path for
-    /// historical v3 Argon2-locked notes via the legacy Electron migration
-    /// flow (src/utils/migration/legacyElectron.js): it must stay pinned to
-    /// the explicit legacy numbers (m=32768 KiB / t=2 / p=2) even if the
-    /// module defaults are bumped again.
+    /// derive_argon2_key is sole path for v3 locked notes via legacy migration: pinned to m=32768 KiB/t=2/p=2.
     #[tokio::test]
     async fn derive_argon2_key_command_is_pinned_to_legacy_kdf_params() {
         use crate::commands::security::derive_argon2_key;
@@ -86,8 +82,7 @@ mod characterization {
         assert_eq!(from_manifest, expected);
     }
 
-    /// Sync vault join must derive with the params' stored Argon2 settings —
-    /// a WrongPassword here means the derive ignored them and used defaults.
+    /// Vault join must derive with stored Argon2 settings: WrongPassword means defaults were used.
     #[test]
     fn derive_items_key_from_params_respects_stored_argon2_memory() {
         use crate::shared::crypto::keys::{

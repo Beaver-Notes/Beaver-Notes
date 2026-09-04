@@ -192,11 +192,7 @@ export default {
       { immediate: true },
     );
 
-    // After a successful device-password re-entry, the master key becomes
-    // readable again — but the startup session hydration already failed (it
-    // ran before the KEK was supplied), so the user would stay logged out
-    // until restart. Re-run the minimal hydration: load the now-readable
-    // session token, mark the store authenticated, and fetch the profile.
+    // Device-password re-entry makes master key readable, but startup hydration already failed: re-run minimal hydration.
     const hydrateAccountSessionAfterDeviceUnlock = async () => {
       if (accountStore.isAuthenticated) return;
       const { loadSessionToken } = await import('@/lib/account-storage');
@@ -228,9 +224,7 @@ export default {
     watch(devicePasswordSetupState, async (state) => {
       if (state !== 'done') return;
       await hydrateAccountSessionAfterDeviceUnlock();
-      // Keychain blob may now be decryptable after the user supplied the
-      // device password — retry the automatic unlock so the passphrase gate
-      // doesn't stay visible unnecessarily.
+      // Keychain blob may be decryptable now: retry auto-unlock so gate hides.
       try {
         await shell.restoreEncryptionKeys();
       } catch (e) {
@@ -271,14 +265,14 @@ export default {
       }
     }
 
-    // 02.3: soft-gate banner — unverified but authenticated shows nag with throttled resend
+    // Soft-gate banner: unverified but authenticated shows nag with throttled resend.
     const verificationSending = ref(false);
     const verificationCooldown = ref(0);
     let cooldownTimer = null;
     const showVerificationBanner = computed(() => {
       if (!accountStore.isAuthenticated) return false;
       const v = accountStore.profile?.emailVerified;
-      // null means legacy/unknown — treat as verified to avoid nagging old installs until next profile fetch
+      // Null means legacy/unknown: treat as verified to avoid nagging old installs.
       if (v === null || v === undefined) return false;
       return v === false;
     });

@@ -5,9 +5,7 @@ import { join } from 'node:path';
 
 const rootDir = process.cwd();
 
-// Save the terminal's TMPDIR so the Xcode build script can find the
-// server-addr file that `cargo tauri ios dev` writes to temp_dir().
-// Xcode overrides TMPDIR for build phases, causing a mismatch.
+// Save terminal TMPDIR for Xcode script: Xcode overrides TMPDIR, causing mismatch.
 if (process.env.TMPDIR) {
   writeFileSync(join(rootDir, 'src-tauri', '.tmpdir'), process.env.TMPDIR);
 }
@@ -70,7 +68,7 @@ function shutdown(code = 0) {
 ['SIGINT', 'SIGTERM'].forEach((signal) => {
   process.on(signal, () => shutdown(0));
 });
-// SIGHUP (terminal close / tab reload) must not kill vite — keep helper alive
+// Ignore SIGHUP so terminal close keeps vite alive.
 process.on('SIGHUP', () => {
   console.log('[tauri-dev-server] ignoring SIGHUP, keeping vite alive');
 });
@@ -82,7 +80,7 @@ if (reachableHost) {
     `[tauri-dev-server] Reusing existing dev server on ${reachableHost}:${DEV_PORT}.`
   );
 
-  // Keep this helper alive so Tauri can manage the dev session normally.
+  // Keep alive for Tauri dev session.
   await new Promise(() => {});
 }
 

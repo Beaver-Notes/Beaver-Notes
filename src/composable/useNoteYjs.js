@@ -77,7 +77,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
       return;
     }
   } catch (err) {
-    // Snapshot decode failed — repair the cached copy after replaying updates.
+    // Snapshot decode failed: repair cached copy after replay.
     snapshotWasCorrupt = true;
     console.error(`[yjs] Failed to load snapshot for ${noteId}:`, err);
   }
@@ -113,7 +113,6 @@ async function persistUpdate(noteId, update) {
       `SQLite appendUpdate for ${noteId}`
     );
   } catch {
-    //
   }
   try {
     const commitsDir = await getCommitsDir();
@@ -121,7 +120,6 @@ async function persistUpdate(noteId, update) {
       queueSyncWrite(commitsDir, noteId, update);
     }
   } catch {
-    //
   }
 }
 
@@ -216,8 +214,7 @@ export function useNoteYjs() {
 
     await loadStateIntoDoc(newDoc, noteId);
 
-    // Still empty after replay (fresh note or stale/corrupt snapshot) — seed
-    // from store content.
+    // Still empty after replay (fresh or corrupt snapshot): seed from store.
     const frag = newDoc.getXmlFragment('content');
     if (frag.length === 0 && initialContent) {
       try {
@@ -274,7 +271,6 @@ export function useNoteYjs() {
     } else {
       ytext = newDoc.getText('title');
     }
-    // seed if both empty
     if (ytext.length === 0 && initialTitle) {
       try {
         newDoc.transact(() => ytext.insert(0, initialTitle), 'load');

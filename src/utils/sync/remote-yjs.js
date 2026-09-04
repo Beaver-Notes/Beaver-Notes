@@ -1,15 +1,4 @@
-/**
- * Remote Yjs sync transport — mirrors the folder sync protocol over HTTP.
- *
- * pushUpdates()  → POST /yjs/push-batch  (encrypted Yjs updates)
- * pullUpdates()   → POST /yjs/pull-batch  (returns updates since cursor)
- * deleteRemoteUpdates() → DELETE /yjs/updates (after compaction)
- *
- * The server stores updates in SQLite, keyed by workspaceId + noteId.
- *
- * All requests are automatically chunked to stay under the server's
- * body size limit (default 10MB, configurable via YJS_SYNC_BODY_LIMIT_BYTES).
- */
+/** Remote Yjs transport over HTTP: push/pull/delete endpoints, SQLite keyed by workspace plus note, chunked under body limit. */
 
 import { getApiClient } from '@/lib/api/client.js';
 import { getSyncDeviceId } from './sync-repository.js';
@@ -65,7 +54,7 @@ function chunkItems(items, getItemSize) {
   return chunks;
 }
 
-/** Push via the durable identity contract — the transport supplies deviceId/sequence/ts per update. */
+/** Push via durable identity contract: transport supplies deviceId/sequence/ts per update. */
 export async function pushUpdates(workspaceId, notes) {
   if (!notes || notes.length === 0) {
     return { accepted: 0, duplicate: 0, checkpoints: {} };

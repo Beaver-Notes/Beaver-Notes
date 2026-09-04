@@ -1,9 +1,4 @@
-/**
- * pointerHelper.js — tldraw-inspired pointer handling via a lightweight
- * state machine (from tldraw's StateNode):
- *
- *   idle → pointing → drawing | erasing | selecting | transforming → idle
- */
+/** Pointer handling via lightweight state machine: idle to pointing to drawing/erasing/selecting/transforming to idle. */
 
 import {
   isPalmTouch,
@@ -95,7 +90,7 @@ const TouchMode = {
   TRANSFORMING: 'transforming',
 };
 
-const DRAG_THRESHOLD_SQ = 9; // 3px² — minimum drag distance to start drawing
+const DRAG_THRESHOLD_SQ = 9; // 3px squared: minimum drag to start drawing.
 
 export function usePointerHelper(context) {
   const {
@@ -118,7 +113,7 @@ export function usePointerHelper(context) {
   let pointerOriginY = 0;
   let _isPen = false; // per-stroke: is this particular stroke drawn with a pen?
   let segmentMode = 'free'; // 'free' | 'straight'
-  let straightSegmentAnchor = null; // { x, y } — where straight line started
+  let straightSegmentAnchor = null; // Straight line start point.
 
   const AUTO_GROW_MARGIN = 40; // px from canvas bottom edge
   const AUTO_GROW_STEP = 200;
@@ -335,7 +330,7 @@ export function usePointerHelper(context) {
       }
 
       case TouchMode.POINTING: {
-        // Tap (no drag) — deselect if selecting tool, otherwise ignore
+        // Tap without drag: deselect if selecting tool, else ignore.
         state.isDrawing = false;
         state.currentStrokePoints = [];
         currentPointsRef.value = [];

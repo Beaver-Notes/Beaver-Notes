@@ -267,7 +267,7 @@ export default {
           let matchesQuery = false;
 
           if (matchedIds === null) {
-            // Index unavailable — linear fallback
+            // Index unavailable: linear fallback.
             if (isLabelQuery) {
               for (let j = 0; j < labels.length; j++) {
                 if (labels[j].toLocaleLowerCase().includes(labelQuery)) {

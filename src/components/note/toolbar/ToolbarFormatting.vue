@@ -11,7 +11,7 @@
     <v-remixicon :name="fmtMap[item.fmt]?.icon" />
   </button>
 
-  <!-- Color / highlight entry button — shows both text color (icon) and highlight (bg) -->
+  <!-- Color/highlight entry: shows text color (icon) and highlight (bg) -->
   <button
     v-if="isItemVisible('color')"
     v-keep-focus

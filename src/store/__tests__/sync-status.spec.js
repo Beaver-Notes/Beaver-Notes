@@ -20,18 +20,18 @@ vi.mock('@/lib/native/app', () => ({
 describe('describeStatus', () => {
   it('classifies transient states quietly', () => {
     expect(describeStatus('retrying')).toEqual({ tone: 'transient', text: 'Retrying…' })
-    expect(describeStatus('offline')).toEqual({ tone: 'transient', text: 'Offline — will retry automatically' })
+    expect(describeStatus('offline')).toEqual({ tone: 'transient', text: 'Offline. Will retry automatically.' })
   })
 
   it('classifies action-required states with plain causes', () => {
     expect(describeStatus('unlock-required'))
-      .toEqual({ tone: 'action', text: 'Notes are locked — unlock to sync' })
+      .toEqual({ tone: 'action', text: 'Notes are locked. Unlock to sync.' })
     expect(describeStatus('authorization-failed'))
-      .toEqual({ tone: 'action', text: 'Session expired — sign in again' })
+      .toEqual({ tone: 'action', text: 'Session expired. Sign in again.' })
     expect(describeStatus('workspace-reset'))
       .toEqual({ tone: 'action', text: 'Workspace was reset on the server' })
     expect(describeStatus('decrypt-failed', 'bad envelope'))
-      .toEqual({ tone: 'action', text: 'Couldn’t decrypt an update — bad envelope' })
+      .toEqual({ tone: 'action', text: 'Couldn’t decrypt an update: bad envelope' })
   })
 
   it('returns null tone for routine states', () => {
@@ -71,7 +71,7 @@ describe('sync progress store action persistence', () => {
     emitStatus({ status: 'complete' })
     expect(store.lastAction).not.toBeNull()
     expect(store.attention)
-      .toEqual({ tone: 'action', text: 'Notes are locked — unlock to sync', status: 'unlock-required' })
+      .toEqual({ tone: 'action', text: 'Notes are locked. Unlock to sync.', status: 'unlock-required' })
   })
 
   it('keeps showing the pending action while transient statuses come and go', () => {
@@ -82,7 +82,7 @@ describe('sync progress store action persistence', () => {
       emitStatus({ status: transient })
       expect(store.attention.tone).toBe('action')
       expect(store.attention.status).toBe('decrypt-failed')
-      expect(store.attention.text).toBe('Couldn’t decrypt an update — bad envelope')
+      expect(store.attention.text).toBe('Couldn’t decrypt an update: bad envelope')
     }
   })
 

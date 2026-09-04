@@ -1,11 +1,5 @@
-//! Temporary speed instrumentation. All timing logs go through this module so
-//! they can be toggled with one switch and later removed in one pass.
-//!
-//! Enable with: `BEAVER_SPEED_LOG=1 cargo tauri dev`
-//!
-//! Cleanup before shipping to production:
-//!   1. `rg -l "speed_log::scope" src-tauri/src` and delete each call site.
-//!   2. Delete this module (and its `mod speed_log;` line in `shared/mod.rs`).
+//! Temp speed instrumentation: toggle with one switch, remove in one pass. Enable: BEAVER_SPEED_LOG=1.
+//! Cleanup: delete speed_log::scope call sites, then this module and its mod line.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -13,7 +7,7 @@ use std::time::{Duration, Instant};
 static INIT: AtomicBool = AtomicBool::new(false);
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
-/// Whether speed logging is on. Reads `BEAVER_SPEED_LOG` once and caches it.
+/// Whether speed logging is on. Reads BEAVER_SPEED_LOG once, caches it.
 pub(crate) fn enabled() -> bool {
     if !INIT.load(Ordering::Relaxed) {
         let on = std::env::var("BEAVER_SPEED_LOG")
@@ -30,12 +24,10 @@ pub(crate) fn reset() {
     INIT.store(false, Ordering::Relaxed);
 }
 
-/// Only measures at/above this many ms are logged, so high-frequency
-/// micro-operations (e.g. db_get) don't spam the log.
+/// Threshold in ms: hides high-frequency micro-ops (e.g. db_get) from log.
 const MIN_LOG_MS: u128 = 1;
 
-/// Start timing a scope; `None` when disabled. The guard prints
-/// `[speed] <label> took <elapsed>` when dropped.
+/// Start timing a scope; None when disabled. Guard prints on drop.
 pub(crate) fn scope(label: &'static str) -> Option<ScopeTimer> {
     enabled().then(|| ScopeTimer {
         label,
@@ -44,7 +36,7 @@ pub(crate) fn scope(label: &'static str) -> Option<ScopeTimer> {
     })
 }
 
-/// Emit a one-off duration entry (e.g. for a value already timed by the caller).
+/// Emit one-off duration entry (caller already timed it).
 pub(crate) fn log_duration(label: &str, elapsed: Duration) {
     if enabled() && elapsed.as_millis() >= MIN_LOG_MS {
         eprintln!("[speed] {label} {}ms", elapsed.as_millis());

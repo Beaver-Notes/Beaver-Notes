@@ -1,14 +1,4 @@
-/**
- * Debug bridge — ground-truth introspection of the migration/workspace layers.
- *
- * `dumpDebugState()` correlates what the NATIVE side persisted (KV rows,
- * per-note Yjs updates, decoded workspace meta doc via `debug:dump-state`)
- * with what the FRONTEND holds in memory (workspace Y.Doc + Pinia stores).
- * The classic "labels visible, notes/folders missing" empty-state is almost
- * always a mismatch between these two layers; this makes it visible in one place.
- *
- * Console usage: window.__beaverDebug?.()
- */
+/** Debug bridge: correlates persisted state (KV, Yjs, workspace meta) vs memory. Empty state is usually layer mismatch. */
 
 import { backend } from '@/lib/tauri-bridge';
 import { useStorage } from '@/lib/storage';
@@ -87,7 +77,7 @@ export async function dumpFrontendState() {
   return state;
 }
 
-/** Full correlated dump — call after a migration to see where notes got stranded. */
+/** Full correlated dump: call after migration to see where notes got stranded. */
 export async function dumpDebugState() {
   const native = await dumpNativeState();
   const frontend = await dumpFrontendState();

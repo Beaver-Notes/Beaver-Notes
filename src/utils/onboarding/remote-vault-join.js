@@ -27,14 +27,7 @@ export async function completeRemoteVaultJoin({
   return adopt(passphrase, paramsBlob);
 }
 
-/**
- * Run AFTER a successful vault passphrase adoption: if the joined workspace
- * record carries a passphrase-recoverable key envelope (vault_wrapped_keys),
- * decrypt it with the freshly adopted session AEK and seed the client-side
- * workspace-key cache. Consumers (ensureMetaRoomKey / name encryption) then
- * skip the network fetch + ML-KEM unwrap path entirely. Best-effort — returns
- * false when the record has no envelope or decryption fails, never throws.
- */
+/** After vault adoption: decrypt vault_wrapped_keys with session AEK and seed key cache. Skips fetch plus unwrap. Best-effort, false on missing/fail. */
 export async function adoptWorkspaceKeysFromVault(workspaceRecord) {
   if (!workspaceRecord?.id || !workspaceRecord?.vaultWrappedKeys) return false;
   const recovered = await unwrapWorkspaceKeysFromVault(workspaceRecord.vaultWrappedKeys);

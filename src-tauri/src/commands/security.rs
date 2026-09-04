@@ -119,7 +119,7 @@ pub(crate) async fn asset_crypto_migrate_dir(
                 Ok(()) => processed += 1,
                 Err(e) => {
                     eprintln!("[asset-migration] FAILED: {} | error: {}", current, e);
-                    // If the key is not loaded, every file will fail — abort early.
+                    // Key not loaded fails every file: abort early.
                     if matches!(e, AppError::EncryptionLocked) {
                         return Err(AppError::Other(format!(
                             "App encryption key is not loaded. Unlock it before migrating assets. (First failure: {})",
@@ -343,8 +343,7 @@ pub(crate) fn encryption_decrypt_note_payload(
 ) -> Result<Option<Vec<u8>>, AppError> {
     let ae = payload.get("ae").and_then(Value::as_u64).unwrap_or(0) as u8;
 
-    // Legacy v3 envelope: payload is a serde_json Value — decrypt via the JSON
-    // path and re-serialise so callers always receive raw bytes.
+    // Legacy v3 JSON envelope: decrypt and re-serialise to raw bytes.
     if ae == 3 {
         let kid = payload
             .get("kid")
@@ -398,7 +397,7 @@ pub(crate) fn encryption_decrypt_note_payload(
         return Ok(Some(bytes));
     }
 
-    // Unknown version — pass through as-is for forward-compat.
+    // Unknown version: pass through for forward-compat.
     Ok(Some(serde_json::to_vec(&*payload)?))
 }
 
@@ -419,11 +418,8 @@ pub(crate) struct SyncMeta {
     pub(crate) note_id: String,
 }
 
-/// Encrypt a sync payload (commit / snapshot / genesis) with the items key
-/// (XChaCha20-Poly1305). `aad` binds the ciphertext to its identity so it
-/// cannot be swapped between entries. The Yjs update arrives as base64 raw
-/// bytes (`data`) — never a JSON number array, which cost ~950ms for multi-MB
-/// payloads. `meta` is stored inside the encrypted envelope.
+/// Encrypt sync payload (commit/snapshot/genesis) with items key (XChaCha20-Poly1305). AAD binds identity, blocks swapping.
+/// Update is base64 raw bytes, never JSON number arrays. Meta inside envelope.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_encrypt_payload(
@@ -452,10 +448,8 @@ pub(crate) async fn sync_encrypt_payload(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Decrypt a sync payload. Errors with `DECRYPT_FAILED` on authentication
-/// failure (wrong passphrase or tampered AAD), `KEY_LOCKED` when the key is
-/// absent. Update returns as base64 raw bytes; v4 envelopes (JSON number
-/// array) are decoded for backward compatibility.
+/// Decrypt sync payload: DECRYPT_FAILED on auth failure (wrong passphrase, tampered AAD), KEY_LOCKED if absent.
+/// Update returns base64 raw bytes; v4 JSON number arrays decoded for compat.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_decrypt_payload(
@@ -814,10 +808,8 @@ pub(crate) fn encryption_reconcile_key_params(
     Ok(())
 }
 
-/// Join an existing vault by adopting shared key params. Unlike
-/// `encryption_reconcile_key_params`, works with an inactive session (fresh
-/// joining device). Wrong passphrase returns `WrongPassword` without touching
-/// any vault state.
+/// Join vault by adopting shared key params. Works with inactive session (fresh device).
+/// Wrong passphrase returns WrongPassword, touches no vault state.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn encryption_adopt_key_params(
@@ -899,8 +891,7 @@ pub(crate) fn safe_storage_get_backend_info(
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool, AppError> {
-    // Honest probe: can a master key actually be produced right now — not a
-    // compile-time flag or a fallback papering over backend failures.
+    // Honest probe: key producible now, not compile flag or fallback masking failure.
     Ok(master_key_available())
 }
 
@@ -1056,7 +1047,7 @@ fn assert_not_locked(state: &AppState) -> Result<(), AppError> {
             )))
         }
         Some(_) => {
-            // Expired — clear and allow the attempt.
+            // Expired: clear and allow attempt.
             *lockout_guard = None;
             Ok(())
         }

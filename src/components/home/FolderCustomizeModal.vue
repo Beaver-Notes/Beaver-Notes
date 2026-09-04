@@ -36,7 +36,6 @@
         @keydown.enter="save"
       />
 
-      <!-- Color swatches -->
       <div>
         <p class="text-[11px] font-semibold text-neutral-500 mb-2">
           {{ translations.card?.colors || 'Colors' }}
@@ -71,7 +70,6 @@
         </div>
       </div>
 
-      <!-- Emoji picker (lazy) -->
       <ui-emoji-picker
         v-if="modelValue"
         :current="selectedIcon"

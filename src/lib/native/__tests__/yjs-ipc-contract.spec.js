@@ -19,7 +19,7 @@ const toB64 = (bytes) => btoa(String.fromCharCode(...bytes));
 
 // The Rust side of these commands declares `update`/`snapshot` as base64
 // STRINGS (commit f97c8f63). Tauri serializes a nested Uint8Array as a JSON
-// number array, which serde rejects — so raw bytes must never cross the
+// number array, which serde rejects, so raw bytes must never cross the
 // boundary unconverted.
 describe('native yjs IPC binary contract', () => {
   beforeEach(() => {

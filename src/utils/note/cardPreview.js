@@ -251,7 +251,7 @@ function visitNode(node, preview, state) {
       }
       return;
     case 'horizontalRule':
-      pushTextBlock(preview, 'paragraph', '—', state);
+      pushTextBlock(preview, 'paragraph', '---', state);
       return;
     case 'heading':
       pushTextBlock(preview, 'heading', extractInlineText(node.content), state);

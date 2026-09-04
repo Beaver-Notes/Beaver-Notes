@@ -61,15 +61,12 @@ function indexMove(index: Map<string | null, Set<string>>, folder: FolderData, o
 export const useFolderStore = defineStore('folder', {
   state: (): FolderState => ({
     data: {},
-    // _childrenIndex holds the children index (Map). Null until first access.
-    // We store it as plain state so actions can mutate it directly;
-    // Vue won't deeply observe the Map internals.
+    // Children index (Map), null until first access. Plain state for direct mutation, Vue skips deep observe.
     _childrenIndex: null,
   }),
 
   getters: {
-    // Lazily build the children index; Pinia caches this getter until
-    // data/_childrenIndex changes so it only rebuilds when truly necessary.
+    // Lazy children index, Pinia caches until data changes.
     _index(state) {
       if (!state._childrenIndex) state._childrenIndex = buildChildIndex(state.data);
       return state._childrenIndex;
@@ -178,8 +175,7 @@ export const useFolderStore = defineStore('folder', {
 
     async retrieve(): Promise<Record<string, FolderData>> {
       try {
-        // Data is already populated from the Yjs workspace doc via
-        // writeStoresFromWorkspace().  No KV reads needed.
+        // Data already from Yjs workspace doc, no KV reads.
         this._rebuildIndex();
         return this.data;
       } catch (error) {
@@ -241,7 +237,7 @@ export const useFolderStore = defineStore('folder', {
         const oldParentId = this.data[id].parentId;
         this.data[id] = { ...this.data[id], ...data, updatedAt: Date.now() };
 
-        // Keep index in sync when parentId changes
+        // Keep index synced on parentId change.
         if (data.parentId !== undefined && data.parentId !== oldParentId) {
           indexMove(this._index, this.data[id], oldParentId);
           useUndoStore().push({ type: 'move', notes: [], folders: [{ id, prevParentId: oldParentId }] });
@@ -433,7 +429,7 @@ export const useFolderStore = defineStore('folder', {
       return false;
     },
 
-    // deletedIds tombstones removed — Yjs folder delete is the tombstone.
+    // No deletedIds tombstones: Yjs folder delete is tombstone.
     cleanupDeletedIds(_days = 30): string[] {
       return [];
     },

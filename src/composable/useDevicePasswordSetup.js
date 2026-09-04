@@ -101,11 +101,7 @@ export function useDevicePasswordSetup() {
     }
     if (!info) return;
 
-    // Re-entry: the only durable master-key copy is the device-password-
-    // encrypted file (`master.key.enc`) and the KEK has not been supplied this
-    // session (e.g. after a reboot on a daemon-less box). This MUST ignore
-    // DONE_KEY — otherwise there is no path back to secure storage — and it
-    // clears DONE_KEY on success so a later create gate can fire afresh.
+    // Re-entry: only durable copy is enc file and KEK missing (e.g. reboot daemon-less). Ignores DONE_KEY, clears it on success.
     // After the C2 availability fix, `available` is false in BOTH this case and
     // the fresh-install case, so `devicePasswordRequired` is the disambiguator.
     if (info.devicePasswordRequired) {
@@ -113,10 +109,7 @@ export function useDevicePasswordSetup() {
       return;
     }
 
-    // Create: a fresh daemon-less install — no durable store reachable (the
-    // reachable-but-empty kernel keyring is not durable), no password gate, no
-    // key readable today. Gated on DONE_KEY so the one-time setup prompt is not
-    // shown again once created or skipped.
+    // Create: fresh daemon-less install, no durable store, no key readable. Gated on DONE_KEY for one-time prompt.
     if (info.available) return;
     const done = localStorage.getItem(DONE_KEY);
     if (done) return;

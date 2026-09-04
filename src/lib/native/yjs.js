@@ -1,9 +1,7 @@
 import { backend } from '@/lib/tauri-bridge';
 import { bufToBase64 } from '@/utils/crypto/codec.js';
 
-// The Rust yjs commands declare update/snapshot params as base64 STRINGS
-// (f97c8f63). Tauri serializes a nested Uint8Array as a JSON number array,
-// which serde rejects — so raw bytes must be converted before invoke.
+// Rust yjs commands take base64 strings. Tauri serializes Uint8Array as number array, rejected by serde: convert first.
 function toIpcBinary(value) {
   if (value == null || typeof value === 'string') return value;
   if (value instanceof Uint8Array) return bufToBase64(value);

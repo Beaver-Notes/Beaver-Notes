@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
 import { triggerSelectionHaptic } from '@/lib/native/haptics';
 
-// Evaluated once at module load — avoids repeated UA string parsing per click.
+// Evaluated once at load: avoids repeated UA parsing per click.
 const isMac = (() => {
   if (navigator.userAgentData?.platform) {
     return navigator.userAgentData.platform === 'macOS';
@@ -9,11 +9,7 @@ const isMac = (() => {
   return /mac/i.test(navigator.userAgent);
 })();
 
-/**
- * Patch `target` in-place to mirror `source` with minimal mutations — used in
- * drag-selection rAF loops where replacing the Set reference each frame would
- * re-render the whole tree.
- */
+/** Patch target in place to mirror source with minimal mutations. For drag rAF loops, replacing Set would re-render tree. */
 export function patchSelectionSet(target, source) {
   for (const v of target) if (!source.has(v)) target.delete(v);
   for (const v of source) if (!target.has(v)) target.add(v);

@@ -82,8 +82,7 @@ export async function setupEncryption(passphrase) {
     // instead of overwriting the server with this device's own.
     const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
     await fetchCloudKeyParams().catch(() => null);
-    // Adopt the server's keys immediately — otherwise writes use this device's
-    // fresh local key until the first engine cycle reconciles.
+    // Adopt server keys now, else writes use fresh local key until first reconcile.
     await reconcileSyncKeyParams(passphrase).catch(() => {});
     // NEVER auto-publish key params here.  If fetchCloudKeyParams returned null
     // (workspace not loaded, network glitch, 404), publishCloudKeyParams would
@@ -137,8 +136,7 @@ export async function adoptVaultKey(passphrase, keyParams) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
-    // Discard pending writes queued before adoption — encrypted with the
-    // pre-adoption local key, they must never be flushed or pushed.
+    // Discard pre-adoption pending writes: encrypted with old key, never flush.
     try {
       const { clearPendingWrites } = await import('@/utils/sync/pending-writes.js');
       clearPendingWrites();
@@ -167,14 +165,12 @@ async function _doRestoreKey() {
 
   if (next?.unlocked) return true;
 
-  // getEncryptionState may report enabled:false on restart before the
-  // passphrase is re-submitted — a saved blob proves encryption was set up,
-  // so try restoring anyway.
+  // State may report disabled before passphrase resubmitted: saved blob proves setup, try restore.
   let passphrase;
   try {
     passphrase = await loadSecureBlob(BLOB_KEY);
   } catch {
-    // No blob saved or secure storage unavailable — encryption was never set up
+    // No blob or storage unavailable: encryption never set up.
     return false;
   }
   if (!passphrase) return false;
@@ -219,16 +215,11 @@ export async function decryptContent(contentVal) {
       '[encryption] decryptContent: decrypted payload is not valid JSON',
       e
     );
-    throw new Error('Decrypted note content is corrupted — JSON parse failed');
+    throw new Error('Decrypted note content is corrupted: JSON parse failed');
   }
 }
 
-/**
- * True when `contentVal` is an app-key encrypted note envelope in ANY format
- * we can still decrypt (`ae:3` legacy JSON bytes, `ae:6` raw bytes). Used by
- * `decryptContent` and the import-time conversion — the runtime never holds
- * legacy envelopes.
- */
+/** True when contentVal is decryptable app-key envelope (ae:3 legacy, ae:6 raw). Runtime never holds legacy. */
 export function isAppEncryptedEnvelope(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
   return contentVal.ae === 3 || contentVal.ae === 6;

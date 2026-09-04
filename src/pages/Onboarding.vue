@@ -26,9 +26,7 @@
       </div>
     </div>
 
-    <!-- :key is coarse on purpose — 'wizard' stays constant across
-         account → customize so the frame (card / bottom sheet) never
-         remounts; only its inner content slides. -->
+    <!-- Coarse key stays wizard across steps so frame never remounts, only content slides. -->
     <div
       :key="topLevelKey"
       class="ob-page-content relative z-10 w-full px-5 sm:px-0"
@@ -70,7 +68,7 @@
               <p
                 class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
               >
-                Let's get set up — sign in, secure your notes, then import and
+                Let's get set up: sign in, secure your notes, then import and
                 customize.
               </p>
             </div>
@@ -117,7 +115,6 @@
             </div>
           </div>
 
-          <!-- Scrolling content — this is what slides between steps -->
           <div class="flex-1 min-h-0 overflow-y-auto px-1">
             <Transition
               :name="
@@ -882,7 +879,7 @@
                         />
                         <span>{{
                           translations.account?.onboardingBulletPrivacy ||
-                          'Zero-knowledge encryption — the server only sees encrypted blobs.'
+                          'Zero-knowledge encryption: the server only sees encrypted blobs.'
                         }}</span>
                       </li>
                       <li class="flex items-start gap-3">
@@ -1109,7 +1106,7 @@
                           <p class="text-xs text-amber-600 dark:text-amber-400">
                             {{
                               trAccount.recoveryHint ||
-                              'Restores ACCOUNT access only — E2E data needs vault passphrase.'
+                              'Restores ACCOUNT access only. E2E data needs vault passphrase.'
                             }}
                           </p>
                           <ui-button
@@ -1149,7 +1146,7 @@
                       Sync folder
                     </h2>
                     <p class="text-neutral-600 dark:text-neutral-400">
-                      Select a folder to sync your data with — you can skip this
+                      Select a folder to sync your data with. You can skip this
                       for now and set it up later.
                     </p>
                   </div>
@@ -1301,7 +1298,6 @@
             </Transition>
           </div>
 
-          <!-- Footer: back / progress / continue — persists across steps -->
           <div class="mt-5 flex items-center justify-between gap-3 shrink-0">
             <ui-button
               :disabled="step === 'import' && importPhase === 'running'"
@@ -1675,8 +1671,7 @@ export default {
       flow.handleLegacyPasswordSkip();
     }
 
-    // Coarse key: stays 'wizard' across every step inside the persistent frame
-    // so it never remounts — only its inner Transition slides.
+    // Coarse key stays wizard so frame never remounts, only Transition slides.
     const topLevelKey = computed(() =>
       flow.isCardStep.value ? 'wizard' : flow.step.value,
     );
@@ -2126,8 +2121,7 @@ export default {
   overflow: hidden;
 }
 
-/* Wizard step slide: direction-aware — forward enters from the right,
-   back from the left. Applied to the step body inside the modal frame. */
+/* Wizard slide: forward enters from right, back from left. Applied inside modal frame. */
 .ob-slide-fwd-enter-active,
 .ob-slide-fwd-leave-active,
 .ob-slide-back-enter-active,

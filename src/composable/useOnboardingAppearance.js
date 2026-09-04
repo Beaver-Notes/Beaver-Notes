@@ -65,7 +65,7 @@ export function useOnboardingAppearance({ fresh, state, theme, goToStep }) {
   const selectAccentColor = (color) => {
     fresh.accentColor = color;
     const root = document.documentElement;
-    // canonical amber + legacy light/dark aliases — must all be removed
+    // Canonical amber plus legacy aliases: remove all.
     const accentColorNames = [
       'red',
       'amber',

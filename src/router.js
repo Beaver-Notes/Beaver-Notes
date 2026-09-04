@@ -22,13 +22,13 @@ const routeTitles = {
   Home: APP_NAME,
   Note: 'Note',
   Folder: 'Folder',
-  Settings: `Settings — ${APP_NAME}`,
-  'Settings-Appearance': `Appearance — ${APP_NAME}`,
-  'Settings-Shortcuts': `Shortcuts — ${APP_NAME}`,
-  'Settings-About': `About — ${APP_NAME}`,
-  'Settings-Labels': `Labels — ${APP_NAME}`,
-  'Settings-Team': `Team — ${APP_NAME}`,
-  Onboarding: `Welcome — ${APP_NAME}`,
+  Settings: `Settings - ${APP_NAME}`,
+  'Settings-Appearance': `Appearance - ${APP_NAME}`,
+  'Settings-Shortcuts': `Shortcuts - ${APP_NAME}`,
+  'Settings-About': `About - ${APP_NAME}`,
+  'Settings-Labels': `Labels - ${APP_NAME}`,
+  'Settings-Team': `Team - ${APP_NAME}`,
+  Onboarding: `Welcome - ${APP_NAME}`,
 };
 
 const routes = [

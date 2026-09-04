@@ -128,9 +128,7 @@ export function useSettingsAccount({ dialog, translations }) {
       const { fetchCloudKeyParams, getFetchedCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
       const { hasRemoteVaultKeyParams, adoptVaultKey } = await import('@/utils/crypto/encryption.js');
 
-      // Authoritative signal: the remote vault differs from this device's local
-      // manifest (or no local manifest exists). We deliberately do NOT skip when
-      // a local key is loaded — a wrong local key must still be re-imported.
+      // Remote vault differs or no local manifest: never skip, wrong local key still re-imports.
       await fetchCloudKeyParams({ force: true }).catch(() => null);
       const hasVault = await hasRemoteVaultKeyParams().catch(() => false);
 

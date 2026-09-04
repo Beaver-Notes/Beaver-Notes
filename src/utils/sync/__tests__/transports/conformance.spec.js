@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { Transport } from '../../transports/transport.js';
 
 /**
- * Conformance suite — shared contract that every Transport implementation
+ * Conformance suite: shared contract that every Transport implementation
  * must satisfy.  Import the transport factory and run `conformanceTests()`.
  *
  * Usage:
@@ -53,7 +53,7 @@ export function conformanceTests(createTransport) {
     });
 
     describe('seedOnce()', () => {
-      it('is idempotent — calling twice does not throw', async () => {
+      it('is idempotent: calling twice does not throw', async () => {
         await transport.seedOnce();
         await transport.seedOnce();
       });

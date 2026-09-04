@@ -44,7 +44,7 @@
           <v-remixicon name="riStopCircleLine" class="size-5 text-red-500" />
         </button>
       </div>
-      <!-- Docked: Dynamic Island — dot toggle plus collapsible controls. -->
+      <!-- Docked: dot toggle plus collapsible controls. -->
       <div v-else class="flex items-center py-1 pl-1.5 pr-1.5">
         <button
           type="button"

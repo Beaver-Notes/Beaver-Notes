@@ -143,7 +143,7 @@
               : translations.card.unlockToEdit ||
                 'This note is locked. Enter your vault password or use biometrics to unlock it.'
           "
-          :hint="'Encryption is always active — your notes and assets are protected at rest.'"
+          :hint="'Encryption is always active: your notes and assets are protected at rest.'"
           :password="lockedPassword"
           :placeholder="translations.settings?.password || 'Vault password'"
           :error="lockedError"
@@ -823,7 +823,7 @@ export default {
           localStorage.setItem('lastNoteEdit', noteId);
         }
 
-        // Read content at call time — the decrypt watcher may have updated the store since this fired.
+        // Read content at call time: decrypt watcher may have updated store since fire.
         const currentForLoad = noteStore.getById(noteId);
         const seedContent = currentForLoad?.content;
         const seedTitle = currentForLoad?.title || '';

@@ -1,11 +1,6 @@
 import { buildNotePreview, EMPTY_CARD_PREVIEW } from '@/utils/note/cardPreview.js';
 
-/**
- * Merge one note's Yjs meta into its existing in-memory record, keeping the
- * existing card preview (rebuilds are expensive). Content lives in the per-note
- * Yjs doc, so `needsSnapshot: true` means the caller must load the snapshot to
- * build a missing preview.
- */
+/** Merge Yjs meta into record, keep existing preview (rebuilds expensive). needsSnapshot means load snapshot for missing preview. */
 export function mergeNoteEntry(existing, meta) {
   const merged = { ...existing, ...meta };
 
@@ -15,7 +10,7 @@ export function mergeNoteEntry(existing, meta) {
   if (merged.isLocked) {
     merged.cardPreview = EMPTY_CARD_PREVIEW;
   } else if (meta.cardPreview && meta.cardPreview.blocks) {
-    // Persisted preview — no content load or ProseMirror conversion (launch speed).
+    // Persisted preview: no content load or conversion (launch speed).
     merged.cardPreview = meta.cardPreview;
   } else if (existing.cardPreview) {
     merged.cardPreview = existing.cardPreview;
@@ -35,11 +30,7 @@ export function mergeNoteEntry(existing, meta) {
   return { note: merged, needsSnapshot };
 }
 
-/**
- * Compute which notes are in the store but no longer present in the workspace
- * doc (deleted), so the caller can evict exactly those entries instead of
- * swapping the whole map.
- */
+/** Notes in store missing from doc (deleted), so caller evicts exactly those. */
 export function diffRemovedNoteIds(storeIds, docIds) {
   const removed = [];
   for (const id of storeIds) {

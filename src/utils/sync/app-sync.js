@@ -32,9 +32,7 @@ export async function initAppSync() {
 
   const engine = getSyncEngine();
 
-  // Nothing usable configured (no folder, no authenticated cloud account) —
-  // stay inert: skip the initial pull and 30s timer; cycles trigger on demand
-  // once a folder is chosen or cloud is enabled.
+  // Nothing configured (no folder, no cloud account): stay inert, skip pull and timer, cycles on demand.
   const syncPath = await getSyncPath();
   const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
   const wantsCloud = transport !== SYNC_TRANSPORT.FOLDER;

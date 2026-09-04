@@ -35,7 +35,7 @@
   </div>
 </template>
 
-// ponytail: customizable shortcuts explored — needs settings key for keybinding map + backend persistence + conflict UI; defer until requested.
+// ponytail: customizable shortcuts explored, needs settings key for keybinding map plus backend persistence plus conflict UI; defer until requested.
 <script setup>
 import { useTranslations } from '@/composable/useTranslations';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';

@@ -205,8 +205,7 @@ export async function syncAssets(
     onProgress?.({ phase: 'assets', processed, total });
   }
 
-  // mergeIntoMap (not syncTombstoneMap) preserves deletion-tombstones added
-  // remotely mid-cycle — it only sets keys, never removes existing ones.
+  // mergeIntoMap preserves mid-cycle remote tombstones: sets keys, never removes.
   if (deletedAssetsDirty) {
     mergeIntoMap('deletedAssets', deletedAssets);
   }

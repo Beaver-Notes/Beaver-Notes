@@ -253,7 +253,7 @@ export function useAppShell(onboardingCompleted = true) {
     { immediate: true }
   );
 
-  // ponytail: 1.5s ceiling — real safe-area plugin can hang on cold iOS launch, never block first paint
+  // ponytail: 1.5s ceiling, real safe-area plugin can hang on cold iOS launch, never block first paint
   const withTimeout = (p, ms, label) =>
     Promise.race([
       p,
@@ -465,7 +465,7 @@ export function useAppShell(onboardingCompleted = true) {
   const initializeWorkspace = async () => {
     performance.mark('init:start');
 
-    // Set immediately — UI renders while onboarding state is checked (no white screen).
+    // Set immediately: UI renders while onboarding checked (no white screen).
     retrieved.value = true;
 
     await hydrateSettingsStore();
@@ -498,9 +498,7 @@ export function useAppShell(onboardingCompleted = true) {
     // The vault passphrase is user-set during onboarding; startup never
     // auto-creates encryption. The yjs layer fails closed if it is missing.
     if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
-      // Key configured but not restorable — loading note data now would yield
-      // garbage, so defer to the encryption gate; handleEncryptionUnlocked()
-      // runs the remainder of init.
+      // Key configured but unrestorable: defer to gate, remainder runs on unlock.
       retrieved.value = true;
       return;
     }
@@ -517,15 +515,14 @@ export function useAppShell(onboardingCompleted = true) {
       checkAppEncryptionMigration(migrationStatus);
     }
 
-    // Load the unified workspace Y.Doc — single source of truth for all
-    // note/folder/label metadata; seeded from parsed data during onboarding.
+    // Load unified workspace Y.Doc: single truth for note/folder/label metadata, seeded during onboarding.
     await loadWorkspaceDoc();
     performance.mark('init:workspace-doc');
     observeWorkspace(writeStoresFromWorkspace);
     await writeStoresFromWorkspace();
     performance.mark('init:workspace-write');
 
-    // Stores now come from Yjs — retrieve() must NOT read KV.
+    // Stores now from Yjs: retrieve() must NOT read KV.
     await store.retrieve();
     performance.mark('init:retrieve');
 
@@ -554,13 +551,11 @@ export function useAppShell(onboardingCompleted = true) {
       }
     }
 
-    // Always init so runtime sync config works without an app restart.
-    // Autosync is always on — periodic sync runs whenever the app is visible.
+    // Always init so runtime sync works without restart. Autosync on: periodic sync when visible.
     try {
       const { useWorkspaceStore } = await import('@/store/workspace.ts');
       const accountStore = useAccountStore();
-      // Hydrate auth before sync — hydrate() runs in onMounted of
-      // useAccountAuth components, which may not have mounted yet.
+      // Hydrate auth before sync: hydrate() runs in onMounted, may not have mounted yet.
       if (!useAccountStore().isAuthenticated) {
         const { loadSessionToken } = await import('@/lib/account-storage');
         const token = await loadSessionToken().catch(() => null);
@@ -581,12 +576,11 @@ export function useAppShell(onboardingCompleted = true) {
             accountStore.setDevices(data.devices || []);
           }
         } catch {
-          // non-critical — sync will retry on next cycle
+          // non-critical: sync retries next cycle.
         }
         await useWorkspaceStore().retrieve();
 
-        // Join the meta WebSocket room now that activeId is known — it was
-        // null when loadWorkspaceDoc() ran earlier.
+        // Join meta room now activeId known (was null at loadWorkspaceDoc).
         const { getWsSync } = await import('@/lib/sync/ws-sync');
         const { ensureMetaRoomKey } = await import('@/lib/yjs/workspace-doc');
         const wsId = useWorkspaceStore().activeId;
@@ -690,7 +684,7 @@ export function useAppShell(onboardingCompleted = true) {
       })
     );
 
-    // ponytail: native ready + safe-area must never block first paint on iOS — run in background with timeouts
+    // ponytail: native ready plus safe-area must never block first paint on iOS, run in background with timeouts
     const nativeReady = Promise.allSettled([
       withTimeout(appReady(), 2000, 'appReady').catch((e) =>
         console.warn('[app] appReady failed:', e?.message || e)
@@ -720,8 +714,7 @@ export function useAppShell(onboardingCompleted = true) {
       console.warn('Error checking auto-update status:', error?.message || error);
     }
 
-    // Always run workspace init even if nativeReady is still pending — retrieved
-    // is set synchronously inside initializeWorkspace so the UI paints.
+    // Always run workspace init even if nativeReady pending: retrieved set sync so UI paints.
     try {
       await withTimeout(initializeWorkspace(), 8000, 'initializeWorkspace');
     } catch (error) {
@@ -741,7 +734,7 @@ export function useAppShell(onboardingCompleted = true) {
       }
       retrieved.value = true;
     } finally {
-      // Don't await — just let it settle in background
+      // No await: let it settle in background.
       void nativeReady;
     }
 

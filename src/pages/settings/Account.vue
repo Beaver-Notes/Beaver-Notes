@@ -677,13 +677,13 @@
                 {{ tr.recoveryCode || 'Recovery code' }}
               </p>
               <p class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                {{ tr.recoveryCodeDescription || 'Single code to recover your account if you lose all passkeys. Regenerating invalidates the old code. Restores ACCOUNT access only — E2E data needs vault passphrase.' }}
+                {{ tr.recoveryCodeDescription || 'Single code to recover your account if you lose all passkeys. Regenerating invalidates the old code. Restores ACCOUNT access only. E2E data needs vault passphrase.' }}
               </p>
               <p v-if="recoveryCode" class="mt-2 font-mono text-xs break-all bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-amber-900 dark:text-amber-100">
                 {{ recoveryCode }}
               </p>
               <p v-if="recoveryCode" class="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                {{ tr.recoveryCodeHint || 'Copy now — this code will not be shown again. Store it securely.' }}
+                {{ tr.recoveryCodeHint || 'Copy now: this code will not be shown again. Store it securely.' }}
               </p>
             </div>
             <ui-button variant="secondary" :loading="recoveryBusy" :aria-label="recoveryCode ? (tr.regenerate || 'Regenerate') : (tr.generate || 'Generate')" @click="handleGenerateRecoveryCode">
@@ -995,10 +995,7 @@ export default {
       }
     }
 
-    // Detect whether the sync source holds a vault differing from this device's
-    // local manifest. hasRemoteVaultKeyParams() is authoritative — true when the
-    // remote vault differs OR no local manifest exists — so the prompt shows even
-    // when a (possibly wrong) local key is loaded; fetchCloudKeyParams() refreshes first.
+    // Vault differs from local manifest: hasRemoteVaultKeyParams authoritative, shows even with wrong local key. Refresh first.
     async function checkVaultImportNeeded() {
       if (!accountStore.isAuthenticated) {
         showVaultImportPrompt.value = false;
@@ -1083,7 +1080,7 @@ export default {
         recoveryCode.value = res?.recoveryCode || '';
         dialog.alert({
           title: 'Recovery code generated',
-          body: 'Store this code securely — it will not be shown again. Regenerating invalidates the old code. This restores ACCOUNT access only; E2E data needs vault passphrase.',
+          body: 'Store this code securely: it will not be shown again. Regenerating invalidates the old code. This restores ACCOUNT access only; E2E data needs vault passphrase.',
           okText: 'Close',
         });
         // enrollment offer: prompt to add passkey if missing

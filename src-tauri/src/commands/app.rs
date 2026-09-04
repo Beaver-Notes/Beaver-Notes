@@ -60,8 +60,7 @@ pub(crate) fn migration_status(
 pub(crate) async fn migration_run(app: AppHandle) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        // I/O + asset-encryption heavy; run on a blocking thread (state is
-        // re-derived from the AppHandle — managed state is Send + Sync).
+        // I/O heavy: blocking thread, state re-derived from AppHandle (Send + Sync).
         let app = app.clone();
         tokio::task::spawn_blocking(move || {
             let state = app.state::<AppState>();
@@ -171,9 +170,8 @@ pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Resul
     }
 }
 
-/// Prefix of a `file://`-origin localStorage key inside the LevelDB write log:
-/// `_file://\0` origin marker plus a `\x01` flag byte (Chromium writes origin
-/// and key as one string). Non-file origins are ignored.
+/// Prefix of file:// localStorage key in LevelDB log: _file:// marker plus 0x01 flag.
+/// Non-file origins ignored.
 const FILE_ORIGIN_PREFIX: &[u8] = b"_file://\0\x01";
 
 /// LevelDB write-ahead log block size in bytes. Records never straddle blocks;
@@ -188,18 +186,8 @@ fn next_wal_block_boundary(i: usize) -> usize {
 /// with a `\x01` marker; the string follows it.
 const VALUE_MARKER: u8 = 0x01;
 
-/// Parse a Chromium localStorage LevelDB write-ahead log into the final map of
-/// `file://`-origin preference key/value pairs.
-///
-/// The log is a sequence of records framed by `checksum(4) | length(2, LE) |
-/// type(1)` headers followed by `length` payload bytes. Each payload is a
-/// LevelDB WriteBatch: `seq(8) | count(4, LE)` then `count` entries of the
-/// form `type(1) | key_len(varint) | key | [value_len(varint) | value]`.
-/// Entries with type 0 are deletions; everything else is a write. Keys for the
-/// `file://` origin are `_file://\0\x01<preference>` and values are
-/// `\x01<preference-value>`. `META:*`/non-file-origin entries are ignored.
-/// Best-effort: malformed frames, truncated batches, and oversized counts are
-/// skipped.
+/// Parse Chromium localStorage LevelDB WAL into file:// pref map: records are checksum/length/type headers plus WriteBatch payloads.
+/// Type 0 is delete, else write; file:// keys are _file:// marker plus pref, values 0x01 plus value. Best-effort, skips malformed.
 fn parse_localstorage_wal_bytes(data: &[u8]) -> serde_json::Map<String, serde_json::Value> {
     use serde_json::Map;
     let mut out = Map::new();
@@ -211,15 +199,13 @@ fn parse_localstorage_wal_bytes(data: &[u8]) -> serde_json::Map<String, serde_js
         let record_type = data[i + 6];
         let payload = &data[i + 7..];
         if len > payload.len() {
-            // Truncated frame — partially-written final record. Skip to the next
-            // block boundary so earlier records are kept; past EOF the loop ends.
+            // Truncated final record: skip to block boundary, keep earlier records.
             i = next_wal_block_boundary(i);
             continue;
         }
         match record_type {
             0 => {
-                // kZeroType — writer pads the rest of the block; advance to the
-                // boundary so the next block's first record is not desynced.
+                // kZeroType pad: advance to boundary so next record stays synced.
                 i = next_wal_block_boundary(i);
                 continue;
             }
@@ -561,10 +547,7 @@ pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(
 
         #[cfg(target_os = "linux")]
         {
-            // x,y are screen-relative CSS pixels from JS (event.screenX/Y).
-            // popup_menu_at expects window-relative physical pixels (GdkWindow
-            // origin, incl. CSD decorations): multiply by DPR, subtract the
-            // window's outer position.
+            // Screen CSS pixels to window physical pixels: multiply by DPR, subtract outer position.
             let window_pos = window
                 .outer_position()
                 .map_err(|e| AppError::Other(e.to_string()))?;

@@ -52,8 +52,7 @@ export function useSettingsData({
   storage: _storage = null,
   translations,
 }) {
-  // Legacy KV path removed — data lives in Yjs/SQLite; `storage` kept only for
-  // legacy import tests that mock a KV store.
+  // Legacy KV path removed: data lives in Yjs/SQLite, storage kept for import test mocks.
   const storage = _storage;
   let _unregSettingsShortcuts;
 
@@ -238,7 +237,7 @@ export function useSettingsData({
         }
         await folderStore.retrieve();
       } else {
-        // App path: data lives in Yjs — merge via Pinia/Yjs directly
+        // App path: data lives in Yjs, merge via Pinia/Yjs.
         if (Array.isArray(data.labels) && data.labels.length) {
           try {
             const { useLabelStore } = await import('@/store/label');
@@ -263,8 +262,7 @@ export function useSettingsData({
         }
       }
 
-      // Sync isLocked into Yjs meta so legacy imports stay visible — KV `notes`
-      // is no longer read (the meta doc is the source).
+      // Sync isLocked into Yjs meta so legacy imports stay visible (KV no longer read).
       if (data.notes) {
         try {
           const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
@@ -337,8 +335,7 @@ export function useSettingsData({
       const finishImport = async (result) => {
         await mergeImportedData(result);
 
-        // Lock state is per-note `isLocked` in the Yjs workspace doc
-        // (`NOTE_META_FIELDS` in workspace-doc.js) — no localStorage mirror.
+        // Lock state is per-note isLocked in Yjs workspace doc, no localStorage mirror.
 
         await ensureKeyReadyForWrite();
         await copyPath(
@@ -347,13 +344,7 @@ export function useSettingsData({
         );
       };
 
-      // Two import formats:
-      //   string → legacy `encryptSettings` backup; password was arbitrary,
-      //             NOT the workspace passphrase — decrypt directly, never
-      //             verify the workspace passphrase.
-      //   object → workspace-encrypted export; require the workspace
-      //             passphrase (verifyPassphrase also unlocks the workspace
-      //             key so merged rows re-encrypt under the current key).
+      // Two formats: string is legacy backup (arbitrary password, decrypt directly); object needs workspace passphrase.
       dialog.prompt({
         title: translations.value.settings.inputPassword,
         body: translations.value.settings.body,

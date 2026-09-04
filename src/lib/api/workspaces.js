@@ -26,12 +26,7 @@ export function setCachedWorkspaceKey(workspaceId, workspaceKeyHex) {
   workspaceKeyCache.set(workspaceId, workspaceKeyHex);
 }
 
-/**
- * Wrap the raw workspace key under the session AEK so any member who recovers
- * their encryption password (vault passphrase adoption) can re-derive the
- * workspace key locally instead of waiting for an ML-KEM re-wrap.
- * Returns the base64 envelope string stored server-side as vault_wrapped_keys.
- */
+/** Wrap workspace key under session AEK so members recovering passphrase re-derive locally. Returns base64 envelope. */
 export async function buildVaultWrappedKeys(workspaceKeyHex) {
   const payload = new TextEncoder().encode(JSON.stringify({ workspaceKey: workspaceKeyHex }));
   return encryptJSON(
@@ -45,11 +40,7 @@ export async function buildVaultWrappedKeys(workspaceKeyHex) {
   );
 }
 
-/**
- * Inverse of buildVaultWrappedKeys: decrypt the envelope with the session AEK
- * and recover `{ workspaceKeyHex }`. Returns null for missing/tampered input
- * or a locked key rather than throwing — recovery is best-effort.
- */
+/** Inverse of buildVaultWrappedKeys: decrypt envelope, recover workspaceKeyHex. Null on bad input or locked key, best-effort. */
 export async function unwrapWorkspaceKeysFromVault(vaultWrappedKeys) {
   if (!vaultWrappedKeys || typeof vaultWrappedKeys !== 'string') return null;
   try {

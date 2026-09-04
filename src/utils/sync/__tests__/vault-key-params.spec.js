@@ -113,7 +113,7 @@ describe('vault API payloads', () => {
     const differentPassphrase = await deriveVaultPassphraseProof('other', 'ws-a', 'blob-a', 'challenge');
 
     // The proof must be stable across requests so publish and verify can be
-    // compared later — the per-request challenge is a freshness token handled
+    // compared later; the per-request challenge is a freshness token handled
     // by the server, NOT part of derivation.
     expect(first).toBe(second);
     expect(first).toBe(differentChallenge);

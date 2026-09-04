@@ -47,10 +47,7 @@ export function applyUpdatesToDoc(doc, updates) {
   }
 }
 
-/**
- * Ensure a Yjs binary value is a Uint8Array. IPC delivers binary as base64
- * strings (see commands.ts); numeric arrays are the legacy shape.
- */
+/** Ensure Yjs binary is Uint8Array. IPC delivers base64 strings, numeric arrays are legacy. */
 export function toUint8Array(data) {
   if (data instanceof Uint8Array) return data;
   if (typeof data === 'string') {
@@ -60,16 +57,11 @@ export function toUint8Array(data) {
   return new Uint8Array(data);
 }
 
-/**
- * Build a ProseMirror schema from TipTap extensions, cached globally;
- * used for seeding Y.Docs from legacy JSON content.
- */
+/** Build ProseMirror schema from TipTap extensions, cached. For seeding Y.Docs from legacy JSON. */
 export async function ensureSchema() {
   if (cachedSchema) return cachedSchema;
   const { Editor } = await import('@tiptap/core');
-  // Must match the live Yjs editor's extension set (incl. the collapsible
-  // heading variant) — using the plain heading node produced mismatched/empty
-  // content when collapsible headings were enabled.
+  // Must match live editor extensions (incl. collapsible heading): plain heading produced mismatched content.
   const appStore = useAppStore();
   const headingExt = appStore.setting?.collapsibleHeading
     ? CollapseHeading

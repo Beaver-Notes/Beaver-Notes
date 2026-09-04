@@ -41,14 +41,12 @@
         </span>
       </button>
 
-      <!-- Dropdown Arrow -->
       <v-remixicon
         name="riArrowDownSLine"
         :class="{ 'rotate-180': isOpen }"
         class="absolute ltr:right-2 rtl:left-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-200 transition-transform duration-200 pointer-events-none"
       />
 
-      <!-- Dropdown Menu -->
       <Teleport to="body">
         <Transition
           :enter-active-class="openedViaKeyboard ? 'transition-none' : 'transition duration-150 ease-out motion-reduce:transition-none'"
@@ -70,7 +68,6 @@
                 : undefined
             "
           >
-            <!-- Search Container: Constrained to dropdown width -->
             <div v-if="search" class="mb-2 w-full min-w-0">
               <ui-input
                 ref="searchInput"
@@ -184,9 +181,7 @@ export default {
         size({
           apply({ rects, availableWidth, availableHeight, elements }) {
             Object.assign(elements.floating.style, {
-              // Ensure minimum width is 180px OR button width (whichever is larger)
               minWidth: `${Math.max(180, rects.reference.width)}px`,
-              // Prevent floating menu from expanding wider than available screen area
               maxWidth: `${Math.min(320, availableWidth - 16)}px`,
               maxHeight: `${Math.min(260, availableHeight - 16)}px`,
             });

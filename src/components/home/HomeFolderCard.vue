@@ -48,7 +48,6 @@
         transformOrigin: 'bottom center',
       }"
     >
-      <!-- Centered emoji / customize trigger -->
       <div class="flex-1 flex items-center justify-center min-h-0 py-0.5">
         <button
           data-testid="customize-folder-button"

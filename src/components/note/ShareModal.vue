@@ -17,7 +17,6 @@
     </template>
 
     <div class="space-y-5">
-      <!-- People & Links -->
       <section v-if="isAuthenticated" class="space-y-3">
         <h3 class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
           {{ translations.share?.collaborate || 'Collaborate' }}
@@ -96,7 +95,6 @@
           {{ translations.share?.noCollaborators || 'No collaborators yet. Invite someone to start collaborating.' }}
         </p>
 
-        <!-- Invite link creator (inline) -->
         <div class="flex gap-2">
           <ui-select
             v-model="linkRole"
@@ -161,7 +159,6 @@
         </ui-list>
       </section>
 
-      <!-- Export grid (mobile) -->
       <section v-if="isMobile && shareActions.length" class="space-y-3">
         <h3 class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
           Export

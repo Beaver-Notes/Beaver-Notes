@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Full API-layer mock: proves ensureNoteKey makes zero collaboration calls on
-// personal notes. The legacy request-queue exports are deliberately absent —
+// personal notes. The legacy request-queue exports are deliberately absent:
 // they must no longer exist as exports at all.
 vi.mock('@/lib/api/collaboration', () => ({
   createCollaborationKey: vi.fn().mockResolvedValue({}),

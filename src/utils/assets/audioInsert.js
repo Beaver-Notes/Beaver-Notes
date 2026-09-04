@@ -104,6 +104,6 @@ export async function cleanupOrphanAudio(filePath) {
   try {
     await removePath(filePath);
   } catch {
-    // File may already be gone — nothing to clean up.
+    // File may be gone: nothing to clean.
   }
 }

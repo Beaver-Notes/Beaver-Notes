@@ -94,7 +94,6 @@
         </div>
       </div>
 
-      <!-- Section content -->
       <div v-else>
         <div class="mb-5 flex items-center gap-1">
           <button

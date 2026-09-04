@@ -149,10 +149,8 @@ export class CloudTransport extends Transport {
     const { getSnapshots } = await import('@/lib/native/yjs.js');
     const allNoteIds = docs.map((d) => d.noteId);
     const localSnapshots = await getSnapshots(allNoteIds).catch(() => ({}));
-    // A corrupt cached snapshot must be treated exactly like a missing one so
-    // bootstrap re-downloads the server's authoritative copy — invalid bytes
-    // (base64 / JSON / half-decrypted blob) would otherwise re-trigger the
-    // "Unknown content type" Yjs decode error on every open.
+    // Corrupt cached snapshot treated as missing so bootstrap re-downloads authoritative copy.
+    // Invalid bytes would otherwise re-trigger Yjs decode error on every open.
     const cachedSnapshotIsCorrupt = (raw) => {
       if (!raw || raw.length === 0) return false;
       try {
@@ -244,7 +242,6 @@ export class CloudTransport extends Transport {
     // those two values differ, AES-GCM fails closed and decryptBatch returns
     // null, so bootstrap writes nothing and loadStateIntoDoc then falls back
     // to a stale/corrupt cached snapshot → Yjs decode error.
-    //
     // To stay backward compatible with snapshots already stored under either
     // AAD, try each plausible suffix and accept the first that decrypts.
     const candidateSuffixesFor = (item) => {
@@ -346,9 +343,9 @@ export class CloudTransport extends Transport {
       state = await getRemoteState(workspaceId);
     } catch (e) {
       // 404 means the workspace has no sync state yet (brand new workspace).
-      // 403 means user is not a workspace member — workspace may be stale.
+      // 403 means not a workspace member: workspace may be stale.
       if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
-        logger.info('[sync] cloud pull: /sync/state returned', e?.status, '— resetting workspace');
+        logger.info('[sync] cloud pull: /sync/state returned', e?.status, ': resetting workspace');
         try { emit('sync:status', { status: 'workspace-reset', message: `Server returned ${e?.status}, workspace reset` }); } catch {}
         const workspaceStore = useWorkspaceStore();
         workspaceStore.activeId = null;
@@ -362,9 +359,8 @@ export class CloudTransport extends Transport {
     try {
       bootstrapped = await this._bootstrapFromSnapshots(state);
       if (bootstrapped) {
-        logger.info('[sync] bootstrap complete — re-fetching remote state');
-        // Clear stale checkpoints — the snapshot is authoritative; stale ones
-        // would make pull return 0 updates despite the local doc being reset.
+        logger.info('[sync] bootstrap complete: re-fetching remote state');
+        // Clear stale checkpoints: snapshot authoritative, stale would return 0 updates after reset.
         for (const d of state.documents || []) {
           if (d.noteId) clearServerCheckpoint(d.noteId);
         }
@@ -388,22 +384,18 @@ export class CloudTransport extends Transport {
     logger.info('[sync] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
     const updates = [];
     let hasMore = false;
-    // Hold the server's nextCheckpoint until the page is safely decoded —
-    // saving early would poison the checkpoint if decrypt/validation throws
-    // (all subsequent pulls would then legitimately come back empty).
+    // Checkpoint saved only after decode, else pulls poison.
     const pendingCheckpoints = new Map();
     for (const { noteId } of notes) {
       const page = result.notes?.[noteId] || { updates: [], hasMore: false };
       if (!Array.isArray(page.updates)) throw malformedRemoteUpdate();
       for (const update of page.updates || []) updates.push({ ...update, _noteId: noteId });
       hasMore ||= page.hasMore === true;
-      // Server signals stale=true when our checkpoint is outdated but newer
-      // data exists — clear it so the next pull fetches everything.
+      // Stale checkpoint outdated but newer data exists: clear so next pull fetches all.
       if (page.stale) {
         clearServerCheckpoint(noteId);
       } else if (page.updates.length > 0 && page.nextCheckpoint && Object.keys(page.nextCheckpoint).length > 0) {
-        // Only advance the checkpoint when updates were returned — a 0-row
-        // empty checkpoint poisons all future pulls.
+        // Only advance checkpoint on updates: empty checkpoint poisons future pulls.
         pendingCheckpoints.set(noteId, page.nextCheckpoint);
       }
     }
@@ -434,9 +426,8 @@ export class CloudTransport extends Transport {
       const nullCount = decryptedPayloads.filter((p) => !p).length;
       logger.info(`[sync] decryptBatch: ${decryptedPayloads.length} items, ${nullCount} null`);
 
-      // Some items failing batch decryption (e.g. encrypted with a collab key
-      // instead of the sync key) get retried individually; still-failing items
-      // are skipped — a partial sync beats stalling forever.
+      // Batch decrypt failures (e.g. collab key not sync key) retried individually.
+      // Still-failing skipped: partial sync beats stalling.
       if (nullCount > 0 && nullCount < decryptedPayloads.length) {
         for (let i = 0; i < decryptedPayloads.length; i++) {
           if (decryptedPayloads[i]) continue;
@@ -462,11 +453,10 @@ export class CloudTransport extends Transport {
       }
     }
 
-    // Zero survivors means the key is genuinely locked/unavailable — surface
-    // it so the engine can defer; some survivors → partial sync.
+    // Zero survivors means key locked/unavailable: surface so engine defers; some survivors is partial sync.
     const survivingCount = decryptedPayloads.filter((p) => p !== null).length;
     if (survivingCount === 0 && decryptedPayloads.length > 0) {
-      logger.warn('[sync] all decrypted payloads are null — key may be locked');
+      logger.warn('[sync] all decrypted payloads are null: key may be locked');
       const error = new Error('Remote update cannot be decrypted');
       error.code = sawDecryptFailed ? 'DECRYPT_FAILED' : 'unlock-required';
       throw error;
@@ -497,14 +487,12 @@ export class CloudTransport extends Transport {
       });
     }
 
-    // Persist checkpoints only after every update decoded and validated —
-    // any throw above leaves the stored state untouched.
+    // Checkpoints saved only after decode, else state corrupts on throw.
     for (const [noteId, checkpoint] of pendingCheckpoints) {
       saveServerCheckpoint(noteId, checkpoint);
     }
 
-    // Intentionally NOT clearing checkpoints at 0 updates: caught up means the
-    // checkpoint is correct; staleness is handled server-side via `stale`.
+    // Keep checkpoint at 0 updates: caught up is correct, staleness handled server-side.
 
     return { updates: decodedUpdates, hasMore };
   }
@@ -614,8 +602,7 @@ export class CloudTransport extends Transport {
       return { updates: [], pushed: totalPushed };
     }
 
-    // Cloud-only with empty buffer: skip the folder path — files there may be
-    // stale (encrypted with a pre-vault-adopt key) and must not be pushed.
+    // Cloud-only with empty buffer: skip folder path, files may be stale (pre-adopt key).
     if (!(await getSyncPath())) {
       return { updates: [], pushed: 0 };
     }
@@ -629,7 +616,7 @@ export class CloudTransport extends Transport {
     const pushedFiles = allFiles.filter((f) => f.endsWith(YJS_UPDATE_EXT) && f !== '._seeded');
     logger.info('[sync] cloud push commitsDir:', commitsDir, '| files:', pushedFiles.length, '/', allFiles.length);
 
-    // Build file map (own device only — push everything, server deduplicates)
+    // Build file map (own device only, push all, server deduplicates).
     const filesByNoteId = new Map();
     for (const file of pushedFiles) {
       const parsed = parseSyncFilename(file);
@@ -945,7 +932,7 @@ export class CloudTransport extends Transport {
           try {
             const result = await seedBatchUploadAssets(batch);
             assetsUploaded += (result.uploaded || 0) + (result.skipped || 0);
-            logger.info(`[sync] cloud seed: asset batch ${bi + 1}/${batches.length} done — uploaded: ${result.uploaded || 0}, skipped: ${result.skipped || 0} (${assetsUploaded}/${toUploadKeys.length} total)`);
+            logger.info(`[sync] cloud seed: asset batch ${bi + 1}/${batches.length} done: uploaded: ${result.uploaded || 0}, skipped: ${result.skipped || 0} (${assetsUploaded}/${toUploadKeys.length} total)`);
           } catch (err) {
             logger.warn(`[sync] cloud seed: batch ${bi + 1}/${batches.length} failed:`, err?.message || err);
           }
@@ -985,7 +972,7 @@ export class CloudTransport extends Transport {
   }
 
   async compact() {
-    // no-op — server handles compaction
+    // No-op: server handles compaction.
   }
 
   async syncAssets(onProgress) {
@@ -996,12 +983,12 @@ export class CloudTransport extends Transport {
     try {
       const state = await getRemoteState(workspaceId);
       if (state?.status !== 'initialized') {
-        logger.info(`[sync] syncAssets: workspace status ${state?.status ?? 'unknown'} — skipping asset sync (seed handles assets)`);
+        logger.info(`[sync] syncAssets: workspace status ${state?.status ?? 'unknown'}: skipping asset sync (seed handles assets)`);
         return;
       }
     } catch (e) {
       if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
-        logger.info('[sync] syncAssets: workspace not accessible — skipping asset sync');
+        logger.info('[sync] syncAssets: workspace not accessible: skipping asset sync');
         return;
       }
       throw e;
@@ -1187,7 +1174,7 @@ export class CloudTransport extends Transport {
           await new Promise((r) => setTimeout(r, INDIVIDUAL_DELAY_MS));
         }
       } else if ((result?.uploaded ?? 0) === 0 && (result?.skipped ?? 0) === 0) {
-        // No uploads and no skips means errors — fall back to individual
+        // No uploads or skips means errors: fall back to individual.
         const errorItems = result?.results?.filter((r) => r.status === 'error') ?? [];
         logger.info(`[sync] batch had ${errorItems.length} errors, falling back to individual for ${batch.length} items`);
         for (const item of batch) {
@@ -1341,7 +1328,7 @@ export class CloudTransport extends Transport {
             await createCommit(noteId, snapshot);
           }
         } catch (err) {
-          // Non-fatal — history is best-effort
+          // Non-fatal: history best-effort.
           logger.warn('[sync] commit record failed for', noteId, err?.message);
         }
       }

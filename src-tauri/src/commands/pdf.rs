@@ -1,10 +1,4 @@
-//! PDF export for Beaver Notes.
-//!
-//! The export HTML (built by `exportBulk.js`) inserts `break-after:page`
-//! markers; each platform then prints it with its native PDF API:
-//! macOS hidden `WKWebView` (`printOperationWithPrintInfo:`), Windows
-//! `WebView2` (`ICoreWebView2.PrintToPdf`), Linux `WebKitGTK`
-//! (`WebKitPrintOperation`), iOS/Android via `tauri-plugin-pdf-render`.
+//! PDF export. Export HTML inserts break-after:page markers, each platform prints with native PDF API.
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};

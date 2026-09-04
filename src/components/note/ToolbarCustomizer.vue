@@ -210,7 +210,6 @@ export default {
     function onTouchStart(index, e) {
       const t = e.touches?.[0];
       if (!t) return;
-      // ignore if touch started on eye button
       if (e.target.closest('button')) return;
       touchStartIndex = index;
       touchStartY = t.clientY;
@@ -222,7 +221,6 @@ export default {
       if (!t) return;
       const dy = t.clientY - touchStartY;
       if (Math.abs(dy) < 10) return;
-      // find element under finger
       const el = document.elementFromPoint(t.clientX, t.clientY);
       const row = el?.closest('[data-row-index]');
       if (row) {

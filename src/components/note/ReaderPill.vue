@@ -40,7 +40,6 @@
           :inert="!showAa"
         >
           <div class="flex items-center gap-1 shrink-0">
-            <!-- Themes segmented -->
             <div
               class="flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 p-0.5"
             >
@@ -82,7 +81,6 @@
               </button>
             </div>
             <div class="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
-            <!-- Size 4 presets with icons -->
             <div
               class="flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 p-0.5"
             >
@@ -176,7 +174,6 @@
               ></button>
             </div>
             <div class="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
-            <!-- Family default/serif/sans -->
             <div
               class="flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 p-0.5"
             >

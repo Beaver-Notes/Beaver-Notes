@@ -1,8 +1,5 @@
-//! Debug bridge — `debug:dumpState` dumps what is actually persisted (KV rows,
-//! per-note Yjs updates, workspace meta doc) versus in-memory store state.
-//! Ground-truth tool for migration/empty-state bugs: labels visible + notes
-//! missing usually means a workspace-doc/notes-map mismatch only visible by
-//! comparing the two layers. Diagnostic output; never contains note contents.
+//! Debug bridge: dumps persisted state (KV rows, Yjs updates, workspace meta) vs in-memory stores.
+//! Ground truth for migration empty states (labels visible, notes missing is doc/map mismatch). No note contents.
 
 use std::collections::BTreeMap;
 
@@ -191,8 +188,7 @@ pub(crate) fn debug_dump_state(
     let data_pool = data_pool(&app, &state)?;
     let settings_pool = settings_pool(&app, &state)?;
 
-    // Read the app key if possible; during onboarding encryption may not be
-    // configured yet — fine, the snapshot reports as undecodable.
+    // Read app key if possible: undecodable during onboarding is fine.
     let app_key = state
         .crypto
         .session

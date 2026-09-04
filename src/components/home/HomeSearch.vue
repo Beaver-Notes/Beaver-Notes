@@ -51,12 +51,10 @@
       </div>
     </div>
   </div>
-  <!-- Label filter: single inline row — selected pinned left, rest scrolls -->
   <div
     v-if="visibleLabels.length || label"
     class="flex items-center gap-3 mb-6 min-w-0"
   >
-    <!-- Left: pinned selection (All or selected tag) — not scrolling, inline with line -->
     <div class="flex items-center gap-2 shrink-0">
       <button
         v-if="!label"
@@ -77,11 +75,9 @@
           <v-remixicon name="riCloseLine" size="14" />
         </span>
       </button>
-      <!-- subtle divider to scrollable line -->
       <span class="hidden sm:block w-px h-5 bg-neutral-200 dark:bg-neutral-700 shrink-0" aria-hidden="true"></span>
     </div>
 
-    <!-- Right: scrollable remaining labels — selected hidden from main line -->
     <div
       class="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 px-1 -mx-1 min-w-0 scroll-pb-1"
       ref="scrollEl"
@@ -247,7 +243,7 @@ export default {
 .btn-group .ui-select__content {
   @apply rounded-l-none;
 }
-/* hide scrollbars on label strip — keeps 1:1 drag */
+/* hide scrollbars on label strip: keeps 1:1 drag */
 .scrollbar-none {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -255,7 +251,7 @@ export default {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
-/* apple-design: label filtering — interruptible FLIP, spring settle */
+/* label filtering: interruptible FLIP, spring settle */
 .chip-filter-move {
   transition: transform 320ms var(--ease-spring);
   will-change: transform;

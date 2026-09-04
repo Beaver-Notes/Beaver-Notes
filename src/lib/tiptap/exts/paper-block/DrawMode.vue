@@ -573,7 +573,7 @@ function redo() {
   state.selectedElement = null;
 }
 
-// Tool/color/size setters — called from Paper.vue
+// Tool/color/size setters, called from Paper.vue.
 function setTool(tool) {
   state.tool = tool;
   state.selectedElement = null;
@@ -840,7 +840,7 @@ watch(
   { deep: true, immediate: true }
 );
 
-// Lifecycle — register keyboard listener on document for Shift key
+// Lifecycle: register keyboard listener for Shift key.
 
 const preventScroll = (e) => {
   if (e.touches?.length > 1) return;
@@ -854,7 +854,7 @@ onMounted(() => {
   const svg = svgRef.value;
   if (!svg) return;
 
-  // Track container width so the viewBox matches — no stretching.
+  // Track container width so viewBox matches, no stretching.
   const container = svg.parentElement;
   if (container) {
     svgWidth.value = container.clientWidth || DEFAULT_SVG_WIDTH;

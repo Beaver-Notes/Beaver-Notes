@@ -16,9 +16,7 @@ export function useSyncTransport() {
       transport.value === SYNC_TRANSPORT.REMOTE && accountStore.isPaidPlan
   );
 
-  // Reflects the transports the *live* Yjs sync engine (utils/sync/index.js)
-  // will actually use, derived from the same state it reads at sync time —
-  // not a separate computation that can drift from reality.
+  // Reflects live Yjs engine transports, derived from same state at sync time: never drifts.
   const description = computed(() => {
     const active = [];
     if (isFolder.value) active.push('folder');

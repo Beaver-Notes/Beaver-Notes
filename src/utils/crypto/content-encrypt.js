@@ -19,7 +19,7 @@ export async function encryptMapValue(key, mapKey, value) {
   return encryptUpdate(key, tagged, mapKey)
 }
 
-/** Inverse of encryptMapValue — mapKey must match the encryption AAD. */
+/** Inverse of encryptMapValue: mapKey must match encryption AAD. */
 export async function decryptMapValue(key, mapKey, encrypted) {
   const decrypted = await decryptUpdate(key, encrypted, mapKey)
   const typeTag = decrypted[0]

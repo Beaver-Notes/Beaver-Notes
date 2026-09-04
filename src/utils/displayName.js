@@ -1,8 +1,3 @@
-/**
- * Display name + avatar helpers (no photo avatars).
- * username is a display label, never unique — fallback to email local part.
- */
-
 export function displayName(user) {
   if (!user) return 'Unknown';
   const u = user.username;
