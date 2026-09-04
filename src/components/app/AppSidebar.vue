@@ -179,7 +179,7 @@
         class="mt-5 px-3 flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col"
       >
         <div
-          class="text-[11px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2 px-3 select-none shrink-0"
+          class="text-[11px] font-semibold font-bold tracking-widest text-neutral-500 dark:text-neutral-400 mb-2 px-3 select-none shrink-0"
         >
           Recent
         </div>

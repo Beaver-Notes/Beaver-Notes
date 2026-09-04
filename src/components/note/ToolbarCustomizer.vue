@@ -75,7 +75,7 @@
               <div class="flex-1 flex items-center gap-1.5">
                 <div class="flex-1 border-t border-dashed" />
                 <span
-                  class="text-[10px] text-neutral-300 dark:text-neutral-700"
+                  class="text-xs text-neutral-300 dark:text-neutral-700"
                   >{{
                     translations.toolbarCustomizer?.divider || 'divider'
                   }}</span

@@ -63,7 +63,7 @@
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3"
         >
           <button
-            class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+            class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
             @click="showPasswordAuth = !showPasswordAuth"
           >
             {{ showPasswordAuth ? '↑' : '↓' }}
@@ -118,7 +118,7 @@
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3"
         >
           <button
-            class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+            class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
             @click="showQuickConnect = !showQuickConnect"
           >
             {{ showQuickConnect ? '↑' : '↓' }}
@@ -223,11 +223,11 @@
               }}</span>
               <span
                 v-if="accountStore.profile?.emailVerified === true"
-                class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
               >{{ tr.verified || 'Verified' }}</span>
               <span
                 v-else-if="accountStore.profile?.emailVerified === false"
-                class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
               >{{ tr.unverified || 'Unverified' }}</span>
             </p>
             <p
@@ -748,7 +748,7 @@
 
     <section v-if="accountStore.isAuthenticated" class="space-y-2">
       <p
-        class="text-xs font-semibold uppercase tracking-[0.12em] text-red-500 dark:text-red-400"
+        class="text-xs font-semibold font-bold tracking-[0.12em] text-red-500 dark:text-red-400"
       >
         {{ translations.account?.dangerZone || 'Danger zone' }}
       </p>

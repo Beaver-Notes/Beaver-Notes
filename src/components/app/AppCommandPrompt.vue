@@ -43,14 +43,15 @@
             class="flex items-center gap-2 px-2 py-2 border-b border-neutral-100 dark:border-neutral-800 overflow-x-auto no-scrollbar"
           >
             <ui-button type="button" @click="toggleTitleOnly">
-              <v-remixicon name="riHeading" />
+              <v-remixicon name="riHeading" size="20" class="mr-2 rtl:ml-2" />
               {{ translations.commandPrompt.titleOnly || 'Title only' }}
             </ui-button>
-            <ui-button
-              type="button"
-              @click="toggleFoldersOnly"
-            >
-              <v-remixicon name="riFolderLine" />
+            <ui-button type="button" @click="toggleFoldersOnly">
+              <v-remixicon
+                name="riFolderLine"
+                size="20"
+                class="mr-2 rtl:ml-2"
+              />
               {{ translations.commandPrompt.foldersOnly || 'Folders' }}
             </ui-button>
             <ui-select
@@ -136,7 +137,7 @@
                     >
                       <span
                         v-if="item._folderName"
-                        class="uppercase tracking-wide"
+                        class="font-bold tracking-wide"
                         >{{ item._folderName }}</span
                       >
                       <span v-if="item._folderName"> · </span>
@@ -168,7 +169,7 @@
               <div class="flex-1 overflow-y-auto no-scrollbar px-4 py-3">
                 <p
                   v-if="previewItem._folderName"
-                  class="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-0.5"
+                  class="text-xs font-semibold tracking-wider text-neutral-400 mb-0.5"
                 >
                   {{ previewItem._folderName }}
                 </p>

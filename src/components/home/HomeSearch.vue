@@ -7,7 +7,7 @@
       <div class="flex items-center btn-group">
         <ui-input
           :model-value="query"
-          class="w-full note-search-input"
+          class="w-full note-search-input border rounded-xl"
           prepend-icon="riSearch2Line"
           :clearable="true"
           :placeholder="translations.filter.searchPlaceholder || '-'"

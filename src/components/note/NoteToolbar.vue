@@ -1124,7 +1124,7 @@ export default {
 }
 
 .sub-label {
-  @apply px-1 shrink-0 select-none text-[10px] font-semibold uppercase tracking-wider
+  @apply px-1 shrink-0 select-none text-xs font-semibold tracking-wider
          text-neutral-500 dark:text-neutral-400;
 }
 

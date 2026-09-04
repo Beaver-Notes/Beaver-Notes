@@ -7,7 +7,7 @@
     <!-- Cell Color -->
     <div class="px-2 py-1.5">
       <div class="flex items-center justify-between mb-1">
-        <span class="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+        <span class="text-[11px] font-semibold font-bold tracking-wider text-neutral-400 dark:text-neutral-500">
           {{ t?.editor?.table?.cellColor || 'Cell color' }}
         </span>
       </div>
@@ -27,7 +27,7 @@
 
     <!-- Text Alignment -->
     <div class="px-2 py-1.5">
-      <span class="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+      <span class="text-[11px] font-semibold font-bold tracking-wider text-neutral-400 dark:text-neutral-500">
         {{ t?.editor?.table?.textAlign || 'Align' }}
       </span>
       <div class="flex gap-1 mt-1.5">

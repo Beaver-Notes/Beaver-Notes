@@ -133,7 +133,7 @@
               <p class="truncate text-xs font-medium text-neutral-700 dark:text-neutral-300">
                 {{ getInviteUrl(link.token) }}
               </p>
-              <p class="text-[10px] text-neutral-500 dark:text-neutral-400">
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">
                 {{ link.role }} ·
                 {{ link.expiresAt ? 'Expires ' + formatDate(link.expiresAt) : 'No expiry' }}
               </p>

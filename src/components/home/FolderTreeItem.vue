@@ -62,7 +62,7 @@
 
     <span
       v-if="isCurrentFolder"
-      class="text-[10px] uppercase tracking-wider opacity-60 ltr:ml-2 rtl:mr-2"
+      class="text-xs font-bold tracking-wider opacity-60 ltr:ml-2 rtl:mr-2"
     >
       Current
     </span>

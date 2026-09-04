@@ -58,7 +58,7 @@
           <div v-else class="flex overflow-hidden">
             <div class="flex-1 p-4 min-h-[220px]">
               <div class="relative w-full h-full min-h-[180px]">
-                                <div class="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-[10px] text-neutral-400 dark:text-neutral-500 pr-1">
+                                <div class="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-xs text-neutral-400 dark:text-neutral-500 pr-1">
                   <span>6AM</span>
                   <span>2PM</span>
                   <span>10PM</span>
@@ -87,7 +87,7 @@
                     @click="onDotClick(commit, idx)"
                   ></div>
                 </div>
-                <div class="ml-8 mt-1 flex justify-between text-[10px] text-neutral-400 dark:text-neutral-500">
+                <div class="ml-8 mt-1 flex justify-between text-xs text-neutral-400 dark:text-neutral-500">
                   <span>{{ dateRangeLabel.min }}</span>
                   <span v-if="dateRangeLabel.mid">{{ dateRangeLabel.mid }}</span>
                   <span>{{ dateRangeLabel.max }}</span>
@@ -110,7 +110,7 @@
                 <div class="p-3 space-y-3">
                   <div class="flex items-center justify-between">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.version || 'Version' }}</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.version || 'Version' }}</p>
                       <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                         {{ filteredCommits.length - history.selectedCommitIndex.value }}
                       </p>
@@ -123,20 +123,20 @@
                     </button>
                   </div>
                   <div>
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.timestamp || 'Timestamp' }}</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.timestamp || 'Timestamp' }}</p>
                     <p class="text-xs text-neutral-700 dark:text-neutral-300">
                       {{ formatDateTime(selectedCommitData.createdAt) }}
                     </p>
                   </div>
                   <div class="flex gap-4">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.words || 'Words' }}</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.words || 'Words' }}</p>
                       <p class="text-xs font-medium text-neutral-900 dark:text-neutral-100">
                         {{ wordCount.toLocaleString() }}
                       </p>
                     </div>
                     <div v-if="wordDiff !== null">
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.change || 'Change' }}</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.change || 'Change' }}</p>
                       <p
                         class="text-xs font-medium"
                         :class="wordDiff > 0 ? 'text-emerald-600 dark:text-emerald-400' : wordDiff < 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'"
@@ -146,13 +146,13 @@
                     </div>
                   </div>
                   <div v-if="snippet">
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400 mb-0.5">{{ tr.preview || 'Preview' }}</p>
-                    <p class="text-[11px] text-neutral-600 dark:text-neutral-400 line-clamp-2 leading-relaxed">
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">{{ tr.preview || 'Preview' }}</p>
+                    <p class="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2 leading-relaxed">
                       {{ snippet }}
                     </p>
                   </div>
                   <div v-if="selectedCommitData.authorName">
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.author || 'Author' }}</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.author || 'Author' }}</p>
                     <p class="text-xs text-neutral-700 dark:text-neutral-300">
                       {{ selectedCommitData.authorName }}
                     </p>
@@ -235,7 +235,7 @@
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                 {{ tr.history || 'History' }}
               </h3>
-              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40 rounded-full">
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40 rounded-full">
                 <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
                 {{ tr.auto || 'Auto' }}
               </span>
@@ -317,19 +317,19 @@
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-3">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.version || 'Version' }}</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.version || 'Version' }}</p>
                       <p class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
                         {{ filteredCommits.length - history.selectedCommitIndex.value }}
                       </p>
                     </div>
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.words || 'Words' }}</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.words || 'Words' }}</p>
                       <p class="text-xs font-medium text-neutral-900 dark:text-neutral-100">
                         {{ wordCount.toLocaleString() }}
                       </p>
                     </div>
                     <div v-if="wordDiff !== null">
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">{{ tr.change || 'Change' }}</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.change || 'Change' }}</p>
                       <p
                         class="text-xs font-medium"
                         :class="wordDiff > 0 ? 'text-emerald-600 dark:text-emerald-400' : wordDiff < 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'"
@@ -384,7 +384,7 @@
                 </button>
                 <div class="flex-1 overflow-hidden">
                   <div class="text-center mb-0.5">
-                    <span class="text-[10px] font-medium text-neutral-700 dark:text-neutral-300">
+                    <span class="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                       {{ activeDateLabel }}
                     </span>
                   </div>

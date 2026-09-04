@@ -21,7 +21,7 @@
           </span>
           <span
             v-if="activeRole && activeRole !== 'owner'"
-            class="shrink-0 text-[10px] leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 uppercase font-medium"
+            class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
           >
             {{ activeRole }}
           </span>
@@ -50,7 +50,7 @@
 
       <div class="min-w-[220px] py-1">
         <div
-          class="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 select-none"
+          class="px-2.5 pb-1.5 text-[11px] font-semibold font-bold tracking-widest text-neutral-500 dark:text-neutral-400 select-none"
         >
           Workspaces
         </div>
@@ -89,7 +89,7 @@
 
           <span
             v-if="ws.role && ws.role !== 'owner'"
-            class="shrink-0 text-[10px] leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 uppercase font-medium"
+            class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
           >
             {{ ws.role }}
           </span>

@@ -206,7 +206,7 @@
               <div class="space-y-1">
                 <div class="flex items-center gap-2">
                   <span class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ cfg.slug }}</span>
-                  <span class="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">{{ cfg.protocol }}</span>
+                  <span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">{{ cfg.protocol }}</span>
                 </div>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400">
                   {{ fmt('loginUrl', { url: sso.loginUrl(cfg) }) }}

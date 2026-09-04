@@ -78,7 +78,7 @@
             >
               {{ folder.name || translations.card.untitledFolder }}
             </h3>
-            <p class="text-white/80 text-[10px] font-medium">
+            <p class="text-white/80 text-xs font-medium">
               {{ itemCount }} item{{ itemCount !== 1 ? 's' : '' }}
             </p>
           </div>

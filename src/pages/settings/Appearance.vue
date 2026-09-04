@@ -213,7 +213,7 @@
             >
           </button>
           <span
-            class="text-[11px] font-medium tracking-wide uppercase text-center"
+            class="text-[11px] font-medium tracking-wide font-bold text-center"
             :class="
               String(state.zoomLevel) === opt.key
                 ? 'text-primary'

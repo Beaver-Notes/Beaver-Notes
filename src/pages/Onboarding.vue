@@ -379,7 +379,7 @@
                             </h3>
                             <span
                               v-if="platform.badge"
-                              class="inline-flex items-center rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[0.65rem] font-bold uppercase tracking-wide px-2 py-0.5"
+                              class="inline-flex items-center rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[0.65rem] font-bold font-bold tracking-wide px-2 py-0.5"
                               >{{ platform.badge }}</span
                             >
                             <span
@@ -388,7 +388,7 @@
                                 migrationSourceBadge
                               "
                               :class="migrationSourceBadgeClass"
-                              class="inline-flex items-center rounded-full text-[0.65rem] font-bold uppercase tracking-wide px-2 py-0.5"
+                              class="inline-flex items-center rounded-full text-[0.65rem] font-bold font-bold tracking-wide px-2 py-0.5"
                               >{{ migrationSourceBadge }}</span
                             >
                           </div>
@@ -467,7 +467,7 @@
                         >
                           <div class="flex flex-col gap-2 p-4">
                             <p
-                              class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                              class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
                             >
                               Evernote notebook
                             </p>
@@ -480,20 +480,18 @@
                           </div>
                         </ui-card>
 
-                        <ui-card class="bg-input">
-                          <div class="flex flex-col gap-1 p-4">
-                            <p
-                              class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
-                            >
-                              What gets copied
-                            </p>
-                            <p
-                              class="text-sm text-neutral-600 dark:text-neutral-400"
-                            >
-                              {{ migrationWhatGetsCopied }}
-                            </p>
-                          </div>
-                        </ui-card>
+                        <div class="flex flex-col gap-1">
+                          <p
+                            class="text-xs font-semibold tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                          >
+                            What gets copied
+                          </p>
+                          <p
+                            class="text-sm text-neutral-600 dark:text-neutral-400"
+                          >
+                            {{ migrationWhatGetsCopied }}
+                          </p>
+                        </div>
 
                         <ui-card
                           v-if="
@@ -510,7 +508,7 @@
                               class="flex flex-col gap-1"
                             >
                               <span
-                                class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                                class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
                               >
                                 Portable data folder
                               </span>
@@ -525,7 +523,7 @@
                               class="flex flex-col gap-1"
                             >
                               <span
-                                class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                                class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
                               >
                                 Beaver Notes (Legacy)
                               </span>
@@ -540,7 +538,7 @@
                               class="flex flex-col gap-1"
                             >
                               <span
-                                class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                                class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
                               >
                                 New Beaver Notes
                               </span>
@@ -565,7 +563,7 @@
                           >
                             <div>
                               <p
-                                class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                                class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                               >
                                 Windows Portable
                               </p>
@@ -599,7 +597,7 @@
                       <div class="flex flex-col gap-3 p-4">
                         <div class="flex items-center justify-between">
                           <p
-                            class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                            class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
                           >
                             Importing…
                           </p>
@@ -650,7 +648,7 @@
                       <div class="flex flex-col gap-3 p-4">
                         <div class="flex items-center justify-between">
                           <p
-                            class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                            class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
                           >
                             Import complete
                           </p>
@@ -677,7 +675,7 @@
                     <ui-card v-if="state.migrationResult" class="bg-input">
                       <div class="flex flex-col gap-1 p-4">
                         <p
-                          class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                          class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                         >
                           Import summary
                         </p>
@@ -695,7 +693,7 @@
                       <div class="flex flex-col gap-3 p-4">
                         <div class="flex items-center justify-between gap-3">
                           <p
-                            class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                            class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
                           >
                             Issues
                           </p>
@@ -851,7 +849,7 @@
 
                     <div class="flex flex-col gap-2">
                       <p
-                        class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
+                        class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
                       >
                         {{ translations.account?.server || 'Server' }}
                       </p>
@@ -948,7 +946,7 @@
                         class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
                       >
                         <button
-                          class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                          class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
                           @click="showPasswordAuth = !showPasswordAuth"
                         >
                           {{ showPasswordAuth ? '↑' : '↓' }}
@@ -1075,7 +1073,7 @@
                         class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
                       >
                         <button
-                          class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                          class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
                           @click="showRecovery = !showRecovery"
                         >
                           {{ showRecovery ? '↑' : '↓' }}

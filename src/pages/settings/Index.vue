@@ -522,7 +522,7 @@
       <div class="max-h-[24rem] space-y-1 overflow-y-auto">
         <template v-for="group in importSourceGroups" :key="group.label">
           <p
-            class="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500"
+            class="px-3 pb-1 pt-3 text-[11px] font-semibold font-bold tracking-wider text-neutral-400 dark:text-neutral-500"
           >
             {{ group.label }}
           </p>

@@ -4,7 +4,7 @@
       <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         {{ title }}
       </p>
-      <span v-if="badge" class="text-[10px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-full">
+      <span v-if="badge" class="text-xs font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-full">
         {{ badge }}
       </span>
     </div>

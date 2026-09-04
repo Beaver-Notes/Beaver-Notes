@@ -69,7 +69,7 @@
               :style="{ paddingLeft: `${8 + (item.level - 1) * 12}px` }"
               @click="goTo(item)"
             >
-              <span class="text-[10px] w-4 text-right text-neutral-400"
+              <span class="text-xs w-4 text-right text-neutral-400"
                 >H{{ item.level }}</span
               >
               <span class="truncate">{{ item.text }}</span>

@@ -29,7 +29,7 @@
 
       <div class="w-64 max-h-80 overflow-y-auto">
         <div
-          class="px-3 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500"
+          class="px-3 pt-2 pb-1.5 text-[11px] font-semibold font-bold tracking-wide text-neutral-400 dark:text-neutral-500"
         >
           {{ peerList.length }}
           {{ peerList.length === 1 ? 'person' : 'people' }} here

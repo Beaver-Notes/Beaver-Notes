@@ -287,7 +287,7 @@
 
         <div class="w-40">
           <p
-            class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-2"
+            class="text-[11px] font-semibold text-neutral-400 font-bold tracking-wider mb-2"
           >
             {{ translations.menu.textColor }}
           </p>
@@ -318,7 +318,7 @@
           </div>
 
           <p
-            class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-2"
+            class="text-[11px] font-semibold text-neutral-400 font-bold tracking-wider mb-2"
           >
             {{ translations.menu.highlighterColor }}
           </p>

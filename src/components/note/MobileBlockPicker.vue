@@ -35,7 +35,7 @@
             />
           </div>
           <span
-            class="text-[10px] leading-tight text-center text-neutral-600 dark:text-neutral-400 truncate w-full"
+            class="text-xs leading-tight text-center text-neutral-600 dark:text-neutral-400 truncate w-full"
           >
             {{ translations.menu[item.name] || item.name }}
           </span>
