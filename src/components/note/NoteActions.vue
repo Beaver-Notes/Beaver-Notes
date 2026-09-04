@@ -1,9 +1,9 @@
 <template>
   <div
     ref="container"
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-lg shadow-sm no-print max-w-content mobile:hidden"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-xl shadow-sm no-print max-w-content mobile:hidden"
     :class="{
-      'opacity-0 hover:opacity-100 transition-opacity': store.inReaderMode,
+      'opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity': store.inReaderMode,
     }"
     @wheel.passive="changeWheelDirection"
   >
@@ -517,7 +517,7 @@ input[type='number'] {
 
 .editor-actions-mobile-shell {
   transition:
-    box-shadow 180ms ease,
-    background-color 180ms ease;
+    box-shadow var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
 }
 </style>

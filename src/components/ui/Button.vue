@@ -2,11 +2,11 @@
   <component
     :is="tag"
     role="button"
-    class="ui-button h-10 relative transition-[background-color,opacity] focus:ring-1 ring-secondary"
+    class="ui-button h-10 relative transition-[transform,background-color,opacity] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ring-secondary"
     :class="[
       color ? color : variants[variant],
-      icon ? 'p-2' : 'py-2 px-4',
-      circle ? 'rounded-full' : 'rounded-lg',
+      icon ? 'py-2 px-2' : 'py-2 px-4',
+      circle ? 'rounded-full' : 'rounded-xl',
       { 'opacity-70': disabled, 'pointer-events-none': loading || disabled },
     ]"
     v-bind="{ disabled: loading || disabled, ...$attrs }"
@@ -62,15 +62,14 @@ export default {
 };
 </script>
 <style>
+.ui-button {
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--ease-standard);
+}
 .button-loading {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-}
-@media (hover: hover) and (pointer: fine) {
-  .ui-button:hover {
-    opacity: 0.9;
-  }
 }
 </style>

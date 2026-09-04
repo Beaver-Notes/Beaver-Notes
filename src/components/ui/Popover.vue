@@ -13,7 +13,7 @@
           v-show="isShow"
           ref="content"
           :style="floatingStyles"
-          class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1.5"
+          class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1"
         >
           <slot v-bind="{ isShow }"></slot>
         </div>

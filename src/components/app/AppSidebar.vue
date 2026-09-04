@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] will-change-[width] bg-white dark:bg-neutral-900 ltr:border-r rtl:border-l border-neutral-200/40 dark:border-neutral-800/40 select-none"
+    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 ltr:border-r rtl:border-l border-neutral-200/40 dark:border-neutral-800/40 select-none"
     :class="expanded ? 'w-64' : 'w-16'"
     :style="{ paddingTop: titlebarInset }"
   >
@@ -12,7 +12,7 @@
       <button
         v-tooltip:right="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
         :aria-label="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
-        class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
         @click="toggleExpanded"
       >
         <v-remixicon
@@ -37,7 +37,7 @@
         @click="addNote"
       >
         <span
-          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
           :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
         >
           <v-remixicon
@@ -67,14 +67,14 @@
             : undefined
         "
         :aria-label="translations.sidebar.newFolder || 'New Folder'"
-        class="relative w-full rounded-lg flex items-center h-9 overflow-hidden transition-colors"
+        class="relative w-full rounded-xl flex items-center h-9 overflow-hidden transition-colors"
         :class="[
           'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
         @click="openCreateFolderModal"
       >
         <span
-          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
           :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
         >
           <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
@@ -105,7 +105,7 @@
         "
         :aria-label="translations.sidebar.notes"
         data-testid="nav-notes-button"
-        class="relative w-full rounded-lg flex items-center h-9 overflow-hidden transition-colors"
+        class="relative w-full rounded-xl flex items-center h-9 overflow-hidden transition-colors"
         :class="[
           isAllNotesActive
             ? 'text-primary bg-primary/10'
@@ -114,7 +114,7 @@
         @click="goHome"
       >
         <span
-          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
           :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
         >
           <v-remixicon
@@ -143,7 +143,7 @@
         "
         :aria-label="translations.sidebar.archive"
         data-testid="nav-archive-button"
-        class="relative w-full rounded-lg flex items-center h-9 overflow-hidden transition-colors"
+        class="relative w-full rounded-xl flex items-center h-9 overflow-hidden transition-colors"
         :class="[
           isArchiveActive
             ? 'text-primary bg-primary/10'
@@ -152,7 +152,7 @@
         @click="goArchive"
       >
         <span
-          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
           :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
         >
           <v-remixicon
@@ -179,7 +179,7 @@
         class="mt-5 px-3 flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col"
       >
         <div
-          class="text-[11px] font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-2 px-3 select-none shrink-0"
+          class="text-[11px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mb-2 px-3 select-none shrink-0"
         >
           Recent
         </div>
@@ -187,7 +187,7 @@
           <button
             v-for="item in recentItems"
             :key="`${item.type}-${item.id}`"
-            class="flex items-center gap-2 w-full min-w-0 px-3 py-1.5 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors text-left group"
+            class="flex items-center gap-2 w-full min-w-0 px-3 py-1.5 rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors text-left group"
             :title="item.title"
             @click="
               item.type === 'folder' ? openFolder(item.id) : openNote(item.id)
@@ -246,12 +246,12 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleSync"
-        class="relative w-full rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
+        class="relative w-full rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
         :class="[{ '!text-primary': spinning }]"
         @click="manualSync"
       >
         <span
-          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
           :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
         >
           <v-remixicon
@@ -321,11 +321,11 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleDarkTheme"
-        class="relative w-full rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
+        class="relative w-full rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
         @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
       >
         <span
-          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
           :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
         >
           <v-remixicon
@@ -354,7 +354,7 @@
         "
         :aria-label="translations.settings.title"
         to="/settings"
-        class="relative w-full rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 overflow-hidden transition-colors"
+        class="relative w-full rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 overflow-hidden transition-colors"
         active-class="text-primary bg-primary/10"
         :class="[
           !isSettingsActive
@@ -363,7 +363,7 @@
         ]"
       >
         <span
-          class="absolute inset-y-0 flex items-center justify-center transition-all duration-200 ease-[var(--ease-standard)]"
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
           :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
         >
           <v-remixicon

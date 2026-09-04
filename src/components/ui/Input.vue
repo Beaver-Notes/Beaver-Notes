@@ -9,8 +9,7 @@
       </span>
 
       <div
-        class="flex items-center gap-2 rounded-lg w-full bg-input bg-transparent transition border focus-within:ring-1 ring-secondary px-3 py-2"
-        :class="{ 'opacity-75 pointer-events-none': disabled }"
+        :class="['flex items-center gap-2 w-full bg-input bg-transparent transition-[border-color,box-shadow] border-neutral-200 dark:border-neutral-800 focus-within:ring-2 focus-within:ring-secondary/40 focus-within:border-secondary/60 ring-secondary px-3 py-2', radiusClass, { 'opacity-75 pointer-events-none': disabled }]"
         @click="focusInput"
       >
         <slot name="prepend">
@@ -54,6 +53,7 @@
             v-if="password"
             type="button"
             class="text-sm text-secondary"
+            :aria-label="visible ? 'Hide password' : 'Show password'"
             @click.stop="toggleVisibility"
           >
             <v-remixicon
@@ -66,6 +66,7 @@
             v-if="clearable && modelValue"
             type="button"
             class="text-neutral-600 dark:text-neutral-200"
+            aria-label="Clear input"
             @click.stop="clearInput"
           >
             <v-remixicon name="riDeleteBackLine" />
@@ -116,6 +117,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    radius: {
+      type: String,
+      default: 'xl',
+    },
   },
   emits: ['update:modelValue', 'change', 'keydown', 'blur'],
   setup(props, { emit, expose }) {
@@ -125,8 +130,14 @@ export default {
     const inputType = computed(() => {
       if (props.password) {
         return visible.value ? 'text' : 'password';
+
       }
       return props.type;
+    });
+
+    const radiusClass = computed(() => {
+      const map = { sm: 'rounded-sm', md: 'rounded-md', lg: 'rounded-lg', xl: 'rounded-xl', '2xl': 'rounded-2xl', full: 'rounded-full' };
+      return map[props.radius] || 'rounded-xl';
     });
 
     const hasRightButtons = computed(() => {
@@ -169,6 +180,7 @@ export default {
       visible,
       inputType,
       hasRightButtons,
+      radiusClass,
     };
   },
 };
