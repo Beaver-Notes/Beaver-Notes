@@ -6,7 +6,7 @@
       >
         <div
           v-if="previousNote && !uiState.inReaderMode"
-          class="bg-white dark:bg-neutral-900 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
+          class="bg-white dark:bg-neutral-900 border p-1 rounded-xl shadow-sm flex items-center w-fit max-w-content"
         >
           <button
             class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300 mobile:hidden"
@@ -46,15 +46,28 @@
     </template>
 
     <div
-      class="editor note-editor-page self-center w-full px-4 mobile:pt-0 pt-10"
-      :class="{ 'mobile-search-open': showSearch }"
+      class="editor note-editor-page self-center w-full px-4 pt-10"
+      :class="{ 'mobile-search-open': showSearch, 'mobile:pt-0': !uiState.inReaderMode, 'mobile:pt-6': uiState.inReaderMode }"
       :data-reader-theme="uiState.inReaderMode ? prefs.theme : null"
       :data-reader-family="prefs.family"
-      :style="uiState.inReaderMode ? { '--selected-width': '42rem', 'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)', '--reader-size': prefs.size + 'px', '--reader-line': prefs.line } : { '--selected-width': note?.isFullWidth ? '100%' : '54rem', 'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)' }"
+      :data-full-width="note?.isFullWidth ? 'true' : null"
+      :style="
+        uiState.inReaderMode
+          ? {
+              '--selected-width': '42rem',
+              'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
+              '--reader-size': prefs.size + 'px',
+              '--reader-line': prefs.line,
+            }
+          : {
+              '--selected-width': note?.isFullWidth ? '100%' : '54rem',
+              'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
+            }
+      "
       @mousedown.self="uiState.inReaderMode && exitReader()"
     >
       <template v-if="editor && !isLocked">
-        <div :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)' }">
+        <div :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)', paddingInlineEnd: note?.isFullWidth ? 'var(--drag-handle-gutter, 0px)' : undefined }">
           <transition
             v-if="showSearch"
             enter-active-class="transition duration-200 ease-out"
@@ -82,16 +95,8 @@
         }}</span>
       </div>
       <div
-        v-if="syncingContent"
-        class="flex items-center gap-2 mb-4 text-sm text-neutral-500 dark:text-neutral-400"
-      >
-        <span>{{
-          translations.note?.syncingContent || 'Syncing content…'
-        }}</span>
-      </div>
-      <div
         v-if="yjsError"
-        class="flex flex-col items-center gap-3 mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-sm text-red-600 dark:text-red-400"
+        class="flex flex-col items-center gap-3 mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-sm text-red-600 dark:text-red-400"
       >
         <span>{{ yjsError }}</span>
         <button
@@ -108,20 +113,36 @@
       </div>
       <div
         v-if="!isLocked"
-        ref="titleDiv"
-        data-testid="note-title-input"
-        :contenteditable="canEdit(noteRole)"
-        class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder leading-tight"
-        :class="editor ? '' : 'invisible'"
-        :data-placeholder="translations.editor.untitledNote"
-        :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)' }"
-        @input="handleTitleInput"
-        @keydown="disallowedEnter"
-      ></div>
-      <div v-else class="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] py-12 w-full">
+        class="editor prose dark:prose-invert max-w-none w-full mb-12 mobile:mb-6"
+      >
+        <h1
+          ref="titleDiv"
+          data-testid="note-title-input"
+          :contenteditable="canEdit(noteRole) && !uiState.inReaderMode"
+          class="outline-none bg-transparent cursor-text title-placeholder"
+          :class="editor ? '' : 'invisible'"
+          :data-placeholder="translations.editor.untitledNote"
+          :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)', paddingInlineEnd: note?.isFullWidth ? 'var(--drag-handle-gutter, 0px)' : undefined }"
+          @input="handleTitleInput"
+          @keydown="disallowedEnter"
+        ></h1>
+      </div>
+      <div
+        v-else
+        class="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] py-12 w-full"
+      >
         <unlock-card
-          :title="translations.settings?.unlockAppEncryptionTitle || 'Unlock to continue'"
-          :body="appEncryptedLocked ? (translations.settings?.unlockAppEncryptionBody || 'Your notes are encrypted. Enter your encryption passphrase to unlock the app.') : (translations.card.unlockToEdit || 'This note is locked. Enter your vault password or use biometrics to unlock it.')"
+          :title="
+            translations.settings?.unlockAppEncryptionTitle ||
+            'Unlock to continue'
+          "
+          :body="
+            appEncryptedLocked
+              ? translations.settings?.unlockAppEncryptionBody ||
+                'Your notes are encrypted. Enter your encryption passphrase to unlock the app.'
+              : translations.card.unlockToEdit ||
+                'This note is locked. Enter your vault password or use biometrics to unlock it.'
+          "
           :hint="'Encryption is always active — your notes and assets are protected at rest.'"
           :password="lockedPassword"
           :placeholder="translations.settings?.password || 'Vault password'"
@@ -129,14 +150,25 @@
           :busy="lockedBusy"
           :biometric-busy="lockedBiometricBusy"
           :biometric-available="lockedBiometricAvailable"
-          :biometric-label="translations.settings?.unlockWithBiometrics || 'Unlock with Touch ID'"
+          :biometric-label="
+            translations.settings?.unlockWithBiometrics ||
+            'Unlock with Touch ID'
+          "
           :unlock-label="translations.settings?.unlock || 'Unlock'"
           :require-password="true"
           show-close
           :close-label="translations.index.close || 'Close'"
           @update:password="lockedPassword = $event"
-          @unlock="appEncryptedLocked ? handleEncryptedPasswordUnlock() : handleIsLockedPasswordUnlock()"
-          @unlock-biometrics="appEncryptedLocked ? handleEncryptedBiometricUnlock() : handleIsLockedUnlock()"
+          @unlock="
+            appEncryptedLocked
+              ? handleEncryptedPasswordUnlock()
+              : handleIsLockedPasswordUnlock()
+          "
+          @unlock-biometrics="
+            appEncryptedLocked
+              ? handleEncryptedBiometricUnlock()
+              : handleIsLockedUnlock()
+          "
         />
       </div>
 
@@ -179,7 +211,11 @@
       </div>
       <note-backlinks v-if="!isLocked" />
     </div>
-    <ReaderChrome v-if="uiState.inReaderMode" @exit="exitReader" @change="() => {}" />
+    <ReaderPill
+      v-if="uiState.inReaderMode"
+      @exit="exitReader"
+      @change="() => {}"
+    />
 
     <note-headings-progress
       v-if="editor"
@@ -201,7 +237,10 @@
       </div>
     </div>
     <template v-if="showComments && !isDocked">
-      <div class="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]" @click="closeComments" />
+      <div
+        class="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]"
+        @click="closeComments"
+      />
       <comment-sidebar :note-id="id" :docked="false" @close="closeComments" />
     </template>
   </div>
@@ -238,9 +277,16 @@ import WordCountPill from '@/components/note/WordCountPill.vue';
 import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
 import { useAppStore } from '../../store/app';
 import { useAccountStore } from '@/store/account';
-import { isEncryptedContent, verifyPassphrase, tryRestoreKeyFromSafeStorage } from '@/utils/crypto/encryption.js';
+import {
+  isEncryptedContent,
+  verifyPassphrase,
+  tryRestoreKeyFromSafeStorage,
+} from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
-import { isBiometricAvailable, authenticateWithBiometrics } from '@/lib/native/biometric.js';
+import {
+  isBiometricAvailable,
+  authenticateWithBiometrics,
+} from '@/lib/native/biometric.js';
 import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
@@ -255,7 +301,7 @@ import CommentSidebar from '@/components/note/CommentSidebar.vue';
 import UnlockCard from '@/components/app/UnlockCard.vue';
 import { canEdit } from '@/utils/permissions';
 import { displayName } from '@/utils/displayName';
-import ReaderChrome from '@/components/note/ReaderChrome.vue';
+import ReaderPill from '@/components/note/ReaderPill.vue';
 import { useReaderPrefs } from '@/composable/useReaderPrefs';
 
 export default {
@@ -269,7 +315,7 @@ export default {
     NoteBacklinks,
     CommentSidebar,
     UnlockCard,
-    ReaderChrome,
+    ReaderPill,
   },
   inheritAttrs: false,
   setup() {
@@ -284,15 +330,26 @@ export default {
     const appStore = useAppStore();
 
     const editor = shallowRef(null);
-    function exitReader(){ uiState.inReaderMode=false; try{ if(document.fullscreenElement) document.exitFullscreen(); }catch{} editor.value?.setOptions?.({editable:true}); document.documentElement.removeAttribute('data-reader-theme-legacy'); }
+    function exitReader() {
+      uiState.inReaderMode = false;
+      try {
+        if (document.fullscreenElement) document.exitFullscreen();
+      } catch {}
+      editor.value?.setOptions?.({ editable: true });
+      document.documentElement.removeAttribute('data-reader-theme-legacy');
+    }
     const noteEditor = ref();
     const showSearch = shallowRef(false);
     const showHistory = ref(false);
     const showComments = ref(false);
     const commentStore = useCommentStore();
-    const isLargeScreen = ref(typeof window !== 'undefined' ? window.innerWidth >= 1280 : false);
+    const isLargeScreen = ref(
+      typeof window !== 'undefined' ? window.innerWidth >= 1280 : false,
+    );
     const isDocked = computed(() => showComments.value && isLargeScreen.value);
-    function onResize() { isLargeScreen.value = window.innerWidth >= 1280; }
+    function onResize() {
+      isLargeScreen.value = window.innerWidth >= 1280;
+    }
     onMounted(() => window.addEventListener('resize', onResize));
     onUnmounted(() => window.removeEventListener('resize', onResize));
     const titleDiv = ref(null);
@@ -382,30 +439,7 @@ export default {
 
     // Show "syncing" state when yjs is ready but the doc has no content yet
     // (content arrives via sync after metadata). Prevents blank editor flash.
-    const syncingContent = ref(false);
     const yjsError = ref(null);
-    watch(
-      ydoc,
-      (doc) => {
-        if (!doc) {
-          syncingContent.value = false;
-          return;
-        }
-        const check = () => {
-          const frag = doc.getXmlFragment('content');
-          syncingContent.value = yjsReady.value && frag.length === 0;
-        };
-        check();
-        doc.on('update', check);
-        // Re-check after a short delay for WS sync to arrive
-        const timer = setTimeout(check, 2000);
-        return () => {
-          doc.off('update', check);
-          clearTimeout(timer);
-        };
-      },
-      { immediate: true },
-    );
 
     const awareness = shallowRef(null);
 
@@ -579,9 +613,18 @@ export default {
     const lockedBiometricBusy = ref(false);
     const lockedBiometricAvailable = ref(false);
     onMounted(async () => {
-      try { lockedBiometricAvailable.value = await isBiometricAvailable(); } catch { lockedBiometricAvailable.value = false; }
+      try {
+        lockedBiometricAvailable.value = await isBiometricAvailable();
+      } catch {
+        lockedBiometricAvailable.value = false;
+      }
     });
-    watch(isLocked, (locked) => { if (!locked) { lockedError.value = ''; lockedPassword.value = ''; } });
+    watch(isLocked, (locked) => {
+      if (!locked) {
+        lockedError.value = '';
+        lockedPassword.value = '';
+      }
+    });
 
     async function handleIsLockedUnlock() {
       lockedError.value = '';
@@ -591,7 +634,10 @@ export default {
           await authenticateWithBiometrics('Unlock note');
         } catch (e) {
           const msg = String(e?.message || '');
-          if (/cancel/i.test(msg) || /User canceled/i.test(msg)) { lockedBusy.value = false; return; }
+          if (/cancel/i.test(msg) || /User canceled/i.test(msg)) {
+            lockedBusy.value = false;
+            return;
+          }
           lockedError.value = msg || 'Authentication failed.';
           lockedBusy.value = false;
           return;
@@ -600,50 +646,74 @@ export default {
       }
       try {
         await noteStore.unlockNote(note.value.id);
-      } catch (e) { lockedError.value = e?.message || 'Failed to unlock.'; }
+      } catch (e) {
+        lockedError.value = e?.message || 'Failed to unlock.';
+      }
     }
     async function handleIsLockedPasswordUnlock() {
       if (!lockedPassword.value?.trim() || lockedBusy.value) return;
-      lockedBusy.value = true; lockedError.value = '';
+      lockedBusy.value = true;
+      lockedError.value = '';
       try {
         const res = await verifyPassphrase(lockedPassword.value);
-        if (!res.ok) { lockedError.value = res.error || 'Wrong vault password.'; return; }
+        if (!res.ok) {
+          lockedError.value = res.error || 'Wrong vault password.';
+          return;
+        }
         lockedPassword.value = '';
         await noteStore.unlockNote(note.value.id);
-      } catch (e) { lockedError.value = e?.message || 'Wrong vault password.'; }
-      finally { lockedBusy.value = false; }
+      } catch (e) {
+        lockedError.value = e?.message || 'Wrong vault password.';
+      } finally {
+        lockedBusy.value = false;
+      }
     }
     async function handleEncryptedPasswordUnlock() {
       if (!lockedPassword.value?.trim() || lockedBusy.value) return;
-      lockedBusy.value = true; lockedError.value = '';
+      lockedBusy.value = true;
+      lockedError.value = '';
       try {
         const res = await verifyPassphrase(lockedPassword.value);
-        if (!res.ok) { lockedError.value = res.error || 'Wrong passphrase.'; return; }
+        if (!res.ok) {
+          lockedError.value = res.error || 'Wrong passphrase.';
+          return;
+        }
         lockedPassword.value = '';
         const current = noteStore.getById(id.value);
         if (current && isEncryptedContent(current.content)) {
           const decrypted = await decryptNoteForMemory(current);
-          if (decrypted !== current) noteStore.data[id.value] = hydrateNote(decrypted);
+          if (decrypted !== current)
+            noteStore.data[id.value] = hydrateNote(decrypted);
         }
-      } catch (e) { lockedError.value = e?.message || 'Wrong passphrase.'; }
-      finally { lockedBusy.value = false; }
+      } catch (e) {
+        lockedError.value = e?.message || 'Wrong passphrase.';
+      } finally {
+        lockedBusy.value = false;
+      }
     }
     async function handleEncryptedBiometricUnlock() {
-      lockedBiometricBusy.value = true; lockedError.value = '';
+      lockedBiometricBusy.value = true;
+      lockedError.value = '';
       try {
         await authenticateWithBiometrics('Unlock note');
         const ok = await tryRestoreKeyFromSafeStorage();
-        if (!ok) { lockedError.value = 'Failed to retrieve stored passphrase.'; return; }
+        if (!ok) {
+          lockedError.value = 'Failed to retrieve stored passphrase.';
+          return;
+        }
         const current = noteStore.getById(id.value);
         if (current && isEncryptedContent(current.content)) {
           const decrypted = await decryptNoteForMemory(current);
-          if (decrypted !== current) noteStore.data[id.value] = hydrateNote(decrypted);
+          if (decrypted !== current)
+            noteStore.data[id.value] = hydrateNote(decrypted);
         }
       } catch (e) {
         const msg = String(e?.message || '');
         if (/cancel/i.test(msg) || /User canceled/i.test(msg)) return;
         lockedError.value = msg || 'Biometric authentication failed.';
-      } finally { lockedBiometricBusy.value = false; }
+      } finally {
+        lockedBiometricBusy.value = false;
+      }
     }
 
     const autoScroll = debounce(() => {
@@ -708,12 +778,16 @@ export default {
       isComposing = false;
       handleTitleInput(e);
     }
-    watch(titleDiv, (el, oldEl) => {
-      oldEl?.removeEventListener('compositionstart', onCompositionStart);
-      oldEl?.removeEventListener('compositionend', onCompositionEnd);
-      el?.addEventListener('compositionstart', onCompositionStart);
-      el?.addEventListener('compositionend', onCompositionEnd);
-    }, { immediate: true });
+    watch(
+      titleDiv,
+      (el, oldEl) => {
+        oldEl?.removeEventListener('compositionstart', onCompositionStart);
+        oldEl?.removeEventListener('compositionend', onCompositionEnd);
+        el?.addEventListener('compositionstart', onCompositionStart);
+        el?.addEventListener('compositionend', onCompositionEnd);
+      },
+      { immediate: true },
+    );
 
     function handleContentUpdate(content) {
       if (ydoc.value) return; // Yjs manages content persistence
@@ -919,7 +993,6 @@ export default {
         stopTitleObserver();
         if (!newDoc) return;
         stopTitleObserver = yjsObserveTitle((title) => {
-          // Don't overwrite a real title with empty yjs title (initial doc race)
           if (
             note.value &&
             note.value.title !== title &&
@@ -985,7 +1058,6 @@ export default {
       onCommentActivated,
       noteRole,
       canEdit,
-      syncingContent,
       yjsError,
       prefs,
       exitReader,
@@ -1008,7 +1080,9 @@ export default {
 
 .editor {
   max-width: var(--selected-width);
-  transition: max-width 200ms var(--ease-standard), width 200ms var(--ease-standard);
+  transition:
+    max-width 200ms var(--ease-standard),
+    width 200ms var(--ease-standard);
 }
 
 .editor-skeleton-wrapper {

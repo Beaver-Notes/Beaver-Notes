@@ -3,12 +3,12 @@
     <div
       class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex"
       :class="
-        store.inReaderMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'
+        store.inReaderMode ? 'opacity-0 hover:opacity-100 mobile:hidden' : 'opacity-100'
       "
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
-        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
+        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
       >
         <div
           ref="container"
@@ -618,12 +618,12 @@
 
         <!-- Left fade edge — hidden when fully scrolled left -->
         <div
-          class="pointer-events-none absolute left-0 inset-y-0 w-8 bg-gradient-to-r from-white dark:from-neutral-900 to-transparent rounded-2xl transition-opacity duration-150"
+          class="pointer-events-none absolute left-0 inset-y-0 w-8 bg-gradient-to-r from-white dark:from-neutral-900 to-transparent rounded-xl transition-opacity duration-150"
           :class="scrolledLeft ? 'opacity-0' : 'opacity-100'"
         />
         <!-- Right fade edge — hidden when fully scrolled right -->
         <div
-          class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-white dark:from-neutral-900 to-transparent rounded-2xl transition-opacity duration-150"
+          class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-white dark:from-neutral-900 to-transparent rounded-xl transition-opacity duration-150"
           :class="scrolledRight ? 'opacity-0' : 'opacity-100'"
         />
       </div>
@@ -1008,7 +1008,7 @@ export default {
       'text-neutral-500 dark:text-neutral-400 ' +
       'hover:bg-black/[0.06] dark:hover:bg-white/[0.08] ' +
       'hover:text-neutral-800 dark:hover:text-white ' +
-      'active:scale-[0.88] active:bg-black/[0.08] dark:active:bg-white/[0.10] ' +
+      'active:scale-[0.97] active:bg-black/[0.08] dark:active:bg-white/[0.10] ' +
       'transition-[transform,background-color] duration-150 select-none touch-manipulation';
 
     const TB_CHIP_BASE =
@@ -1017,7 +1017,7 @@ export default {
       'text-neutral-500 dark:text-neutral-400 ' +
       'hover:bg-black/[0.06] dark:hover:bg-white/[0.08] ' +
       'hover:text-neutral-800 dark:hover:text-white ' +
-      'active:scale-[0.93] active:bg-black/[0.08] ' +
+      'active:scale-[0.97] active:bg-black/[0.08] ' +
       'transition-[transform,background-color] duration-150 select-none touch-manipulation';
 
     function tbBtn(active = false) {
@@ -1088,16 +1088,14 @@ export default {
   display: none;
 }
 
-/* Hidden: shifted right, invisible, out of flow */
 .panel-hidden {
   @apply absolute inset-0 opacity-0 pointer-events-none;
   transform: translateX(16px);
 }
 
-/* Exiting: shifts left and fades out */
 .panel-exit {
   @apply absolute inset-0 opacity-0 pointer-events-none;
-  transform: translateX(-16px);
+  transform: translateX(16px);
   transition:
     opacity 160ms var(--ease-standard),
     transform 160ms var(--ease-standard);
@@ -1119,7 +1117,7 @@ export default {
          text-neutral-500 dark:text-neutral-400
          hover:bg-black/5 dark:hover:bg-white/10
          hover:text-neutral-800 dark:hover:text-white
-         active:scale-90
+         active:scale-[0.97]
          transition-[transform,background-color] duration-150 select-none touch-manipulation;
 }
 
@@ -1130,7 +1128,7 @@ export default {
 
 .sub-label {
   @apply px-1 shrink-0 select-none text-[10px] font-semibold uppercase tracking-wider
-         text-neutral-400 dark:text-neutral-500;
+         text-neutral-500 dark:text-neutral-400;
 }
 
 .tb-input {
