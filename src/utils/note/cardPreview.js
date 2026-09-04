@@ -38,6 +38,27 @@ function getMediaTypes() {
 
 export { getMediaTypes };
 
+export function mediaIconForTone(tone) {
+  switch (tone) {
+    case 'audio':
+      return 'riVolumeDownFill';
+    case 'video':
+      return 'riMovieLine';
+    case 'file':
+      return 'riFile2Line';
+    case 'diagram':
+      return 'riPieChart2Line';
+    case 'math':
+      return 'riCalculatorLine';
+    case 'sketch':
+      return 'riBrushLine';
+    case 'table':
+      return 'riTableLine';
+    default:
+      return 'riArticleLine';
+  }
+}
+
 export const EMPTY_CARD_PREVIEW = Object.freeze({
   version: CARD_PREVIEW_VERSION,
   blocks: [],

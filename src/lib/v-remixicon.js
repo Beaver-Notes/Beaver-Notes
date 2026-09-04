@@ -57,6 +57,16 @@ import {
   RiFileDownloadLine,
   RiFileTextFill,
   RiFileUploadLine,
+  RiFilePdfLine,
+  RiFileWordLine,
+  RiFileExcelLine,
+  RiFilePptLine,
+  RiFileZipLine,
+  RiFileImageLine,
+  RiFileMusicLine,
+  RiFileVideoLine,
+  RiFileCodeLine,
+  RiFileTextLine,
   RiFlagLine,
   RiFocus3Line,
   RiFolder5Fill,
@@ -231,6 +241,16 @@ const RemixIcons = {
   riFileDownloadLine: RiFileDownloadLine,
   riFileTextFill: RiFileTextFill,
   riFileUploadLine: RiFileUploadLine,
+  riFilePdfLine: RiFilePdfLine,
+  riFileWordLine: RiFileWordLine,
+  riFileExcelLine: RiFileExcelLine,
+  riFilePptLine: RiFilePptLine,
+  riFileZipLine: RiFileZipLine,
+  riFileImageLine: RiFileImageLine,
+  riFileMusicLine: RiFileMusicLine,
+  riFileVideoLine: RiFileVideoLine,
+  riFileCodeLine: RiFileCodeLine,
+  riFileTextLine: RiFileTextLine,
   riFlagLine: RiFlagLine,
   riFocus3Line: RiFocus3Line,
   riFolder5Fill: RiFolder5Fill,
@@ -393,7 +413,7 @@ function createSvgIcon(iconName, d, viewBox = '0 0 24 24') {
           fill: this.color,
           xmlns: 'http://www.w3.org/2000/svg',
         },
-        [h('path', { d })]
+        [h('path', { d })],
       );
     },
   });
@@ -403,7 +423,7 @@ const CustomIcons = Object.fromEntries(
   Object.entries(customIconPaths).map(([name, { d, viewBox }]) => [
     name,
     createSvgIcon(name, d, viewBox),
-  ])
+  ]),
 );
 
 export default {
@@ -436,7 +456,7 @@ export default {
             style: `display:inline-block;width:${this.size}px;height:${this.size}px`,
           });
         },
-      })
+      }),
     );
   },
 };

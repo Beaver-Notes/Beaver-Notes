@@ -52,93 +52,11 @@
         data-preview-shell
         class="relative h-[140px] overflow-hidden mt-1.5 eio-fade-y-4"
       >
-        <div v-if="preview.blocks.length" class="note-card-preview-stack">
-          <div
-            v-for="(block, index) in preview.blocks"
-            :key="`${block.kind}-${index}-${block.text || block.label || ''}`"
-            :class="[
-              'note-card-preview-block',
-              `is-${block.kind}`,
-              block.tone ? `tone-${block.tone}` : '',
-              block.checked ? 'is-checked' : '',
-            ]"
-          >
-            <template v-if="block.kind === 'image'">
-              <img
-                class="note-card-preview-image"
-                :src="block.src"
-                :alt="block.alt || 'Note preview image'"
-                decoding="async"
-              />
-            </template>
-
-            <template v-else-if="block.kind === 'table'">
-              <div class="note-card-preview-table-wrap">
-                <table class="note-card-preview-table">
-                  <tbody>
-                    <tr
-                      v-for="(row, rowIndex) in block.rows"
-                      :key="`row-${rowIndex}`"
-                      class="note-card-preview-table-row"
-                    >
-                      <component
-                        :is="cell.isHeader ? 'th' : 'td'"
-                        v-for="(cell, cellIndex) in row"
-                        :key="`cell-${rowIndex}-${cellIndex}`"
-                        class="note-card-preview-table-cell"
-                      >
-                        {{ cell.text }}
-                      </component>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </template>
-
-            <template v-else-if="block.kind === 'media'">
-              <span class="note-card-preview-media-icon" aria-hidden="true">
-                <v-remixicon :name="mediaIcon(block.tone)" size="16" />
-              </span>
-              <span class="note-card-preview-media-copy">
-                <span class="note-card-preview-media-label">
-                  {{ block.label }}
-                </span>
-                <span v-if="block.text" class="note-card-preview-media-text">
-                  {{ block.text }}
-                </span>
-              </span>
-            </template>
-
-            <template v-else-if="block.kind === 'task'">
-              <span
-                class="note-card-preview-check"
-                :data-checked="block.checked ? 'true' : 'false'"
-              >
-                <v-remixicon
-                  v-if="block.checked"
-                  name="riCheckLine"
-                  size="13"
-                  class="note-card-preview-check-icon"
-                />
-              </span>
-              <span class="note-card-preview-task-text truncate">{{
-                block.text
-              }}</span>
-            </template>
-
-            <template v-else>
-              {{ block.text }}
-            </template>
-          </div>
-
-          <div
-            v-if="preview.hasMore || preview.mediaCount > 1"
-            class="note-card-preview-meta"
-          >
-            {{ previewMeta }}
-          </div>
-        </div>
-
+        <NotePreviewBlocks
+          v-if="preview.blocks.length"
+          :blocks="preview.blocks"
+          :meta="preview.hasMore || preview.mediaCount > 1 ? previewMeta : ''"
+        />
         <div v-else class="note-card-preview-empty">
           {{ translations.card.content || 'Start writing...' }}
         </div>
@@ -190,7 +108,7 @@
               : translations.card.archive
           "
           :aria-label="note.isArchived ? (translations.card.unarchive || 'Unarchive') : (translations.card.archive || 'Archive')"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="toggleArchive(note)"
         >
           <v-remixicon
@@ -203,7 +121,7 @@
           v-if="!note.isLocked"
           v-tooltip.group="translations.card.lock"
           :aria-label="translations.card.lock || 'Lock'"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="lockNote(note.id)"
         >
           <v-remixicon name="riLockLine" class="size-5" />
@@ -213,7 +131,7 @@
           v-if="note.isLocked"
           v-tooltip.group="translations.card.unlock"
           :aria-label="translations.card.unlock || 'Unlock'"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="unlockNote(note.id)"
         >
           <v-remixicon
@@ -225,7 +143,7 @@
         <button
           v-tooltip.group="translations.card.moveToFolder"
           :aria-label="translations.card.moveToFolder || 'Move to folder'"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="$emit('move', note)"
         >
           <v-remixicon name="riFolderTransferLine" class="size-5" />
@@ -234,7 +152,7 @@
         <button
           v-tooltip.group="translations.card.delete"
           :aria-label="translations.card.delete || 'Delete'"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-red-500/5 hover:text-red-500 invisible group-hover:visible"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-red-500/5 hover:text-red-500 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="deleteNote(note.id)"
         >
           <v-remixicon name="riDeleteBin6Line" class="size-5" />
@@ -267,6 +185,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/lib/dialog';
 import { useLabelStore } from '@/store/label';
+import NotePreviewBlocks from '@/components/note/NotePreviewBlocks.vue';
 import { useSounds } from '@/composable/useSounds';
 
 const props = defineProps({
@@ -414,27 +333,6 @@ function toggleBookmark(note) {
 
 function toggleArchive(note) {
   emitUpdate({ isArchived: !note.isArchived });
-}
-
-function mediaIcon(tone) {
-  switch (tone) {
-    case 'audio':
-      return 'riVolumeDownFill';
-    case 'video':
-      return 'riMovieLine';
-    case 'file':
-      return 'riFile2Line';
-    case 'diagram':
-      return 'riPieChart2Line';
-    case 'math':
-      return 'riCalculatorLine';
-    case 'sketch':
-      return 'riBrushLine';
-    case 'table':
-      return 'riTableLine';
-    default:
-      return 'riArticleLine';
-  }
 }
 </script>
 
@@ -641,7 +539,7 @@ function mediaIcon(tone) {
 }
 
 .note-card-preview-block.is-callout.tone-black {
-  @apply border-gray-700 dark:border-gray-500 bg-gray-900/10 dark:bg-gray-400/10;
+  @apply border-neutral-700 dark:border-neutral-500 bg-neutral-900/10 dark:bg-neutral-400/10;
 }
 
 /* Code — faithful to .ProseMirror pre/.inline-code in editor.css */
