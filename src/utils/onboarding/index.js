@@ -20,8 +20,6 @@ export function getLanguageDirection(languageCode) {
   return ONBOARDING_LANGUAGE_CONFIG[languageCode]?.dir || 'ltr';
 }
 
-// ─── Animation timing constants ──────────────────────────────────────────────
-
 export const ENTRANCE_DELAYS = {
   logo: 120,
   text: 580,
@@ -34,7 +32,6 @@ export const CURTAIN_DURATIONS = {
   open: 1200,
 };
 
-// ─── Language / theme config data ────────────────────────────────────────────
 // ONBOARDING_LANGUAGE_CONFIG and ONBOARDING_LANGUAGES are re-exported from @/utils/i18n/languages.js
 
 export const ONBOARDING_THEMES = [
@@ -45,7 +42,7 @@ export const ONBOARDING_THEMES = [
 
 export const ONBOARDING_ACCENT_COLORS = [
   { name: 'red', className: 'bg-red-500' },
-  { name: 'light', className: 'bg-amber-400' },
+  { name: 'amber', className: 'bg-amber-400' },
   { name: 'green', className: 'bg-emerald-500' },
   { name: 'blue', className: 'bg-blue-400' },
   { name: 'purple', className: 'bg-purple-400' },
@@ -82,8 +79,6 @@ export const ONBOARDING_FONTS = [
   { label: 'Roboto Mono', value: 'Roboto Mono', class: 'font-roboto-mono' },
   { label: 'Ubuntu', value: 'Ubuntu', class: 'font-ubuntu' },
 ];
-
-// ─── Onboarding actions ──────────────────────────────────────────────────────
 
 export async function applyOnboardingFreshPreferences(preferences, { theme }) {
   const languageCode = preferences.language;
@@ -123,8 +118,10 @@ export async function applyOnboardingFreshPreferences(preferences, { theme }) {
   );
 
   const root = document.documentElement;
-  root.classList.forEach((cls) => {
-    if (ONBOARDING_ACCENT_COLOR_NAMES.includes(cls)) {
+  // Include legacy aliases: amber canonical, light/dark same color.
+  const allAccentNames = [...ONBOARDING_ACCENT_COLOR_NAMES, 'light', 'dark'];
+  ;[...root.classList].forEach((cls) => {
+    if (allAccentNames.includes(cls)) {
       root.classList.remove(cls);
     }
   });

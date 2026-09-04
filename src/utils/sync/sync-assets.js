@@ -12,21 +12,18 @@ import {
 } from './constants.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
-import { yMapToObj } from '@/utils/yjs-helpers.js';
+import { yMapToObj } from '@/lib/yjs/helpers.js';
 
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// ─── Remote listing cache ─────────────────────────────────────────────────────
-//
-// syncAssets previously re-listed every note's local + remote asset directory
-// on every single sync call — O(notes × files) IO each cycle even when nothing
-// changed. We cache the last listing per directory with a short TTL so that
-// rapid successive syncs (e.g. the new periodic loop in #3, or multiple
-// debounced note saves) reuse the previous result instead of re-reading disk.
+// Remote listing cache: syncAssets used to re-list every local + remote asset
+// directory each cycle (O(notes × files) IO); the TTL cache lets rapid
+// successive syncs reuse the previous listing instead of re-reading disk.
 
 const REMOTE_LISTING_TTL_MS = 30000;
+const MAX_CACHE_ENTRIES = 500;
 
 const remoteListingCache = new Map();
 
@@ -40,6 +37,10 @@ async function cachedReadDir(dirPath, useCache) {
   const entries = await readSyncDir(dirPath)
     .then((e) => e.filter((n) => !isIgnoredAssetEntry(n)))
     .catch(() => []);
+  if (remoteListingCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = remoteListingCache.keys().next().value;
+    remoteListingCache.delete(oldest);
+  }
   remoteListingCache.set(dirPath, { t: Date.now(), entries });
   return entries;
 }
@@ -106,6 +107,8 @@ export async function syncAssets(
         cachedReadDir(remoteNoteDir, true),
       ]);
 
+      const localFileSet = new Set(localFiles);
+
       // map remote filenames (potentially .enc legacy) to local names
       const remoteFileMap = Object.fromEntries(
         remoteFiles.map((f) => [localAssetName(f), f])
@@ -116,7 +119,7 @@ export async function syncAssets(
 
       for (const file of allNames) {
         const assetKey = `${assetType}/${noteId}/${file}`;
-        const hasLocally = localFiles.includes(file);
+        const hasLocally = localFileSet.has(file);
         const remoteName = remoteFileMap[file];
         const hasRemotely = Boolean(remoteName);
 
@@ -172,13 +175,10 @@ export async function syncAssets(
         switch (op.type) {
           case 'upload':
             await copyLocalToRemote(op.src, op.dest);
-            // The remote dir we just wrote to must be re-read next cycle.
             remoteListingCache.delete(path.dirname(op.dest));
             break;
           case 'download':
             await copyRemoteToLocal(op.src, op.dest);
-            // Invalidate remote cache so the downloaded file is not
-            // re-listed as absent on the next cycle.
             remoteListingCache.delete(path.dirname(op.src));
             break;
           case 'remove-local':
@@ -189,8 +189,8 @@ export async function syncAssets(
             remoteListingCache.delete(path.dirname(op.src));
             break;
         }
-      } catch {
-      // individual file failures are non-fatal
+      } catch (e) {
+      console.warn('[sync] asset op failed', op, e?.message);
     }
 
     processed += 1;
@@ -205,10 +205,7 @@ export async function syncAssets(
     onProgress?.({ phase: 'assets', processed, total });
   }
 
-  // Use mergeIntoMap (not syncTombstoneMap / syncDeletedAssets) so that
-  // deletion-tombstone entries added by a remote device between our
-  // snapshot at the start of this cycle and now are preserved — the merge
-  // only sets keys, it never deletes keys that aren't in the local snapshot.
+  // mergeIntoMap preserves mid-cycle remote tombstones: sets keys, never removes.
   if (deletedAssetsDirty) {
     mergeIntoMap('deletedAssets', deletedAssets);
   }

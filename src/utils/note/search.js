@@ -68,7 +68,6 @@ export function getSearchIndexJSON() {
 }
 
 export function loadSearchIndex(json) {
-  // MiniSearch v7 replaced the instance `import()` with the static
-  // `loadJSON()` — passing the same options used at serialization time.
+  // MiniSearch v7 uses static loadJSON with same serialization options.
   searchIndex = MiniSearch.loadJSON(json, SEARCH_OPTIONS);
 }

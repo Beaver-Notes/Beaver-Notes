@@ -119,9 +119,8 @@ export function useAccountAuth() {
       return data;
     } catch (err) {
       if (err && err.status === 401) {
-        // Don't nuke auth state on profile fetch 401 — it may be a wrong
-        // server URL or transient issue. The token is still valid.
-        console.warn('[auth] fetchProfile 401 — keeping auth state, token may still be valid');
+        // Keep auth on 401: may be wrong URL or transient, token still valid.
+        console.warn('[auth] fetchProfile 401: keeping auth state, token may still be valid');
       } else {
         console.error('[auth] fetchProfile failed:', err);
       }
@@ -152,6 +151,7 @@ export function useAccountAuth() {
     if (persist) {
       await persistToken(token, user);
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
@@ -159,9 +159,10 @@ export function useAccountAuth() {
     // E2E identity: ensure a keypair exists and the server knows its public key
     try {
       const identity = await loadOrCreateIdentity();
+      const deviceId = await ensureDeviceId();
       const userKem = accountStore.profile?.kemPublicKey;
       if (!userKem || userKem !== identity.publicKeyHex) {
-        await publishIdentity(identity);
+        await publishIdentity(identity, deviceId);
         await fetchProfile();
       }
     } catch (err) {
@@ -170,9 +171,6 @@ export function useAccountAuth() {
     return { token, user, subscription };
   }
 
-  // Shared scaffolding for the sign-in / sign-up flows: clear the previous
-  // error, set the authenticating status, hold the busy flag, and on failure
-  // reset to anonymous with a normalized error.
   async function runAuthFlow(fn) {
     clearAuthError();
     setStatus('authenticating');
@@ -243,7 +241,7 @@ export function useAccountAuth() {
     });
   }
 
-  async function signUpWithPassword(email, password) {
+  async function signUpWithPassword(email, password, username) {
     return runAuthFlow(async () => {
       const normalizedEmail = String(email || '').trim();
       if (!normalizedEmail || !password) {
@@ -256,6 +254,7 @@ export function useAccountAuth() {
       const result = await authApi.passwordRegister(normalizedEmail, password, {
         baseUrl: activeBaseUrl(),
         kemPublicKey: identity.publicKeyHex,
+        username: typeof username === 'string' ? username.trim().slice(0, 50) : undefined,
       });
       await ensureDeviceId();
       return performSignIn(result || {});
@@ -311,6 +310,7 @@ export function useAccountAuth() {
     await clearAllAccountStorage();
     resetApiClient();
     setStatus('anonymous');
+    accountStore.setToken(null);
     accountStore.setProfile(null);
     accountStore.setSubscription(null);
     accountStore.setDevices([]);
@@ -403,6 +403,7 @@ export function useAccountAuth() {
       }
       return false;
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     const cached = await loadCachedProfile();
     if (cached) accountStore.setProfile(cached);
@@ -412,28 +413,26 @@ export function useAccountAuth() {
   }
 
   async function triggerSeed(_onProgress) {
-    // Skip if no cloud sync is configured
     if (!accountStore.isAuthenticated) return false;
     if (!accountStore.isPaidPlan) return false;
 
     const transportSetting = await import('@/lib/settings').then(
       (m) => m.getSettingSync('syncTransport')
     );
-    if (transportSetting && transportSetting !== 'remote' && transportSetting !== 'both') {
+    const { normalizeSyncTransport } = await import('@/lib/api/types.js');
+    if (transportSetting && normalizeSyncTransport(transportSetting) !== 'remote') {
       return false;
     }
 
     try {
       const { getSyncEngine } = await import('@/utils/sync/engine.js');
 
-      // Wait up to 5s for the sync engine to initialize (it may start after auth)
       let engine = getSyncEngine();
       for (let i = 0; i < 50 && !engine; i++) {
         await new Promise((r) => setTimeout(r, 100));
         engine = getSyncEngine();
       }
 
-      // If the engine still isn't initialized, initialize it now
       if (!engine) {
         logger.info('[auth] sync engine not found, initializing now');
         const { initAppSync } = await import('@/utils/sync/app-sync.js');
@@ -445,8 +444,8 @@ export function useAccountAuth() {
       }
 
       accountStore.setSeedStatus('seeding');
-      // Trigger a force sync — this will handle seeding through the
-      // proper serialized path (seedCloudOnce) in the normal sync cycle.
+      accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
+      // Force sync: seeding runs via serialized seedCloudOnce in normal cycle.
       await engine.forceSyncNow();
       if (accountStore.seedStatus === 'seeding') {
         accountStore.setSeedStatus('done');

@@ -1,5 +1,5 @@
 <template>
-  <ui-modal v-model="show" content-class="max-w-md" persist>
+  <ui-modal v-model="show" content-class="max-w-md" :overlay-class="overlayClass" persist>
     <template #header>
       <h3 class="text-lg font-semibold">
         {{ moveLabel }}
@@ -24,7 +24,7 @@
         }"
         @click="selectedId = null"
       >
-        <div class="mr-2 flex items-center justify-center">
+        <div class="ltr:mr-2 rtl:ml-2 flex items-center justify-center">
           <v-remixicon
             name="riFolder5Fill"
             class="w-5 h-5"
@@ -63,15 +63,19 @@
       </div>
 
       <!-- Action buttons -->
-      <div class="mt-8 flex space-x-2 rtl:space-x-0">
-        <ui-button class="w-6/12 rtl:ml-2" @click="closeModal">
+      <div class="mt-8 flex gap-2 mobile:flex-col-reverse mobile:gap-3">
+        <ui-button
+          class="w-6/12 mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+          @click="closeModal"
+        >
           {{ translations.dialog.cancel }}
         </ui-button>
         <ui-button
-          class="w-6/12"
+          class="w-6/12 mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
           :disabled="
             isMoving ||
-            (props.mode === 'folder' &&
+            isNoopTarget ||
+            ((props.mode === 'folder' || props.mode === 'mixed') &&
               disabledTargetIds.has(selectedId || undefined))
           "
           :variant="'primary'"
@@ -95,10 +99,11 @@ const props = defineProps({
   notes: { type: Array, default: () => [] },
   folders: { type: Array, default: () => [] },
   modelValue: { type: Boolean, default: false },
+  overlayClass: { type: String, default: 'z-50' },
   mode: {
     type: String,
     default: 'note',
-    validator: (val) => ['note', 'folder'].includes(val),
+    validator: (val) => ['note', 'folder', 'mixed'].includes(val),
   },
 });
 
@@ -140,7 +145,7 @@ const commonFolderParentId = computed(() => {
 });
 
 const disabledTargetIds = computed(() => {
-  if (props.mode !== 'folder' || props.folders.length === 0) return new Set();
+  if ((props.mode !== 'folder' && props.mode !== 'mixed') || props.folders.length === 0) return new Set();
   const all = Array.isArray(folderStore.validFolders)
     ? folderStore.validFolders
     : [];
@@ -160,21 +165,44 @@ const disabledTargetIds = computed(() => {
   return out;
 });
 
+const isNoopTarget = computed(() => {
+  const target = selectedId.value ?? null;
+  if (props.mode === 'note') {
+    if (!props.notes.length) return false;
+    return props.notes.every((n) => (n?.folderId ?? null) === target);
+  }
+  if (props.mode === 'folder') {
+    if (!props.folders.length) return false;
+    return props.folders.every((f) => (f?.parentId ?? null) === target);
+  }
+  if (props.mode === 'mixed') {
+    if (!props.notes.length && !props.folders.length) return false;
+    const foldersNoop = props.folders.length
+      ? props.folders.every((f) => (f?.parentId ?? null) === target)
+      : true;
+    const notesNoop = props.notes.length
+      ? props.notes.every((n) => (n?.folderId ?? null) === target)
+      : true;
+    return foldersNoop && notesNoop;
+  }
+  return false;
+});
+
 watch(
   () => props.modelValue,
   (value) => {
     show.value = value;
     if (!value) return;
-    selectedId.value =
-      props.mode === 'note'
-        ? commonNoteFolderId.value
-        : commonFolderParentId.value;
-  }
+    if (props.mode === 'note') selectedId.value = commonNoteFolderId.value;
+    else if (props.mode === 'folder') selectedId.value = commonFolderParentId.value;
+    else selectedId.value = null;
+  },
+  { immediate: true }
 );
 
 function onSelect(id) {
   // block selecting invalid targets when moving folders
-  if (props.mode === 'folder' && id != null && disabledTargetIds.value.has(id))
+  if ((props.mode === 'folder' || props.mode === 'mixed') && id != null && disabledTargetIds.value.has(id))
     return;
   selectedId.value = id ?? null;
 }
@@ -185,7 +213,7 @@ function closeModal() {
 }
 
 const moveLabel = computed(() => {
-  const n = props.mode === 'note' ? props.notes.length : props.folders.length;
+  const n = props.mode === 'mixed' ? props.notes.length + props.folders.length : props.mode === 'note' ? props.notes.length : props.folders.length;
   return n === 1
     ? translations.value.folderTree.moveToFolder
     : translations.value.folderTree.moveItemsToFolder.replace('{count}', n);
@@ -203,29 +231,49 @@ const folderCountLabel = computed(() =>
     : translations.value.folderTree?.folderPlural || 'folders'
 );
 
-async function handleMove() {
-  if (isMoving.value) return;
-  isMoving.value = true;
-  show.value = false;
-  emit('update:modelValue', false);
-  try {
-    if (props.mode === 'folder' && props.folders.length) {
-      await Promise.all(
-        props.folders.map((folder) =>
-          folderStore.move(folder.id, selectedId.value ?? null)
-        )
-      );
+  async function handleMove() {
+    if (isMoving.value) return;
+    if (isNoopTarget.value) {
+      show.value = false;
+      emit('update:modelValue', false);
+      return;
     }
-
-    if (props.mode === 'note' && props.notes.length) {
-      const ids = props.notes.map((n) => n.id);
-      await noteStore.moveToFolder(ids, selectedId.value ?? null);
+    isMoving.value = true;
+    const targetId = selectedId.value ?? null;
+    let moved = false;
+    try {
+      const { useUndoStore } = await import('@/store/undo');
+      const undo = useUndoStore();
+      undo.startBatch();
+      try {
+        if (props.folders.length) {
+          for (const f of props.folders) {
+            if ((f?.parentId ?? null) === targetId) continue;
+            if (folderStore.wouldCreateCircularReference(f.id, targetId)) continue;
+            await folderStore.move(f.id, targetId);
+            moved = true;
+          }
+        }
+        if (props.notes.length) {
+          const ids = props.notes
+            .filter((n) => (n?.folderId ?? null) !== targetId)
+            .map((n) => n.id)
+            .filter(Boolean);
+          if (ids.length) {
+            await noteStore.moveToFolder(ids, targetId);
+            moved = true;
+          }
+        }
+      } finally {
+        undo.commitBatch();
+      }
+      if (moved) emit('moved', { folderId: targetId, notes: [...props.notes], folders: [...props.folders] });
+    } catch (error) {
+      console.error('Move failed:', error);
+    } finally {
+      isMoving.value = false;
+      show.value = false;
+      emit('update:modelValue', false);
     }
-    emit('moved', { folderId: selectedId.value ?? null });
-  } catch (error) {
-    console.error('Move failed:', error);
-  } finally {
-    isMoving.value = false;
   }
-}
 </script>

@@ -7,7 +7,8 @@
       <transition name="modal" mode="out-in">
         <div
           v-if="show"
-          class="modal-ui__content-container fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/20 p-0 md:p-5 mobile:items-end"
+          class="modal-ui__content-container fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/20 p-0 md:p-5 mobile:items-end"
+          :class="overlayClass"
           :style="{ 'backdrop-filter': blur && 'blur(2px)' }"
           @click.self="closeModal"
         >
@@ -15,7 +16,9 @@
           <ui-card
             v-else
             ref="modalContent"
-            role="document"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="title || undefined"
             :class="[
               'modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm',
               contentClass,
@@ -30,26 +33,34 @@
             <div
               class="mx-auto mt-2 hidden h-1 w-9 rounded-full bg-neutral-400/60 mobile:block"
             ></div>
-            <div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="content-header w-full">
-                  <slot name="header"></slot>
-                </span>
-                <v-remixicon
-                  v-show="!persist"
-                  class="cursor-pointer shrink-0 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
-                  name="riCloseLine"
-                  size="20"
-                  role="button"
-                  aria-label="Close"
-                  tabindex="0"
-                  @click="closeModal"
-                ></v-remixicon>
-              </div>
+            <div v-if="$slots.header || title" class="mb-4">
+              <slot name="header">
+                <div class="flex flex-row items-center gap-4">
+                  <div
+                    v-if="icon"
+                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+                    :class="iconVariant === 'danger'
+                      ? 'bg-red-100 dark:bg-red-900/30'
+                      : 'bg-neutral-100 dark:bg-neutral-700'"
+                  >
+                    <v-remixicon
+                      :name="icon"
+                      size="24"
+                      :class="iconVariant === 'danger' ? 'text-red-500' : 'text-neutral-600 dark:text-neutral-300'"
+                    />
+                  </div>
+                  <h3 class="font-semibold text-lg tracking-tight leading-snug">{{ title }}</h3>
+                </div>
+              </slot>
             </div>
             <div>
-              <slot name="actions"></slot>
               <slot></slot>
+            </div>
+            <div
+              v-if="$slots.actions"
+              class="flex gap-3 mobile:flex-col-reverse pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700"
+            >
+              <slot name="actions"></slot>
             </div>
           </ui-card>
         </div>
@@ -76,10 +87,17 @@ export default {
       type: String,
       default: 'max-w-lg',
     },
+    overlayClass: {
+      type: String,
+      default: 'z-50',
+    },
     customContent: Boolean,
     persist: Boolean,
     blur: Boolean,
     disabledTeleport: Boolean,
+    title: { type: String, default: '' },
+    icon: { type: String, default: '' },
+    iconVariant: { type: String, default: '' },
   },
   emits: ['close', 'update:modelValue'],
   setup(props, { emit }) {
@@ -134,7 +152,7 @@ export default {
         if (!value) resetDrag();
         toggleBodyOverflow(value);
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     watch(show, (value) => {
@@ -207,7 +225,7 @@ export default {
       touchCurrentY.value = touch.clientY;
       touchStartTime.value = performance.now();
       touchStartedOnScrollable.value = Boolean(
-        getScrollableParent(event.target)?.scrollTop > 0
+        getScrollableParent(event.target)?.scrollTop > 0,
       );
       isDragging.value = false;
     }
@@ -227,7 +245,8 @@ export default {
       }
 
       isDragging.value = true;
-      dragOffsetY.value = Math.min(deltaY, 160);
+      // ponytail: rubber-band past the 160 soft bound instead of a hard clamp
+      dragOffsetY.value = deltaY <= 160 ? deltaY : 160 + (deltaY - 160) * 0.3;
       event.preventDefault();
     }
 
@@ -251,10 +270,14 @@ export default {
         el.style.transition = `transform ${dur} var(--ease-spring), opacity ${dur} var(--ease-standard)`;
         el.style.transform = 'translate3d(0, 0, 0)';
         el.style.opacity = '1';
-        el.addEventListener('transitionend', () => {
-          el.style.transition = '';
-          resetDrag();
-        }, { once: true });
+        el.addEventListener(
+          'transitionend',
+          () => {
+            el.style.transition = '';
+            resetDrag();
+          },
+          { once: true },
+        );
       } else {
         resetDrag();
       }
@@ -287,7 +310,8 @@ export default {
 
 .modal-enter-active .modal-ui__content,
 .modal-leave-active .modal-ui__content {
-  transition: opacity var(--motion-base) var(--ease-standard),
+  transition:
+    opacity var(--motion-base) var(--ease-standard),
     transform var(--motion-base) var(--ease-standard);
   transform: translate3d(0, 0, 0) scale(1);
   opacity: 1;

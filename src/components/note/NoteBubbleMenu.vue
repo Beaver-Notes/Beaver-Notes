@@ -1,5 +1,4 @@
 <template>
-  <!-- Selection-based bubble menu for text formatting and images -->
   <bubble-menu
     v-if="editor"
     :editor="editor"
@@ -47,6 +46,7 @@ import {
   shift,
   autoUpdate,
 } from '@floating-ui/dom';
+import { CellSelection } from '@tiptap/pm/tables';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
@@ -71,7 +71,6 @@ export default {
     const hoverMenuVisible = ref(false);
     let hoverCleanup = null;
 
-    // Extract link attributes from the hovered DOM element
     const hoverLinkAttrs = computed(() => {
       const el = hoveredLinkEl.value;
       if (!el) return null;
@@ -150,7 +149,6 @@ export default {
       // Small delay so the menu doesn't flicker when moving mouse to it
       setTimeout(() => {
         if (!hoverMenuVisible.value) return;
-        // Check if mouse is actually outside the menu
         const menu = hoverMenuRef.value;
         if (menu && !menu.matches(':hover')) {
           closeHoverMenu();
@@ -176,7 +174,6 @@ export default {
       const linkEl =
         target.closest('a[data-link-note]') || target.closest('a[tiptap-url]');
       if (!linkEl && hoveredLinkEl.value) {
-        // Mouse left the link – close if not hovering the menu
         setTimeout(() => {
           const menu = hoverMenuRef.value;
           if (menu && menu.matches(':hover')) return;
@@ -190,6 +187,8 @@ export default {
 
       const { selection } = state;
       const { empty } = selection;
+
+      if (selection instanceof CellSelection) return false;
 
       // Always show for images
       if (editor.isActive('image')) return true;
@@ -211,6 +210,7 @@ export default {
       if (!props.editor) return null;
       if (props.editor.isActive('image')) return 'note-bubble-menu-image';
 
+      if (props.editor.state.selection instanceof CellSelection) return null;
       if (props.editor.state.selection.empty) return null;
 
       if (

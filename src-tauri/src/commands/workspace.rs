@@ -2,17 +2,15 @@ use tauri::{AppHandle, State};
 
 use crate::shared::*;
 
-/// Return all registered workspaces.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_list(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<WorkspaceInfo>, AppError> {
-    Ok(load_workspace_registry(&app, &state)?)
+    load_workspace_registry(&app, &state)
 }
 
-/// Return the currently active workspace.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_get_active(
@@ -28,6 +26,10 @@ pub(crate) fn workspace_get_active(
             id: id.clone(),
             name: DEFAULT_WORKSPACE_NAME.to_string(),
             created_at: String::new(),
+            workspace_type: "personal".into(),
+            org_id: None,
+            owner_id: None,
+            cloud_sync: false,
         });
     Ok(ws)
 }
@@ -47,19 +49,18 @@ pub(crate) fn workspace_create(
     let ws_dir = workspace_root(&app, &state)?.join(&id);
     std::fs::create_dir_all(&ws_dir)?;
 
-    // Create the data.db for the new workspace
     let data_path = ws_dir.join("data.db");
     let _pool = crate::db::open_pool(&data_path)?;
 
-    // Create settings.db for the new workspace
     let settings_path = ws_dir.join("settings.db");
     let new_settings_pool = crate::db::open_pool(&settings_path)?;
 
-    // Optionally copy all settings from the current workspace
+    // Locked vault → rows unreadable; skip silently like the other best-efforts.
     if copy_settings.unwrap_or(false) {
         if let Ok(current_pool) = settings_pool(&app, &state) {
-            if let Ok(all_settings) = crate::db::db_all(&current_pool) {
-                let _ = crate::db::db_replace_all(&new_settings_pool, all_settings);
+            let kv_key = kv_encryption_key(&state).ok().flatten();
+            if let Ok(all_settings) = crate::db::db_all(&current_pool, kv_key) {
+                let _ = crate::db::db_replace_all(&new_settings_pool, all_settings, kv_key);
             }
         }
     }
@@ -69,16 +70,69 @@ pub(crate) fn workspace_create(
         id: id.clone(),
         name,
         created_at: now,
+        workspace_type: "personal".into(),
+        org_id: None,
+        owner_id: None,
+        cloud_sync: false,
     };
 
     let mut registry = load_workspace_registry(&app, &state)?;
     registry.push(ws.clone());
     save_workspace_registry(&app, &state, &registry)?;
 
-    // Switch to the new workspace
     save_active_workspace_id(&app, &state, &id)?;
     swap_data_pool(&app, &state, &id)?;
     swap_settings_pool(&app, &state, &id)?;
+
+    Ok(ws)
+}
+
+/// Register a backend (cloud) workspace in the local registry so local mirrors
+/// of shared workspaces participate in removal reconciliation. Creates the
+/// directory + DBs on first registration; never changes the active workspace.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_register_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+    org_id: Option<String>,
+    owner_id: Option<String>,
+    workspace_type: Option<String>,
+    created_at: Option<String>,
+) -> Result<WorkspaceInfo, AppError> {
+    if id.is_empty() || id == DEFAULT_WORKSPACE_ID {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+
+    let ws_dir = workspace_root(&app, &state)?.join(&id);
+    if !ws_dir.exists() {
+        std::fs::create_dir_all(&ws_dir)?;
+        let data_path = ws_dir.join("data.db");
+        let _data_pool = crate::db::open_pool(&data_path)?;
+        let settings_path = ws_dir.join("settings.db");
+        let _settings_pool = crate::db::open_pool(&settings_path)?;
+    }
+
+    let now = created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let ws = WorkspaceInfo {
+        id: id.clone(),
+        name,
+        created_at: now,
+        workspace_type: workspace_type.unwrap_or_else(|| "shared".into()),
+        org_id,
+        owner_id,
+        cloud_sync: true,
+    };
+
+    let mut registry = load_workspace_registry(&app, &state)?;
+    if let Some(existing) = registry.iter_mut().find(|w| w.id == id) {
+        *existing = ws.clone();
+    } else {
+        registry.push(ws.clone());
+    }
+    save_workspace_registry(&app, &state, &registry)?;
 
     Ok(ws)
 }
@@ -97,7 +151,9 @@ pub(crate) fn workspace_switch(
     }
     let ws_dir = workspace_root(&app, &state)?.join(&id);
     if !ws_dir.exists() {
-        return Err(AppError::Other(format!("Workspace directory missing: {id}")));
+        return Err(AppError::Other(format!(
+            "Workspace directory missing: {id}"
+        )));
     }
     save_active_workspace_id(&app, &state, &id)?;
     swap_data_pool(&app, &state, &id)?;
@@ -105,7 +161,6 @@ pub(crate) fn workspace_switch(
     Ok(())
 }
 
-/// Rename a workspace.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_rename(
@@ -124,8 +179,7 @@ pub(crate) fn workspace_rename(
     Ok(())
 }
 
-/// Delete a workspace. Cannot delete the currently active workspace.
-/// The workspace directory and all its data are removed.
+/// Delete a workspace (never the active or default one); removes its directory.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_delete(
@@ -134,11 +188,15 @@ pub(crate) fn workspace_delete(
     id: String,
 ) -> Result<(), AppError> {
     if id == DEFAULT_WORKSPACE_ID {
-        return Err(AppError::Other("Cannot delete the default workspace".into()));
+        return Err(AppError::Other(
+            "Cannot delete the default workspace".into(),
+        ));
     }
     let active_id = current_workspace_id(&app, &state)?;
     if id == active_id {
-        return Err(AppError::Other("Cannot delete the currently active workspace".into()));
+        return Err(AppError::Other(
+            "Cannot delete the currently active workspace".into(),
+        ));
     }
 
     let ws_dir = workspace_root(&app, &state)?.join(&id);
@@ -152,7 +210,6 @@ pub(crate) fn workspace_delete(
     Ok(())
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 fn slugify(name: &str) -> String {
     let slug: String = name
@@ -198,5 +255,7 @@ fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, Ap
             return Ok(candidate);
         }
     }
-    Err(AppError::Other("Too many workspaces with similar names".into()))
+    Err(AppError::Other(
+        "Too many workspaces with similar names".into(),
+    ))
 }

@@ -7,6 +7,7 @@ import {
   RiSendPlaneFill,
   RiAddFill,
   RiAddLine,
+  RiAlertLine,
   RiArchiveDrawerLine,
   RiArchiveLine,
   RiArrowDownLine,
@@ -56,6 +57,16 @@ import {
   RiFileDownloadLine,
   RiFileTextFill,
   RiFileUploadLine,
+  RiFilePdfLine,
+  RiFileWordLine,
+  RiFileExcelLine,
+  RiFilePptLine,
+  RiFileZipLine,
+  RiFileImageLine,
+  RiFileMusicLine,
+  RiFileVideoLine,
+  RiFileCodeLine,
+  RiFileTextLine,
   RiFlagLine,
   RiFocus3Line,
   RiFolder5Fill,
@@ -71,6 +82,7 @@ import {
   RiGithubFill,
   RiGlobalLine,
   RiHeading,
+  RiHeartLine,
   RiH1,
   RiH2,
   RiH3,
@@ -93,6 +105,7 @@ import {
   RiListCheck2,
   RiListOrdered,
   RiListUnordered,
+  RiLoginBoxLine,
   RiLoader4Line,
   RiLockLine,
   RiLockUnlockLine,
@@ -122,6 +135,7 @@ import {
   RiSettingsLine,
   RiShare2Line,
   RiShareLine,
+  RiShapesLine,
   RiUserSharedLine,
   RiHistoryLine,
   RiSideBarLine,
@@ -177,6 +191,7 @@ import {
 const RemixIcons = {
   riAddFill: RiAddFill,
   riAddLine: RiAddLine,
+  riAlertLine: RiAlertLine,
   riArchiveDrawerLine: RiArchiveDrawerLine,
   riArchiveLine: RiArchiveLine,
   riArrowDownLine: RiArrowDownLine,
@@ -226,6 +241,16 @@ const RemixIcons = {
   riFileDownloadLine: RiFileDownloadLine,
   riFileTextFill: RiFileTextFill,
   riFileUploadLine: RiFileUploadLine,
+  riFilePdfLine: RiFilePdfLine,
+  riFileWordLine: RiFileWordLine,
+  riFileExcelLine: RiFileExcelLine,
+  riFilePptLine: RiFilePptLine,
+  riFileZipLine: RiFileZipLine,
+  riFileImageLine: RiFileImageLine,
+  riFileMusicLine: RiFileMusicLine,
+  riFileVideoLine: RiFileVideoLine,
+  riFileCodeLine: RiFileCodeLine,
+  riFileTextLine: RiFileTextLine,
   riFlagLine: RiFlagLine,
   riFocus3Line: RiFocus3Line,
   riFolder5Fill: RiFolder5Fill,
@@ -240,6 +265,7 @@ const RemixIcons = {
   riGithubFill: RiGithubFill,
   riGlobalLine: RiGlobalLine,
   riHeading: RiHeading,
+  riHeartLine: RiHeartLine,
   riH1: RiH1,
   riH2: RiH2,
   riH3: RiH3,
@@ -262,6 +288,7 @@ const RemixIcons = {
   riListCheck2: RiListCheck2,
   riListOrdered: RiListOrdered,
   riListUnordered: RiListUnordered,
+  riLoginBoxLine: RiLoginBoxLine,
   riLoader4Line: RiLoader4Line,
   riLockLine: RiLockLine,
   riLockUnlockLine: RiLockUnlockLine,
@@ -289,6 +316,7 @@ const RemixIcons = {
   riSettingsLine: RiSettingsLine,
   riShare2Line: RiShare2Line,
   riShareLine: RiShareLine,
+  riShapesLine: RiShapesLine,
   riUserSharedLine: RiUserSharedLine,
   riHistoryLine: RiHistoryLine,
   riSideBarLine: RiSideBarLine,
@@ -385,7 +413,7 @@ function createSvgIcon(iconName, d, viewBox = '0 0 24 24') {
           fill: this.color,
           xmlns: 'http://www.w3.org/2000/svg',
         },
-        [h('path', { d })]
+        [h('path', { d })],
       );
     },
   });
@@ -395,7 +423,7 @@ const CustomIcons = Object.fromEntries(
   Object.entries(customIconPaths).map(([name, { d, viewBox }]) => [
     name,
     createSvgIcon(name, d, viewBox),
-  ])
+  ]),
 );
 
 export default {
@@ -428,7 +456,7 @@ export default {
             style: `display:inline-block;width:${this.size}px;height:${this.size}px`,
           });
         },
-      })
+      }),
     );
   },
 };

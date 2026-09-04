@@ -20,8 +20,6 @@ import {
   getPointerCoordinates,
 } from './drawHelper.js';
 
-// Helpers
-
 function computeGroupBounds(lines) {
   if (lines.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
 
@@ -74,21 +72,16 @@ function strokeIntersectsRect(stroke, bounds) {
   );
 }
 
-// Composable
-
 export default function useSelectionHelper(
   state,
   svgRef,
   isPointInsideSelection,
   handleTransformStart
 ) {
-  // start
-
   const handleSelectionStart = (e) => {
     if (isPalmTouch(e)) return;
     const [x, y] = getPointerCoordinates(e, svgRef.value);
 
-    // If there's a live selection and the pointer is inside it → move
     if (state.selectedElement && isPointInsideSelection(x, y)) {
       handleTransformStart(e, 'move');
       return;
@@ -98,17 +91,13 @@ export default function useSelectionHelper(
     state.isDrawing = true;
 
     if (state.tool === 'lasso') {
-      // Lasso: accumulate freehand polygon
       state.lassoPoints = [[x, y]];
       state.selectionBox = null;
     } else {
-      // Rect select
       state.selectionBox = { startX: x, startY: y, currentX: x, currentY: y };
       state.lassoPoints = null;
     }
   };
-
-  // move
 
   const handleSelectionMove = (e) => {
     if (isPalmTouch(e) || !state.isDrawing) return;
@@ -120,8 +109,6 @@ export default function useSelectionHelper(
       state.selectionBox = { ...state.selectionBox, currentX: x, currentY: y };
     }
   };
-
-  // end
 
   const handleSelectionEnd = () => {
     if (!state.isDrawing) return;

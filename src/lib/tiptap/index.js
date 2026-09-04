@@ -6,6 +6,11 @@ import StarterKit from '@tiptap/starter-kit';
 import { Highlight } from './exts/highlight';
 import Typography from '@tiptap/extension-typography';
 import Link from '@tiptap/extension-link';
+import { registerCustomProtocol } from 'linkifyjs';
+
+['http', 'https', 'mailto', 'note'].forEach((scheme) =>
+  registerCustomProtocol(scheme)
+);
 import Code from '@tiptap/extension-code';
 import markdownEngine from './exts/markdown-engine';
 import { Paste } from './exts/markdown-engine/paste';
@@ -28,6 +33,7 @@ import Text from '@tiptap/extension-text';
 import CollapseHeading from './exts/collapse-heading';
 import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
 import Dropcursor from '@tiptap/extension-dropcursor';
+import { CharacterCount } from '@tiptap/extensions';
 import {
   blueCallout,
   yellowCallout,
@@ -55,13 +61,13 @@ import FontSize from 'tiptap-extension-font-size';
 import TextAlign from '@tiptap/extension-text-align';
 import Paper from './exts/paper-block';
 import { dropFile } from './exts/drop-file';
-import { getTranslations } from '@/utils/getTranslations';
+import { getTranslations } from '@/utils/i18n/getTranslations';
 import { getSettingSync } from '@/lib/settings';
 const translations = getTranslations();
 
-const directionPreference = getSettingSync('directionPreference');
-
-const defaultDirection = directionPreference === 'rtl' ? 'rtl' : 'ltr';
+function getDefaultDirection() {
+  return getSettingSync('directionPreference') === 'rtl' ? 'rtl' : 'ltr';
+}
 
 function createBaseExtensions({ yjs = false } = {}) {
   return [
@@ -137,12 +143,14 @@ function createBaseExtensions({ yjs = false } = {}) {
     }),
     Superscript,
     TextDirection.configure({
-      defaultDirection: defaultDirection,
+      types: ['heading', 'paragraph', 'blockquote', 'listItem', 'codeBlock'],
+      defaultDirection: getDefaultDirection(),
     }),
     Image,
     Audio,
     SearchAndReplace.configure(),
     TextStyle,
+    CharacterCount,
     TextAlign.configure({
       types: ['heading', 'paragraph'],
     }),
@@ -154,6 +162,8 @@ function createBaseExtensions({ yjs = false } = {}) {
     Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
     Link.extend({
       inclusive: false,
+      onCreate() {},
+      onDestroy() {},
       addKeyboardShortcuts() {
         return {
           'Mod-k': () =>

@@ -3,34 +3,33 @@
     <label
       v-if="label"
       :for="selectId"
-      class="text-neutral-200 text-sm ml-2 rtl:ml-0 rtl:mr-2"
+      :id="`${selectId}-label`"
+      class="text-neutral-600 dark:text-neutral-200 text-sm ltr:ml-2 rtl:mr-2"
     >
       {{ label }}
     </label>
 
     <div
-      class="ui-select__content flex items-center w-full block transition focus-within:ring-1 ring-secondary bg-input rounded-lg appearance-none focus:outline-none relative"
+      class="ui-select__content flex items-center w-full block transition focus-within:ring-1 ring-secondary bg-input rounded-xl appearance-none focus:outline-none relative"
     >
-      <!-- Prepend icon -->
       <v-remixicon
         v-if="prependIcon"
         :name="prependIcon"
-        class="absolute text-neutral-600 dark:text-neutral-200 left-0 ml-2 rtl:left-auto rtl:right-0 rtl:mr-2 rtl:ml-0"
+        class="absolute text-neutral-600 dark:text-neutral-200 ltr:left-0 rtl:right-0 ltr:ml-2 rtl:mr-2"
       />
 
-      <!-- Custom Select Button -->
       <button
         :id="selectId"
         ref="selectButton"
         :class="[
-          prependIcon ? 'pl-8 rtl:pl-0 rtl:pr-8' : '',
-          'px-4 pr-8 py-2 z-10 w-full h-full text-left rtl:text-right bg-transparent focus:outline-none',
+          prependIcon ? 'ltr:pl-8 rtl:pr-8' : '',
+          'px-4 ltr:pr-8 rtl:pl-8 py-2 z-10 w-full h-full ltr:text-left rtl:text-right bg-transparent focus:outline-none',
         ]"
         type="button"
         :aria-labelledby="label ? `${selectId}-label` : undefined"
         :aria-haspopup="true"
         :aria-expanded="isOpen"
-        @click="toggle"
+        @click="toggle(false)"
         @keydown="onKeydown"
         @blur="handleBlur"
       >
@@ -42,84 +41,85 @@
         </span>
       </button>
 
-      <!-- Dropdown Arrow (rotate only when open, not for RTL) -->
       <v-remixicon
         name="riArrowDownSLine"
         :class="{ 'rotate-180': isOpen }"
-        class="absolute right-2 rtl:right-auto rtl:left-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-200 transition-transform duration-200 pointer-events-none"
+        class="absolute ltr:right-2 rtl:left-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-200 transition-transform duration-200 pointer-events-none"
       />
 
-      <!-- Dropdown Menu (teleported so it is never clipped by an
-           overflow/scrolling ancestor like the onboarding modal) -->
       <Teleport to="body">
         <Transition
-          enter-active-class="transition duration-200 ease-[var(--ease-standard)]"
+          :enter-active-class="openedViaKeyboard ? 'transition-none' : 'transition duration-150 ease-out motion-reduce:transition-none'"
           enter-from-class="opacity-0 scale-95"
           enter-to-class="opacity-100 scale-100"
-          leave-active-class="transition duration-150 ease-out"
+          leave-active-class="transition duration-150 ease-out motion-reduce:transition-none"
           leave-from-class="opacity-100 scale-100"
           leave-to-class="opacity-0 scale-95"
         >
           <div
             v-show="isOpen"
             ref="dropdown"
-            :style="[floatingStyles, { width: dropdownWidth ? dropdownWidth + 'px' : 'auto' }]"
-            class="bg-white dark:bg-neutral-900 border rounded-xl shadow-xl z-50 p-1.5 origin-top"
+            :style="floatingStyles"
+            :class="['bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 p-1.5 box-border flex flex-col min-w-0', originClass, menuClass]"
             role="listbox"
-            :aria-activedescendant="focusedIndex >= 0 ? `${selectId}-option-${focusedIndex}` : undefined"
+            :aria-activedescendant="
+              focusedIndex >= 0
+                ? `${selectId}-option-${focusedIndex}`
+                : undefined
+            "
           >
-          <!-- Search Input -->
-          <div v-if="search" class="mb-2">
-            <ui-input
-              ref="searchInput"
-              v-model="searchQuery"
-              type="text"
-              :placeholder="translations.index.search"
-              class="w-full"
-              @keydown="onSearchKeydown"
-            />
+            <div v-if="search" class="mb-2 w-full min-w-0">
+              <ui-input
+                ref="searchInput"
+                v-model="searchQuery"
+                type="text"
+                :placeholder="translations.index?.search || 'Search...'"
+                class="w-full box-border max-w-full"
+                @keydown="onSearchKeydown"
+              />
+            </div>
+
+            <div class="max-h-48 overflow-y-auto space-y-0.5 min-w-0">
+              <div
+                v-if="placeholder && !hideePlaceholderInDropdown"
+                class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-500 transition-colors truncate cursor-pointer"
+                :class="{
+                  'bg-neutral-100 dark:bg-neutral-700': modelValue === '',
+                }"
+                :title="placeholder"
+                @click="select({ value: '', text: placeholder })"
+              >
+                {{ placeholder }}
+              </div>
+
+              <div
+                v-for="(option, index) in filteredOptions"
+                :key="`${option.value}-${index}`"
+                :ref="(el) => setOptionRef(el, index)"
+                :id="`${selectId}-option-${index}`"
+                class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors truncate cursor-pointer"
+                role="option"
+                :title="option.text"
+                :aria-selected="option.value === String(modelValue)"
+                :class="{
+                  'bg-neutral-100 dark:bg-neutral-700':
+                    option.value === String(modelValue) ||
+                    (index === focusedIndex && !option.disabled),
+                  'opacity-50 cursor-not-allowed': option.disabled,
+                }"
+                @click="select(option)"
+              >
+                {{ option.text }}
+              </div>
+
+              <div
+                v-if="search && searchQuery && filteredOptions.length === 0"
+                class="p-1.5 rounded-lg text-neutral-500 text-center text-sm"
+              >
+                {{ translations.index?.notFound || 'No options found' }}
+              </div>
+            </div>
           </div>
-
-          <!-- Options -->
-          <div class="max-h-48 overflow-y-auto space-y-0.5">
-            <div
-              v-if="placeholder && !hideePlaceholderInDropdown"
-              class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-500 transition-colors"
-              :class="{
-                'bg-neutral-100 dark:bg-neutral-700': modelValue === '',
-              }"
-              @click="select({ value: '', text: placeholder })"
-            >
-              {{ placeholder }}
-            </div>
-
-            <div
-              v-for="(option, index) in filteredOptions"
-              :key="`${option.value}-${index}`"
-              :ref="(el) => setOptionRef(el, index)"
-              :id="`${selectId}-option-${index}`"
-              class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-              role="option"
-              :aria-selected="option.value === String(modelValue)"
-              :class="{
-                'bg-neutral-100 dark:bg-neutral-700':
-                  option.value === String(modelValue) ||
-                  (index === focusedIndex && !option.disabled),
-                'opacity-50 cursor-not-allowed': option.disabled,
-              }"
-              @click="select(option)"
-            >
-              {{ option.text }}
-            </div>
-
-            <div
-              v-if="search && searchQuery && filteredOptions.length === 0"
-              class="p-1.5 rounded-lg text-neutral-500 text-center"
-            >
-              {{ translations.index?.notFound || 'No options found' }}
-            </div>
-          </div>
-        </div>
         </Transition>
       </Teleport>
     </div>
@@ -128,7 +128,14 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue';
+import {
+  useFloating,
+  offset,
+  flip,
+  shift,
+  size,
+  autoUpdate,
+} from '@floating-ui/vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useScrollLock } from '@/utils/ui/scrollLock.js';
 
@@ -143,6 +150,10 @@ export default {
     hideePlaceholderInDropdown: {
       type: Boolean,
       default: false,
+    },
+    menuClass: {
+      type: [String, Object, Array],
+      default: '',
     },
     options: {
       type: Array,
@@ -159,12 +170,24 @@ export default {
     const focusedIndex = ref(-1);
     const searchQuery = ref('');
     const optionRefs = ref([]);
-    const dropdownWidth = ref(0);
     const { translations } = useTranslations();
 
-    const { floatingStyles } = useFloating(selectButton, dropdown, {
+    const { floatingStyles, placement } = useFloating(selectButton, dropdown, {
       placement: 'bottom-start',
-      middleware: [offset(6), flip(), shift({ padding: 8 })],
+      middleware: [
+        offset(6),
+        flip(),
+        shift({ padding: 8 }),
+        size({
+          apply({ rects, availableWidth, availableHeight, elements }) {
+            Object.assign(elements.floating.style, {
+              minWidth: `${Math.max(180, rects.reference.width)}px`,
+              maxWidth: `${Math.min(320, availableWidth - 16)}px`,
+              maxHeight: `${Math.min(260, availableHeight - 16)}px`,
+            });
+          },
+        }),
+      ],
       whileElementsMounted: autoUpdate,
     });
 
@@ -180,7 +203,7 @@ export default {
         const focusedElement = optionRefs.value[newIndex];
         if (focusedElement && focusedElement.scrollIntoView) {
           focusedElement.scrollIntoView({
-            block: 'center',
+            block: 'nearest',
             behavior: 'smooth',
           });
         }
@@ -192,7 +215,7 @@ export default {
         return props.options.map((opt) =>
           typeof opt === 'string'
             ? { value: opt, text: opt, disabled: false }
-            : { disabled: false, ...opt }
+            : { disabled: false, ...opt },
         );
       }
 
@@ -225,20 +248,29 @@ export default {
 
       const query = searchQuery.value.toLowerCase();
       return allOptions.value.filter((opt) =>
-        opt.text.toLowerCase().includes(query)
+        opt.text.toLowerCase().includes(query),
       );
     });
 
     const selectedText = computed(() => {
       const option = allOptions.value.find(
-        (opt) => opt.value === String(props.modelValue)
+        (opt) => opt.value === String(props.modelValue),
       );
       return option?.text || '';
     });
 
     const { lock: lockScroll, unlock: unlockScroll } = useScrollLock();
 
-    const toggle = () => {
+    const openedViaKeyboard = ref(false);
+    // ponytail: side-based origin (flip-aware); exact trigger point needs middlewareData, overkill here
+    const originClass = computed(() =>
+      String(placement.value || '').startsWith('top')
+        ? 'origin-bottom-left'
+        : 'origin-top-left',
+    );
+
+    const toggle = (instant = false) => {
+      openedViaKeyboard.value = instant;
       if (!isOpen.value) {
         lockScroll();
       } else {
@@ -246,13 +278,12 @@ export default {
       }
       isOpen.value = !isOpen.value;
       if (isOpen.value) {
-        dropdownWidth.value = selectButton.value?.offsetWidth || 0;
         nextTick(() => {
           searchQuery.value = '';
           optionRefs.value = [];
 
           const currentIndex = filteredOptions.value.findIndex(
-            (opt) => opt.value === String(props.modelValue)
+            (opt) => opt.value === String(props.modelValue),
           );
           focusedIndex.value = Math.max(0, currentIndex);
 
@@ -307,7 +338,7 @@ export default {
       if (!isOpen.value) {
         if (['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(e.key)) {
           e.preventDefault();
-          toggle();
+          toggle(true);
         }
         return;
       }
@@ -399,8 +430,9 @@ export default {
       selectedText,
       filteredOptions,
       optionRefs,
-      dropdownWidth,
       floatingStyles,
+      originClass,
+      openedViaKeyboard,
       translations,
       setOptionRef,
       toggle,
@@ -423,7 +455,6 @@ export default {
   @apply bg-neutral-100 dark:bg-neutral-700;
 }
 
-/* Ensure dropdown is above other elements */
 .ui-select .z-50 {
   z-index: 50;
 }

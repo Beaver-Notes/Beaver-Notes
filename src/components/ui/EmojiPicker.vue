@@ -125,14 +125,14 @@ const emojiCategories = [
     groups: ['Food & Drink'],
   },
   {
-    name: 'Travel & Places',
-    icon: 'riPlaneLine',
-    groups: ['Travel & Places'],
-  },
-  {
     name: 'Activities',
     icon: 'riFootballLine',
     groups: ['Activities'],
+  },
+  {
+    name: 'Travel & Places',
+    icon: 'riPlaneLine',
+    groups: ['Travel & Places'],
   },
   {
     name: 'Objects',
@@ -140,9 +140,20 @@ const emojiCategories = [
     groups: ['Objects'],
   },
   {
-    name: 'Symbols & Flags',
+    name: 'Hearts',
+    icon: 'riHeartLine',
+    groups: ['Smileys & Emotion'],
+    subgroups: ['heart'],
+  },
+  {
+    name: 'Flags',
     icon: 'riFlagLine',
-    groups: ['Symbols', 'Flags'],
+    groups: ['Flags'],
+  },
+  {
+    name: 'Symbols',
+    icon: 'riShapesLine',
+    groups: ['Symbols'],
   },
 ];
 
@@ -213,9 +224,8 @@ export default {
     }
 
     onMounted(() => {
-      // The ~900 KB dataset is only parsed once the picker is actually opened
-      // (parents mount this component conditionally). Rendered natively by the
-      // OS font.
+      // The ~900 KB dataset is parsed only once the picker is opened
+      // (parents mount this conditionally); rendered by the OS font.
       import('emoji.json').then((mod) => {
         const data = mod.default || mod;
         emojis.value = data;

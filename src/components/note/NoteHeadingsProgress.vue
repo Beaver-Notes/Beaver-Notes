@@ -1,6 +1,7 @@
 <template>
   <div class="note-headings-progress">
     <div
+      v-if="visibleHeadings.length"
       class="fixed right-4 top-1/2 -translate-y-1/2 z-40"
       @mouseenter="onEnter"
       @mouseleave="onLeave"
@@ -46,14 +47,15 @@
           @mouseenter="onEnter"
           @mouseleave="onLeave"
         >
-          <div class="p-2 border-b dark:border-neutral-700">
-            <input
-              v-model="search"
-              type="text"
-              :placeholder="translations.noteActions?.searchHeadings || 'Search headings…'"
-              class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary placeholder:text-neutral-400"
-            />
-          </div>
+          <ui-input
+            v-model="search"
+            type="text"
+            :placeholder="
+              translations.noteActions?.searchHeadings || 'Search headings…'
+            "
+            radius="lg"
+            class="w-full p-2 text-sm"
+          />
           <div class="p-2 max-h-80 overflow-y-auto space-y-1 no-scrollbar">
             <button
               v-for="item in filteredHeadings"
@@ -67,7 +69,7 @@
               :style="{ paddingLeft: `${8 + (item.level - 1) * 12}px` }"
               @click="goTo(item)"
             >
-              <span class="text-[10px] w-4 text-right text-neutral-400"
+              <span class="text-xs w-4 text-right text-neutral-400"
                 >H{{ item.level }}</span
               >
               <span class="truncate">{{ item.text }}</span>
@@ -174,7 +176,7 @@ export default {
           el: node,
           text: node.innerText.slice(0, 120),
           level: Number(node.tagName[1]),
-        })
+        }),
       );
       cache();
       update();
@@ -251,10 +253,10 @@ export default {
       if (!pill) return;
       const rail = railRef.value;
       const target = Math.round(
-        pill.offsetTop + pill.offsetHeight / 2 - rail.clientHeight / 2
+        pill.offsetTop + pill.offsetHeight / 2 - rail.clientHeight / 2,
       );
       animateTo(
-        Math.max(0, Math.min(target, rail.scrollHeight - rail.clientHeight))
+        Math.max(0, Math.min(target, rail.scrollHeight - rail.clientHeight)),
       );
     }
 
@@ -274,7 +276,7 @@ export default {
     }
 
     function onEnter() {
-      if (isTouchDevice.value) return;
+      if (!headings.value.length || isTouchDevice.value) return;
       clearTimeout(hoverTimeout);
       showMenu.value = true;
       const r = railRef.value?.getBoundingClientRect();
@@ -296,6 +298,7 @@ export default {
     }
 
     function onClickRail() {
+      if (!headings.value.length) return;
       if (isTouchDevice.value) {
         showMenu.value = !showMenu.value;
       } else if (!showMenu.value) {
@@ -363,7 +366,7 @@ export default {
         requestAnimationFrame(build);
         setupEditorListener();
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     onMounted(() => {

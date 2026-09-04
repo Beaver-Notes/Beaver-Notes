@@ -10,7 +10,9 @@ export function isSpotlightEnabled() {
 function buildSpotItem(note) {
   if (!note || !note.id) return null;
 
-  const snippet = (note.searchText || note.cardPreview || '').substring(0, 300);
+  const rawSnippet = note.searchText || note.preview || '';
+  const snippet =
+    typeof rawSnippet === 'string' ? rawSnippet.substring(0, 300) : '';
 
   return {
     id: note.id,

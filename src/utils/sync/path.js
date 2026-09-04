@@ -29,14 +29,7 @@ async function clearPersistedSyncPath() {
   }
 }
 
-/**
- * Resolve sync path from canonical settings key, falling back to legacy
- * localStorage key. Keeps both locations aligned for backward compatibility.
- *
- * Cached in memory: this is read on every Yjs update (meta + note persistence)
- * and sync cycle, and each read previously cost an IPC round-trip. The only
- * writer is setSyncPath(), which invalidates the cache.
- */
+/** Resolve sync path from settings, fallback legacy key. Cached in memory, only setSyncPath writes. */
 let cachedSyncPath = null;
 
 export async function getSyncPath() {
@@ -64,7 +57,7 @@ export async function getSyncPath() {
 
 export async function setSyncPath(pathValue) {
   const normalized =
-    typeof pathValue === 'string' ? pathValue.trim() : String(pathValue || '');
+    typeof pathValue === 'string' ? pathValue.trim() : (pathValue ?? '');
 
   cachedSyncPath = normalized;
 

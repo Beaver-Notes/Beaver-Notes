@@ -1,29 +1,68 @@
 #[cfg(test)]
 mod characterization {
+    use crate::shared::crypto::keys::{aead_decrypt_bytes, aead_encrypt_bytes};
     use base64::Engine;
-    use crate::shared::crypto::keys::{
-        aead_decrypt_bytes, aead_encrypt_bytes, derive_kek_argon2id,
-    };
 
-    /// Characterization vector for argon2id key derivation (Argon2id t=2,
-    /// m=32MiB, p=2). Bumping ARGON2_MEMORY_KIB changes this — update the vector
-    /// together with the constant.
+    /// Characterization vector for argon2id under the legacy parameters
+    /// (t=2, m=32MiB, p=2), pinned explicitly so bumping module defaults does
+    /// not invalidate it. Pre-bump vaults must derive the same KEK forever.
     #[test]
     fn derive_kek_argon2id_known_vector() {
+        use crate::shared::crypto::keys::derive_kek_argon2id_with_params;
+
         let salt = [0x42u8; 16];
-        let key = derive_kek_argon2id("test-passphrase", &salt).unwrap();
+        let key =
+            derive_kek_argon2id_with_params("test-passphrase", &salt, 32 * 1024, 2, 2).unwrap();
         assert_eq!(
             key,
             [
-                221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46,
-                214, 162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2
+                221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46, 214,
+                162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2
             ]
         );
     }
 
-    /// A vault created under older Argon2id parameters must keep unlocking: the
-    /// KEK is derived from the params stored in the manifest, not the current
-    /// constants.
+    /// derive_argon2_key is sole path for v3 locked notes via legacy migration: pinned to m=32768 KiB/t=2/p=2.
+    #[tokio::test]
+    async fn derive_argon2_key_command_is_pinned_to_legacy_kdf_params() {
+        use crate::commands::security::derive_argon2_key;
+        use crate::shared::crypto::keys::derive_kek_argon2id_with_params;
+
+        let passphrase = "test-passphrase";
+        let salt = [0x42u8; 16];
+
+        let hex_out = derive_argon2_key(passphrase.to_string(), Some(hex::encode(salt)))
+            .await
+            .expect("command derive");
+        let from_command = hex::decode(&hex_out).unwrap();
+
+        // Explicit legacy constants on purpose: module constants would let a
+        // defaults bump silently invalidate every historical note.
+        let expected = derive_kek_argon2id_with_params(passphrase, &salt, 32768, 2, 2).unwrap();
+        assert_eq!(from_command, expected);
+
+        let known_vector: [u8; 32] = [
+            221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46, 214, 162,
+            6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2,
+        ];
+        assert_eq!(from_command, known_vector);
+    }
+
+    /// New vaults must use Amendment 1 KDF parameters (128 MiB, t=3, p=4);
+    /// existing vaults are unaffected (per-vault manifest params).
+    #[test]
+    fn new_manifests_use_amendment1_kdf_params() {
+        use crate::shared::crypto::keys::create_encryption_manifest;
+
+        let (manifest, _data, _kek) =
+            create_encryption_manifest("personal", "check", "correct horse").unwrap();
+        assert_eq!(manifest.argon2_memory_kib, Some(131_072));
+        assert_eq!(manifest.argon2_iterations, Some(3));
+        assert_eq!(manifest.argon2_parallelism, Some(4));
+    }
+
+    /// A vault created under older Argon2id params keeps unlocking: the KEK is
+    /// derived from the manifest's stored params, not current constants.
     #[test]
     fn derive_kek_from_manifest_respects_stored_argon2_params() {
         use crate::shared::crypto::keys::{
@@ -31,8 +70,7 @@ mod characterization {
         };
 
         let passphrase = "test-passphrase";
-        let (mut manifest, _, _) =
-            create_encryption_manifest("app", "check", passphrase).unwrap();
+        let (mut manifest, _, _) = create_encryption_manifest("app", "check", passphrase).unwrap();
         // Simulate a vault created under the previous (16MiB) parameters.
         manifest.argon2_memory_kib = Some(16 * 1024);
         manifest.argon2_iterations = Some(2);
@@ -40,18 +78,57 @@ mod characterization {
 
         let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
         let from_manifest = derive_kek_from_manifest(&manifest, passphrase).unwrap();
-        let expected =
-            derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
+        let expected = derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
         assert_eq!(from_manifest, expected);
     }
 
-    /// Round-trip: a note encrypted for storage can be decrypted back.
+    /// Vault join must derive with stored Argon2 settings: WrongPassword means defaults were used.
+    #[test]
+    fn derive_items_key_from_params_respects_stored_argon2_memory() {
+        use crate::shared::crypto::keys::{
+            create_encryption_manifest, derive_items_key_from_params,
+            derive_kek_argon2id_with_params, encrypt_bytes_with_key, KeyParams, PROTOCOL_VERSION,
+        };
+        use base64::Engine;
+
+        let passphrase = "test-passphrase";
+        let (manifest, data_key, _) =
+            create_encryption_manifest("app", "check", passphrase).unwrap();
+
+        // Simulate a 16 MiB vault: derive a 16 MiB KEK and wrap the same key.
+        let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
+        let kek_16mb = derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
+        let wrapped_16mb = encrypt_bytes_with_key(&kek_16mb, &data_key).unwrap();
+
+        let params = KeyParams {
+            version: PROTOCOL_VERSION,
+            kdf: "argon2id".to_string(),
+            salt_hex: manifest
+                .argon2_salt_hex
+                .clone()
+                .unwrap_or(manifest.salt_hex),
+            argon2_memory_kib: 16 * 1024,
+            argon2_iterations: 2,
+            argon2_parallelism: 2,
+            wrapped_items_key: wrapped_16mb,
+        };
+
+        let (items_key, _kek) = derive_items_key_from_params(&params, passphrase).unwrap();
+        assert_eq!(items_key, data_key);
+
+        // Wrong passphrase still fails cleanly.
+        assert!(matches!(
+            derive_items_key_from_params(&params, "wrong-passphrase"),
+            Err(crate::shared::error::AppError::WrongPassword)
+        ));
+    }
+
     #[test]
     fn note_content_round_trip() {
-        use crate::shared::crypto::keys::{encrypt_note_content_for_storage, decrypt_native_note_content};
+        use crate::shared::crypto::keys::{
+            decrypt_native_note_content, encrypt_note_content_for_storage,
+        };
         use crate::shared::AppState;
-        
-        
 
         let state = AppState::new(std::path::PathBuf::new(), std::path::PathBuf::new(), None);
         // Inject a fake unlocked key + session.
@@ -69,7 +146,6 @@ mod characterization {
         assert_eq!(dec, content);
     }
 
-    /// Asset round-trip: encrypt/decrypt raw bytes with a key.
     #[test]
     fn asset_bytes_round_trip() {
         use crate::shared::crypto::assets::{
@@ -104,9 +180,8 @@ mod characterization {
         ));
     }
 
-    /// Assets written by the non-streaming encryptor (`encrypt_asset_bytes_with_key`,
-    /// used by fs:writeFile and migration) are a single chunk whose length can
-    /// exceed STREAM_CHUNK_SIZE. The streaming decryptor must accept them.
+    /// Non-streaming encryptor output (fs:writeFile, migration) can be a
+    /// single chunk longer than STREAM_CHUNK_SIZE; streaming decrypt must accept.
     #[test]
     fn asset_streaming_decrypt_accepts_large_single_chunk() {
         use crate::shared::crypto::assets::{
@@ -118,10 +193,7 @@ mod characterization {
         let plain = vec![0xABu8; STREAM_CHUNK_SIZE + 1024];
         let enc = encrypt_asset_bytes_with_key(&plain, &key).unwrap();
 
-        let dir = std::env::temp_dir().join(format!(
-            "asset-stream-test-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("asset-stream-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let src = dir.join("large.bin");
         let out = dir.join("large.dec");
@@ -135,7 +207,6 @@ mod characterization {
         assert_eq!(decrypted.unwrap(), plain);
     }
 
-    /// Yjs blob round-trip.
     #[test]
     fn yjs_blob_round_trip() {
         use crate::shared::crypto::assets::{
@@ -147,5 +218,16 @@ mod characterization {
         assert!(is_encrypted_yjs_blob(&enc));
         let dec = decrypt_yjs_blob(&key, &enc).unwrap();
         assert_eq!(dec, data);
+    }
+
+    #[test]
+    fn vault_proof_is_deterministic_and_domain_bound() {
+        use crate::commands::security::vault_proof_impl;
+
+        let a = vault_proof_impl("pw", "ws-1", "blob");
+        let b = vault_proof_impl("pw", "ws-1", "blob");
+        let c = vault_proof_impl("pw", "ws-2", "blob");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
     }
 }

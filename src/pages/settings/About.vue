@@ -31,26 +31,19 @@
           </p>
         </div>
 
-        <!-- Update Status Button / Managed Message -->
-        <div class="flex items-center gap-3">
-          <template v-if="state.managed && state.managedSource !== 'appStore'">
-            <span class="text-xs text-neutral-500 dark:text-neutral-400 max-w-40 text-right">
-              {{ state.updateStatus }}
-            </span>
-          </template>
-          <template v-else-if="!state.managed">
-            <ui-button
-              class="flex items-center justify-center w-10 h-10 transition-all duration-300"
-              :disabled="state.isProcessing"
-              @click="handleUpdateAction"
-            >
-              <v-remixicon
-                :name="getUpdateIcon()"
-                :class="getIconClass()"
-                class="text-lg"
-              />
-            </ui-button>
-          </template>
+        <!-- Update Status Button (hidden when updates are externally managed) -->
+        <div v-if="!state.managed" class="flex items-center gap-3">
+          <ui-button
+            class="flex items-center justify-center w-10 h-10 transition-all duration-300"
+            :disabled="state.isProcessing"
+            @click="handleUpdateAction"
+          >
+            <v-remixicon
+              :name="getUpdateIcon()"
+              :class="getIconClass()"
+              class="text-lg"
+            />
+          </ui-button>
         </div>
       </div>
     </div>
@@ -91,13 +84,12 @@
 
     <section class="bg-input p-4 rounded-xl space-y-3">
       <div>
-        <p class="text-sm font-medium">Show onboarding again</p>
+        <p class="text-sm font-medium">{{ tr.showOnboardingAgain || 'Show onboarding again' }}</p>
         <p class="text-xs text-neutral-500 dark:text-neutral-400">
-          Reopen the first-run migration and setup screen without clearing your
-          current notes.
+          {{ tr.showOnboardingDescription || 'Reopen the first-run migration and setup screen without clearing your current notes.' }}
         </p>
       </div>
-      <ui-button @click="showOnboarding"> Show onboarding </ui-button>
+      <ui-button @click="showOnboarding"> {{ tr.showOnboarding || 'Show onboarding' }} </ui-button>
     </section>
   </div>
 </template>
@@ -107,7 +99,7 @@ const UPDATE_CHECK_DELAY_MS = 1000;
 const UPDATE_DOWNLOAD_DELAY_MS = 1000;
 const INITIAL_UPDATE_CHECK_DELAY_MS = 2000;
 
-import { onMounted, shallowReactive } from 'vue';
+import { onMounted, shallowReactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { setSetting } from '@/lib/settings';
@@ -117,7 +109,6 @@ import {
   checkForUpdates as runUpdateCheck,
   downloadUpdate as runUpdateDownload,
   getAutoUpdateStatus,
-  getInstallationSource,
   installUpdate,
   isUpdateManaged,
   toggleAutoUpdate as setAutoUpdateEnabled,
@@ -127,6 +118,12 @@ export default {
   setup() {
     const router = useRouter();
     const { translations } = useTranslations();
+    const tr = computed(() => translations.value.about || {});
+    function fmt(key, params) {
+      const raw = tr.value[key] ?? key;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
     const links = [
       {
         name: 'website',
@@ -145,13 +142,6 @@ export default {
       },
     ];
 
-    const MANAGED_MESSAGES = {
-      scoop: 'Updates are managed by Scoop. Run scoop update beaver-notes to update.',
-      brew: 'Updates are managed by Homebrew. Run brew upgrade beaver-notes to update.',
-      linuxPackage: 'Updates are managed by your package manager. Use it to update Beaver Notes.',
-      appStore: 'Updates are managed by your app store. Check for updates there.',
-    };
-
     const state = shallowReactive({
       version: '0.0.0',
       autoUpdateEnabled: true,
@@ -160,7 +150,6 @@ export default {
       updateProgress: null,
       updateStatusType: 'idle',
       managed: false,
-      managedSource: null,
     });
 
     const checkForUpdates = async () => {
@@ -258,15 +247,9 @@ export default {
       const bridge = backend;
       if (bridge) {
         try {
-          const managed = await isUpdateManaged();
-          state.managed = managed;
-          const source = await getInstallationSource();
-          state.managedSource = source;
-          if (managed) {
-            state.updateStatus = MANAGED_MESSAGES[source] || 'Updates are managed externally.';
-            state.updateStatusType = 'managed';
-          } else {
-            Object.assign(state, await getAppInfo());
+          Object.assign(state, await getAppInfo());
+          state.managed = await isUpdateManaged();
+          if (!state.managed) {
             state.autoUpdateEnabled = await getAutoUpdateStatus();
           }
         } catch (e) {
@@ -282,6 +265,8 @@ export default {
       state,
       links,
       translations,
+      tr,
+      fmt,
       handleUpdateAction,
       toggleAutoUpdate,
       showOnboarding,

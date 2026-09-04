@@ -2,59 +2,39 @@ import { initSyncEngine, getSyncEngine } from './engine.js';
 import { useStorage } from '@/lib/storage';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
+import { useSyncProgressStore } from '@/store/sync-progress';
 import { getSyncPath } from './path.js';
-import { SYNC_TRANSPORT } from '@/lib/api/types';
+import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types';
 import { LocalFolderTransport } from './transports/local-folder.js';
 import { CloudTransport } from './transports/cloud.js';
 
-function passphraseProvider() {
-  return import('@/utils/crypto/safeStorageBlob.js').then((m) =>
-    m.loadSecureBlob('encryptionPassphraseBlob')
-  ).catch(() => null);
-}
-
 /**
  * Build and start the app sync engine. Autosync is always on: the engine is
- * initialized unconditionally so callers (Settings "Sync now", transport
- * changes) may forceSyncNow at any time without hitting a null engine, and
- * the initial pull plus periodic sync always run. Without a configured sync
- * folder a sync cycle is a no-op.
+ * initialized unconditionally so callers may forceSyncNow anytime without a
+ * null engine; a cycle without a configured target is a no-op.
  */
 export async function initAppSync() {
+  const syncProgressStore = useSyncProgressStore();
+  syncProgressStore.startListening();
+
   initSyncEngine({
     transports: {
-      local: new LocalFolderTransport({ passphraseProvider }),
-      cloud: new CloudTransport({
-        passphraseProvider,
-        getTransportSetting: () => getSettingSync('syncTransport'),
-        getAccountState: () => {
-          const accountStore = useAccountStore();
-          return {
-            isAuth: accountStore.isAuthenticated,
-            plan: accountStore.plan,
-            subscription: accountStore.activeOrg?.subscription ?? accountStore.subscription,
-          };
-        },
-      }),
+      local: new LocalFolderTransport(),
+      cloud: new CloudTransport(),
     },
     storage: useStorage(),
     getActiveTransports: () => {
-      const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
+      const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
       if (transport === SYNC_TRANSPORT.FOLDER) return ['local'];
-      if (transport === SYNC_TRANSPORT.REMOTE) return ['cloud'];
-      return ['local', 'cloud'];
+      return ['cloud'];
     },
   });
 
   const engine = getSyncEngine();
 
-  // Nothing usable is configured — no sync folder, and no authenticated cloud
-  // account — so the engine stays inert. `_runCycle` skips anyway, but we also
-  // skip the initial pull and the 30s timer so unconfigured installs never pay
-  // for them. Once a folder is chosen (or the user signs in and enables cloud)
-  // the engine cycles get triggered on demand / via useAppShell.
+  // Nothing configured (no folder, no cloud account): stay inert, skip pull and timer, cycles on demand.
   const syncPath = await getSyncPath();
-  const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
+  const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
   const wantsCloud = transport !== SYNC_TRANSPORT.FOLDER;
   const accountStore = useAccountStore();
   const hasSyncTarget =
@@ -67,8 +47,6 @@ export async function initAppSync() {
     .forceSyncNow()
     .catch((err) => console.warn('[sync] initial sync failed:', err));
 
-  // Start pull-only timer: polls for remote changes every 30s when visible.
-  // Push remains event-driven (on edit, on foreground wake, on manual trigger).
   engine.startPullTimer();
 
   return engine;

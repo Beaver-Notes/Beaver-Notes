@@ -33,6 +33,7 @@
     "test:e2e:install": "cargo install tauri-webdriver-automation || true",
     "test": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest run",
     "test:sync": "yarn vitest run src/utils/sync/__tests__/remote-bootstrap.spec.js",
+    "test:integration": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest run src/utils/sync/__tests__/integration.spec.js --pool=forks",
     "test:watch": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest",
     "lint": "oxlint --vue-plugin --max-warnings 0 && node scripts/check-composables.mjs",
     "typecheck": "vue-tsc --noEmit",
@@ -40,7 +41,8 @@
     "tran-util": "node scripts/translationUtil.js",
     "tran-update": "node scripts/updateTranslations.js",
     "version:bump": "node scripts/bump-version.mjs",
-    "version:bump:beta": "node scripts/bump-version.mjs"
+    "version:bump:beta": "node scripts/bump-version.mjs",
+    "postinstall": "patch-package || true"
   },
   "simple-git-hooks": {
     "pre-commit": "yarn lint-staged"
@@ -53,6 +55,7 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tauri-apps/cli": "^2",
     "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/test-utils": "^2.4.11",
     "@wdio/cli": "^9.30.0",
     "@wdio/local-runner": "^9.30.0",
     "@wdio/mocha-framework": "^9.30.0",
@@ -62,6 +65,7 @@
     "knip": "^5.83.1",
     "lint-staged": "^15.5.2",
     "oxlint": "^1.73.0",
+    "patch-package": "^8.0.1",
     "postcss": "^8.5.23",
     "postcss-nested": "^6.0.1",
     "sass": "^1.101.6",
@@ -69,7 +73,8 @@
     "typescript": "^5.6.0",
     "vite": "^6.4.3",
     "vitest": "^4.1.10",
-    "vue-tsc": "^3.3.7"
+    "vue-tsc": "^3.3.7",
+    "ws": "^8"
   },
   "dependencies": {
     "@choochmeque/tauri-plugin-biometry-api": "0.2.8",
@@ -83,8 +88,10 @@
     "@speed-highlight/core": "^1.2.17",
     "@tauri-apps/api": "~2.10",
     "@tauri-apps/plugin-clipboard-manager": "^2",
+    "@tauri-apps/plugin-deep-link": "^2",
     "@tauri-apps/plugin-haptics": "~2",
     "@tauri-apps/plugin-notification": "^2",
+    "@tauri-apps/plugin-opener": "^2",
     "@tiptap/core": "^3",
     "@tiptap/extension-code": "^3",
     "@tiptap/extension-code-block": "^3",
@@ -146,6 +153,7 @@
     "vue-router": "^4.0.11",
     "y-prosemirror": "^1.2.6",
     "y-protocols": "^1.0.7",
+    "y-websocket": "^3.1.0",
     "yjs": "^13.6.31"
   },
   "resolutions": {

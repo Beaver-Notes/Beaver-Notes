@@ -35,7 +35,7 @@
         </p>
         <button
           @click="$router.push(`/note/${result?.noteId}`)"
-          class="px-4 py-2 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+          class="px-4 py-2 text-xs font-medium rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
         >
           Open Note
         </button>
@@ -47,7 +47,7 @@
         </p>
         <button
           @click="join"
-          class="px-4 py-2 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+          class="px-4 py-2 text-xs font-medium rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
         >
           Join Note
         </button>

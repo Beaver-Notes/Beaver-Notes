@@ -3,12 +3,12 @@
     <div
       class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex"
       :class="
-        store.inReaderMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'
+        store.inReaderMode ? 'opacity-0 hover:opacity-100 mobile:hidden' : 'opacity-100'
       "
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
-        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
+        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
       >
         <div
           ref="container"
@@ -19,7 +19,6 @@
           <!-- All panels live inside the scroll track so the pill width
              is always driven by the active panel's natural content width -->
 
-          <!-- ── MAIN PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-1.5 whitespace-nowrap h-full',
@@ -27,6 +26,7 @@
             ]"
           >
             <button
+              v-keep-focus
               v-tooltip.group="
                 translations.toolbar?.insertBlock || 'Insert block'
               "
@@ -62,6 +62,7 @@
               :visible-inline-format-items="visibleInlineFormatItems"
               :is-item-visible="isItemVisible"
               :current-text-color="currentTextColor"
+              :current-highlight-hex="currentHighlightHex"
               :tb-btn="tbBtn"
               :open-sub="openSub"
             />
@@ -85,6 +86,7 @@
               <button
                 v-for="t in tableActions"
                 :key="t.name"
+                v-keep-focus
                 v-tooltip.group="t.label"
                 :aria-label="t.label"
                 :class="tbBtn()"
@@ -107,11 +109,7 @@
               :is-table-active="isTableActive"
               :table-actions="tableActions"
               :draw-actions="drawActions"
-              :is-recording="isRecording"
-              :formatted-time="formattedTime"
-              :is-paused="isPaused"
               :toggle-recording="toggleRecording"
-              :pause-resume="pauseResume"
               :is-mobile="isMobile"
               :tb-btn="tbBtn"
               :open-sub="openSub"
@@ -159,19 +157,28 @@
             />
           </div>
 
-          <!-- ── HEADINGS SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('headings'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.headings }}</span>
             <button
+              v-keep-focus
               :class="tbChip(editor.isActive('paragraph'))"
               aria-label="Body"
               @click="
@@ -184,6 +191,7 @@
             <button
               v-for="h in [1, 2, 3, 4]"
               :key="h"
+              v-keep-focus
               :class="tbChip(editor.isActive('heading', { level: h }))"
               :aria-label="'Heading ' + h"
               @click="
@@ -195,14 +203,22 @@
             </button>
           </div>
 
-          <!-- ── FONT SIZE SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('fontSize'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -211,6 +227,7 @@
               class="flex items-center gap-0.5 border border-black/10 dark:border-white/10 rounded-xl px-1 h-[38px] shrink-0"
             >
               <button
+                v-keep-focus
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
                 aria-label="Decrease font size"
                 @click="
@@ -228,6 +245,7 @@
                 @change="updateFontSize"
               />
               <button
+                v-keep-focus
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
                 aria-label="Increase font size"
                 @click="
@@ -242,6 +260,7 @@
             <button
               v-for="size in [10, 12, 14, 16, 18, 20, 24, 28, 32, 36]"
               :key="size"
+              v-keep-focus
               :class="tbChip()"
               :aria-label="'Font size ' + size + 'pt'"
               @click="
@@ -257,6 +276,7 @@
               {{ size }}
             </button>
             <button
+              v-keep-focus
               :class="[tbChip(), 'opacity-60 !text-xs']"
               aria-label="Default font size"
               @click="
@@ -269,19 +289,28 @@
             </button>
           </div>
 
-          <!-- ── COLOR SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('color'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.textColor }}</span>
             <button
+              v-keep-focus
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
               aria-label="Remove text color"
               @click="
@@ -294,6 +323,7 @@
             <button
               v-for="c in textColors"
               :key="'tc-' + c"
+              v-keep-focus
               class="h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
               :style="{ background: c + '33' }"
               :aria-label="'Text color ' + c"
@@ -313,6 +343,7 @@
               translations.menu.highlighterColor
             }}</span>
             <button
+              v-keep-focus
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-[12px] text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
               aria-label="Remove highlight"
               @click="
@@ -325,6 +356,7 @@
             <button
               v-for="(c, i) in highlighterColors"
               :key="'hl-' + c"
+              v-keep-focus
               :class="[
                 'h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 active:scale-95 transition-transform',
                 c,
@@ -337,14 +369,22 @@
             />
           </div>
 
-          <!-- ── LISTS SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('lists'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -352,6 +392,7 @@
             <button
               v-for="l in lists"
               :key="l.name"
+              v-keep-focus
               :class="[tbChip(editor.isActive(l.state)), 'gap-1.5']"
               @click="
                 l.run();
@@ -362,19 +403,28 @@
             </button>
           </div>
 
-          <!-- ── IMAGE SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('image'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.image }}</span>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Upload image"
               @click="
@@ -386,19 +436,28 @@
             </button>
           </div>
 
-          <!-- ── FILE SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('file'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.file }}</span>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Upload file"
               @click="
@@ -410,19 +469,28 @@
             </button>
           </div>
 
-          <!-- ── VIDEO SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('video'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.video }}</span>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Upload video"
               @click="
@@ -434,19 +502,28 @@
             </button>
           </div>
 
-          <!-- ── AUDIO SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('audio'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.record }}</span>
             <button
+              v-keep-focus
               :class="[tbChip(), 'gap-1.5']"
               @click="
                 toggleRecording();
@@ -458,6 +535,7 @@
               }}
             </button>
             <button
+              v-keep-focus
               :class="[tbChip(), 'gap-1.5']"
               @click="
                 triggerAudioInput();
@@ -470,19 +548,28 @@
             </button>
           </div>
 
-          <!-- ── PARAGRAPH / ALIGN SUB-PANEL ── -->
           <div
             :class="[
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('paragraph'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
-            <span class="sub-label">Align</span>
+            <span class="sub-label">{{ translations.toolbar?.align || translations.menu?.paragraph || 'Align' }}</span>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Align left"
               @click="
@@ -493,6 +580,7 @@
               <v-remixicon name="riAlignLeft" />
             </button>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Align center"
               @click="
@@ -503,6 +591,7 @@
               <v-remixicon name="riAlignCenter" />
             </button>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Align right"
               @click="
@@ -513,6 +602,7 @@
               <v-remixicon name="riAlignRight" />
             </button>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Align justify"
               @click="
@@ -526,14 +616,12 @@
         </div>
         <!-- /scroll track -->
 
-        <!-- Left fade edge — hidden when fully scrolled left -->
         <div
-          class="pointer-events-none absolute left-0 inset-y-0 w-8 bg-gradient-to-r from-white dark:from-neutral-800 to-transparent rounded-l-[18px] transition-opacity duration-150"
+          class="pointer-events-none absolute left-0 inset-y-0 w-8 bg-gradient-to-r from-white dark:from-neutral-900 to-transparent rounded-xl transition-opacity duration-150"
           :class="scrolledLeft ? 'opacity-0' : 'opacity-100'"
         />
-        <!-- Right fade edge — hidden when fully scrolled right -->
         <div
-          class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-white dark:from-neutral-800 to-transparent rounded-r-[18px] transition-opacity duration-150"
+          class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-white dark:from-neutral-900 to-transparent rounded-xl transition-opacity duration-150"
           :class="scrolledRight ? 'opacity-0' : 'opacity-100'"
         />
       </div>
@@ -553,7 +641,15 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  nextTick,
+  shallowRef,
+} from 'vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import MobileBlockPicker from './MobileBlockPicker.vue';
 import ToolbarFormatting from './toolbar/ToolbarFormatting.vue';
@@ -568,7 +664,13 @@ import copyImage from '@/utils/assets/storage.js';
 import { saveFile } from '@/utils/assets/storage.js';
 
 export default {
-  components: { ToolbarCustomizer, MobileBlockPicker, ToolbarFormatting, ToolbarInsert, ToolbarOverflow },
+  components: {
+    ToolbarCustomizer,
+    MobileBlockPicker,
+    ToolbarFormatting,
+    ToolbarInsert,
+    ToolbarOverflow,
+  },
   props: {
     editor: { type: Object, default: () => ({}) },
     id: { type: String, default: '' },
@@ -583,40 +685,49 @@ export default {
 
     const showMobileBlockPicker = ref(false);
     const isMobile = backend.isMobileRuntime();
-
     const toolbarInsertRef = ref(null);
 
-    // ── Link input state ────────────────────────────────────────────
     const linkInputValue = ref('');
     const selectedLinkIndex = ref(0);
     const linkPopoverOpen = ref(false);
     const noteStore = useNoteStore();
 
+    // Recompute pool only when notes list changes, not each keystroke: filtering is cheap.
+    const linkCandidates = computed(() => {
+      const notes = noteStore.notes;
+      const currentId = route.params.id;
+      const pool = notes.length > 200 ? notes.slice(0, 200) : notes;
+      return currentId ? pool.filter((n) => n.id !== currentId) : pool;
+    });
+
     const linkSuggestions = computed(() => {
-      if (!linkInputValue.value.startsWith('@')) return [];
-      const query = linkInputValue.value.substring(1).toLowerCase();
+      const raw = linkInputValue.value;
+      if (raw.charCodeAt(0) !== 64 /* '@' */) return [];
+      const query = raw.slice(1).trim().toLowerCase();
       if (!query) return [];
-      const candidates = noteStore.notes.length > 200
-        ? noteStore.notes.slice(0, 200)
-        : noteStore.notes;
-      return candidates
-        .filter(
-          (n) =>
-            n.id !== route.params.id &&
-            (n.title.toLowerCase().includes(query) ||
-              n.id.toLowerCase().includes(query))
-        )
-        .slice(0, 6);
+      const out = [];
+      const pool = linkCandidates.value;
+      for (let i = 0; i < pool.length && out.length < 6; i++) {
+        const n = pool[i];
+        if (
+          n.title.toLowerCase().includes(query) ||
+          n.id.toLowerCase().includes(query)
+        ) {
+          out.push(n);
+        }
+      }
+      return out;
     });
 
     function resolveNoteFromQuery(value) {
-      const query = value.substring(1).trim();
+      const query = value.slice(1).trim();
       if (!query) return null;
-      return (
-        noteStore.notes.find(
-          (n) => n.title.toLowerCase() === query.toLowerCase()
-        ) || noteStore.notes.find((n) => n.id === query)
-      );
+      const lower = query.toLowerCase();
+      const notes = noteStore.notes;
+      for (let i = 0; i < notes.length; i++) {
+        if (notes[i].title.toLowerCase() === lower) return notes[i];
+      }
+      return notes.find((n) => n.id === query) || null;
     }
 
     function saveLinkInput() {
@@ -625,11 +736,9 @@ export default {
 
       const chain = props.editor.chain().focus();
 
-      if (value.startsWith('@')) {
+      if (value.charCodeAt(0) === 64) {
         const note = resolveNoteFromQuery(value);
-        if (note) {
-          chain.insertLinkNote(note.id).run();
-        }
+        if (note) chain.insertLinkNote(note.id).run();
       } else {
         chain.setLink({ href: value }).run();
       }
@@ -652,20 +761,16 @@ export default {
     }
 
     function onLinkPopoverShow() {
-      // Reset input state when popover opens
       linkInputValue.value = '';
       selectedLinkIndex.value = 0;
       nextTick(() => toolbarInsertRef.value?.linkInputRef?.focus());
     }
 
     function onLinkInputKeydown(event) {
-      if (
-        !linkInputValue.value.startsWith('@') ||
-        linkSuggestions.value.length === 0
-      )
-        return;
-
-      const len = linkSuggestions.value.length;
+      if (linkInputValue.value.charCodeAt(0) !== 64) return;
+      const suggestions = linkSuggestions.value;
+      const len = suggestions.length;
+      if (len === 0) return;
 
       if (event.key === 'ArrowUp') {
         event.preventDefault();
@@ -675,13 +780,13 @@ export default {
         selectedLinkIndex.value = (selectedLinkIndex.value + 1) % len;
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        const note = linkSuggestions.value[selectedLinkIndex.value];
+        const note = suggestions[selectedLinkIndex.value];
         if (note) selectLinkNote(note.id);
       }
     }
 
     watch(linkInputValue, (val) => {
-      if (val.startsWith('@')) selectedLinkIndex.value = 0;
+      if (val.charCodeAt(0) === 64) selectedLinkIndex.value = 0;
     });
 
     function getCursorPos() {
@@ -689,12 +794,13 @@ export default {
     }
 
     function insertAtPos(pos, nodeType, attrs) {
-      props.editor.commands.setTextSelection(pos);
-      props.editor.commands.focus();
-      const node = props.editor.state.schema.nodes[nodeType]?.create(attrs);
+      const editor = props.editor;
+      editor.commands.setTextSelection(pos);
+      editor.commands.focus();
+      const node = editor.state.schema.nodes[nodeType]?.create(attrs);
       if (!node) return;
-      const tr = props.editor.state.tr.replaceSelectionWith(node);
-      if (tr) props.editor.view.dispatch(tr);
+      const tr = editor.state.tr.replaceSelectionWith(node);
+      if (tr) editor.view.dispatch(tr);
     }
 
     async function triggerFileInput() {
@@ -706,7 +812,7 @@ export default {
         if (canceled || filePaths.length === 0) return;
         for (const filePath of filePaths) {
           const { fileName, relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'fileEmbed', { src: `${relativePath}`, fileName });
+          insertAtPos(pos, 'fileEmbed', { src: relativePath, fileName });
         }
       } catch (error) {
         console.error('triggerFileInput failed:', error);
@@ -723,14 +829,22 @@ export default {
             : [
                 {
                   name: 'Audio',
-                  extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'],
+                  extensions: [
+                    'mp3',
+                    'wav',
+                    'ogg',
+                    'm4a',
+                    'flac',
+                    'aac',
+                    'wma',
+                  ],
                 },
               ],
         });
         if (canceled || filePaths.length === 0) return;
         for (const filePath of filePaths) {
           const { fileName, relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'Audio', { src: `${relativePath}`, fileName });
+          insertAtPos(pos, 'Audio', { src: relativePath, fileName });
         }
       } catch (error) {
         console.error('triggerAudioInput failed:', error);
@@ -754,7 +868,7 @@ export default {
         if (canceled || filePaths.length === 0) return;
         for (const filePath of filePaths) {
           const { relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'Video', { src: `${relativePath}` });
+          insertAtPos(pos, 'Video', { src: relativePath });
         }
       } catch (error) {
         console.error('triggerVideoInput failed:', error);
@@ -771,22 +885,24 @@ export default {
         });
         if (canceled || filePaths.length === 0) return;
         const { fileName } = await copyImage(filePaths[0], route.params.id);
-        const imgPath = `assets://${route.params.id}/${fileName}`;
-        props.editor.chain().focus().setImage({ src: imgPath }).run();
+        props.editor
+          .chain()
+          .focus()
+          .setImage({ src: `assets://${route.params.id}/${fileName}` })
+          .run();
       } catch (error) {
         console.error('triggerImageInput failed:', error);
       }
     }
 
-    // ── Sub-panel morph ───────────────────────────────────────────
     const activePanel = ref('main');
-    const prevPanel = ref(null);
+    const prevPanel = shallowRef(null);
+    let exitTimer = null;
 
     function openSub(name) {
       if (activePanel.value === name) return;
       prevPanel.value = activePanel.value;
       activePanel.value = name;
-      // scroll track back to start whenever a sub-panel opens
       nextTick(() => {
         if (container.value) container.value.scrollLeft = 0;
       });
@@ -795,7 +911,8 @@ export default {
     function closeSub() {
       prevPanel.value = activePanel.value;
       activePanel.value = 'main';
-      setTimeout(() => {
+      clearTimeout(exitTimer);
+      exitTimer = setTimeout(() => {
         prevPanel.value = null;
       }, 220);
       nextTick(() => {
@@ -809,57 +926,103 @@ export default {
       return 'panel-hidden';
     }
 
-    // ── Scroll-edge fade indicators ───────────────────────────────
+    let swipeX = 0;
+    let swipeY = 0;
+    let swipeEdge = false;
+
+    function onSwipeStart(e) {
+      const t = e.touches ? e.touches[0] : e;
+      if (!t) return;
+      swipeX = t.clientX;
+      swipeY = t.clientY;
+      const target = e.currentTarget;
+      swipeEdge = target?.getBoundingClientRect
+        ? swipeX - target.getBoundingClientRect().left < 32
+        : true;
+    }
+
+    function onSwipeEnd(e) {
+      if (activePanel.value === 'main' || !swipeEdge) return;
+      const t = (e.changedTouches && e.changedTouches[0]) || e;
+      if (!t) return;
+      const dx = t.clientX - swipeX;
+      const dy = t.clientY - swipeY;
+      if (container.value) container.value.scrollLeft = 0;
+      if (dx > 64 && Math.abs(dx) > Math.abs(dy) * 1.6) closeSub();
+      swipeEdge = false;
+    }
+
+    // rAF-throttled + ResizeObserver-driven: at most one recompute per frame,
+    // and width changes (sub-panel swaps) are caught without manual calls.
     const scrolledLeft = ref(true);
     const scrolledRight = ref(false);
 
+    let rafId = null;
     function updateScrollEdges() {
       const el = container.value;
       if (!el) return;
-      scrolledLeft.value = el.scrollLeft <= 2;
-      scrolledRight.value =
-        el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+      const left = el.scrollLeft <= 2;
+      const right = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+      // avoid triggering reactivity/render when nothing actually changed
+      if (scrolledLeft.value !== left) scrolledLeft.value = left;
+      if (scrolledRight.value !== right) scrolledRight.value = right;
     }
+
+    function scheduleUpdateScrollEdges() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateScrollEdges();
+      });
+    }
+
+    let resizeObserver = null;
 
     onMounted(() => {
       nextTick(() => {
         const el = container.value;
         if (!el) return;
-        el.addEventListener('scroll', updateScrollEdges, { passive: true });
+        el.addEventListener('scroll', scheduleUpdateScrollEdges, {
+          passive: true,
+        });
+        resizeObserver = new ResizeObserver(scheduleUpdateScrollEdges);
+        resizeObserver.observe(el);
         updateScrollEdges();
       });
     });
 
     onUnmounted(() => {
-      container.value?.removeEventListener('scroll', updateScrollEdges);
+      container.value?.removeEventListener('scroll', scheduleUpdateScrollEdges);
+      resizeObserver?.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      clearTimeout(exitTimer);
     });
 
-    // ── Class helpers (keeps template tidy) ───────────────────────
+    // Static class strings, hoisted out of the function body
+    const TB_BTN_BASE =
+      'shrink-0 w-11 h-11 rounded-xl border-0 bg-transparent cursor-pointer ' +
+      'flex items-center justify-center ' +
+      'text-neutral-500 dark:text-neutral-400 ' +
+      'hover:bg-black/[0.06] dark:hover:bg-white/[0.08] ' +
+      'hover:text-neutral-800 dark:hover:text-white ' +
+      'active:scale-[0.97] active:bg-black/[0.08] dark:active:bg-white/[0.10] ' +
+      'transition-[transform,background-color] duration-150 select-none touch-manipulation';
+
+    const TB_CHIP_BASE =
+      'shrink-0 h-[38px] px-3 rounded-xl border-0 bg-transparent cursor-pointer ' +
+      'text-[13px] font-medium flex items-center ' +
+      'text-neutral-500 dark:text-neutral-400 ' +
+      'hover:bg-black/[0.06] dark:hover:bg-white/[0.08] ' +
+      'hover:text-neutral-800 dark:hover:text-white ' +
+      'active:scale-[0.97] active:bg-black/[0.08] ' +
+      'transition-[transform,background-color] duration-150 select-none touch-manipulation';
+
     function tbBtn(active = false) {
-      return [
-        // 44 px tap target per HIG / Material guidelines
-        'shrink-0 w-11 h-11 rounded-xl border-0 bg-transparent cursor-pointer',
-        'flex items-center justify-center',
-        'text-neutral-500 dark:text-neutral-400',
-        'hover:bg-black/[0.06] dark:hover:bg-white/[0.08]',
-        'hover:text-neutral-800 dark:hover:text-white',
-        'active:scale-[0.88] active:bg-black/[0.08] dark:active:bg-white/[0.10]',
-        'transition-[transform,background-color] duration-150 select-none touch-manipulation',
-        active ? 'is-active' : '',
-      ];
+      return active ? TB_BTN_BASE + ' is-active' : TB_BTN_BASE;
     }
 
     function tbChip(active = false) {
-      return [
-        'shrink-0 h-[38px] px-3 rounded-xl border-0 bg-transparent cursor-pointer',
-        'text-[13px] font-medium flex items-center',
-        'text-neutral-500 dark:text-neutral-400',
-        'hover:bg-black/[0.06] dark:hover:bg-white/[0.08]',
-        'hover:text-neutral-800 dark:hover:text-white',
-        'active:scale-[0.93] active:bg-black/[0.08]',
-        'transition-[transform,background-color] duration-150 select-none touch-manipulation',
-        active ? 'is-active' : '',
-      ];
+      return active ? TB_CHIP_BASE + ' is-active' : TB_CHIP_BASE;
     }
 
     return {
@@ -872,6 +1035,8 @@ export default {
       tbChip,
       scrolledLeft,
       scrolledRight,
+      onSwipeStart,
+      onSwipeEnd,
       triggerFileInput,
       triggerAudioInput,
       triggerVideoInput,
@@ -895,7 +1060,7 @@ export default {
 </script>
 
 <style scoped>
-/* ── Hide scrollbar on all browsers while keeping scroll functionality ── */
+/* Hide scrollbar on all browsers while keeping scroll functionality */
 .scrollbar-hide {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */
@@ -904,13 +1069,13 @@ export default {
   display: none; /* Chrome/Safari/WebKit */
 }
 
-/* ── Panel morph animation states ─────────────────────────────────────── */
 .tb-panel {
   max-width: min(calc(100vw - 2rem), 42rem);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  transition: opacity 200ms var(--ease-standard),
+  transition:
+    opacity 200ms var(--ease-standard),
     transform 200ms var(--ease-standard);
   will-change: opacity, transform;
   -webkit-overflow-scrolling: touch;
@@ -920,17 +1085,16 @@ export default {
   display: none;
 }
 
-/* Hidden: shifted right, invisible, out of flow */
 .panel-hidden {
   @apply absolute inset-0 opacity-0 pointer-events-none;
   transform: translateX(16px);
 }
 
-/* Exiting: shifts left and fades out */
 .panel-exit {
   @apply absolute inset-0 opacity-0 pointer-events-none;
-  transform: translateX(-16px);
-  transition: opacity 160ms var(--ease-standard),
+  transform: translateX(16px);
+  transition:
+    opacity 160ms var(--ease-standard),
     transform 160ms var(--ease-standard);
 }
 
@@ -940,35 +1104,30 @@ export default {
   transform: translateX(0);
 }
 
-/* ── Active state color (uses app's --color-primary / --color-secondary) ── */
 .is-active {
   @apply text-primary dark:text-secondary bg-primary/10 dark:bg-secondary/10;
 }
 
-/* ── Back button ────────────────────────────────────────────────────────── */
 .tb-back {
   @apply shrink-0 h-11 w-9 rounded-xl border-0 bg-transparent cursor-pointer
          flex items-center justify-center
          text-neutral-500 dark:text-neutral-400
          hover:bg-black/5 dark:hover:bg-white/10
          hover:text-neutral-800 dark:hover:text-white
-         active:scale-90
+         active:scale-[0.97]
          transition-[transform,background-color] duration-150 select-none touch-manipulation;
 }
 
-/* ── Divider ────────────────────────────────────────────────────────────── */
 .tb-divider {
   @apply inline-block w-px h-5 rounded-sm shrink-0 mx-1
          bg-black/10 dark:bg-white/[0.12];
 }
 
-/* ── Sub-panel section label ────────────────────────────────────────────── */
 .sub-label {
-  @apply px-1 shrink-0 select-none text-[10px] font-semibold uppercase tracking-wider
-         text-neutral-400 dark:text-neutral-500;
+  @apply px-1 shrink-0 select-none text-xs font-semibold tracking-wider
+         text-neutral-500 dark:text-neutral-400;
 }
 
-/* ── URL text input ─────────────────────────────────────────────────────── */
 .tb-input {
   @apply h-10 min-w-[10rem] max-w-[14rem] px-3
          rounded-xl border border-black/10 dark:border-white/10
@@ -979,7 +1138,7 @@ export default {
          transition-colors duration-150;
 }
 
-/* ── Remove number input spinners ────────────────────────────────────────── */
+/* Remove number input spinners */
 .no-spinner::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button {
   -webkit-appearance: none;

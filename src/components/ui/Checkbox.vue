@@ -1,7 +1,7 @@
 <template>
   <label class="checkbox-ui inline-flex items-center">
     <div
-      class="relative h-5 w-5 inline-block focus-within:ring-1 ring-secondary rounded-lg"
+      class="relative h-5 w-5 inline-block focus-within:ring-1 ring-secondary rounded-xl"
     >
       <input
         type="checkbox"
@@ -11,7 +11,7 @@
         @change="changeHandler"
       />
       <div
-        class="border rounded-lg absolute top-0 left-0 bg-input checkbox-ui__mark"
+        class="border rounded-xl absolute top-0 ltr:left-0 rtl:right-0 bg-input checkbox-ui__mark"
       >
         <v-remixicon
           name="riCheckLine"

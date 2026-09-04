@@ -3,18 +3,18 @@ import { ref } from 'vue';
 
 const MAX_STACK = 50;
 
-interface BulkDeleteItem {
+export interface BulkDeleteItem {
   type: 'note' | 'folder';
   data: Record<string, unknown>;
 }
 
-interface NoteRef {
+export interface NoteRef {
   id: string;
   prev?: boolean;
   prevFolderId?: string | null;
 }
 
-interface FolderRef {
+export interface FolderRef {
   id: string;
   prev?: boolean;
   prevParentId?: string | null;
@@ -74,46 +74,83 @@ export const useUndoStore = defineStore('undo', () => {
 
     switch (action.type) {
       case 'bulk-delete': {
-        for (const item of action.items!) {
-          if (item.type === 'note') {
-            item.data.isLocked = false;
-            await noteStore.add(item.data);
-          } else if (item.type === 'folder') {
+        startBatch();
+        try {
+          // folders before notes, and retry until parents exist (depth-order)
+          const items = [...(action.items || [])];
+          const folders = items.filter((i) => i.type === 'folder');
+          const notes = items.filter((i) => i.type === 'note');
+          // sort folders by parent depth (parents first) to restore hierarchy correctly
+          const folderIds = new Set(folders.map((f) => f.data.id as string));
+          let pending = [...folders];
+          let progress = true;
+          while (pending.length && progress) {
+            progress = false;
+            const next: BulkDeleteItem[] = [];
+            for (const item of pending) {
+              const parentId = (item.data.parentId as string | null) ?? null;
+              if (parentId === null || !folderIds.has(parentId) || folderStore.getById(parentId)) {
+                try {
+                  await folderStore.add(item.data);
+                } catch (error) {
+                  console.warn('[undo] failed to restore folder', item.data.id, error);
+                }
+                progress = true;
+              } else {
+                next.push(item);
+              }
+            }
+            pending = next;
+          }
+          // Fallback for leftovers (circular/missing parent): try anyway.
+          for (const item of pending) {
             try {
-              await folderStore.add(item.data);
+              await folderStore.add({ ...item.data, parentId: null } as Record<string, unknown>);
             } catch (error) {
-              console.warn('[undo] failed to restore folder', item.data.id, error);
+              console.warn('[undo] fallback restore failed', item.data.id, error);
             }
           }
+          for (const item of notes) {
+            item.data.isLocked = false;
+            await noteStore.add(item.data);
+          }
+
+          for (const { id, prevFolderId } of action.notes ?? []) {
+            await noteStore.update(id, { folderId: prevFolderId });
+          }
+
+          for (const { id, prevParentId } of action.folders ?? []) {
+            await folderStore.update(id, { parentId: prevParentId });
+          }
+        } finally {
+          cancelBatch();
         }
         break;
       }
       case 'toggle-bookmark': {
-        for (const { id, prev } of action.notes!) {
-          await noteStore.update(id, { isBookmarked: prev });
-        }
+        startBatch();
+        try {
+          for (const { id, prev } of action.notes!) await noteStore.update(id, { isBookmarked: prev });
+        } finally { cancelBatch(); }
         break;
       }
       case 'toggle-archive': {
-        for (const { id, prev } of action.notes!) {
-          await noteStore.update(id, { isArchived: prev });
-        }
-        for (const { id, prev } of action.folders!) {
-          if (prev) {
-            await folderStore.unarchive(id);
-          } else {
-            await folderStore.archive(id);
+        startBatch();
+        try {
+          for (const { id, prev } of action.notes!) await noteStore.update(id, { isArchived: prev });
+          for (const { id, prev } of action.folders!) {
+            if (prev) await folderStore.archive(id);
+            else await folderStore.unarchive(id);
           }
-        }
+        } finally { cancelBatch(); }
         break;
       }
       case 'move': {
-        for (const { id, prevFolderId } of action.notes!) {
-          await noteStore.update(id, { folderId: prevFolderId });
-        }
-        for (const { id, prevParentId } of action.folders!) {
-          await folderStore.update(id, { parentId: prevParentId });
-        }
+        startBatch();
+        try {
+          for (const { id, prevFolderId } of action.notes!) await noteStore.update(id, { folderId: prevFolderId });
+          for (const { id, prevParentId } of action.folders!) await folderStore.update(id, { parentId: prevParentId });
+        } finally { cancelBatch(); }
         break;
       }
     }

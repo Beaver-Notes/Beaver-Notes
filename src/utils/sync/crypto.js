@@ -11,14 +11,8 @@ import {
 import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
 import { ENCRYPTED_ASSET_EXT } from './constants.js';
 
-// Encryption now runs entirely in Rust. The renderer never sees the items key:
-// it only asks the backend to encrypt/decrypt payloads with an AAD binding.
-//
-// Sync payloads carry the Yjs update as raw bytes: the JS layer sends the update
-// as base64 (`data`) alongside a small `meta` object (`{device, ts, seq,
-// noteId}`), and the backend encrypts the raw bytes directly. This avoids the
-// old `update: Array.from(bytes)` + JSON.stringify/serde round-trip on a huge
-// number array, which cost ~950ms per multi-MB sync file.
+// Encryption runs in Rust, renderer never sees items key: backend encrypts with AAD binding.
+// Payloads carry Yjs update as base64 data plus meta, never JSON number arrays.
 
 export async function ensureSyncKeyReadyForWrite() {
   const ready = await syncKeyReady().catch(() => false);
@@ -66,6 +60,7 @@ export async function decryptJSON(raw, aad = '') {
       return { ...res.meta, update: base64ToBuf(res.update) };
     } catch (e) {
       const msg = String(e?.message ?? e);
+      if (import.meta.env.DEV) console.warn('[sync][debug] decryptJSON v4/v5 failed:', msg, 'aad:', aad);
       if (msg.includes('KEY_LOCKED')) {
         throw new SyncCryptoError(
           'Encryption is locked. Unlock it in Settings to sync.',
@@ -85,23 +80,20 @@ export async function decryptJSON(raw, aad = '') {
   return parsed;
 }
 
-/**
- * Batch-decrypt an array of sync envelopes in a single IPC call.
- * Returns an array of {meta, update} objects; failed items are `null`.
- */
+/** Batch-decrypt sync envelopes in one IPC call; failed items are `null`. */
 export async function decryptBatch(rawEnvelopes, aads) {
   if (!rawEnvelopes.length) return [];
   const results = await syncDecryptBatch(rawEnvelopes, aads);
+  const nullCount = results.filter((r) => !r).length;
+  if (nullCount > 0 && import.meta.env.DEV) {
+    console.warn(`[sync][debug] decryptBatch: ${nullCount}/${results.length} items returned null from Rust`);
+  }
   return results.map((res) => {
     if (!res) return null;
     return { ...res.meta, update: base64ToBuf(res.update) };
   });
 }
 
-/**
- * Batch-encrypt an array of sync payloads in a single IPC call.
- * Each payload is {update, ...meta}. Returns an array of encrypted envelope strings.
- */
 export async function encryptBatch(payloads, aads) {
   if (!payloads.length) return [];
   await ensureSyncKeyReadyForWrite();
@@ -113,6 +105,8 @@ export async function encryptBatch(payloads, aads) {
   return syncEncryptBatch(metas, dataB64s, aads);
 }
 
+// Sync key lifecycle is managed entirely by the Rust backend (safeStorage).
+// @deprecated This is a no-op kept for backward compatibility with dynamic imports.
 export function clearSyncKey() {}
 
 export function syncAssetName(localFilename) {

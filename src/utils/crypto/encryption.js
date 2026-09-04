@@ -78,10 +78,16 @@ export async function setupEncryption(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    reconcileSyncKeyParams().catch(() => {});
-    import('@/utils/sync/vault-key-params.js')
-      .then((m) => m.publishCloudKeyParams())
-      .catch(() => {});
+    // Fetch server key params FIRST so reconcile adopts the vault owner's keys
+    // instead of overwriting the server with this device's own.
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    await fetchCloudKeyParams().catch(() => null);
+    // Adopt server keys now, else writes use fresh local key until first reconcile.
+    await reconcileSyncKeyParams(passphrase).catch(() => {});
+    // NEVER auto-publish key params here.  If fetchCloudKeyParams returned null
+    // (workspace not loaded, network glitch, 404), publishCloudKeyParams would
+    // overwrite the vault owner's keys with this device's freshly-generated key.
+    // Key params are published only by seedCloudOnce and adoptVaultKey.
     return { ok: true };
   } catch (err) {
     console.error('[encryption] setup failed:', err);
@@ -102,14 +108,16 @@ export async function verifyPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    reconcileSyncKeyParams(passphrase).catch(() => {});
-    import('@/utils/sync/vault-key-params.js')
-      .then((m) => m.publishCloudKeyParams())
-      .catch(() => {});
+    // Same sequence as setupEncryption: fetch server params, adopt with the
+    // passphrase, never auto-publish (see setupEncryption).
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    await fetchCloudKeyParams().catch(() => null);
+    await reconcileSyncKeyParams(passphrase).catch(() => {});
     return { ok: true };
   } catch (err) {
-    console.error('[encryption] verify failed:', err);
-    return { ok: false, error: err?.message || String(err) };
+    const msg = err?.message || String(err);
+    console.error('[encryption] verify failed:', msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -128,6 +136,11 @@ export async function adoptVaultKey(passphrase, keyParams) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
+    // Discard pre-adoption pending writes: encrypted with old key, never flush.
+    try {
+      const { clearPendingWrites } = await import('@/utils/sync/pending-writes.js');
+      clearPendingWrites();
+    } catch {}
     return { ok: true };
   } catch (err) {
     console.error('[encryption] vault adopt failed:', err);
@@ -149,15 +162,15 @@ export async function tryRestoreKeyFromSafeStorage() {
 
 async function _doRestoreKey() {
   const next = await refreshState();
-  if (!next?.enabled || next?.unlocked) {
-    return !!next?.unlocked;
-  }
 
+  if (next?.unlocked) return true;
+
+  // State may report disabled before passphrase resubmitted: saved blob proves setup, try restore.
   let passphrase;
   try {
     passphrase = await loadSecureBlob(BLOB_KEY);
-  } catch (err) {
-    console.warn('[encryption] _doRestoreKey: loadSecureBlob failed:', err);
+  } catch {
+    // No blob or storage unavailable: encryption never set up.
     return false;
   }
   if (!passphrase) return false;
@@ -166,7 +179,7 @@ async function _doRestoreKey() {
   if (!result.ok) {
     console.warn(
       '[encryption] _doRestoreKey: verifyPassphrase failed:',
-      result.error
+      result.error || 'Unknown error'
     );
     return false;
   }
@@ -202,25 +215,19 @@ export async function decryptContent(contentVal) {
       '[encryption] decryptContent: decrypted payload is not valid JSON',
       e
     );
-    throw new Error('Decrypted note content is corrupted — JSON parse failed');
+    throw new Error('Decrypted note content is corrupted: JSON parse failed');
   }
 }
 
-/**
- * True when `contentVal` is an app-key encrypted note envelope in ANY format
- * we can still decrypt (`ae:3` legacy JSON bytes, `ae:6` raw bytes). Used by
- * `decryptContent` and the import-time conversion — the runtime never holds
- * legacy envelopes.
- */
+/** True when contentVal is decryptable app-key envelope (ae:3 legacy, ae:6 raw). Runtime never holds legacy. */
 export function isAppEncryptedEnvelope(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
   return contentVal.ae === 3 || contentVal.ae === 6;
 }
 
 /**
- * Runtime detection of encrypted note content. Yjs is the only content store,
- * so only the current raw-byte envelope (`ae:6`) can appear at runtime; the
- * legacy `ae:1/2/3` formats only exist inside import conversion, never here.
+ * Runtime detection of encrypted note content. Only the raw-byte envelope
+ * (`ae:6`) appears at runtime; legacy `ae:1/2/3` exist only in import conversion.
  */
 export function isEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
@@ -237,7 +244,6 @@ export async function lockEncryptionKey() {
   } catch {}
 }
 
-// Re-exports for sync/crypto.js
 export { encryptContent as encryptPayload, decryptContent as decryptPayload };
 
 export async function generateRecoveryCode() {

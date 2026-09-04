@@ -43,6 +43,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          vue: ['vue', 'vue-router', 'pinia'],
+          yjs: ['yjs', 'y-prosemirror', 'lib0'],
           editor: ['@tiptap/core', 'prosemirror-model', 'prosemirror-view'],
           'beautiful-mermaid': ['beautiful-mermaid'],
           katex: ['katex'],

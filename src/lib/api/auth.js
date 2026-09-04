@@ -262,12 +262,14 @@ export async function passwordLogin(email, password, { baseUrl, signal } = {}) {
 export async function passwordRegister(
   email,
   password,
-  { baseUrl, signal, kemPublicKey } = {}
+  { baseUrl, signal, kemPublicKey, username } = {}
 ) {
   const client = getClient(baseUrl);
+  const payload = { email, password, kemPublicKey };
+  if (typeof username === 'string' && username.trim()) payload.username = username.trim().slice(0, 50);
   return client.post(
     '/auth/register',
-    { email, password, kemPublicKey },
+    payload,
     { signal }
   );
 }
@@ -327,9 +329,24 @@ export async function verifySession({ baseUrl, signal } = {}) {
   return client.post('/auth/verify-session', {}, { signal });
 }
 
-export async function setKeypair(kemPublicKey, { baseUrl, signal } = {}) {
+export async function setKeypair(kemPublicKey, { deviceId, baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
-  return client.post('/auth/keypair', { kemPublicKey }, { signal });
+  return client.post('/auth/keypair', { kemPublicKey, deviceId }, { signal });
+}
+
+export async function recoverAccount(email, code, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/recover', { email, code }, { signal, auth: false });
+}
+
+export async function requestPasswordReset(email, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/password/reset-request', { email }, { signal, auth: false });
+}
+
+export async function completePasswordReset(token, newPassword, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/password/reset-complete', { token, newPassword, password: newPassword }, { signal, auth: false });
 }
 
 export const webauthn = {

@@ -1,10 +1,9 @@
 <template>
-  <!-- Desktop -->
   <div
     ref="container"
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-lg shadow-sm no-print max-w-content mobile:hidden"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-xl shadow-sm no-print max-w-content mobile:hidden"
     :class="{
-      'opacity-0 hover:opacity-100 transition-opacity': store.inReaderMode,
+      'opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity': store.inReaderMode,
     }"
     @wheel.passive="changeWheelDirection"
   >
@@ -221,6 +220,19 @@
           />
         </div>
 
+        <button
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          :class="{ 'text-primary': note.showWordCount }"
+          @click="toggleWordCount"
+        >
+          <v-remixicon name="riParagraph" />
+          <span
+            class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
+          >
+            {{ translations.noteActions?.wordCount || 'Word count' }}
+          </span>
+        </button>
+
         <hr class="border-t my-1 border-neutral-200 dark:border-neutral-700" />
 
         <!-- Copy note content -->
@@ -245,13 +257,12 @@
     </div>
   </div>
 
-  <!-- Mobile -->
   <div
     ref="shellRef"
     class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white/90 dark:bg-neutral-900/90 top-0 mb-4 hidden mobile:flex"
     :style="shellStyle"
   >
-    <div class="flex w-full items-center justify-between p-1.5">
+    <div class="flex w-full items-center justify-between">
       <button
         aria-label="Back"
         class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
@@ -283,7 +294,7 @@
         <button
           :aria-label="translations.menu.share"
           class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
-          @click="showShareDialog = true"
+          @click="showShareModal = true"
         >
           <v-remixicon name="riShare2Line" />
         </button>
@@ -315,44 +326,7 @@
     </div>
   </div>
 
-  <!-- Share modal (mobile only)  -->
-  <ui-modal v-model="showShareDialog" content-class="max-w-sm">
-    <template #header>
-      <h3 class="text-lg font-semibold">
-        {{ translations.menu.share || 'Share' }}
-      </h3>
-    </template>
-
-    <ui-list class="p-2">
-      <ui-list-item
-        v-if="isAuthenticated"
-        tag="button"
-        class="gap-3 text-left"
-        @click="showShareModal = true"
-      >
-        <v-remixicon name="riUserSharedLine" />
-        <span class="min-w-0 flex-1">
-          <span class="block text-sm font-medium">{{
-            translations.share?.collaborate || 'Collaborate'
-          }}</span>
-        </span>
-      </ui-list-item>
-      <ui-list-item
-        v-for="s in shareActions"
-        :key="s.name"
-        tag="button"
-        class="gap-3 text-left"
-        @click="s.handler"
-      >
-        <v-remixicon :name="s.icon" />
-        <span class="min-w-0 flex-1">
-          <span class="block text-sm font-medium">{{ s.title }}</span>
-        </span>
-      </ui-list-item>
-    </ui-list>
-  </ui-modal>
-
-  <share-modal v-model="showShareModal" :note-id="id" />
+  <share-modal v-model="showShareModal" :note-id="id" :share-actions="shareActions" />
   <history-panel
     v-if="showHistory"
     :note-id="id"
@@ -364,7 +338,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
-import { usePasswordStore } from '@/store/passwd';
 import { useClipboard } from '@/composable/clipboard';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
@@ -399,7 +372,6 @@ export default {
     const noteStore = useNoteStore();
     const accountStore = useAccountStore();
     const shellRef = ref(null);
-    const showShareDialog = ref(false);
     const showShareModal = ref(false);
     const isStuck = ref(false);
     const { copyState, copyToClipboard } = useClipboard();
@@ -414,63 +386,33 @@ export default {
     );
 
     function lockNote() {
-      const passwordStore = usePasswordStore();
-      const noteStore = useNoteStore();
       const dialog = useDialog();
+      const noteStore = useNoteStore();
       const { translations } = useTranslations();
       const t = translations.value.card;
       const dlg = translations.value.dialog;
       const settings = translations.value.settings;
 
-      passwordStore.retrieve().then((hasSharedKey) => {
-        if (!hasSharedKey) {
-          dialog.prompt({
-            title: t.enterPasswd || 'Set a password',
-            okText: t.setKey || 'Set Key',
-            body: t.warning || 'Set a password to lock this note.',
-            cancelText: t.cancel || 'Cancel',
-            placeholder: t.password || 'Password',
-            onConfirm: async (newKey) => {
-              if (newKey) {
-                try {
-                  await passwordStore.setAppPassword(newKey);
-                  await verifyPassphrase(newKey);
-                  await noteStore.lockNote(props.note.id, newKey);
-                } catch {
-                  dialog.alert({
-                    title: t.keyFail || 'Error',
-                    body: t.keyFail || 'Failed to lock note.',
-                    okText: dlg?.close || 'Close',
-                  });
-                }
-              }
-            },
-          });
-        } else {
-          dialog.prompt({
-            title: t.enterPasswd || 'Enter password',
-            body:
-              t.warning ||
-              'Warning, if you forget your password, you will lose access to your locked notes.',
-            icon: 'riLockLine',
-            okText: t.lock || 'Lock',
-            cancelText: t.cancel || 'Cancel',
-            placeholder: t.password || 'Password',
-            onConfirm: async (enteredPassword) => {
-              const isValid =
-                await passwordStore.isValidPassword(enteredPassword);
-              if (isValid) {
-                await noteStore.lockNote(props.note.id, enteredPassword);
-              } else {
-                dialog.alert({
-                  title: settings?.alertTitle || 'Alert',
-                  body: t.wrongPasswd || 'Wrong password.',
-                  okText: dlg?.close || 'Close',
-                });
-              }
-            },
-          });
-        }
+      dialog.prompt({
+        title: t.enterPasswd || 'Enter passphrase',
+        body: t.warning || 'Enter your workspace passphrase to lock this note.',
+        icon: 'riLockLine',
+        okText: t.lock || 'Lock',
+        cancelText: t.cancel || 'Cancel',
+        placeholder: t.password || 'Passphrase',
+        password: true,
+        onConfirm: async (enteredPassword) => {
+          const result = await verifyPassphrase(enteredPassword);
+          if (result.ok) {
+            await noteStore.lockNote(props.note.id);
+          } else {
+            dialog.alert({
+              title: settings?.alertTitle || 'Alert',
+              body: result.error || t.wrongPasswd || 'Wrong passphrase.',
+              okText: dlg?.close || 'Close',
+            });
+          }
+        },
       });
     }
 
@@ -489,6 +431,12 @@ export default {
     function toggleFullWidth() {
       noteStore.update(props.note.id, {
         isFullWidth: !props.note.isFullWidth,
+      });
+    }
+
+    function toggleWordCount() {
+      noteStore.update(props.note.id, {
+        showWordCount: !props.note.showWordCount,
       });
     }
 
@@ -534,10 +482,10 @@ export default {
       toggleBookmark,
       toggleArchive,
       toggleFullWidth,
+      toggleWordCount,
       copyNoteContent,
       lockNote,
       syncStickyState,
-      showShareDialog,
       showShareModal,
       isAuthenticated,
       showCollaboration,
@@ -569,7 +517,7 @@ input[type='number'] {
 
 .editor-actions-mobile-shell {
   transition:
-    box-shadow 180ms ease,
-    background-color 180ms ease;
+    box-shadow var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
 }
 </style>

@@ -8,7 +8,7 @@
       'opacity-40 grayscale pointer-events-none': isDisabled,
     }"
     :style="{
-      paddingLeft: level * 16 + 12 + 'px',
+      paddingInlineStart: level * 16 + 12 + 'px',
       backgroundColor: isSelected
         ? `${folder.color || '#6366f1'}1A`
         : 'transparent',
@@ -21,24 +21,25 @@
   >
     <div
       v-if="level > 0"
-      class="absolute left-0 top-0 bottom-0 border-l border-neutral-200 dark:border-neutral-700"
-      :style="{ left: level * 16 + 'px' }"
+      class="absolute ltr:left-0 rtl:right-0 top-0 bottom-0 ltr:border-l rtl:border-r border-neutral-200 dark:border-neutral-700"
+      :style="{ insetInlineStart: level * 16 + 'px' }"
     ></div>
 
     <button
       v-if="children.length > 0"
-      class="z-10 mr-1 p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition"
+      class="z-10 ltr:mr-1 rtl:ml-1 p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition"
       @click.stop="isExpanded = !isExpanded"
     >
       <v-remixicon
         :name="isExpanded ? 'riArrowDownSLine' : 'riArrowRightSLine'"
         class="w-4 h-4"
+        :class="{ 'rtl:rotate-180': !isExpanded }"
         :style="{ color: isSelected ? folder.color || '#6366f1' : '#9CA3AF' }"
       />
     </button>
-    <div v-else class="w-5 mr-1"></div>
+    <div v-else class="w-5 ltr:mr-1 rtl:ml-1"></div>
 
-    <div class="mr-2 flex items-center justify-center">
+    <div class="ltr:mr-2 rtl:ml-2 flex items-center justify-center">
       <span v-if="folder.icon" class="text-lg">{{ folder.icon }}</span>
       <v-remixicon
         v-else
@@ -55,13 +56,13 @@
     <v-remixicon
       v-if="folder.isArchived"
       name="riArchiveLine"
-      class="w-3.5 h-3.5 text-neutral-400 shrink-0 ml-1"
+      class="w-3.5 h-3.5 text-neutral-400 shrink-0 ltr:ml-1 rtl:mr-1"
       title="Archived"
     />
 
     <span
       v-if="isCurrentFolder"
-      class="text-[10px] uppercase tracking-wider opacity-60 ml-2"
+      class="text-xs font-bold tracking-wider opacity-60 ltr:ml-2 rtl:mr-2"
     >
       Current
     </span>
@@ -90,7 +91,7 @@ const isExpanded = ref(true);
 const children = computed(() =>
   folderStore
     .getByParent(props.folder.id)
-    .filter((f) => !folderStore.deletedIds[f.id])
+
 );
 
 const isSelected = computed(() => props.selectedId === props.folder.id);

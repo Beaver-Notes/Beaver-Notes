@@ -1,4 +1,6 @@
 pub(crate) mod app;
+pub(crate) mod backup;
+pub(crate) mod debug;
 pub(crate) mod dialogs;
 pub(crate) mod external;
 pub(crate) mod fs;

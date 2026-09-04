@@ -12,6 +12,25 @@
   @apply opacity-100;
 }
 
+.note-editor-page {
+  --drag-handle-gutter: clamp(3rem, 6vw, 3.5rem);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .drag-handle-inner,
+  .thandle {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drag-handle-inner,
+  .thandle {
+    transition: none !important;
+  }
+}
+
 .ProseMirror pre,
 .ProseMirror .inline-code {
   @apply border bg-neutral-50 dark:bg-neutral-900 rounded-lg text-neutral-700 dark:text-neutral-200 pt-6;
@@ -47,8 +66,7 @@
   @apply dark:text-[color:var(--text-dark)];
 }
 .ProseMirror li {
-  margin-top: 0.25em !important;
-  margin-bottom: 0.25em !important;
+  margin-top: 0.125em !important;
 }
 .ProseMirror strong {
   color: inherit !important;
@@ -86,6 +104,7 @@ img.ProseMirror-selectednode {
 .ProseMirror {
   min-height: 800px;
   padding-inline-start: var(--drag-handle-gutter);
+  padding-inline-end: var(--drag-handle-gutter);
   & > :first-child {
     margin-top: 0;
   }
@@ -119,7 +138,7 @@ img.ProseMirror-selectednode {
 
     li {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 0.5rem;
       padding-left: 0 !important;
 
@@ -128,6 +147,12 @@ img.ProseMirror-selectednode {
         user-select: none;
         display: flex;
         align-items: center;
+        padding-top: 0.3em;
+      }
+
+      > div {
+        flex: 1 1 auto;
+        min-width: 0;
       }
 
       input[type='checkbox'] {
@@ -135,13 +160,15 @@ img.ProseMirror-selectednode {
         -webkit-appearance: none;
         width: 18px;
         height: 18px;
-        border-radius: 20%;
+        border-radius: 4px;
         border: 2px solid var(--border-input);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: background-color 0.2s var(--ease-standard), border-color 0.2s var(--ease-standard),
+        transition:
+          background-color 0.2s var(--ease-standard),
+          border-color 0.2s var(--ease-standard),
           box-shadow 0.2s var(--ease-standard);
         margin: 0;
         position: relative;
@@ -166,15 +193,45 @@ img.ProseMirror-selectednode {
       }
 
       p {
-        margin: 0;
+        margin: 0 !important;
       }
     }
   }
   .search-result {
-    @apply bg-primary bg-opacity-20;
+    @apply bg-primary bg-opacity-20 underline decoration-primary/40 underline-offset-2;
+    text-decoration-thickness: 1.5px;
+    border-radius: 2px;
+    transition: background-color 150ms var(--ease-standard);
 
     &-current {
-      @apply bg-secondary bg-opacity-50;
+      @apply bg-secondary bg-opacity-60 decoration-secondary/60;
+      animation: search-pop 340ms
+        var(--ease-spring, cubic-bezier(0.175, 0.885, 0.32, 1.275));
+      box-shadow: 0 0 0 2px hsl(var(--twc-secondary) / 0.18);
+    }
+  }
+  @keyframes search-pop {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 hsl(var(--twc-secondary) / 0);
+    }
+    35% {
+      transform: scale(1.14);
+      box-shadow:
+        0 2px 10px hsl(var(--twc-secondary) / 0.22),
+        0 0 0 3px hsl(var(--twc-secondary) / 0.2);
+    }
+    60% {
+      transform: scale(0.98);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 2px hsl(var(--twc-secondary) / 0.18);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .search-result-current {
+      animation: none;
     }
   }
   .inline-code {
@@ -227,7 +284,9 @@ img.ProseMirror-selectednode {
     margin-bottom: 0 !important;
     max-width: 100%;
     box-sizing: border-box;
-    transition: box-shadow 180ms var(--ease-standard), transform 180ms var(--ease-standard);
+    transition:
+      box-shadow 180ms var(--ease-standard),
+      transform 180ms var(--ease-standard);
     vertical-align: top;
   }
   .bn-image-frame img {
@@ -238,7 +297,7 @@ img.ProseMirror-selectednode {
     margin-bottom: 0 !important;
     max-width: 100%;
     height: auto;
-    @apply rounded-xl;
+    @apply rounded-lg;
   }
   .bn-image-frame.has-explicit-width img {
     width: 100%;
@@ -254,13 +313,16 @@ img.ProseMirror-selectednode {
     border: 0;
     border-radius: 999px;
     @apply bg-primary bg-opacity-45 dark:bg-primary dark:bg-opacity-40;
-    box-shadow: 0 6px 18px rgba(148, 163, 184, 0.26),
+    box-shadow:
+      0 6px 18px rgba(148, 163, 184, 0.26),
       inset 0 0 0 1px rgba(255, 255, 255, 0.35);
     cursor: ew-resize;
     opacity: 0;
     pointer-events: none;
     transform: translateY(-50%) scale(0.92);
-    transition: opacity 180ms var(--ease-standard), transform 180ms var(--ease-standard),
+    transition:
+      opacity 180ms var(--ease-standard),
+      transform 180ms var(--ease-standard),
       background-color 180ms var(--ease-standard);
     z-index: 2;
     touch-action: none;
@@ -291,7 +353,11 @@ img.ProseMirror-selectednode {
 }
 
 @media (max-width: 768px) {
-  .note-editor {
+  /* NOTE: .note-editor-page .note-editor needs the extra specificity —
+     a later .note-editor rule re-sets the gutter and media queries
+     don't add specificity, so a flat selector loses. */
+  .note-editor-page,
+  .note-editor-page .note-editor {
     --drag-handle-gutter: 0;
   }
 
@@ -326,8 +392,6 @@ img.ProseMirror-selectednode {
   }
 
   pre {
-    background: var(--bg-code-dark);
-    color: #fff;
     font-family: var(--selected-font-code);
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;
@@ -360,10 +424,10 @@ mark {
 }
 
 .note-editor__content {
-  margin-inline-start: calc(var(--drag-handle-gutter) * -1);
+  margin-inline-start: 0;
   overflow: visible;
   position: relative;
-  width: calc(100% + var(--drag-handle-gutter));
+  width: 100%;
 }
 
 div[data-type='column-container'] {
@@ -444,7 +508,9 @@ div[data-type='column'] .grid-resize-handle .add-button {
   cursor: pointer;
   opacity: 0;
   z-index: 6;
-  transition: opacity 0.15s var(--ease-standard), background 0.15s var(--ease-standard);
+  transition:
+    opacity 0.15s var(--ease-standard),
+    background 0.15s var(--ease-standard);
   @apply bg-primary/10;
 }
 
@@ -558,7 +624,10 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   border: none;
   background: transparent;
   color: theme('colors.neutral.500');
-  transition: color 0.15s var(--ease-standard), background 0.15s var(--ease-standard), transform 0.12s var(--ease-standard);
+  transition:
+    color 0.15s var(--ease-standard),
+    background 0.15s var(--ease-standard),
+    transform 0.12s var(--ease-standard);
   flex-shrink: 0;
 }
 :root.dark .dh-button,
@@ -585,7 +654,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
 }
 
 .drag-handle::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 100%;
   top: 0;
@@ -601,8 +670,6 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   margin: 1.5em 0;
   overflow-x: auto;
   max-width: 100%;
-  padding-inline-start: 24px;
-  padding-inline-end: 24px;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -648,23 +715,23 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
 /*  Rounded outer corners (per-cell so resize handles sit cleanly inside)  */
 .tableWrapper tr:first-child > th:first-child,
 .tableWrapper tr:first-child > td:first-child {
-  border-top-left-radius: 0.75rem;
+  border-top-left-radius: 0.5rem;
   overflow: hidden;
 }
 
 .tableWrapper tr:first-child > th:last-child,
 .tableWrapper tr:first-child > td:last-child {
-  border-top-right-radius: 0.75rem;
+  border-top-right-radius: 0.5rem;
   overflow: hidden;
 }
 
 .tableWrapper tr:last-child > td:first-child {
-  border-bottom-left-radius: 0.75rem;
+  border-bottom-left-radius: 0.5rem;
   overflow: hidden;
 }
 
 .tableWrapper tr:last-child > td:last-child {
-  border-bottom-right-radius: 0.75rem;
+  border-bottom-right-radius: 0.5rem;
   overflow: hidden;
 }
 
@@ -861,4 +928,147 @@ th.is-active {
   user-select: none;
   white-space: nowrap;
   pointer-events: none;
+}
+
+.editor[data-reader-theme] {
+  --reader-max-w: 54rem;
+  --reader-outer: clamp(1rem, 4vw, 2.5rem);
+  --drag-handle-gutter: 0px;
+  max-width: var(--reader-max-w);
+  margin-inline: auto;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  width: min(calc(100% - var(--reader-outer) * 2), var(--reader-max-w));
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+.editor[data-reader-theme] .ProseMirror {
+  padding-inline: 1.5rem;
+}
+.editor[data-reader-theme] .title-placeholder {
+  padding-inline: 1.5rem !important;
+}
+.editor[data-reader-theme='light'] .title-placeholder {
+  color: #1a1a1a !important;
+}
+.editor[data-reader-theme='sepia'] .title-placeholder {
+  color: #5b4636 !important;
+}
+.editor[data-reader-theme='dark'] .title-placeholder {
+  color: #e5e5e5 !important;
+}
+.editor[data-reader-theme][data-reader-family='serif'] .title-placeholder {
+  font-family: ui-serif, Georgia, serif;
+}
+.editor[data-reader-theme][data-reader-family='sans'] .title-placeholder {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.editor[data-reader-theme='light'] {
+  background: #fff;
+  color: #1a1a1a;
+}
+.editor[data-reader-theme='sepia'] {
+  background: #f4ecd8;
+  color: #5b4636;
+}
+.editor[data-reader-theme='dark'] {
+  background: #1a1a1a;
+  color: #e5e5e5;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.editor[data-reader-theme='light'] .ProseMirror,
+.editor[data-reader-theme='light'] .ProseMirror p,
+.editor[data-reader-theme='light'] .ProseMirror h1,
+.editor[data-reader-theme='light'] .ProseMirror h2,
+.editor[data-reader-theme='light'] .ProseMirror h3,
+.editor[data-reader-theme='light'] .ProseMirror h4,
+.editor[data-reader-theme='light'] .ProseMirror h5,
+.editor[data-reader-theme='light'] .ProseMirror h6,
+.editor[data-reader-theme='light'] .ProseMirror li,
+.editor[data-reader-theme='light'] .ProseMirror li::marker,
+.editor[data-reader-theme='light'] .ProseMirror blockquote,
+.editor[data-reader-theme='light'] .ProseMirror strong {
+  color: #1a1a1a !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+.editor[data-reader-theme='light'] .ProseMirror pre,
+.editor[data-reader-theme='light'] .ProseMirror .inline-code {
+  background: #f5f5f5 !important;
+  color: #1a1a1a !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+.editor[data-reader-theme='light'] .ProseMirror a {
+  color: hsl(var(--twc-primary)) !important;
+}
+.editor[data-reader-theme='sepia'] .ProseMirror,
+.editor[data-reader-theme='sepia'] .ProseMirror p,
+.editor[data-reader-theme='sepia'] .ProseMirror h1,
+.editor[data-reader-theme='sepia'] .ProseMirror h2,
+.editor[data-reader-theme='sepia'] .ProseMirror h3,
+.editor[data-reader-theme='sepia'] .ProseMirror h4,
+.editor[data-reader-theme='sepia'] .ProseMirror h5,
+.editor[data-reader-theme='sepia'] .ProseMirror h6,
+.editor[data-reader-theme='sepia'] .ProseMirror li,
+.editor[data-reader-theme='sepia'] .ProseMirror li::marker,
+.editor[data-reader-theme='sepia'] .ProseMirror blockquote,
+.editor[data-reader-theme='sepia'] .ProseMirror strong {
+  color: #5b4636 !important;
+  border-color: rgba(91, 70, 54, 0.2) !important;
+}
+.editor[data-reader-theme='sepia'] .ProseMirror pre,
+.editor[data-reader-theme='sepia'] .ProseMirror .inline-code {
+  background: rgba(91, 70, 54, 0.08) !important;
+  color: #5b4636 !important;
+  border-color: rgba(91, 70, 54, 0.12) !important;
+}
+.editor[data-reader-theme='sepia'] .ProseMirror a {
+  color: #8b5e3c !important;
+}
+.editor[data-reader-theme='dark'] .ProseMirror,
+.editor[data-reader-theme='dark'] .ProseMirror p,
+.editor[data-reader-theme='dark'] .ProseMirror h1,
+.editor[data-reader-theme='dark'] .ProseMirror h2,
+.editor[data-reader-theme='dark'] .ProseMirror h3,
+.editor[data-reader-theme='dark'] .ProseMirror h4,
+.editor[data-reader-theme='dark'] .ProseMirror h5,
+.editor[data-reader-theme='dark'] .ProseMirror h6,
+.editor[data-reader-theme='dark'] .ProseMirror li,
+.editor[data-reader-theme='dark'] .ProseMirror li::marker,
+.editor[data-reader-theme='dark'] .ProseMirror blockquote,
+.editor[data-reader-theme='dark'] .ProseMirror strong {
+  color: #e5e5e5 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+.editor[data-reader-theme='dark'] .ProseMirror pre,
+.editor[data-reader-theme='dark'] .ProseMirror .inline-code {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #e5e5e5 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+.editor[data-reader-theme='dark'] .ProseMirror a {
+  color: #a5b4fc !important;
+}
+.editor[data-reader-theme] .ProseMirror {
+  font-size: var(--reader-size, 18px);
+  line-height: var(--reader-line, 1.75);
+}
+.editor[data-reader-theme][data-reader-family='serif'] .ProseMirror {
+  font-family: ui-serif, Georgia, serif;
+}
+.editor[data-reader-theme][data-reader-family='sans'] .ProseMirror {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.editor[data-reader-theme][data-reader-family='default'] .ProseMirror {
+  font-family: inherit;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-chrome {
+    transition: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-chrome--hidden {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
 }

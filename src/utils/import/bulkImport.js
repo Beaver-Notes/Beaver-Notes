@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { path } from '@/lib/tauri-bridge';
-import { ensureDir, readDir, readFile, writeFile } from '@/lib/native/fs';
+import { ensureDir, readDir, readFile, readFileBinary, writeFile } from '@/lib/native/fs';
 import { onImportComplete, onImportProgress } from '@/lib/native/imports';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
@@ -36,7 +36,36 @@ import {
   resolveRelativeFileValue,
 } from './helpers';
 
-// ─── HTML to Tiptap conversion ───────────────────────────────────────────────
+
+/** Group inline nodes into paragraphs so block parents never hold bare text (invalid ProseMirror, renders blank). */
+function wrapInlineContent(nodes, sourceNode) {
+  const blocks = [];
+  let run = [];
+  const flush = () => {
+    if (run.length > 0) {
+      blocks.push({ type: 'paragraph', content: run });
+      run = [];
+    }
+  };
+  for (const child of nodes || []) {
+    if (child && (child.type === 'text' || child.type === 'hardBreak')) {
+      run.push(child);
+    } else {
+      flush();
+      if (child) blocks.push(child);
+    }
+  }
+  flush();
+  if (blocks.length === 0) {
+    const text = sourceNode ? extractTextContent(sourceNode) : '';
+    blocks.push(
+      text
+        ? { type: 'paragraph', content: [{ type: 'text', text }] }
+        : { type: 'paragraph' }
+    );
+  }
+  return blocks;
+}
 
 function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -57,6 +86,8 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   );
 
   switch (tagName) {
+    case 'DIV':
+      return wrapInlineContent(content, node);
     case 'P':
       return { type: 'paragraph', content };
     case 'H1':
@@ -86,20 +117,9 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
         ),
       };
     case 'LI':
-      return {
-        type: 'listItem',
-        content:
-          content.length > 0
-            ? content
-            : [
-                {
-                  type: 'paragraph',
-                  content: [{ type: 'text', text: extractTextContent(node) }],
-                },
-              ],
-      };
+      return { type: 'listItem', content: wrapInlineContent(content, node) };
     case 'BLOCKQUOTE':
-      return { type: 'blockquote', content };
+      return { type: 'blockquote', content: wrapInlineContent(content, node) };
     case 'PRE': {
       const codeElement = node.querySelector('code');
       const codeText = codeElement?.textContent || node.textContent || '';
@@ -212,7 +232,6 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   }
 }
 
-// ─── Concurrency helper ──────────────────────────────────────────────────────
 
 async function processWithConcurrency(items, fn, concurrency = 4) {
   for (let i = 0; i < items.length; i += concurrency) {
@@ -222,7 +241,6 @@ async function processWithConcurrency(items, fn, concurrency = 4) {
   }
 }
 
-// ─── Native Rust import ──────────────────────────────────────────────────────
 
 async function processRustImportNote(note, state, appDirectory) {
   const noteStore = useNoteStore();
@@ -251,7 +269,8 @@ async function processRustImportNote(note, state, appDirectory) {
 
   const resourcePromises = (note.resources || []).map((resource) => {
     try {
-      return readFile(resource.path).then((data) =>
+      // Binary-safe: readFile would corrupt non-UTF8 resources via read_to_string.
+      return readFileBinary(resource.path).then((data) =>
         writeFile(
           path.join(noteAssetDir, resource.filename || resource.hash),
           data
@@ -365,7 +384,6 @@ export function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
   };
 }
 
-// ─── Bulk platform importers ─────────────────────────────────────────────────
 
 export async function importObsidian(
   vaultPath,

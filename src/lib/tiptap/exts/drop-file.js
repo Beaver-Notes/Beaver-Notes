@@ -2,11 +2,12 @@ import { Extension } from '@tiptap/core';
 import { saveFile } from '@/utils/assets/storage.js';
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { insertImages } from './image';
+import mime from 'mime';
 
 async function processDropFiles(view, editor, event, files, id) {
   try {
     for (const file of files) {
-      const mimeType = file.type;
+      const mimeType = file.type || mime.getType(file.name) || '';
 
       if (mimeType.startsWith('image/')) {
         const imageFiles = Array.from(files).filter((f) =>
@@ -83,9 +84,6 @@ export const dropFile = Extension.create({
             drop: (view, event) => {
               const files = event.dataTransfer?.files;
               if (!files || files.length === 0) return false;
-
-              const hasFileType = files.length > 0 && files[0].type.length > 0;
-              if (!hasFileType) return false;
 
               event.preventDefault();
               event.stopPropagation();

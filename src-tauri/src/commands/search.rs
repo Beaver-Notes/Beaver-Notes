@@ -13,10 +13,8 @@ pub(crate) struct SearchEntry {
     pub(crate) labels_text: String,
 }
 
-/// Extract search index data from all notes in the data store.
-/// Runs off-main-thread via `spawn_blocking` so the UI stays responsive.
-/// Returns a flat array of `{ id, title, searchText, labelsText }` entries
-/// ready for MiniSearch to consume on the JS side.
+/// Extract search-index data from all notes in the data store, off-main-thread
+/// via `spawn_blocking`; entries are MiniSearch-ready on the JS side.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn search_extract_index_data(
@@ -25,7 +23,8 @@ pub(crate) async fn search_extract_index_data(
 ) -> Result<Vec<SearchEntry>, AppError> {
     let pool = data_pool(&app, &state)?;
     let app_key = current_app_key(state.inner())?;
-    let key_id = state
+    let kv_key = kv_encryption_key(state.inner())?;
+    let _key_id = state
         .inner()
         .crypto
         .session
@@ -35,16 +34,14 @@ pub(crate) async fn search_extract_index_data(
         .clone();
 
     tokio::task::spawn_blocking(move || {
-        let flat = crate::db::db_all(&pool)?;
+        let flat = crate::db::db_all(&pool, kv_key)?;
         let mut entries = Vec::new();
 
         for (row_key, raw_value) in &flat {
-            // Only process note rows (keys starting with "notes.")
             if !row_key.starts_with("notes.") {
                 continue;
             }
 
-            // Decrypt the note envelope
             let decrypted = if let Some(ref key) = app_key {
                 match decrypt_json_from_storage(key, raw_value, &storage_aad(row_key)) {
                     Ok(Some(v)) => v,
@@ -61,7 +58,11 @@ pub(crate) async fn search_extract_index_data(
             };
 
             // Skip locked notes
-            if obj.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if obj
+                .get("isLocked")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 continue;
             }
 
@@ -76,10 +77,7 @@ pub(crate) async fn search_extract_index_data(
             }
 
             // Skip notes with encrypted content
-            if obj
-                .get("content")
-                .is_some_and(is_encrypted_json_value)
-            {
+            if obj.get("content").is_some_and(is_encrypted_json_value) {
                 continue;
             }
 
@@ -133,8 +131,12 @@ mod tests {
 
     #[test]
     fn is_encrypted_json_value_detects_envelope() {
-        assert!(is_encrypted_json_value(&serde_json::json!({"ae": 4, "ct": "x"})));
-        assert!(!is_encrypted_json_value(&serde_json::json!({"type": "doc"})));
+        assert!(is_encrypted_json_value(
+            &serde_json::json!({"ae": 4, "ct": "x"})
+        ));
+        assert!(!is_encrypted_json_value(
+            &serde_json::json!({"type": "doc"})
+        ));
         assert!(!is_encrypted_json_value(&serde_json::json!("plain string")));
     }
 }

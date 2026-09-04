@@ -15,7 +15,7 @@ export async function storeSecureBlob(
   const available = await isEncryptionAvailable();
   if (!available) {
     console.warn(
-      `[${logPrefix}] safe storage not available — passphrase will not be persisted`
+      `[${logPrefix}] safe storage not available: passphrase will not be persisted`
     );
     return;
   }
@@ -31,7 +31,7 @@ export function persistSecureBlobInBackground(
 ) {
   return storeSecureBlob(key, plainText, logPrefix).catch((err) => {
     console.error(
-      `[${logPrefix}] CRITICAL: passphrase persistence failed — auto-unlock will not work on next launch`,
+      `[${logPrefix}] CRITICAL: passphrase persistence failed: auto-unlock will not work on next launch`,
       err
     );
   });
@@ -52,7 +52,7 @@ export async function loadSecureBlob(key) {
       return null;
     }
     console.error(
-      '[secureBlob] Failed to load secure blob — keyring may be corrupted',
+      '[secureBlob] Failed to load secure blob: keyring may be corrupted',
       err
     );
     throw err;

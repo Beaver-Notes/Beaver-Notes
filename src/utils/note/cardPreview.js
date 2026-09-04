@@ -22,17 +22,42 @@ function cl(key, fallback) {
   return _cardLabels[key] || fallback;
 }
 
-const MEDIA_TYPES = {
-  audioBlock: { label: cl('audio', 'Audio'), tone: 'audio' },
-  videoBlock: { label: cl('video', 'Video'), tone: 'video' },
-  fileEmbed: { label: cl('attachment', 'Attachment'), tone: 'file' },
-  mermaidBlock: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
-  mermaidDiagram: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
-  mathBlock: { label: cl('math', 'Math'), tone: 'math' },
-  mathInline: { label: cl('math', 'Math'), tone: 'math' },
-  math_inline: { label: cl('math', 'Math'), tone: 'math' },
-  paper: { label: cl('sketch', 'Sketch'), tone: 'sketch' },
-};
+function getMediaTypes() {
+  return {
+    audioBlock: { label: cl('audio', 'Audio'), tone: 'audio' },
+    videoBlock: { label: cl('video', 'Video'), tone: 'video' },
+    fileEmbed: { label: cl('attachment', 'Attachment'), tone: 'file' },
+    mermaidBlock: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
+    mermaidDiagram: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
+    mathBlock: { label: cl('math', 'Math'), tone: 'math' },
+    mathInline: { label: cl('math', 'Math'), tone: 'math' },
+    math_inline: { label: cl('math', 'Math'), tone: 'math' },
+    paper: { label: cl('sketch', 'Sketch'), tone: 'sketch' },
+  };
+}
+
+export { getMediaTypes };
+
+export function mediaIconForTone(tone) {
+  switch (tone) {
+    case 'audio':
+      return 'riVolumeDownFill';
+    case 'video':
+      return 'riMovieLine';
+    case 'file':
+      return 'riFile2Line';
+    case 'diagram':
+      return 'riPieChart2Line';
+    case 'math':
+      return 'riCalculatorLine';
+    case 'sketch':
+      return 'riBrushLine';
+    case 'table':
+      return 'riTableLine';
+    default:
+      return 'riArticleLine';
+  }
+}
 
 export const EMPTY_CARD_PREVIEW = Object.freeze({
   version: CARD_PREVIEW_VERSION,
@@ -59,11 +84,11 @@ function truncateText(text, limit) {
 
 function extractInlineText(node) {
   if (!node) return '';
-  if (Array.isArray(node)) {
-    return node.map(extractInlineText).join('');
-  }
+  if (Array.isArray(node)) return node.map(extractInlineText).join('');
   if (node.type === 'text') return node.text || '';
   if (node.type === 'hardBreak') return ' ';
+  if (node.type === 'mention' || node.type === 'noteLink')
+    return node.attrs?.label || node.attrs?.id || extractInlineText(node.content || []);
   return extractInlineText(node.content || []);
 }
 
@@ -213,6 +238,21 @@ function visitNode(node, preview, state) {
   if (!node) return;
 
   switch (node.type) {
+    case 'column':
+    case 'columnContainer':
+    case 'columns':
+    case 'column-container':
+      for (const child of node.content || []) {
+        visitNode(child, preview, state);
+        if (preview.blocks.length >= MAX_BLOCKS) {
+          preview.hasMore = true;
+          return;
+        }
+      }
+      return;
+    case 'horizontalRule':
+      pushTextBlock(preview, 'paragraph', '---', state);
+      return;
     case 'heading':
       pushTextBlock(preview, 'heading', extractInlineText(node.content), state);
       return;
@@ -276,10 +316,11 @@ function visitNode(node, preview, state) {
     case 'table':
       pushTableBlock(preview, node);
       return;
-    default:
-      if (MEDIA_TYPES[node.type]) {
+    default: {
+      const MT = getMediaTypes();
+      if (MT[node.type]) {
         pushMediaBlock(preview, {
-          ...MEDIA_TYPES[node.type],
+          ...MT[node.type],
           text:
             node.attrs?.content || node.attrs?.title || node.attrs?.name || '',
         });
@@ -306,6 +347,7 @@ function visitNode(node, preview, state) {
           return;
         }
       }
+    }
   }
 }
 
@@ -342,14 +384,7 @@ export function buildCardPreview(content) {
 
 /**
  * Build a structured cardPreview and flat preview text for a note.
- * Handles the fallback chain: structured content -> flat text -> empty.
- *
- * @param {Object} opts
- * @param {*}       opts.content     - TipTap JSON content (or null)
- * @param {string}  [opts.preview]   - Flat preview text (cross-device fallback)
- * @param {string}  [opts.searchText] - Legacy search text
- * @param {boolean} [opts.hidden]    - true when note is locked/encrypted
- * @returns {{ cardPreview: Object, preview: string }}
+ * Fallback chain: structured content -> flat text -> empty.
  */
 export function buildNotePreview({
   content,

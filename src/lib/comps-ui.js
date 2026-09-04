@@ -1,6 +1,7 @@
 import ExpandTransition from '../components/transitions/ExpandTransition.vue';
 import VTooltip from '../directives/VTooltip';
 import VAutofocus from '../directives/VAutofocus';
+import keepFocus from '../directives/keepFocus';
 import VRemixIcon from './v-remixicon';
 
 const uiComponents = import.meta.glob('../components/ui/*.vue', {
@@ -21,6 +22,7 @@ export default function (app) {
   app.component('ExpandTransition', ExpandTransition);
   app.directive('tooltip', VTooltip);
   app.directive('autofocus', VAutofocus);
+  app.directive('keep-focus', keepFocus);
   app.use(VRemixIcon);
 
   registerComponents(app, uiComponents, 'Ui');

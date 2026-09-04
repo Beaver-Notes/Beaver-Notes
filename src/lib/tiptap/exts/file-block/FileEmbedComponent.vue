@@ -2,7 +2,7 @@
   <NodeViewWrapper>
     <div>
       <div
-        class="mt-2 mb-2 file-embed bg-neutral-100 dark:bg-neutral-800 p-3 rounded-lg flex items-center justify-between"
+        class="my-4 file-embed bg-white dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-800/40 shadow-sm p-3 rounded-xl flex items-center justify-between"
       >
         <div class="flex items-center">
           <v-remixicon name="riFile2Line" class="w-6 h-6 mr-2" />

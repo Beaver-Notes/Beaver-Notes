@@ -6,5 +6,18 @@
 	<string>Beaver Notes uses the microphone to record audio notes.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Allow connections to localhost / LAN / .local self-hosted sync
+		     servers over plain HTTP (a Beaver Sync instance on your network).
+		     This key is App Store review-safe; it does NOT allow arbitrary
+		     cleartext to public hosts. -->
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<!-- Allow cleartext HTTP from the in-app webview content layer only
+		     (e.g. previewing pages); native HTTPS requests are unaffected. -->
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

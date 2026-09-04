@@ -130,6 +130,7 @@
               @dragend="handleDragEnd($event.event)"
               @update:label="state.activeLabel = $event"
               @update="noteStore.update($event.noteId, $event.payload)"
+              @move="openMoveForNote"
             />
           </template>
         </section>
@@ -144,9 +145,7 @@
 
       <folder-tree
         v-model="showMoveModal"
-        :notes="selectedNotes"
-        :folders="selectedFolders"
-        :mode="moveMode"
+        v-bind="resolveMoveModalParams(moveTarget, selectedNotes, selectedFolders, moveMode)"
         @moved="handleMoved"
       />
     </div>
@@ -157,6 +156,7 @@
       @move="bulkMove"
       @clear="clearSelection"
     />
+    <folder-customize-modal v-model="showCustomizeModal" :folder="customizeFolder" @saved="clearSelection" />
   </div>
 </template>
 
@@ -170,11 +170,14 @@ import { useDialog } from '@/lib/dialog';
 import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
+import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
+import { useNoteMove } from '@/composable/useNoteMove';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
 import HomeSearch from '../components/home/HomeSearch.vue';
 import FolderTree from '../components/home/FolderTree.vue';
+import FolderCustomizeModal from '../components/home/FolderCustomizeModal.vue';
 import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
@@ -186,6 +189,7 @@ export default {
     HomeSearch,
     HomeFolderCard,
     FolderTree,
+    FolderCustomizeModal,
     Actions,
     EmptyState,
   },
@@ -217,13 +221,9 @@ export default {
     const folders = computed(() => {
       const isArchiveView = route.query.archived === 'true';
 
-      let rootFolders = folderStore.rootFolders.filter(
-        (f) => !folderStore.deletedIds[f.id]
-      );
+      let rootFolders = [...folderStore.rootFolders];
 
-      // Filter by archive status:
-      // In archive view, show only archived folders
-      // In normal view, show only non-archived folders
+      // Archive view: only archived folders; normal view: only non-archived.
       rootFolders = rootFolders.filter((f) =>
         isArchiveView ? f.isArchived : !f.isArchived
       );
@@ -267,7 +267,7 @@ export default {
           let matchesQuery = false;
 
           if (matchedIds === null) {
-            // Index unavailable — linear fallback
+            // Index unavailable: linear fallback.
             if (isLabelQuery) {
               for (let j = 0; j < labels.length; j++) {
                 if (labels[j].toLocaleLowerCase().includes(labelQuery)) {
@@ -368,7 +368,16 @@ export default {
       listenForLabelEvents: true,
     });
 
+    const { showMoveModal } = pageController;
+    const noteMove = useNoteMove(showMoveModal);
+
     const selectionBar = useSelectionBar();
+    const showCustomizeModal = ref(false);
+    const customizeFolder = ref(null);
+    function openCustomizeFor(id) {
+      customizeFolder.value = folderStore.getById(id) || null;
+      if (customizeFolder.value) showCustomizeModal.value = true;
+    }
     watch(
       () => pageController.selectedItems.value,
       (items) => {
@@ -376,6 +385,7 @@ export default {
           onClear: pageController.clearSelection,
           onDelete: pageController.bulkDelete,
           onMove: pageController.bulkMove,
+          onCustomize: openCustomizeFor,
         });
       },
       { immediate: true }
@@ -389,6 +399,11 @@ export default {
       translations,
       folders,
       highlightedFolderIds,
+      showCustomizeModal,
+      customizeFolder,
+      openCustomizeFor,
+      ...noteMove,
+      resolveMoveModalParams,
       ...pageController,
     };
   },

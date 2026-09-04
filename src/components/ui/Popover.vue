@@ -3,7 +3,13 @@
     <div
       ref="targetEl"
       class="ui-popover__trigger h-full inline-block"
+      role="button"
+      tabindex="0"
+      aria-haspopup="true"
+      :aria-expanded="isShow ? 'true' : 'false'"
       @click="onTriggerClick"
+      @keydown.enter.prevent="onTriggerClick"
+      @keydown.space.prevent="onTriggerClick"
     >
       <slot name="trigger" v-bind="{ isShow }"></slot>
     </div>
@@ -13,7 +19,8 @@
           v-show="isShow"
           ref="content"
           :style="floatingStyles"
-          class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1.5"
+          :class="originClass"
+          class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1"
         >
           <slot v-bind="{ isShow }"></slot>
         </div>
@@ -64,17 +71,24 @@ export default {
       return targetEl.value;
     });
 
-    const placement = computed(() => props.placement);
     const middleware = computed(() => [
       offset(15),
       flip(),
       shift({ padding: 15 }),
     ]);
 
-    const { floatingStyles } = useFloating(reference, content, {
-      placement,
+    const placementRef = computed(() => props.placement);
+    const { floatingStyles, placement: floatingPlacement } = useFloating(reference, content, {
+      placement: placementRef,
       middleware,
       whileElementsMounted: autoUpdate,
+    });
+    const originClass = computed(() => {
+      const p = String(floatingPlacement.value || '');
+      if (p.startsWith('top')) return 'origin-bottom';
+      if (p.startsWith('left')) return 'origin-right';
+      if (p.startsWith('right')) return 'origin-left';
+      return 'origin-top';
     });
 
     const { lock: lockScroll, unlock: unlockScroll } = useScrollLock();
@@ -154,6 +168,7 @@ export default {
       content,
       targetEl,
       floatingStyles,
+      originClass,
       onTriggerClick,
     };
   },
@@ -161,14 +176,15 @@ export default {
 </script>
 <style>
 .ui-popover-enter-active {
-  transition: opacity var(--motion-fast) var(--ease-snappy);
+  transition: opacity var(--motion-fast) var(--ease-snappy), transform var(--motion-fast) var(--ease-snappy);
 }
 .ui-popover-leave-active {
-  transition: opacity var(--motion-fast) var(--ease-exit);
+  transition: opacity var(--motion-fast) var(--ease-exit), transform var(--motion-fast) var(--ease-exit);
 }
 .ui-popover-enter-from,
 .ui-popover-leave-to {
   opacity: 0;
+  transform: scale(0.95);
 }
 @media (prefers-reduced-motion: reduce) {
   .ui-popover-enter-active,

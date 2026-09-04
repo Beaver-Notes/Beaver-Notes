@@ -1,88 +1,144 @@
 <template>
   <div class="general mb-14 w-full max-w-2xl">
-    <section>
-      <header class="flex items-center justify-between mb-4 px-1">
-        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-          {{ translations.labels?.title || 'Labels' }}
+    <settings-group
+      :title="translations.labels?.title || 'Labels'"
+      :badge="`${sortedLabels.length} ${translations.labels?.total || 'total'}`"
+    >
+      <template #description>
+        <p
+          v-if="labelStore.data.length > 0"
+          class="px-1 -mt-1 mb-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+        >
+          {{ translations.labels?.hint || 'Tap a name to rename it, tap a color to recolor it.' }}
         </p>
-        <span
-          class="text-[10px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-full"
-        >
-          {{ sortedLabels.length }} {{ translations.labels?.total || 'total' }}
-        </span>
-      </header>
+      </template>
 
-      <p
-        v-if="labelStore.data.length === 0"
-        class="text-sm text-neutral-500 dark:text-neutral-400 py-6 border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center"
-      >
-        {{ translations.labels?.emptyPrefix || 'No labels yet. Type' }}
-        <code
-          class="bg-neutral-100 dark:bg-neutral-900 px-1 rounded text-primary"
-          >#label</code
-        >
-        {{ translations.labels?.emptySuffix || 'to start.' }}
-      </p>
+      <div v-if="labelStore.data.length === 0" class="px-4 py-8 text-center">
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">
+          {{ translations.labels?.emptyPrefix || 'No labels yet. Type' }}
+          <code
+            class="bg-neutral-100 dark:bg-neutral-800 px-1 rounded text-primary"
+            >#label</code
+          >
+          {{ translations.labels?.emptySuffix || 'to start.' }}
+        </p>
+      </div>
 
-      <div v-else class="flex flex-wrap gap-2">
+      <template v-else>
         <div
-          v-for="name in sortedLabels"
-          :key="name"
-          class="group relative flex items-center gap-2 pl-2 pr-2 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-all duration-200 rounded-lg cursor-default"
+          class="flex flex-col sm:flex-row gap-2 px-3 py-2.5 border-b border-neutral-200 dark:border-neutral-800"
         >
-          <div class="relative flex-shrink-0 flex items-center">
-            <div
-              class="w-2 h-2 rounded-full transition-transform duration-200 label-dot"
-              :style="{
-                backgroundColor: labelStore.getColor(name) || primaryColor,
-              }"
+          <ui-input
+            v-model="searchQuery"
+            prepend-icon="riSearchLine"
+            :placeholder="translations.labels?.search || 'Search labels'"
+            clearable
+            class="flex-1"
+          />
+          <ui-select v-model="sortMode" class="sm:w-40">
+            <option value="alpha">
+              {{ translations.labels?.sortAlpha || 'A to Z' }}
+            </option>
+            <option value="count">
+              {{ translations.labels?.sortCount || 'Most used' }}
+            </option>
+          </ui-select>
+        </div>
+
+        <p
+          v-if="filteredSortedLabels.length === 0"
+          class="text-sm text-neutral-400 px-4 py-8 text-center"
+        >
+          {{ translations.labels?.noResults || 'No labels match your search.' }}
+        </p>
+
+        <div
+          v-for="name in filteredSortedLabels"
+          :key="name"
+          class="flex items-center gap-2.5 px-3 py-2 border-b last:border-b-0 border-neutral-200 dark:border-neutral-800"
+        >
+          <div class="relative shrink-0">
+            <button
+              class="w-5 h-5 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary dark:focus:ring-offset-neutral-900"
+              :style="{ backgroundColor: labelStore.getColor(name) || primaryColor }"
+              :aria-label="`Change color for ${name}`"
+              :aria-expanded="openPopoverFor === name"
+              @click.stop="togglePopover(name)"
             />
-            <input
-              type="color"
-              class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-              :value="labelStore.getColor(name) || primaryColor"
-              @input="onColorInput(name, $event.target.value)"
-            />
-          </div>
-
-          <span
-            class="text-sm font-medium text-neutral-700 dark:text-neutral-200 whitespace-nowrap"
-          >
-            {{ name }}
-          </span>
-
-          <div
-            class="relative w-6 h-5 overflow-hidden flex items-center justify-center"
-          >
-            <span
-              class="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-neutral-400 tabular-nums transition-all duration-300 ease-out transform label-count"
-            >
-              {{ noteCountFor(name) }}
-            </span>
-
             <div
-              class="absolute inset-0 flex items-center justify-center opacity-0 translate-y-full transition-all duration-300 ease-out label-delete"
+              v-if="openPopoverFor === name"
+              class="absolute z-10 top-7 left-0 flex items-center gap-1.5 p-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-lg"
+              @click.stop
             >
               <button
-                class="p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded text-neutral-400 hover:text-red-500 transition-colors"
-                @click.stop="deleteLabel(name)"
+                v-for="c in labelPalette"
+                :key="c.key"
+                class="w-5 h-5 rounded-full shrink-0 ring-offset-2 ring-offset-white dark:ring-offset-neutral-800"
+                :class="[
+                  c.class,
+                  (labelStore.getColor(name) || primaryColor).toLowerCase() ===
+                  c.hex.toLowerCase()
+                    ? 'ring-2 ring-current'
+                    : '',
+                ]"
+                :style="{ backgroundColor: c.hex }"
+                :aria-label="c.label"
+                @click="setLabelColor(name, c.hex)"
+              />
+              <label
+                class="relative w-5 h-5 rounded-full shrink-0 flex items-center justify-center ring-offset-2 ring-offset-white dark:ring-offset-neutral-800 overflow-hidden cursor-pointer"
+                :class="isCustomLabelColor(name) ? 'ring-2 ring-primary' : 'ring-1 ring-black/10 dark:ring-white/10'"
+                style="background: conic-gradient(from 0deg, #ef4444, #fbbf24, #84cc16, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444)"
+                aria-label="Custom color"
               >
-                <v-remixicon name="riDeleteBin6Line" size="14" />
-              </button>
+                <v-remixicon v-if="!isCustomLabelColor(name)" name="riPaletteLine" size="10" class="text-white drop-shadow pointer-events-none relative z-10" />
+                <input
+                  type="color"
+                  class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  :value="labelStore.getColor(name) || primaryColor"
+                  @input="onLabelCustomPickFor(name, $event)"
+                  tabindex="-1"
+                />
+              </label>
             </div>
           </div>
+
+          <input
+            type="text"
+            :value="name"
+            class="flex-1 min-w-0 text-sm font-medium text-neutral-700 dark:text-neutral-200 bg-transparent border-none rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-white dark:focus:bg-neutral-950"
+            :aria-label="`Rename label ${name}`"
+            @keydown.enter="$event.target.blur()"
+            @blur="commitRename(name, $event.target.value)"
+          />
+
+          <span
+            class="shrink-0 text-[11px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 tabular-nums px-2 py-0.5 rounded-full"
+          >
+            {{ noteCountFor(name) }}
+          </span>
+
+          <button
+            class="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+            :aria-label="`Delete label ${name}`"
+            @click="deleteLabel(name)"
+          >
+            <v-remixicon name="riDeleteBin6Line" size="15" />
+          </button>
         </div>
-      </div>
-    </section>
+
+      </template>
+    </settings-group>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useLabelStore } from '@/store/label';
 import { useNoteStore } from '@/store/note';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
+import SettingsGroup from '@/components/settings/SettingsGroup.vue';
 
 const labelStore = useLabelStore();
 const noteStore = useNoteStore();
@@ -90,6 +146,9 @@ const dialog = useDialog();
 const { translations } = useTranslations();
 
 const primaryColor = ref('#6366f1');
+const searchQuery = ref('');
+const sortMode = ref('alpha');
+const openPopoverFor = ref(null);
 
 onMounted(() => {
   const el = document.createElement('span');
@@ -106,16 +165,99 @@ onMounted(() => {
   }
 });
 
+// Same key/label set as the accent-color picker in Appearance.vue, so
+// recoloring a label and picking an accent feel like the same control in two places.
+const labelPalette = [
+  { key: 'red', label: 'Red', hex: '#ef4444', class: 'text-red-500' },
+  { key: 'amber', label: 'Amber', hex: '#fbbf24', class: 'text-amber-500' },
+  { key: 'green', label: 'Green', hex: '#10b981', class: 'text-emerald-500' },
+  { key: 'blue', label: 'Blue', hex: '#3b82f6', class: 'text-blue-500' },
+  { key: 'purple', label: 'Purple', hex: '#8b5cf6', class: 'text-purple-500' },
+  { key: 'pink', label: 'Pink', hex: '#ec4899', class: 'text-pink-500' },
+  { key: 'neutral', label: 'Neutral', hex: '#a3a3a3', class: 'text-neutral-500' },
+];
+
 const sortedLabels = computed(() =>
   [...new Set(labelStore.data)].sort((a, b) => a.localeCompare(b))
 );
+
+const filteredSortedLabels = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase();
+  let list = query
+    ? sortedLabels.value.filter((name) => name.toLowerCase().includes(query))
+    : sortedLabels.value;
+
+  if (sortMode.value === 'count') {
+    list = [...list].sort((a, b) => noteCountFor(b) - noteCountFor(a));
+  }
+
+  return list;
+});
 
 function noteCountFor(name) {
   return noteStore.notes.filter((n) => n.labels?.includes(name)).length;
 }
 
-function onColorInput(name, value) {
-  labelStore.setColor(name, value);
+function togglePopover(name) {
+  openPopoverFor.value = openPopoverFor.value === name ? null : name;
+}
+
+function closePopover() {
+  openPopoverFor.value = null;
+}
+
+function handleDocumentClick() {
+  if (openPopoverFor.value !== null) closePopover();
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick);
+});
+
+function setLabelColor(name, hex) {
+  labelStore.setColor(name, hex);
+  openPopoverFor.value = null;
+}
+
+function isCustomLabelColor(name) {
+  const explicit = labelStore.getColor(name);
+  if (!explicit) return false;
+  return !labelPalette.some((c) => c.hex.toLowerCase() === explicit.toLowerCase());
+}
+
+function onLabelCustomPickFor(name, e) {
+  const v = e.target.value;
+  if (v) setLabelColor(name, v);
+}
+
+function commitRename(oldName, rawValue) {
+  const newName = rawValue.trim();
+
+  if (!newName || newName === oldName) return;
+
+  if (sortedLabels.value.includes(newName)) {
+    dialog.confirm({
+      title: (
+        translations.value.labels?.duplicateTitle || 'A label named "#{name}" already exists'
+      ).replace('{name}', newName),
+      body:
+        translations.value.labels?.duplicateBody ||
+        'Rename cancelled to avoid merging two labels by accident.',
+      okText: translations.value.dialog?.ok || 'OK',
+      cancelText: '',
+    });
+    return;
+  }
+
+  // NOTE: this calls labelStore.rename(oldName, newName), which isn't in
+  // the store file included in this export. It should update every note's
+  // labels array plus the label's stored color under the new key. If the
+  // store doesn't have this method yet, it needs to be added there.
+  labelStore.rename(oldName, newName);
 }
 
 function deleteLabel(name) {
@@ -134,22 +276,3 @@ function deleteLabel(name) {
   });
 }
 </script>
-
-<style scoped>
-section .ui-list {
-  @apply bg-neutral-800 bg-opacity-5 dark:bg-neutral-200 dark:bg-opacity-5;
-}
-@media (hover: hover) and (pointer: fine) {
-  .group:hover .label-dot {
-    transform: scale(1.25);
-  }
-  .group:hover .label-count {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  .group:hover .label-delete {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-</style>

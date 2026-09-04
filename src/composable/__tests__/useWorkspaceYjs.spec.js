@@ -19,13 +19,13 @@ vi.mock('@/utils/sync/sync-repository.js', () => ({
 vi.mock('@/utils/sync/sync-yjs.js', () => ({ writeYjsSnapshot: vi.fn() }));
 vi.mock('@/utils/sync/crypto.js', () => ({ encryptJSON: vi.fn() }));
 vi.mock('@/utils/sync/pending-writes.js', () => ({ queueSyncWrite: vi.fn() }));
-vi.mock('@/utils/yjs-helpers.js', () => ({
+vi.mock('@/lib/yjs/helpers.js', () => ({
   getDeviceId: vi.fn(() => 'device'),
   objToYMap: vi.fn(),
   toUint8Array: vi.fn(),
 }));
-vi.mock('@/lib/sync/hocuspocus-sync.js', () => ({
-  getHocuspocusSync: () => ({ joinMetaRoom: vi.fn() }),
+vi.mock('@/lib/sync/ws-sync.js', () => ({
+  getWsSync: () => ({ joinMetaRoom: vi.fn() }),
 }));
 vi.mock('@/store/workspace', () => ({ useWorkspaceStore: () => ({ activeId: null }) }));
 

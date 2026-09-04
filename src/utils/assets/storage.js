@@ -53,8 +53,6 @@ async function readFileAsUint32(file) {
   });
 }
 
-// ─── Document / file saving ──────────────────────────────────────────────────
-
 async function createFileDestination(file, id) {
   const appDirectory = await getAppDirectory();
   const { ext, name } = path.parse(sourceFileName(file));
@@ -85,8 +83,6 @@ export async function saveFile(file, id) {
     throw new Error('Failed to save file');
   }
 }
-
-// ─── Image saving ────────────────────────────────────────────────────────────
 
 async function sha256Hex(input) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));

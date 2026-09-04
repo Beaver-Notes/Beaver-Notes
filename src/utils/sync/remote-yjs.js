@@ -1,15 +1,4 @@
-/**
- * Remote Yjs sync transport — mirrors the folder sync protocol over HTTP.
- *
- * pushUpdates()  → POST /yjs/push-batch  (encrypted Yjs updates)
- * pullUpdates()   → POST /yjs/pull-batch  (returns updates since cursor)
- * deleteRemoteUpdates() → DELETE /yjs/updates (after compaction)
- *
- * The server stores updates in SQLite, keyed by workspaceId + noteId.
- *
- * All requests are automatically chunked to stay under the server's
- * body size limit (default 10MB, configurable via YJS_SYNC_BODY_LIMIT_BYTES).
- */
+/** Remote Yjs transport over HTTP: push/pull/delete endpoints, SQLite keyed by workspace plus note, chunked under body limit. */
 
 import { getApiClient } from '@/lib/api/client.js';
 import { getSyncDeviceId } from './sync-repository.js';
@@ -65,13 +54,7 @@ function chunkItems(items, getItemSize) {
   return chunks;
 }
 
-/**
- * Push local Yjs updates to the remote server using the durable identity
- * contract. The transport supplies deviceId, sequence, and ts per update.
- * @param {string} workspaceId
- * @param {Array<{noteId: string, updates: Array<{key: string, data: string}>}>} notes
- * @returns {Promise<{accepted: number, duplicate: number, checkpoints: Object}>}
- */
+/** Push via durable identity contract: transport supplies deviceId/sequence/ts per update. */
 export async function pushUpdates(workspaceId, notes) {
   if (!notes || notes.length === 0) {
     return { accepted: 0, duplicate: 0, checkpoints: {} };
@@ -80,7 +63,18 @@ export async function pushUpdates(workspaceId, notes) {
   const client = getClient();
   const deviceId = getSyncDeviceId();
 
-  const chunks = chunkItems(notes, (n) => JSON.stringify(n).length);
+  function estimateNoteSize(n) {
+  // Rough estimate: noteId + per-update key/base64-data/metadata overhead
+  let size = (n.noteId?.length || 0) + 64; // base overhead
+  if (n.updates) {
+    for (const u of n.updates) {
+      size += (u.key?.length || 0) + (u.data?.length || 0) + 64;
+    }
+  }
+  return size;
+}
+
+const chunks = chunkItems(notes, estimateNoteSize);
 
   let accepted = 0;
   let duplicate = 0;
@@ -109,13 +103,7 @@ export async function pushUpdates(workspaceId, notes) {
   return { accepted, duplicate, checkpoints };
 }
 
-/**
- * Pull remote updates since the given cursor watermark.
- * Supports single or multiple notes. Automatically chunks large payloads.
- * @param {string} workspaceId
- * @param {Array<{noteId: string, cursors: Object}>} notes
- * @returns {Promise<Object>} { notes: { [noteId]: { updates: Array<{key: string, data: string}>, nextCheckpoint?: Object, hasMore?: boolean } } }
- */
+/** Pull updates since cursor watermarks; auto-chunked, results merged per note. */
 export async function pullUpdates(workspaceId, notes) {
   const client = getClient();
 
@@ -193,6 +181,13 @@ export async function getSnapshotUrls(workspaceId, token, noteIds) {
   }, { timeoutMs: 30000 });
 }
 
+export async function getSnapshotDownloadUrls(workspaceId, noteIds) {
+  return getClient().post('/sync/snapshot-download-urls', {
+    workspaceId,
+    noteIds,
+  }, { timeoutMs: 30000 });
+}
+
 export async function createWorkspace(name, orgId) {
   return getClient().post('/workspaces', { name, orgId }, { timeoutMs: 15000 });
 }
@@ -201,13 +196,6 @@ export async function getWorkspaces() {
   return getClient().get('/workspaces', { timeoutMs: 15000 });
 }
 
-/**
- * Delete remote updates that have been compacted into a snapshot.
- * @param {string} workspaceId
- * @param {string} noteId
- * @param {string[]} keys - filenames to delete
- * @returns {Promise<{deleted: number}>}
- */
 export async function deleteRemoteUpdates(workspaceId, noteId, keys) {
   if (!keys || keys.length === 0) {
     return { deleted: 0 };
@@ -223,11 +211,6 @@ export async function deleteRemoteUpdates(workspaceId, noteId, keys) {
   return result || { deleted: 0 };
 }
 
-/**
- * Fetch a single stored blob by key.
- * @param {string} key
- * @returns {Promise<string | null>} base64 blob, or null when the key is absent.
- */
 export async function fetchUpdate(key) {
   const client = getClient();
   try {
@@ -242,11 +225,6 @@ export async function fetchUpdate(key) {
   }
 }
 
-/**
- * List all distinct noteIds stored on the server for a workspace.
- * @param {string} workspaceId
- * @returns {Promise<string[]>}
- */
 export async function listRemoteNoteIds(workspaceId) {
   try {
     const result = await getRemoteState(workspaceId);

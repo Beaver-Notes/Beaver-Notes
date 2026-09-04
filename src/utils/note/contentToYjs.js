@@ -1,16 +1,12 @@
-/**
- * Write a note's ProseMirror JSON content into its Yjs doc at creation /
- * import time. Yjs is the only content store — notes get their content into
- * Yjs immediately instead of relying on a later conversion.
- */
+/** Write ProseMirror JSON into Yjs doc at creation/import. Yjs is only content store, no later conversion. */
 
 import * as Y from 'yjs';
-import { appendUpdate, appendBatch } from '@/lib/native/yjs.js';
+import { appendUpdate, appendBatch, compactUpdates } from '@/lib/native/yjs.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 
 let helpersPromise = null;
 function getHelpers() {
-  if (!helpersPromise) helpersPromise = import('@/utils/yjs-helpers.js');
+  if (!helpersPromise) helpersPromise = import('@/lib/yjs/helpers.js');
   return helpersPromise;
 }
 
@@ -39,8 +35,7 @@ export async function writeNoteContentToYjs(noteId, content) {
 }
 
 /**
- * Persist many notes' content into their Yjs docs in a single batched IPC
- * (used by imports).
+ * Persist many notes' content in a single batched IPC (used by imports).
  */
 export async function writeNotesContentToYjs(notes) {
   if (!notes?.length) return;
@@ -61,4 +56,14 @@ export async function writeNotesContentToYjs(notes) {
     entries.map((e) => e.update),
     entries.map(() => device)
   );
+}
+
+/** Replace note Yjs content with given full content. Appends full-state update (correct on empty, duplicates otherwise). Compacts instead, unsafe live. */
+export async function replaceNoteContentInYjs(noteId, content) {
+  if (!noteId || !content || typeof content !== 'object') return;
+  const helpers = await getHelpers();
+  const schema = await helpers.ensureSchema();
+  const update = await encodeContentUpdate(schema, content);
+  if (!update) return;
+  await compactUpdates(noteId, update);
 }

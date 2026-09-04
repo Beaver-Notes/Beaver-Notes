@@ -9,11 +9,10 @@ use std::{
 
 use http::{
     header::{
-        ACCESS_CONTROL_ALLOW_ORIGIN, ACCEPT_RANGES, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
+        ACCEPT_RANGES, ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
     },
     Response, StatusCode,
 };
-use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -54,9 +53,9 @@ pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
     "e2eIdentityKeypair",
 ];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
-/// Consecutive failed passphrase attempts before the app-encryption unlock is
-/// rate-limited (lockout), and the base lockout duration. Each further failure
-/// while locked extends the lockout by `LOCKOUT_BASE_SECS`, capped at `LOCKOUT_MAX_SECS`.
+/// Consecutive failed passphrase attempts before unlock is rate-limited, and
+/// the base lockout duration; each further failure extends by
+/// `LOCKOUT_BASE_SECS`, capped at `LOCKOUT_MAX_SECS`.
 pub(crate) const LOCKOUT_THRESHOLD: u32 = 5;
 pub(crate) const LOCKOUT_BASE_SECS: u64 = 30;
 pub(crate) const LOCKOUT_MAX_SECS: u64 = 300;
@@ -264,24 +263,17 @@ impl DbState {
     }
 }
 
-/// Snapshot of the app-encryption session. Lives behind a single `RwLock` in
-/// `AppState` so the items-key ring, current key id, cached KEK, loaded data
-/// key, and active flag are always mutated/observed atomically (no TOCTOU).
-///
-/// All key material is scrubbed when the session is dropped or reset (lock),
-/// so the DEK/KEK/ring are zeroized from memory instead of lingering in the
-/// heap after a lock or app shutdown.
+/// App-encryption session behind one RwLock in AppState: key ring, key id, KEK, data key, active flag mutate atomically (no TOCTOU).
+/// Key material zeroized on drop/reset, never lingers after lock/shutdown.
 #[derive(Default, Debug)]
 pub(crate) struct CryptoSession {
     /// Items data key (decrypted). Present only while the app is unlocked.
     pub(crate) app_data_key: Option<[u8; 32]>,
-    /// Ring of items keys (current + previous), keyed by items-key id. Enables
-    /// lazy rotation: old data stays decryptable after a new items key is created.
+    /// Items key ring (current plus previous) by key id: lazy rotation keeps old data decryptable.
     pub(crate) items_keys: HashMap<String, [u8; 32]>,
     /// ID of the current items key (empty when locked / unconfigured).
     pub(crate) current_items_key_id: String,
-    /// Cached KEK derived from the passphrase; enables key rotation without
-    /// re-prompting. Present only while unlocked.
+    /// Cached KEK; enables rotation without re-prompting. Present only unlocked.
     pub(crate) master_key_cache: Option<[u8; 32]>,
     /// Whether app encryption is enabled (a manifest exists).
     pub(crate) active: bool,
@@ -339,14 +331,17 @@ pub(crate) fn app_storage_dir(app: &AppHandle, state: &AppState) -> Result<PathB
     if let Ok(override_dir) = std::env::var("BEAVER_NOTES_DATA_DIR") {
         let p = PathBuf::from(override_dir);
         if !p.exists() {
-            fs::create_dir_all(&p).map_err(|e| AppError::Other(format!("Failed to create data dir: {e}")))?;
+            fs::create_dir_all(&p)
+                .map_err(|e| AppError::Other(format!("Failed to create data dir: {e}")))?;
         }
         return Ok(p);
     }
     if let Some(ref portable_dir) = state.files.portable_storage_dir {
         return Ok(portable_dir.clone());
     }
-    app.path().app_data_dir().map_err(|e| AppError::Other(e.to_string()))
+    app.path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
 #[derive(Clone, Serialize, specta::Type, Deserialize, PartialEq)]
@@ -355,7 +350,7 @@ pub(crate) enum InstallationSource {
     Standalone,
     Scoop,
     Brew,
-    LinuxPackage,
+    Linux,
     AppStore,
 }
 
@@ -392,7 +387,7 @@ pub(crate) fn current_installation_source() -> InstallationSource {
 
     #[cfg(not(any(mobile, target_os = "macos", target_os = "windows")))]
     {
-        InstallationSource::LinuxPackage
+        InstallationSource::Linux
     }
 }
 
@@ -455,13 +450,12 @@ fn is_path_inside(root: &Path, candidate: &Path) -> bool {
 }
 
 fn is_path_allowed_strict(allowed_roots: &[PathBuf], input: &Path) -> bool {
-    // First pass: lexical normalization blocks ".." traversal and related tricks
-    // without relying on filesystem state.
+    // Pass 1: lexical normalization blocks ".." traversal without fs state.
     if !allowed_roots.iter().any(|root| is_path_inside(root, input)) {
         return false;
     }
 
-    // Second pass: best-effort canonicalization to prevent symlink escape.
+    // Pass 2: best-effort canonicalization to prevent symlink escape.
     if input.exists() {
         let Ok(real) = fs::canonicalize(input) else {
             return false;
@@ -575,8 +569,8 @@ pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, AppError> {
     }
 }
 
-/// Return an owned clone of the active workspace data pool (cheap Arc clone).
-/// Lazily initializes from the active workspace on first call.
+/// Owned clone of the active workspace data pool (cheap Arc clone), lazily
+/// initialized from the active workspace.
 pub(crate) fn data_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, AppError> {
     {
         let guard = state.db.data.lock()?;
@@ -588,8 +582,8 @@ pub(crate) fn data_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, App
     let path = workspace_data_path(app, state, &workspace_id)?;
     let pool = crate::db::open_pool(&path)?;
     let mut guard = state.db.data.lock()?;
-    if guard.is_some() {
-        return Ok(guard.as_ref().unwrap().clone());
+    if let Some(v) = guard.as_ref() {
+        return Ok(v.clone());
     }
     *guard = Some(pool.clone());
     Ok(pool)
@@ -607,8 +601,7 @@ pub(crate) fn swap_data_pool(
     Ok(())
 }
 
-/// Return an owned clone of the active workspace settings pool.
-/// Lazily initializes from the active workspace on first call.
+/// Owned clone of the active workspace settings pool (see `data_pool`).
 pub(crate) fn settings_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, AppError> {
     {
         let guard = state.db.settings.lock()?;
@@ -620,8 +613,8 @@ pub(crate) fn settings_pool(app: &AppHandle, state: &AppState) -> Result<DbPool,
     let path = workspace_settings_path(app, state, &workspace_id)?;
     let pool = crate::db::open_pool(&path)?;
     let mut guard = state.db.settings.lock()?;
-    if guard.is_some() {
-        return Ok(guard.as_ref().unwrap().clone());
+    if let Some(v) = guard.as_ref() {
+        return Ok(v.clone());
     }
     *guard = Some(pool.clone());
     Ok(pool)
@@ -639,7 +632,6 @@ pub(crate) fn swap_settings_pool(
     Ok(())
 }
 
-// ─── Workspace helpers ────────────────────────────────────────────────────────
 
 pub(crate) const DEFAULT_WORKSPACE_ID: &str = "default";
 pub(crate) const DEFAULT_WORKSPACE_NAME: &str = "Default";
@@ -652,6 +644,14 @@ pub(crate) struct WorkspaceInfo {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) created_at: String,
+    #[serde(default = "default_workspace_type")]
+    pub(crate) workspace_type: String, // "personal" | "shared"
+    #[serde(default)]
+    pub(crate) org_id: Option<String>,
+    #[serde(default)]
+    pub(crate) owner_id: Option<String>,
+    #[serde(default)]
+    pub(crate) cloud_sync: bool,
 }
 
 /// Internal shape of workspaces.json
@@ -668,17 +668,18 @@ fn default_workspace_id() -> String {
     DEFAULT_WORKSPACE_ID.to_string()
 }
 
-/// Path to the workspaces.json registry file at the app root.
+fn default_workspace_type() -> String {
+    "personal".to_string()
+}
+
 pub(crate) fn workspaces_json_path(app: &AppHandle, state: &AppState) -> Result<PathBuf, AppError> {
     Ok(app_storage_dir(app, state)?.join(WORKSPACES_JSON))
 }
 
-/// Root directory for workspace data (app_data_dir/workspaces).
 pub(crate) fn workspace_root(app: &AppHandle, state: &AppState) -> Result<PathBuf, AppError> {
     Ok(app_storage_dir(app, state)?.join(WORKSPACES_DIR))
 }
 
-/// Path to a specific workspace's data.db.
 pub(crate) fn workspace_data_path(
     app: &AppHandle,
     state: &AppState,
@@ -689,7 +690,6 @@ pub(crate) fn workspace_data_path(
         .join("data.db"))
 }
 
-/// Path to a specific workspace's settings.db.
 pub(crate) fn workspace_settings_path(
     app: &AppHandle,
     state: &AppState,
@@ -699,8 +699,6 @@ pub(crate) fn workspace_settings_path(
         .join(workspace_id)
         .join("settings.db"))
 }
-
-// ─── Workspace registry (workspaces.json) ─────────────────────────────────────
 
 fn read_workspaces_json(app: &AppHandle, state: &AppState) -> Result<WorkspacesJson, AppError> {
     let path = workspaces_json_path(app, state)?;
@@ -726,13 +724,11 @@ fn write_workspaces_json(
     Ok(())
 }
 
-/// Read the active workspace ID from workspaces.json.
 pub(crate) fn current_workspace_id(app: &AppHandle, state: &AppState) -> Result<String, AppError> {
     let data = read_workspaces_json(app, state)?;
     Ok(data.active_workspace)
 }
 
-/// Read the workspace registry from workspaces.json.
 pub(crate) fn load_workspace_registry(
     app: &AppHandle,
     state: &AppState,
@@ -741,7 +737,6 @@ pub(crate) fn load_workspace_registry(
     Ok(data.workspaces)
 }
 
-/// Save the workspace registry to workspaces.json.
 pub(crate) fn save_workspace_registry(
     app: &AppHandle,
     state: &AppState,
@@ -752,7 +747,6 @@ pub(crate) fn save_workspace_registry(
     write_workspaces_json(app, state, &data)
 }
 
-/// Save the active workspace ID to workspaces.json.
 pub(crate) fn save_active_workspace_id(
     app: &AppHandle,
     state: &AppState,
@@ -763,7 +757,6 @@ pub(crate) fn save_active_workspace_id(
     write_workspaces_json(app, state, &data)
 }
 
-/// Read the active workspace ID directly from workspaces.json (no pool needed).
 pub(crate) fn read_active_workspace_from_json(
     app: &AppHandle,
     state: &AppState,
@@ -773,7 +766,8 @@ pub(crate) fn read_active_workspace_from_json(
 
 pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -> Option<Value> {
     let pool = settings_pool(app, state).ok()?;
-    let raw = crate::db::db_get(&pool, key).ok()??;
+    let enc_key = kv_encryption_key(state).ok().flatten();
+    let raw = crate::db::db_get(&pool, key, enc_key).ok()??;
     serde_json::from_str(&raw).ok()
 }
 
@@ -821,11 +815,16 @@ pub(crate) fn path_for_name(
 ) -> Result<PathBuf, AppError> {
     match name {
         "userData" => app_storage_dir(app, state),
-        "appData" => app.path().data_dir().map_err(|e| AppError::Other(e.to_string())),
+        "appData" => app
+            .path()
+            .data_dir()
+            .map_err(|e| AppError::Other(e.to_string())),
         "desktop" => {
             #[cfg(desktop)]
             {
-                app.path().desktop_dir().map_err(|e| AppError::Other(e.to_string()))
+                app.path()
+                    .desktop_dir()
+                    .map_err(|e| AppError::Other(e.to_string()))
             }
             #[cfg(not(desktop))]
             {
@@ -835,8 +834,14 @@ pub(crate) fn path_for_name(
                     .map_err(|e| AppError::Other(e.to_string()))
             }
         }
-        "documents" => app.path().document_dir().map_err(|e| AppError::Other(e.to_string())),
-        "temp" => app.path().temp_dir().map_err(|e| AppError::Other(e.to_string())),
+        "documents" => app
+            .path()
+            .document_dir()
+            .map_err(|e| AppError::Other(e.to_string())),
+        "temp" => app
+            .path()
+            .temp_dir()
+            .map_err(|e| AppError::Other(e.to_string())),
         _ => Err(AppError::Other(format!("Unsupported path name: {name}"))),
     }
 }
@@ -862,7 +867,9 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
 ) -> Result<PathBuf, AppError> {
     let prefix = format!("{scheme}://");
     if !url.starts_with(&prefix) {
-        return Err(AppError::Other(format!("Invalid {scheme} protocol URL: {url}")));
+        return Err(AppError::Other(format!(
+            "Invalid {scheme} protocol URL: {url}"
+        )));
     }
 
     let relative = url[prefix.len()..]
@@ -873,30 +880,40 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
         .next()
         .unwrap_or_default()
         .trim();
-    let decoded = urlencoding::decode(relative).map_err(|e| AppError::Other(e.to_string()))?.to_string();
+    let decoded = urlencoding::decode(relative)
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .to_string();
 
-    // Strict: decoded asset paths must be relative (no absolute paths / prefixes).
+    // Strict: decoded asset paths must be relative (no absolute paths).
     if Path::new(&decoded).is_absolute() {
-        return Err(AppError::Other(format!("Asset path must be relative: {url}")));
+        return Err(AppError::Other(format!(
+            "Asset path must be relative: {url}"
+        )));
     }
     #[cfg(target_os = "windows")]
     {
         if decoded.starts_with("\\\\") {
-            return Err(AppError::Other(format!("Asset path must be relative: {url}")));
+            return Err(AppError::Other(format!(
+                "Asset path must be relative: {url}"
+            )));
         }
     }
 
     let root_name = match scheme {
         "assets" | "file-assets" => "assets",
         _ => {
-            return Err(AppError::Other(format!("Unsupported asset scheme: {scheme}")));
+            return Err(AppError::Other(format!(
+                "Unsupported asset scheme: {scheme}"
+            )));
         }
     };
     let state = app.state::<AppState>();
     let base = app_storage_dir(app, state.inner())?.join(root_name);
     let resolved = base.join(decoded);
     if !is_path_inside(&base, &resolved) {
-        return Err(AppError::Other(format!("Asset path escapes base directory: {url}")));
+        return Err(AppError::Other(format!(
+            "Asset path escapes base directory: {url}"
+        )));
     }
     Ok(resolved)
 }
@@ -909,10 +926,6 @@ pub(crate) fn resolve_asset_path_from_uri(app: &AppHandle, uri: &str) -> Result<
         return resolve_asset_path_from_protocol_url(app, uri, "file-assets");
     }
     Ok(PathBuf::from(uri))
-}
-
-pub(crate) fn keyring_entry(account: &str) -> Result<Entry, AppError> {
-    Entry::new(SAFE_STORAGE_SERVICE, account).map_err(|e| AppError::Other(e.to_string()))
 }
 
 pub(crate) fn grant_trusted_path(state: &AppState, path: &Path) {
@@ -948,7 +961,9 @@ pub(crate) fn assert_path_access(
 ) -> Result<(), AppError> {
     let mut allowed_roots = vec![
         app_storage_dir(app, state)?,
-        app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?,
+        app.path()
+            .temp_dir()
+            .map_err(|e| AppError::Other(e.to_string()))?,
     ];
 
     for key in ["syncPath", "defaultPath", "default-path"] {
@@ -1054,6 +1069,28 @@ pub(crate) fn clear_external_open_dir(state: &AppState) {
     let _ = fs::remove_dir_all(&state.files.external_open_dir);
 }
 
+/// Write decrypted bytes so only the owner can read them (0o600 on unix).
+/// Callers stage plaintext to the app cache or the external-open dir, both
+/// wiped on exit; restrictive perms close the gap while the app is running.
+pub(crate) fn write_private_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    fs::write(path, bytes)?;
+    restrict_private(path)
+}
+
+/// Restrict an existing file to owner-only access (0o600 on unix).
+pub(crate) fn restrict_private(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
+    Ok(())
+}
+
 pub(crate) fn decrypted_cache_path(
     asset_cache_dir: &Path,
     source: &Path,
@@ -1095,8 +1132,7 @@ pub(crate) fn cached_or_decrypted_asset(
     let file_size = metadata.len();
 
     let mut magic = [0u8; 4];
-    fs::File::open(path)
-        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))?;
+    fs::File::open(path).and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))?;
 
     if !is_encrypted_asset_header(&magic, file_size) {
         return Ok(path.to_path_buf());
@@ -1108,8 +1144,8 @@ pub(crate) fn cached_or_decrypted_asset(
     }
     let app_state = app.state::<AppState>();
     let key = if let Some(passphrase) = transient_passphrase.filter(|v| !v.is_empty()) {
-        // Derive key from transient passphrase (e.g. during asset migration
-        // before the main app key has been restored into state)
+        // Transient passphrase path (e.g. asset migration before the main app
+        // key is restored into state).
         let manifest_path = app_encryption_manifest_path(app, app_state.inner())?;
         let manifest = load_encryption_manifest(&manifest_path)?
             .ok_or_else(|| AppError::Other("App encryption manifest is missing.".into()))?;
@@ -1122,7 +1158,9 @@ pub(crate) fn cached_or_decrypted_asset(
         key
     } else {
         current_app_key(app_state.inner())?.ok_or_else(|| {
-            AppError::Other("App encryption is locked. Unlock before opening encrypted assets.".into())
+            AppError::Other(
+                "App encryption is locked. Unlock before opening encrypted assets.".into(),
+            )
         })?
     };
     decrypt_asset_streaming(path, &cache_path, &key)?;
@@ -1191,12 +1229,8 @@ pub(crate) fn protocol_response(
     protocol_response_with_range(status, path, bytes, None)
 }
 
-/// Response for a custom-protocol asset request. When `content_range` is set
-/// the body is a byte range and the reply is a `206 Partial Content` with
-/// `Content-Range`; `Accept-Ranges: bytes` is always advertised so the
-/// renderer can issue range requests for media (e.g. `audio`/`video` seeking
-/// and `ReadableStream`-based readers) without loading whole decrypted files
-/// into memory.
+/// Custom-protocol asset response. With content_range set, body is byte range as 206 Partial Content.
+/// Accept-Ranges bytes always advertised so renderer range-requests media without loading whole files.
 pub(crate) fn protocol_response_with_range(
     status: StatusCode,
     path: &Path,
@@ -1212,12 +1246,10 @@ pub(crate) fn protocol_response_with_range(
     if let Some(cr) = content_range {
         builder = builder.header(CONTENT_RANGE, cr);
     }
-    builder
-        .body(Cow::Owned(bytes))
-        .unwrap_or_else(|_| {
-            let empty: &'static [u8] = b"";
-            let mut r = Response::new(Cow::Borrowed(empty));
-            *r.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
-            r
-        })
+    builder.body(Cow::Owned(bytes)).unwrap_or_else(|_| {
+        let empty: &'static [u8] = b"";
+        let mut r = Response::new(Cow::Borrowed(empty));
+        *r.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+        r
+    })
 }

@@ -3,15 +3,13 @@ use tauri::{AppHandle, State};
 
 use crate::shared::{RawJson, *};
 
-// ─── Key helpers ─────────────────────────────────────────────────────────────
-
 fn key_segments(key: &str) -> Vec<&str> {
     key.split('.')
         .filter(|segment| !segment.is_empty())
         .collect()
 }
 
-// ─── Nested-value helpers (used only for storage_get_store / storage_replace) ─
+// Nested-value helpers
 
 fn get_nested_value<'a>(value: &'a Value, segments: &[&str]) -> Option<&'a Value> {
     let mut current = value;
@@ -95,8 +93,7 @@ fn flatten_store_value(root: Value) -> Map<String, Value> {
     };
 
     for (key, value) in entries {
-        // Collection namespaces are stored as individual flat rows rather than
-        // a single JSON blob, so we explode them into "<namespace>.<id>" rows.
+        // Collection namespaces live as individual flat rows: explode them.
         if COLLECTION_NAMESPACES.contains(&key.as_str()) {
             if let Value::Object(items) = value {
                 for (id, item) in items {
@@ -126,20 +123,28 @@ pub(crate) fn encrypt_store_row_with_key(
         key,
         &value,
         &storage_aad(row_key),
-        if key_id.is_empty() { None } else { Some(&*key_id) },
+        if key_id.is_empty() {
+            None
+        } else {
+            Some(key_id)
+        },
     )?;
     Ok(serde_json::to_value(envelope)?)
 }
 
-/// Core store-load logic, parameterised by key material so it can be called
-/// from both sync (state-bearing) and async (`spawn_blocking`) paths.
+/// Core store-load logic, parameterised by key material so it is callable from
+/// both sync (state-bearing) and async (`spawn_blocking`) paths.
 fn load_store_root_inner(
     pool: &crate::db::DbPool,
     name: &str,
     app_key: &Option<[u8; 32]>,
     key_id: &str,
 ) -> Result<Value, AppError> {
-    let flat = crate::db::db_all(pool)?;
+    // Settings are always plaintext so boot can read onboardingCompleted before unlock.
+    // Only data store is sealed with the content key.
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { *app_key } else { None };
+    let flat = crate::db::db_all(pool, db_key)?;
 
     if name != DATA_STORE {
         return Ok(nested_store_value(flat));
@@ -147,6 +152,8 @@ fn load_store_root_inner(
 
     let mut needs_migration = false;
     let mut plain = Map::new();
+    let mut decrypted_ok = 0usize;
+    let mut decrypted_failed = 0usize;
 
     for (row_key, value) in flat {
         let is_enveloped = matches!(
@@ -155,8 +162,23 @@ fn load_store_root_inner(
         );
 
         let decrypted = if let Some(ref key) = app_key {
-            decrypt_json_from_storage(key, &value, &storage_aad(&row_key))?
-                .unwrap_or_else(|| value.clone())
+            match decrypt_json_from_storage(key, &value, &storage_aad(&row_key)) {
+                Ok(Some(dec)) => {
+                    decrypted_ok += 1;
+                    dec
+                }
+                Ok(None) => {
+                    decrypted_failed += 1;
+                    value.clone()
+                }
+                Err(e) => {
+                    decrypted_failed += 1;
+                    eprintln!(
+                        "[storage] load_store_root_inner: decrypt failed for {row_key}: {e} — returning raw row"
+                    );
+                    value.clone()
+                }
+            }
         } else {
             value.clone()
         };
@@ -168,7 +190,16 @@ fn load_store_root_inner(
         plain.insert(row_key, decrypted);
     }
 
-    if needs_migration {
+    if app_key.is_some() && name == DATA_STORE {
+        eprintln!(
+            "[storage] load_store_root_inner: store={name} rows={} decrypted_ok={} decrypted_failed={}",
+            plain.len(),
+            decrypted_ok,
+            decrypted_failed
+        );
+    }
+
+    if needs_migration && is_data {
         let mut encrypted = Map::new();
         for (row_key, value) in plain.clone() {
             if let Some(ref key) = app_key {
@@ -178,17 +209,13 @@ fn load_store_root_inner(
                 );
             }
         }
-        crate::db::db_replace_all(pool, encrypted)?;
+        crate::db::db_replace_all(pool, encrypted, *app_key)?;
     }
 
     Ok(nested_store_value(plain))
 }
 
-fn pick_pool(
-    name: &str,
-    app: &AppHandle,
-    state: &AppState,
-) -> Result<crate::db::DbPool, AppError> {
+fn pick_pool(name: &str, app: &AppHandle, state: &AppState) -> Result<crate::db::DbPool, AppError> {
     match allowed_store_name(name)? {
         SETTINGS_STORE => Ok(settings_pool(app, state)?),
         DATA_STORE => Ok(data_pool(app, state)?),
@@ -198,41 +225,28 @@ fn pick_pool(
     }
 }
 
-// ─── Flat-key helpers ─────────────────────────────────────────────────────────
-//
-// For simple dot-separated keys that map 1:1 to a KV row (e.g. "notes.abc123",
-// "deletedIds", "migration_completed") we can go directly to the DB without
-// loading the whole store into memory first.
-//
-// A key is "flat-addressable" when it has exactly one level (e.g. "deletedIds")
-// or when its top-level prefix is a known note-like namespace ("notes",
-// "folders") with a single sub-key — both of which are already stored as
-// flat rows by flatten_store_value / the note store.
+// Flat-addressable key maps 1:1 to a KV row: single segment or notes.<id>/folders.<id>.
+// Flat rows skip the whole-store load.
 
 /// Collection namespaces whose entries are stored as individual flat rows
-/// (e.g. "notes.abc123") rather than a single JSON blob under the bare key.
-/// Requests for the bare key (e.g. `storage_get("notes")`) must fall through
-/// to `load_store_root` so they see all the individual rows reassembled.
+/// (e.g. "notes.abc123"). Requests for the bare key (`storage_get("notes")`)
+/// fall through to `load_store_root` to see all rows reassembled.
 const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
 
 fn flat_db_key(segments: &[&str]) -> Option<String> {
     match segments {
-        // Single-segment key that is NOT a collection namespace → stored as-is
-        // (e.g. "deletedIds", "migration_completed", "labelColors", …).
-        // Collection-namespace bare keys ("notes", "folders", …) must fall
-        // through to load_store_root so the caller gets the full assembled object.
+        // Single non-collection key ("deletedIds", …) stored as-is; bare
+        // collection keys ("notes", …) fall through to load_store_root.
         [key] if !COLLECTION_NAMESPACES.contains(key) => Some((*key).to_string()),
         // "notes.<id>", "folders.<id>" → flat rows
-        ["notes", id] | ["folders", id] => {
-            Some(format!("{}.{}", segments[0], id))
-        }
+        ["notes", id] | ["folders", id] => Some(format!("{}.{}", segments[0], id)),
         _ => None,
     }
 }
 
-/// Decrypt a single KV row with key material extracted up front, so the work
-/// can run inside `spawn_blocking` without touching `AppState`.
-/// Mirrors `decrypt_store_row` (plaintext passthrough when the key is absent).
+/// Decrypt one KV row with pre-extracted key material so the work runs inside
+/// `spawn_blocking` without touching `AppState`. Plaintext passthrough when
+/// the key is absent (mirrors `decrypt_store_row`).
 fn decrypt_store_row_with_key(
     row_key: &str,
     value: Value,
@@ -245,25 +259,18 @@ fn decrypt_store_row_with_key(
     Ok(decrypt_json_from_storage(key, &value, &storage_aad(row_key))?.unwrap_or(value))
 }
 
-// ─── Pure worker functions (state-free; run inside spawn_blocking) ───────────
-//
-// The async commands extract owned key material (`app_key`, `key_id`) and the
-// connection pool up front, then dispatch these workers to a blocking thread so
-// SQLite I/O and per-row AES never block the Tauri event loop.
+// Pure workers (state-free) for spawn_blocking: commands extract key material and pool first.
+// SQLite I/O and per-row AES stay off the Tauri event loop.
 
-/// One-time pass: whole-row-encrypt legacy `notes.*` / `folders.*` rows that
-/// the migration wrote with only their note content encrypted (or not at all),
-/// leaving titles and folder metadata as plaintext JSON on disk. Idempotent —
-/// rows that already decrypt as whole-row envelopes are skipped, and the read
-/// path handles mixed plaintext/encrypted rows transparently, so a partial pass
-/// is safe.
+/// One-time pass: whole-row-encrypt legacy notes.*/folders.* rows left with plaintext titles/metadata.
+/// Idempotent, skips encrypted rows, handles mixed reads transparently.
 pub(crate) fn reencrypt_legacy_store_rows(
     pool: crate::db::DbPool,
     key: [u8; 32],
     key_id: String,
 ) -> Result<usize, AppError> {
     let mut count = 0;
-    for (row_key, value) in crate::db::db_all(&pool)? {
+    for (row_key, value) in crate::db::db_all(&pool, Some(key))? {
         if !row_key.starts_with("notes.") && !row_key.starts_with("folders.") {
             continue;
         }
@@ -271,7 +278,12 @@ pub(crate) fn reencrypt_legacy_store_rows(
             continue;
         }
         let encrypted = encrypt_store_row_with_key(&row_key, value, &key, &key_id)?;
-        crate::db::db_set(&pool, &row_key, &serde_json::to_string(&encrypted)?)?;
+        crate::db::db_set(
+            &pool,
+            &row_key,
+            &serde_json::to_string(&encrypted)?,
+            Some(key),
+        )?;
         count += 1;
     }
     Ok(count)
@@ -289,14 +301,18 @@ fn storage_get_value(
     if segments.is_empty() {
         return Ok(def);
     }
+    // Settings always plaintext: never seal/unseal with content key.
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { app_key } else { None };
+    let decrypt_key = if is_data { app_key } else { None };
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let raw = crate::db::db_get(&pool, &flat_key)?;
+        let raw = crate::db::db_get(&pool, &flat_key, db_key)?;
         let value = raw
             .and_then(|r| serde_json::from_str::<Value>(&r).ok())
             .map(|v| {
-                if name == DATA_STORE {
-                    decrypt_store_row_with_key(&flat_key, v, &app_key).unwrap_or(Value::Null)
+                if is_data {
+                    decrypt_store_row_with_key(&flat_key, v, &decrypt_key).unwrap_or(Value::Null)
                 } else {
                     v
                 }
@@ -305,7 +321,6 @@ fn storage_get_value(
         return Ok(value);
     }
 
-    // Fallback: multi-level key — load full store and walk the tree
     let root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     Ok(get_nested_value(&root, &segments).cloned().unwrap_or(def))
 }
@@ -322,9 +337,11 @@ fn storage_set_value(
     if segments.is_empty() {
         return Ok(());
     }
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { app_key } else { None };
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let payload = if name == DATA_STORE {
+        let payload = if is_data {
             match &app_key {
                 Some(k) => encrypt_store_row_with_key(&flat_key, value, k, &key_id)?,
                 None => value,
@@ -333,15 +350,14 @@ fn storage_set_value(
             value
         };
         let serialized = serde_json::to_string(&payload)?;
-        crate::db::db_set(&pool, &flat_key, &serialized)?;
+        crate::db::db_set(&pool, &flat_key, &serialized, db_key)?;
         return Ok(());
     }
 
-    // Fallback: multi-level key — load, mutate, rewrite
     let mut root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     set_nested_value(&mut root, &segments, value);
     let mut flattened = flatten_store_value(root);
-    if name == DATA_STORE {
+    if is_data {
         let mut encrypted = Map::new();
         for (row_key, value) in flattened {
             encrypted.insert(
@@ -354,7 +370,7 @@ fn storage_set_value(
         }
         flattened = encrypted;
     }
-    crate::db::db_replace_all(&pool, flattened)?;
+    crate::db::db_replace_all(&pool, flattened, db_key)?;
     Ok(())
 }
 
@@ -369,17 +385,18 @@ fn storage_delete_value(
     if segments.is_empty() {
         return Ok(());
     }
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { app_key } else { None };
 
     if let Some(flat_key) = flat_db_key(&segments) {
         crate::db::db_delete(&pool, &flat_key)?;
         return Ok(());
     }
 
-    // Fallback: multi-level key — load, mutate, rewrite
     let mut root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     let _ = delete_nested_value(&mut root, &segments);
     let mut flattened = flatten_store_value(root);
-    if name == DATA_STORE {
+    if is_data {
         let mut encrypted = Map::new();
         for (row_key, value) in flattened {
             encrypted.insert(
@@ -392,7 +409,7 @@ fn storage_delete_value(
         }
         flattened = encrypted;
     }
-    crate::db::db_replace_all(&pool, flattened)?;
+    crate::db::db_replace_all(&pool, flattened, db_key)?;
     Ok(())
 }
 
@@ -409,10 +426,9 @@ fn storage_has_value(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        return Ok(crate::db::db_has(&pool, &flat_key)?);
+        return crate::db::db_has(&pool, &flat_key);
     }
 
-    // Fallback: multi-level key
     let root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
     Ok(get_nested_value(&root, &segments).is_some())
 }
@@ -424,24 +440,28 @@ fn storage_replace_value(
     app_key: Option<[u8; 32]>,
     key_id: String,
 ) -> Result<(), AppError> {
+    let is_data = name == DATA_STORE;
+    let db_key = if is_data { app_key } else { None };
     let incoming = flatten_store_value(data);
-    let existing = crate::db::db_all(&pool)?;
+    let existing = crate::db::db_all(&pool, db_key)?;
 
     let mut upserts = Map::new();
     let mut delete_keys: Vec<String> = Vec::new();
 
-    if name == DATA_STORE {
+    if is_data {
         for (key, plain_value) in &incoming {
             let changed = match existing.get(key) {
                 Some(existing_envelope) => {
                     let decrypted_existing = match &app_key {
-                        Some(k) => decrypt_json_from_storage(k, existing_envelope, &storage_aad(key))?
-                            .unwrap_or_else(|| existing_envelope.clone()),
+                        Some(k) => {
+                            decrypt_json_from_storage(k, existing_envelope, &storage_aad(key))?
+                                .unwrap_or_else(|| existing_envelope.clone())
+                        }
                         None => existing_envelope.clone(),
                     };
                     &decrypted_existing != plain_value
                 }
-                None => true, // new row
+                None => true,
             };
             if changed {
                 if let Some(k) = &app_key {
@@ -471,20 +491,15 @@ fn storage_replace_value(
     }
 
     if !upserts.is_empty() || !delete_keys.is_empty() {
-        crate::db::db_apply_diff(&pool, &upserts, &delete_keys)?;
+        crate::db::db_apply_diff(&pool, &upserts, &delete_keys, db_key)?;
     }
     Ok(())
 }
 
-// ─── Commands ────────────────────────────────────────────────────────────────
+// Commands
 
-/// Returns the full store as a nested JSON object.
-/// Only used on startup / sync — intentionally loads everything.
-/// Note content is no longer encrypted at the KV layer; Yjs blobs are
-/// encrypted at rest in the note_content / yjs_snapshots tables instead.
-///
-/// The heavy lifting (DB read + per-row decryption) is dispatched to a
-/// blocking thread pool so the Tauri event loop stays responsive.
+/// Full store as nested JSON, only startup/sync (loads everything). Content not encrypted at KV layer.
+/// Yjs blobs encrypted in note_content/yjs_snapshots. DB read plus decrypt on blocking thread.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_get_store(
@@ -502,20 +517,14 @@ pub(crate) async fn storage_get_store(
         .map_err(AppError::from)?
         .current_items_key_id
         .clone();
-    let root = tokio::task::spawn_blocking(move || load_store_root_inner(&pool, &name, &app_key, &key_id))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))??;
+    let root =
+        tokio::task::spawn_blocking(move || load_store_root_inner(&pool, &name, &app_key, &key_id))
+            .await
+            .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(root.into())
 }
 
-/// Replaces the entire store. Used by sync / import flows.
-///
-/// Optimised path: only rows whose content actually changed are re-encrypted
-/// and written.  Unchanged rows keep their existing DB envelope, avoiding
-/// expensive AES-GCM re-encryption and reducing I/O.
-///
-/// Heavy lifting (full-table read + per-row compare/decrypt/encrypt) is
-/// dispatched to a blocking thread so the Tauri event loop stays responsive.
+/// Replace entire store (sync/import). Only changed rows re-encrypted and written, avoids AES-GCM and I/O. Blocking thread.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_replace(
@@ -546,13 +555,8 @@ pub(crate) async fn storage_replace(
     Ok(())
 }
 
-/// Gets a single value by dot-separated key.
-/// For flat-addressable keys this is a single-row lookup; otherwise it falls
-/// back to loading the full store (legacy path, rarely hit).
-///
-/// Runs off the main thread: the collection-namespace fallback ("notes",
-/// "folders") reads and decrypts the entire KV table, which must not block the
-/// Tauri event loop.
+/// Get one value by dot-separated key: single-row lookup for flat keys, else full-store load (legacy).
+/// Runs off main thread: collection fallback reads and decrypts entire KV table.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_get(
@@ -573,15 +577,16 @@ pub(crate) async fn storage_get(
         .current_items_key_id
         .clone();
 
-    let value =
-        tokio::task::spawn_blocking(move || storage_get_value(pool, name, key, def.0, app_key, key_id))
-            .await
-            .map_err(|e| AppError::Other(e.to_string()))??;
+    let value = tokio::task::spawn_blocking(move || {
+        storage_get_value(pool, name, key, def.0, app_key, key_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(value.into())
 }
 
-/// Whole-row-encrypt legacy `notes.*` / `folders.*` rows left plaintext by the
-/// migration. Idempotent; call after the app key is loaded.
+/// Whole-row-encrypt legacy plaintext `notes.*` / `folders.*` rows.
+/// Idempotent; call after the app key is loaded.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_reencrypt_legacy_rows(
@@ -605,9 +610,67 @@ pub(crate) async fn storage_reencrypt_legacy_rows(
         .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Sets a single value by dot-separated key.
-/// For flat-addressable keys this is a single INSERT OR REPLACE; otherwise it
-/// falls back to the load-modify-rewrite path.
+/// One-time repair: settings.db rows that were sealed with the content key
+/// (added by the kv-sealing refactor) are decrypted and rewritten plaintext
+/// so boot can read `onboardingCompleted` before unlock. Idempotent.
+pub(crate) fn repair_sealed_settings(
+    pool: crate::db::DbPool,
+    key: [u8; 32],
+) -> Result<usize, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM kv")
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let rows = stmt
+        .query_map([], |row| {
+            let k: String = row.get(0)?;
+            let v = {
+                if let Ok(b) = row.get::<_, Vec<u8>>(1) {
+                    b
+                } else {
+                    row.get::<_, String>(1)?.into_bytes()
+                }
+            };
+            Ok((k, v))
+        })
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .collect::<Result<Vec<(String, Vec<u8>)>, _>>()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    drop(stmt);
+    drop(conn);
+    let mut fixed = 0;
+    for (k, stored) in rows {
+        if !crate::shared::is_encrypted_yjs_blob(&stored) {
+            continue;
+        }
+        // Decrypt with the content key, then rewrite plaintext (enc_key=None).
+        let plain = crate::shared::decrypt_yjs_blob(&key, &stored)?;
+        let text = String::from_utf8(plain).map_err(|e| AppError::Other(e.to_string()))?;
+        crate::db::db_set(&pool, &k, &text, None)?;
+        fixed += 1;
+    }
+    if fixed > 0 {
+        eprintln!("[storage] repair_sealed_settings: fixed {fixed} rows");
+    }
+    Ok(fixed)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn storage_repair_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<usize, AppError> {
+    let pool = pick_pool(SETTINGS_STORE, &app, &state)?;
+    let app_key = current_app_key(state.inner())?
+        .ok_or_else(|| AppError::Other("App encryption is locked.".into()))?;
+    tokio::task::spawn_blocking(move || repair_sealed_settings(pool, app_key))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
+}
+
+/// Set one value by dot-separated key: single INSERT OR REPLACE for
+/// flat-addressable keys, otherwise the load-modify-rewrite path.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_set(
@@ -629,9 +692,11 @@ pub(crate) async fn storage_set(
         .current_items_key_id
         .clone();
 
-    tokio::task::spawn_blocking(move || storage_set_value(pool, name, key, value.0, app_key, key_id))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))??;
+    tokio::task::spawn_blocking(move || {
+        storage_set_value(pool, name, key, value.0, app_key, key_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
 
     if is_settings {
         invalidate_settings_cache(state.inner());
@@ -639,9 +704,8 @@ pub(crate) async fn storage_set(
     Ok(())
 }
 
-/// Deletes a single value by dot-separated key.
-/// For flat-addressable keys this is a single DELETE; otherwise falls back to
-/// the load-modify-rewrite path.
+/// Delete one value by dot-separated key: single DELETE for flat-addressable
+/// keys, otherwise the load-modify-rewrite path.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_delete(
@@ -672,8 +736,7 @@ pub(crate) async fn storage_delete(
     Ok(())
 }
 
-/// Checks whether a key exists.
-/// For flat-addressable keys this is a single COUNT query; otherwise falls back.
+/// Whether a key exists (COUNT for flat-addressable keys, otherwise fallback).
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn storage_has(
@@ -753,7 +816,7 @@ mod tests {
         plain.insert("labels".to_string(), json!(["alpha"]));
         plain.insert("labelColors".to_string(), json!({"alpha": "#112233"}));
 
-        crate::db::db_replace_all(&pool, plain).expect("seed plaintext");
+        crate::db::db_replace_all(&pool, plain, None).expect("seed plaintext");
 
         let app_key = current_app_key(&state).expect("app key");
         let key_id = state
@@ -766,7 +829,10 @@ mod tests {
         let root_value =
             load_store_root_inner(&pool, DATA_STORE, &app_key, &key_id).expect("load root");
         let notes = root_value.get("notes").expect("notes root");
-        assert_eq!(notes.get("note-1").and_then(Value::as_object).is_some(), true);
+        assert_eq!(
+            notes.get("note-1").and_then(Value::as_object).is_some(),
+            true
+        );
         assert_eq!(
             notes
                 .get("note-1")
@@ -776,7 +842,7 @@ mod tests {
             Some("Secret title")
         );
 
-        let raw = crate::db::db_all(&pool).expect("raw store");
+        let raw = crate::db::db_all(&pool, app_key).expect("raw store");
         let encrypted_note = raw
             .get("notes.note-1")
             .and_then(Value::as_object)
@@ -798,9 +864,13 @@ mod tests {
 
         let value = json!({"id": "note-2", "title": "Round trip"});
         let app_key = current_app_key(&state).expect("app key");
-        let encrypted =
-            encrypt_store_row_with_key("notes.note-2", value.clone(), app_key.as_ref().unwrap(), "kid2")
-                .expect("enc");
+        let encrypted = encrypt_store_row_with_key(
+            "notes.note-2",
+            value.clone(),
+            app_key.as_ref().unwrap(),
+            "kid2",
+        )
+        .expect("enc");
         assert_eq!(encrypted.get("ae").and_then(Value::as_u64), Some(4));
 
         let decrypted =
@@ -815,8 +885,8 @@ mod tests {
         let db_path = root.join("data.db");
         let pool = crate::db::open_pool(&db_path).expect("pool");
 
-        // Legacy migration shape: note content encrypted inline, metadata (and
-        // the whole folder row) plaintext.
+        // Legacy migration shape: content encrypted inline, metadata (and the
+        // whole folder row) plaintext.
         let mut plain = Map::new();
         plain.insert(
             "notes.note-1".to_string(),
@@ -826,20 +896,22 @@ mod tests {
             "folders.f1".to_string(),
             json!({"id": "f1", "name": "Private"}),
         );
-        crate::db::db_replace_all(&pool, plain).expect("seed");
+        crate::db::db_replace_all(&pool, plain, None).expect("seed");
 
         let key = [9u8; 32];
         let key_id = "kid3";
 
-        let count = reencrypt_legacy_store_rows(pool.clone(), key, key_id.to_string())
-            .expect("reencrypt");
+        let count =
+            reencrypt_legacy_store_rows(pool.clone(), key, key_id.to_string()).expect("reencrypt");
         assert_eq!(count, 2);
 
-        let raw = crate::db::db_all(&pool).expect("raw");
+        let raw = crate::db::db_all(&pool, Some(key)).expect("raw");
         for row_key in ["notes.note-1", "folders.f1"] {
             let row = raw.get(row_key).expect("row");
             assert_eq!(
-                row.as_object().and_then(|o| o.get("ae")).and_then(Value::as_u64),
+                row.as_object()
+                    .and_then(|o| o.get("ae"))
+                    .and_then(Value::as_u64),
                 Some(4),
                 "{row_key} should be whole-row encrypted"
             );

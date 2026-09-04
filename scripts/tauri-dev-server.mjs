@@ -1,9 +1,14 @@
 import { spawn } from 'node:child_process';
 import net from 'node:net';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const rootDir = process.cwd();
+
+// Save terminal TMPDIR for Xcode script: Xcode overrides TMPDIR, causing mismatch.
+if (process.env.TMPDIR) {
+  writeFileSync(join(rootDir, 'src-tauri', '.tmpdir'), process.env.TMPDIR);
+}
 const isWindows = process.platform === 'win32';
 const viteBin = join(
   rootDir,
@@ -50,16 +55,22 @@ async function findReachableHost() {
 }
 
 let child = null;
+let shuttingDown = false;
 
 function shutdown(code = 0) {
+  shuttingDown = true;
   if (child?.pid) {
     child.kill('SIGTERM');
   }
   process.exit(code);
 }
 
-['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((signal) => {
+['SIGINT', 'SIGTERM'].forEach((signal) => {
   process.on(signal, () => shutdown(0));
+});
+// Ignore SIGHUP so terminal close keeps vite alive.
+process.on('SIGHUP', () => {
+  console.log('[tauri-dev-server] ignoring SIGHUP, keeping vite alive');
 });
 
 const reachableHost = await findReachableHost();
@@ -69,25 +80,37 @@ if (reachableHost) {
     `[tauri-dev-server] Reusing existing dev server on ${reachableHost}:${DEV_PORT}.`
   );
 
-  // Keep this helper alive so Tauri can manage the dev session normally.
+  // Keep alive for Tauri dev session.
   await new Promise(() => {});
 }
 
-child = spawn(viteBin, ['--config', 'vite.config.js'], {
-  cwd: rootDir,
-  stdio: 'inherit',
-  env: process.env,
-  shell: isWindows,
-});
+function startVite() {
+  child = spawn(viteBin, ['--config', 'vite.config.js'], {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: process.env,
+    shell: isWindows,
+  });
 
-child.on('exit', (code, signal) => {
-  if (signal) {
-    process.exit(1);
-  }
-  process.exit(code ?? 0);
-});
+  child.on('exit', (code, signal) => {
+    if (shuttingDown) {
+      process.exit(code ?? 0);
+      return;
+    }
+    if (signal) {
+      console.warn(`[tauri-dev-server] vite exited on ${signal}, restarting in 1s…`);
+    } else {
+      console.warn(`[tauri-dev-server] vite exited with ${code}, restarting in 1s…`);
+    }
+    setTimeout(startVite, 1000);
+  });
 
-child.on('error', (error) => {
-  console.error(error);
-  process.exit(1);
-});
+  child.on('error', (error) => {
+    console.error(error);
+    if (shuttingDown) process.exit(1);
+    console.warn('[tauri-dev-server] vite error, restarting in 1s…');
+    setTimeout(startVite, 1000);
+  });
+}
+
+startVite();

@@ -18,6 +18,7 @@ vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
 
 vi.mock('@/utils/sync/vault-key-params.js', () => ({
   publishCloudKeyParams: vi.fn(() => Promise.resolve(false)),
+  fetchCloudKeyParams: vi.fn(() => Promise.resolve(null)),
 }));
 
 import {
@@ -27,7 +28,7 @@ import {
   verifyPassphrase,
 } from '@/utils/crypto/encryption.js';
 import { adoptKeyParams, hasRemoteKeyParams, submitEncryptionPassword } from '@/lib/native/security.js';
-import { publishCloudKeyParams } from '@/utils/sync/vault-key-params.js';
+import { publishCloudKeyParams, fetchCloudKeyParams } from '@/utils/sync/vault-key-params.js';
 
 describe('adoptVaultKey', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -61,20 +62,25 @@ describe('hasRemoteVaultKeyParams', () => {
   });
 });
 
-describe('cloud key params publish on encryption lifecycle', () => {
+describe('cloud key params on encryption lifecycle', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('publishes cloud key params after setupEncryption succeeds', async () => {
+  // setup/verify must fetch server params (so reconcile adopts the vault
+  // owner's keys) but NEVER publish: publishing here could overwrite the
+  // owner's keys with this device's fresh key.
+  it('fetches server key params and does not auto-publish after setupEncryption', async () => {
     submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });
     const res = await setupEncryption('a-passphrase');
     expect(res.ok).toBe(true);
-    await vi.waitFor(() => expect(publishCloudKeyParams).toHaveBeenCalled());
+    await vi.waitFor(() => expect(fetchCloudKeyParams).toHaveBeenCalled());
+    expect(publishCloudKeyParams).not.toHaveBeenCalled();
   });
 
-  it('publishes cloud key params after verifyPassphrase succeeds', async () => {
+  it('fetches server key params and does not auto-publish after verifyPassphrase', async () => {
     submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });
     const res = await verifyPassphrase('a-passphrase');
     expect(res.ok).toBe(true);
-    await vi.waitFor(() => expect(publishCloudKeyParams).toHaveBeenCalled());
+    await vi.waitFor(() => expect(fetchCloudKeyParams).toHaveBeenCalled());
+    expect(publishCloudKeyParams).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use serde_json::json;
 #[allow(unused_imports)]
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, Theme};
@@ -26,7 +28,10 @@ pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, AppError> {
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn app_directory(app: AppHandle, state: State<'_, AppState>) -> Result<String, AppError> {
+pub(crate) fn app_directory(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, AppError> {
     Ok(app_storage_dir(&app, state.inner())?
         .to_string_lossy()
         .to_string())
@@ -55,9 +60,7 @@ pub(crate) fn migration_status(
 pub(crate) async fn migration_run(app: AppHandle) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        // The copy is I/O + asset-encryption heavy; run it on a blocking thread
-        // (state is re-derived from the AppHandle — Tauri's managed state is
-        // Send + Sync and reachable from any thread).
+        // I/O heavy: blocking thread, state re-derived from AppHandle (Send + Sync).
         let app = app.clone();
         tokio::task::spawn_blocking(move || {
             let state = app.state::<AppState>();
@@ -69,7 +72,9 @@ pub(crate) async fn migration_run(app: AppHandle) -> Result<LegacyMigrationResul
 
     #[cfg(not(desktop))]
     {
-        Err(AppError::Other("Legacy migration is only available on desktop".into()))
+        Err(AppError::Other(
+            "Legacy migration is only available on desktop".into(),
+        ))
     }
 }
 
@@ -111,7 +116,9 @@ pub(crate) async fn migration_run_with_path(
 
     #[cfg(not(desktop))]
     {
-        Err(AppError::Other("Legacy migration is only available on desktop".into()))
+        Err(AppError::Other(
+            "Legacy migration is only available on desktop".into(),
+        ))
     }
 }
 
@@ -163,9 +170,200 @@ pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Resul
     }
 }
 
+/// Prefix of file:// localStorage key in LevelDB log: _file:// marker plus 0x01 flag.
+/// Non-file origins ignored.
+const FILE_ORIGIN_PREFIX: &[u8] = b"_file://\0\x01";
+
+/// LevelDB write-ahead log block size in bytes. Records never straddle blocks;
+/// the writer zero-fills the tail of a block and resumes at the next boundary.
+const LEVELDB_BLOCK_SIZE: usize = 32768;
+
+fn next_wal_block_boundary(i: usize) -> usize {
+    (i / LEVELDB_BLOCK_SIZE + 1) * LEVELDB_BLOCK_SIZE
+}
+
+/// Chromium stores each localStorage value as a serialized record starting
+/// with a `\x01` marker; the string follows it.
+const VALUE_MARKER: u8 = 0x01;
+
+/// Parse Chromium localStorage LevelDB WAL into file:// pref map: records are checksum/length/type headers plus WriteBatch payloads.
+/// Type 0 is delete, else write; file:// keys are _file:// marker plus pref, values 0x01 plus value. Best-effort, skips malformed.
+fn parse_localstorage_wal_bytes(data: &[u8]) -> serde_json::Map<String, serde_json::Value> {
+    use serde_json::Map;
+    let mut out = Map::new();
+    let mut fragment: Vec<u8> = Vec::new();
+    let mut i = 0usize;
+    while i + 7 <= data.len() {
+        // 7-byte record header; the checksum is not verified.
+        let len = u16::from_le_bytes([data[i + 4], data[i + 5]]) as usize;
+        let record_type = data[i + 6];
+        let payload = &data[i + 7..];
+        if len > payload.len() {
+            // Truncated final record: skip to block boundary, keep earlier records.
+            i = next_wal_block_boundary(i);
+            continue;
+        }
+        match record_type {
+            0 => {
+                // kZeroType pad: advance to boundary so next record stays synced.
+                i = next_wal_block_boundary(i);
+                continue;
+            }
+            1 => parse_write_batch(&mut out, &payload[..len]),
+            2 => {
+                fragment.clear();
+                fragment.extend_from_slice(&payload[..len]);
+            }
+            3 => fragment.extend_from_slice(&payload[..len]),
+            4 => {
+                fragment.extend_from_slice(&payload[..len]);
+                parse_write_batch(&mut out, &fragment);
+                fragment.clear();
+            }
+            _ => {}
+        }
+        i += 7 + len;
+    }
+    out
+}
+
+fn parse_write_batch(out: &mut serde_json::Map<String, serde_json::Value>, batch: &[u8]) {
+    use serde_json::Value;
+    if batch.len() < 12 {
+        return;
+    }
+    let count = u32::from_le_bytes([batch[8], batch[9], batch[10], batch[11]]) as usize;
+    if count > 100_000 {
+        return;
+    }
+    let mut p = 12usize;
+    for _ in 0..count {
+        if p >= batch.len() {
+            return;
+        }
+        let entry_type = batch[p];
+        p += 1;
+        let Some((key_len, key_start)) = wal_varint(batch, p) else {
+            return;
+        };
+        let key_end = key_start + key_len;
+        if key_end > batch.len() {
+            return;
+        }
+        let key = &batch[key_start..key_end];
+        p = key_end;
+
+        if entry_type == 0 {
+            if let Some(name) = pref_name(key) {
+                out.remove(name);
+            }
+            continue;
+        }
+
+        let Some((value_len, value_start)) = wal_varint(batch, key_end) else {
+            return;
+        };
+        let value_end = value_start + value_len;
+        if value_end > batch.len() {
+            return;
+        }
+        p = value_end;
+        if let Some(name) = pref_name(key) {
+            let raw = &batch[value_start..value_end];
+            let bytes = raw.strip_prefix(&[VALUE_MARKER]).unwrap_or(raw);
+            out.insert(
+                name.to_owned(),
+                Value::String(String::from_utf8_lossy(bytes).into_owned()),
+            );
+        }
+    }
+}
+
+fn pref_name(key: &[u8]) -> Option<&str> {
+    let name = key.strip_prefix(FILE_ORIGIN_PREFIX)?;
+    Some(std::str::from_utf8(name).unwrap_or_default())
+}
+
+/// LevelDB varint: 7 bits per byte, LSB-first, high bit = more bytes.
+/// Returns `(value, next_index)`.
+fn wal_varint(data: &[u8], mut i: usize) -> Option<(usize, usize)> {
+    let mut value = 0usize;
+    let mut shift = 0u32;
+    while i < data.len() {
+        let byte = data[i];
+        i += 1;
+        value |= usize::from(byte & 0x7f) << shift;
+        if byte & 0x80 == 0 {
+            return Some((value, i));
+        }
+        shift += 7;
+        if shift >= usize::BITS {
+            return None;
+        }
+    }
+    None
+}
+
+fn parse_localstorage_wal(
+    log_path: &Path,
+) -> Result<serde_json::Map<String, serde_json::Value>, AppError> {
+    let data = std::fs::read(log_path).map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(parse_localstorage_wal_bytes(&data))
+}
+
+/// Scan every LevelDB write log under `<dir>/Local Storage/leveldb`, merging
+/// the file-origin preferences they contain. Runs on a blocking thread.
+#[cfg(desktop)]
+fn read_legacy_preferences_blocking(dir: String) -> Result<serde_json::Value, AppError> {
+    let base = std::path::PathBuf::from(&dir);
+    let leveldb = base.join("Local Storage/leveldb");
+    let mut prefs = serde_json::Map::new();
+    if let Ok(entries) = std::fs::read_dir(&leveldb) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy().to_string();
+            if !(name_str.ends_with(".log") || name_str.ends_with(".ldb")) {
+                continue;
+            }
+            if let Ok(prefs_map) = parse_localstorage_wal(&entry.path()) {
+                for (k, v) in prefs_map {
+                    if v.as_str().map(|s| !s.is_empty()).unwrap_or(false) {
+                        prefs.insert(k, v);
+                    }
+                }
+            }
+        }
+    }
+    Ok(serde_json::Value::Object(prefs))
+}
+
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn show_notification(app: AppHandle, title: String, body: String) -> Result<(), AppError> {
+pub(crate) async fn migration_read_legacy_preferences(
+    dir: String,
+) -> Result<serde_json::Value, AppError> {
+    #[cfg(desktop)]
+    {
+        // Directory scan + per-log parsing is I/O heavy; keep off the event loop.
+        tokio::task::spawn_blocking(move || read_legacy_preferences_blocking(dir))
+            .await
+            .map_err(|e| AppError::Other(e.to_string()))?
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = dir;
+        Ok(serde_json::Value::Object(serde_json::Map::new()))
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn show_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+) -> Result<(), AppError> {
     app.notification()
         .builder()
         .title(title)
@@ -189,7 +387,9 @@ pub(crate) fn set_spellcheck(app: AppHandle, enabled: bool) -> Result<(), AppErr
 #[specta::specta]
 pub(crate) fn set_zoom(app: AppHandle, state: State<AppState>, level: f64) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        window.set_zoom(level).map_err(|e| AppError::Other(e.to_string()))?;
+        window
+            .set_zoom(level)
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
     *state.ui.zoom_level.lock()? = level;
     Ok(())
@@ -251,9 +451,13 @@ pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<()
     #[cfg(desktop)]
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         if visible {
-            window.show_menu().map_err(|e| AppError::Other(e.to_string()))?;
+            window
+                .show_menu()
+                .map_err(|e| AppError::Other(e.to_string()))?;
         } else {
-            window.hide_menu().map_err(|e| AppError::Other(e.to_string()))?;
+            window
+                .hide_menu()
+                .map_err(|e| AppError::Other(e.to_string()))?;
         }
     }
 
@@ -261,6 +465,21 @@ pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<()
     let _ = (app, visible);
 
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn update_menu(app: AppHandle, context: serde_json::Value) -> Result<(), AppError> {
+    #[cfg(desktop)]
+    {
+        crate::menu::rebuild_menu(&app, &crate::menu::menu_context_from_value(&context))
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, context);
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -328,15 +547,14 @@ pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(
 
         #[cfg(target_os = "linux")]
         {
-            // x,y are screen-relative CSS pixels from JS (event.screenX/Y).
-            // Tauri's popup_menu_at expects coordinates relative to the
-            // window GdkWindow origin (includes CSD decorations).
-            // We compute window-relative physical pixels by subtracting
-            // the window's outer position from the screen cursor position.
-            let window_pos = window.outer_position().map_err(|e| AppError::Other(e.to_string()))?;
-            let dpr = window.scale_factor().map_err(|e| AppError::Other(e.to_string()))?;
+            // Screen CSS pixels to window physical pixels: multiply by DPR, subtract outer position.
+            let window_pos = window
+                .outer_position()
+                .map_err(|e| AppError::Other(e.to_string()))?;
+            let dpr = window
+                .scale_factor()
+                .map_err(|e| AppError::Other(e.to_string()))?;
 
-            // screenX/Y are CSS pixels → multiply by DPR → subtract window origin in physical px
             let phys_x = (x * dpr) - window_pos.x as f64;
             let phys_y = (y * dpr) - window_pos.y as f64;
 
@@ -357,5 +575,146 @@ pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(
     #[cfg(not(desktop))]
     {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{fs, path::PathBuf, time::SystemTime};
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        let ts = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("clock ok")
+            .as_nanos();
+        std::env::temp_dir().join(format!("{prefix}-{ts}-{}", std::process::id()))
+    }
+
+    /// Build one LevelDB log record (`checksum | length | type=full |
+    /// WriteBatch`) mirroring Chromium's on-disk localStorage layout.
+    fn build_record(entries: &[(bool, &[u8], &[u8])]) -> Vec<u8> {
+        let mut batch = Vec::new();
+        batch.extend_from_slice(&[0; 8]); // sequence number
+        batch.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+        for (is_delete, key, value) in entries {
+            batch.push(if *is_delete { 0 } else { 1 });
+            batch.push(key.len() as u8);
+            batch.extend_from_slice(key);
+            if !is_delete {
+                batch.push(value.len() as u8);
+                batch.extend_from_slice(value);
+            }
+        }
+        let mut record = Vec::new();
+        record.extend_from_slice(&[0; 4]); // checksum (not verified)
+        record.extend_from_slice(&(batch.len() as u16).to_le_bytes());
+        record.push(1); // kFullType
+        record.extend_from_slice(&batch);
+        record
+    }
+
+    #[test]
+    fn parses_chromium_localstorage_wal() {
+        let root = unique_temp_dir("beaver-notes-ls");
+        let _ = fs::create_dir_all(&root.join("Local Storage/leveldb"));
+        let log = root.join("Local Storage/leveldb/000003.log");
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&build_record(&[
+            (false, b"_file://\0\x01selected-font", b"\x01Arimo"),
+            (false, b"_file://\0\x01theme", b"\x01dark"),
+            (false, b"_file://\0\x01color-scheme", b"\x01light"),
+            // Non-file origin (dev server) must be ignored.
+            (false, b"_http://localhost:5173\0\x01zoomLevel", b"\x011"),
+            // META record must be ignored.
+            (false, b"META:file://", b"\x08\x00"),
+        ]));
+        bytes.extend_from_slice(&build_record(&[
+            (true, b"_file://\0\x01theme", b""),
+            (false, b"_file://\0\x01color-scheme", b"\x01pink"),
+        ]));
+        fs::write(&log, &bytes).expect("write wal");
+
+        let result = parse_localstorage_wal(&log).expect("parse");
+        assert_eq!(
+            result.get("selected-font"),
+            Some(&serde_json::Value::String("Arimo".into()))
+        );
+        // Later write overrides the earlier one.
+        assert_eq!(
+            result.get("color-scheme"),
+            Some(&serde_json::Value::String("pink".into()))
+        );
+        // Deletion entry removes the key.
+        assert!(result.get("theme").is_none());
+        // Non-file:// origins and META records are ignored.
+        assert!(result.get("zoomLevel").is_none());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// WAL with a record in block 1, a type-0 record right before a block
+    /// boundary, and a record in block 2.
+    fn build_multi_block_wal() -> Vec<u8> {
+        let block_size = super::LEVELDB_BLOCK_SIZE;
+        let mut bytes = Vec::new();
+        // Block 1: one real record, then zero-padding up to the boundary.
+        bytes.extend_from_slice(&build_record(&[(
+            false,
+            b"_file://\0\x01first",
+            b"\x01value-1",
+        )]));
+        while bytes.len() < block_size - 7 {
+            bytes.push(0);
+        }
+        assert_eq!(bytes.len(), block_size - 7);
+        // kZeroType record header: checksum(4) | length(2, LE)=0 | type(1)=0.
+        bytes.extend_from_slice(&[0; 4]);
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.push(0);
+        assert_eq!(bytes.len(), block_size);
+        // Block 2: a second record, starting exactly at the boundary.
+        bytes.extend_from_slice(&build_record(&[(
+            false,
+            b"_file://\0\x01second",
+            b"\x01value-2",
+        )]));
+        bytes
+    }
+
+    #[test]
+    fn parses_records_across_wal_block_boundaries() {
+        let bytes = build_multi_block_wal();
+        let result = parse_localstorage_wal_bytes(&bytes);
+        // First record (block 1) is kept...
+        assert_eq!(
+            result.get("first"),
+            Some(&serde_json::Value::String("value-1".into()))
+        );
+        // ...and the record in block 2 is not lost to the zero record.
+        assert_eq!(
+            result.get("second"),
+            Some(&serde_json::Value::String("value-2".into()))
+        );
+    }
+
+    #[test]
+    fn keeps_records_before_truncated_final_record() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&build_record(&[(
+            false,
+            b"_file://\0\x01first",
+            b"\x01value-1",
+        )]));
+        // A final record whose header claims a payload that was never written.
+        bytes.extend_from_slice(&[0; 4]); // checksum
+        bytes.extend_from_slice(&100u16.to_le_bytes()); // length = 100
+        bytes.push(1); // kFullType
+        bytes.extend_from_slice(b"short"); // only 5 payload bytes present
+
+        let result = parse_localstorage_wal_bytes(&bytes);
+        assert_eq!(
+            result.get("first"),
+            Some(&serde_json::Value::String("value-1".into()))
+        );
     }
 }

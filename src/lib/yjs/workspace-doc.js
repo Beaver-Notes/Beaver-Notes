@@ -1,14 +1,7 @@
-/**
- * Workspace Yjs document — single shared Y.Doc for all workspace metadata
- * (folders, labels, deleted-id tombstones, per-note meta). Note *content*
- * lives in separate per-note Y.Docs managed by useNoteYjs.
- *
- * This module owns the document lifecycle (load, persist, observe) and
- * sync helpers. Store hydration lives in meta-store.js.
- */
+/** Workspace Y.Doc for metadata (folders, labels, tombstones, note meta). Content lives per-note. Owns lifecycle and sync. */
 
 import * as Y from 'yjs';
-import { appendUpdate, getSnapshot } from '@/lib/native/yjs.js';
+import { appendUpdate, getSnapshot, getUpdates } from '@/lib/native/yjs.js';
 import { readDir as readSyncDir } from '@/lib/native/fs';
 import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
@@ -20,10 +13,13 @@ import {
   getDeviceId,
   objToYMap,
   toUint8Array,
-} from '@/utils/yjs-helpers.js';
-import { getWorkspaceDoc, META_DOC_ID } from './meta-doc.js';
-import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
+} from '@/lib/yjs/helpers.js';
+import { getWorkspaceDoc, META_DOC_ID, onWorkspaceDocDestroy } from './meta-doc.js';
+import { getWsSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/ws-sync';
 import { useWorkspaceStore } from '@/store/workspace';
+import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
+import { loadOrCreateIdentity } from '@/utils/crypto/identity';
+import { unwrapNoteKey } from '@/utils/crypto/note-key';
 
 // Re-export store hydration so consumers keep a single import path
 export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-store.js';
@@ -41,17 +37,24 @@ const NOTE_META_FIELDS = [
   'updatedAt',
   'preview',
   'cardPreview',
+  'dir',
 ];
 
 let observerAttached = false;
 let persistHandlerAttached = false;
 let snapshotWritten = false;
 
-// Debounced, merged persistence for the workspace doc. A burst of meta edits
-// (bulk drag, multi-rename, bulk label) fires one Y.Doc update event per
-// change; persisting each event individually would issue one SQLite IPC +
-// AES encrypt per change on the main thread. Instead we buffer the deltas,
-// merge them (Y.mergeUpdates — lossless for CRDT state) and write once.
+// Reset module-level flags when the doc singleton is destroyed (workspace
+// switch, account switch) so observers re-attach on next creation.
+onWorkspaceDocDestroy(() => {
+  observerAttached = false;
+  persistHandlerAttached = false;
+  snapshotWritten = false;
+});
+
+// Debounced, merged persistence: a burst of meta edits would otherwise issue
+// one SQLite IPC + AES encrypt per change. Buffer deltas, merge once
+// (Y.mergeUpdates is lossless CRDT state), write once.
 const META_FLUSH_DELAY_MS = 300;
 let pendingMetaUpdates = [];
 let metaFlushTimer = null;
@@ -71,8 +74,6 @@ export async function flushPendingMetaUpdates() {
   if (merged.byteLength === 0) return;
   await persistWorkspace(merged);
 }
-
-// ── Persistence ──────────────────────────────────────────────────────────────
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
@@ -101,7 +102,7 @@ async function persistWorkspace(update) {
       `SQLite appendUpdate for meta`
     );
   } catch {
-    // Update lost despite retries — console.error in retryWrite documents it
+    // Update lost despite retries: documented in retryWrite.
   }
   try {
     const commitsDir = await getCommitsDir();
@@ -122,55 +123,123 @@ async function persistWorkspace(update) {
       queueSyncWrite(commitsDir, META_DOC_ID, update);
     }
   } catch {
-    // Sync folder write failure is non-fatal — the update is already in SQLite
+    // Sync folder write failure non-fatal: update already in SQLite.
   }
 }
 
-// ── Load / observe ───────────────────────────────────────────────────────────
 
 export async function loadWorkspaceDoc() {
+  // Flush buffered meta updates BEFORE reading SQLite so freshly seeded
+  // state is persisted and can't be lost on reload.
+  await flushPendingMetaUpdates();
+
   const doc = getWorkspaceDoc();
 
   if (!persistHandlerAttached) {
     doc.on('update', (update, origin) => {
-      if (origin === 'load' || origin === 'sync') return;
+      if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
       pendingMetaUpdates.push(update);
       scheduleMetaFlush();
     });
 
-    // Flush any buffered meta updates on navigation so nothing is lost.
+    // Flush buffered meta updates on pagehide so nothing is lost.
     if (typeof window !== 'undefined') {
       window.addEventListener('pagehide', flushPendingMetaUpdates);
     }
     persistHandlerAttached = true;
   }
 
+  let snapshotLoaded = false;
   try {
     const snapshot = await getSnapshot(META_DOC_ID);
     if (snapshot && snapshot.length > 0) {
-      Y.applyUpdate(
-        doc,
-        toUint8Array(snapshot),
-        'load'
-      );
+      Y.applyUpdate(doc, toUint8Array(snapshot), 'load');
+      snapshotLoaded = true;
     }
   } catch (err) {
-    console.error('[meta-yjs] Failed to load snapshot:', err);
+    console.error('[meta-yjs] snapshot corrupted: attempting recovery from updates:', err?.message);
+  }
+
+  // Recovery: replay individual updates, skip corrupted: snapshot invalid but history may be intact.
+  if (!snapshotLoaded) {
+    try {
+      const updates = await getUpdates(META_DOC_ID);
+      if (Array.isArray(updates) && updates.length > 0) {
+        let applied = 0;
+        for (const upd of updates) {
+          try {
+            const bytes = upd?.update
+              ? toUint8Array(upd.update)
+              : upd instanceof Uint8Array
+                ? upd
+                : null;
+            if (bytes && bytes.byteLength > 0) {
+              Y.applyUpdate(doc, bytes, 'load');
+              applied++;
+            }
+          } catch {
+            // Skip corrupted updates: best-effort recovery.
+          }
+        }
+        if (applied > 0) {
+          console.warn(`[meta-yjs] recovered ${applied}/${updates.length} updates from history`);
+        } else {
+          console.warn('[meta-yjs] all updates corrupted: starting with empty workspace doc');
+        }
+      }
+    } catch (updateErr) {
+      console.warn('[meta-yjs] update replay also failed:', updateErr?.message);
+    }
   }
 
   registerActiveDoc(META_DOC_ID, doc);
 
-  const hocuspocus = getHocuspocusSync();
+  const wsSync = getWsSync();
   const workspaceStore = useWorkspaceStore();
   const wsId = workspaceStore.activeId;
-  if (wsId) hocuspocus.joinMetaRoom(wsId);
+  if (wsId) {
+    // Supply WORKSPACE key to Hocuspocus meta room before join, else inbound meta corrupts and grid goes blank.
+    await ensureMetaRoomKey(wsId).catch((err) => {
+      console.warn('[meta-yjs] could not derive workspace meta key:', err?.message || err);
+    });
+    wsSync.joinMetaRoom(wsId);
+  }
 
   return doc;
 }
 
+/** Derive workspace key and register on Hocuspocus meta room. Cache to store wrapped key to API fetch. */
+export async function ensureMetaRoomKey(wsId) {
+  if (!wsId) return;
+  let workspaceKeyHex = getCachedWorkspaceKey(wsId);
+  if (workspaceKeyHex) {
+    await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
+    return;
+  }
+  const workspaceStore = useWorkspaceStore();
+  const ws =
+    workspaceStore.activeWorkspace ||
+    workspaceStore.workspaces?.find((w) => w.id === wsId);
+  let wrappedKey = ws?.wrappedKey ?? null;
+  if (!wrappedKey) {
+    wrappedKey = await getWorkspaceKey(wsId);
+  }
+  if (!wrappedKey) {
+    console.warn('[meta-yjs] no wrapped key available for workspace', wsId);
+    return;
+  }
+  const identity = await loadOrCreateIdentity();
+  if (!identity?.privateKeyHex) {
+    console.warn('[meta-yjs] missing encryption identity for meta key');
+    return;
+  }
+  workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
+  await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
+}
+
 let observerTimer = null;
 let pendingChangedNoteIds = new Set();
-let metaFlags = { folders: false, labels: false, labelColors: false, deleted: false };
+let metaFlags = { folders: false, labels: false, labelColors: false };
 export function observeWorkspace(callback, debounceMs = 150) {
   const doc = getWorkspaceDoc();
   if (observerAttached) return;
@@ -192,15 +261,6 @@ export function observeWorkspace(callback, debounceMs = 150) {
     }
     schedule();
   });
-  doc.getMap('deletedFolderIds').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    metaFlags.deleted = true;
-    schedule();
-  });
-  doc.getMap('deletedNoteIds').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    schedule();
-  });
   doc.getArray('labels').observeDeep((_events, transaction) => {
     if (transaction?.origin === 'seed') return;
     metaFlags.labels = true;
@@ -220,19 +280,15 @@ export function observeWorkspace(callback, debounceMs = 150) {
       const changed = pendingChangedNoteIds;
       pendingChangedNoteIds = new Set();
       const flags = metaFlags;
-      metaFlags = { folders: false, labels: false, labelColors: false, deleted: false };
+      metaFlags = { folders: false, labels: false, labelColors: false };
       callback(changed, flags);
     }, debounceMs);
   }
 }
 
-// ── Transaction helper ───────────────────────────────────────────────────────
-
 export function transactWorkspace(mutator) {
   getWorkspaceDoc().transact(mutator, 'local');
 }
-
-// ── Sync helpers (store -> workspace doc) ────────────────────────────────────
 
 export function syncFolder(folder) {
   if (!folder || !folder.id) return;
@@ -249,14 +305,7 @@ export function removeFolder(id) {
   });
 }
 
-// ── Tombstone map helpers ───────────────────────────────────────────────────
-
-/**
- * Merge a partial set of entries into a Yjs Map, only touching keys that
- * changed.  Unlike syncTombstoneMap below, this does NOT delete keys that
- * are absent from the incoming object.  Used by the asset-sync loop so
- * that remote deletions added after the local snapshot are preserved.
- */
+/** Merge partial entries into Yjs Map without deleting absent keys: remote deletions after snapshot survive. */
 export function mergeIntoMap(mapName, entries) {
   if (!entries || typeof entries !== 'object') return;
   const map = getWorkspaceDoc().getMap(mapName);
@@ -267,12 +316,7 @@ export function mergeIntoMap(mapName, entries) {
   });
 }
 
-/**
- * Diff a Yjs Map against a desired plain-object state, applying only the
- * minimal set/delete operations.  Previous code did `map.clear()` +
- * re-insert every entry — O(n) mutations + O(n) delete events even when
- * only one key changed.  This is O(m) where m = number of changed keys.
- */
+/** Diff Yjs Map against desired state, apply minimal set/deletes: O(changed) not clear plus reinsert. */
 function syncTombstoneMap(mapName, desired) {
   const map = getWorkspaceDoc().getMap(mapName);
   transactWorkspace(() => {
@@ -289,10 +333,6 @@ function syncTombstoneMap(mapName, desired) {
       map.set(key, value);
     }
   });
-}
-
-export function syncDeletedFolderIds(deletedIds) {
-  syncTombstoneMap('deletedFolderIds', deletedIds || {});
 }
 
 export function syncLabel(name) {
@@ -333,9 +373,7 @@ export function syncNoteMeta(note) {
     const meta = {};
     for (const field of NOTE_META_FIELDS) {
       if (field === 'preview') {
-        // Short display snippet only — search text lives in the search index,
-        // not in the workspace doc (full text here is what bloats the meta and
-        // makes every launch transfer megabytes).
+        // Short snippet only: full text bloats meta doc, search lives in index.
         meta.preview = String(
           note.preview || note.searchText || note.cardPreview?.text || ''
         ).slice(0, 400);
@@ -358,10 +396,31 @@ export function removeNoteMeta(id) {
   });
 }
 
-export function syncDeletedNoteIds(deletedIds) {
-  syncTombstoneMap('deletedNoteIds', deletedIds || {});
-}
-
 export function syncDeletedAssets(deletedAssets) {
   syncTombstoneMap('deletedAssets', deletedAssets || {});
+}
+
+/** Create untitled placeholders for pulled note ids missing from notes map. Skips existing and META_DOC_ID. */
+export function reconcileUnknownNotePlaceholders(noteIds) {
+  const doc = getWorkspaceDoc();
+  const yNotes = doc.getMap('notes');
+  const pending = [...new Set(noteIds)].filter(
+    (id) => id && id !== META_DOC_ID && !yNotes.has(id)
+  );
+  for (const id of pending) {
+    syncNoteMeta({
+      id,
+      title: '',
+      folderId: '',
+      labels: [],
+      isArchived: false,
+      isLocked: false,
+      isBookmarked: false,
+      isFullWidth: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      preview: '',
+      cardPreview: {},
+    });
+  }
 }

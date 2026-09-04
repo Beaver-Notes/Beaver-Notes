@@ -13,8 +13,31 @@ import {
   listInviteLinks as apiListLinks,
   revokeInviteLink as apiRevokeLink,
 } from '@/lib/api/collaboration';
+import { getSettingSync } from '@/lib/settings';
+import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
-import { provisionNoteKey, clearUnwrappedKeyCache } from '@/utils/crypto/note-key';
+import {
+  provisionNoteKey,
+  recoverNoteKeyFromEnvelopes,
+  clearUnwrappedKeyCache,
+} from '@/utils/crypto/note-key';
+
+// Module-level so background tasks can resolve collaborator device keys
+// without spinning up the full composable.
+export async function fetchCollaboratorPublicKeys(noteId) {
+  const accountStore = useAccountStore();
+  const baseUrl = accountStore.serverUrl;
+  try {
+    return await apiListPublicKeys(noteId, { baseUrl });
+  } catch (err) {
+    // First touch of a note: the caller may not be a collaborator yet.
+    // Listing invitations auto-grants the self-invitation, after which the
+    // public-keys endpoint (gated to collaborators) accepts the request.
+    if (err?.status !== 403) throw err;
+    await apiList(noteId, { baseUrl });
+    return apiListPublicKeys(noteId, { baseUrl });
+  }
+}
 
 export function useNoteSharing() {
   const accountStore = useAccountStore();
@@ -45,7 +68,6 @@ export function useNoteSharing() {
     error.value = '';
     try {
       const raw = await apiList(noteId, { baseUrl: activeBaseUrl(), signal });
-      // Check if request was cancelled
       if (signal.aborted) return;
 
       collaborators.value = Array.isArray(raw)
@@ -62,7 +84,7 @@ export function useNoteSharing() {
       // Ignore abort errors (expected during navigation)
       if (err?.name === 'AbortError' || signal.aborted) return;
 
-      // 403 means user is not invited — treat as "no collaborators" rather than error
+      // 403 means not invited: treat as no collaborators, not error.
       if (err?.status === 403) {
         collaborators.value = [];
         return;
@@ -71,7 +93,6 @@ export function useNoteSharing() {
       error.value = err?.message || 'Failed to load collaborators';
       console.error('[useNoteSharing] fetchCollaborators failed:', err);
     } finally {
-      // Only reset loading if this request wasn't cancelled
       if (!signal.aborted) {
         loading.value = false;
       }
@@ -106,27 +127,21 @@ export function useNoteSharing() {
     }
   }
 
-  async function fetchCollaboratorPublicKeys(noteId) {
-    try {
-      return await apiListPublicKeys(noteId, { baseUrl: activeBaseUrl() });
-    } catch (err) {
-      // First touch of a note: the caller may not be a collaborator yet.
-      // Listing invitations auto-grants the self-invitation, after which the
-      // public-keys endpoint (gated to collaborators) accepts the request.
-      if (err?.status !== 403) throw err;
-      await apiList(noteId, { baseUrl: activeBaseUrl() });
-      return apiListPublicKeys(noteId, { baseUrl: activeBaseUrl() });
-    }
-  }
-
   async function ensureNoteKey(noteId) {
     if (!accountStore.isAuthenticated) return null;
 
+    // Per-note ML-KEM fan-out stays dormant on personal paths: it must never
+    // fire unless team collaboration is explicitly enabled (teams phase).
+    if (!getSettingSync('collaborationEnabled')) return null;
+
+    // Register the caller as the note's owner collaborator (idempotent: only
+    // bootstraps when the note has zero collaborators) and ensure the key
+    // envelope context exists. Non-fatal so note creation/opening never breaks.
+    await ensureKey(noteId).catch(() => {});
+
     const identity = await loadOrCreateIdentity();
 
-    // First touch of a note: the caller may not be a collaborator yet.
-    // Listing invitations auto-grants the self-invitation, after which the
-    // key endpoint (gated to collaborators) accepts the request.
+    // Same 403 self-invitation dance as fetchCollaboratorPublicKeys.
     const getKey = async () => {
       try {
         return await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
@@ -137,7 +152,15 @@ export function useNoteSharing() {
       }
     };
 
-    const noteKeyHex = await provisionNoteKey({
+    const raw = await getKey();
+    const noteKeyHex = await recoverNoteKeyFromEnvelopes(raw?.wrappedKeys, identity, noteId);
+    if (noteKeyHex) {
+      key.value = noteKeyHex;
+      return noteKeyHex;
+    }
+
+    // Fresh note: provision key for every device of every collaborator. Late joiner without envelope waits for re-distribute.
+    const fresh = await provisionNoteKey({
       getKey,
       listPublicKeys: () => fetchCollaboratorPublicKeys(noteId),
       storeRecipients: (recipients) =>
@@ -145,8 +168,15 @@ export function useNoteSharing() {
       identity,
       noteId,
     });
-    if (noteKeyHex) key.value = noteKeyHex;
-    return noteKeyHex;
+    if (fresh) {
+      key.value = fresh;
+      return fresh;
+    }
+
+    // Late joiner with no envelope: re-wrap requests arrive with the teams
+    // phase. Caller shows "setting up on this device…" until then.
+    logger.info('[notes] sharing arrives with teams phase');
+    return null;
   }
 
   async function invite(noteId, identifier, role = 'editor') {

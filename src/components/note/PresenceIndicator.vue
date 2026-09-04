@@ -4,7 +4,7 @@
       <div
         v-for="(peer, i) in visiblePeers"
         :key="peer.id"
-        class="relative w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-transform duration-150 hover:z-10 hover:-translate-y-0.5"
+        class="relative w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-transform duration-150 hover:z-10 hover:-translate-y-0.5"
         :style="{
           backgroundColor: peer.color,
           zIndex: visiblePeers.length - i,
@@ -15,7 +15,7 @@
       </div>
       <div
         v-if="overflowCount > 0"
-        class="relative w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-neutral-600 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800 ring-2 ring-white dark:ring-neutral-900 shadow-sm"
+        class="relative w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-neutral-600 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800 ring-2 ring-white dark:ring-neutral-900 shadow-sm"
         :title="`and ${overflowCount} more`"
       >
         +{{ overflowCount }}
@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, watch } from 'vue';
 import { usePresence } from '@/composable/usePresence';
 
 export default {
@@ -39,7 +39,7 @@ export default {
   },
   setup(props) {
     const { peers, init, destroy } = usePresence(
-      props.awareness,
+      () => props.awareness,
       props.awareness?.clientID?.toString() || 'local',
       props.userName
     );
@@ -47,6 +47,15 @@ export default {
     onMounted(() => {
       init();
     });
+
+    // Re-init when awareness becomes available after mount (per-doc guard)
+    watch(
+      () => props.awareness,
+      (aw, old) => {
+        if (old) destroy();
+        if (aw) init();
+      }
+    );
 
     onUnmounted(() => {
       destroy();

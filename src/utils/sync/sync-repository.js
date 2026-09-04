@@ -29,14 +29,9 @@ let cachedCommitsDir = null;
 let cachedCommitsDirFor = null;
 
 /**
- * Resolves the active commits directory.
- * If a local folder sync path is set, it uses that.
- * If no local folder is configured, but the transport is cloud (REMOTE) sync,
- * it falls back to a private sync directory in the application support folder.
- *
- * The folder-sync result is memoized per sync path — this is resolved on every
- * Yjs update, and each resolution previously cost an fs IPC call. setSyncPath()
- * invalidates getSyncPath(), so the derived directory stays correct.
+ * Resolves the active commits directory: the local sync folder if configured,
+ * else a private app-support directory for cloud sync. Folder result is
+ * memoized per path (resolved on every Yjs update); setSyncPath() invalidates it.
  */
 export async function getCommitsDir() {
   const { getSyncPath } = await import('./path.js');
@@ -54,12 +49,12 @@ export async function getCommitsDir() {
   try {
     const { getSettingSync } = await import('@/lib/settings');
     const transportSetting = getSettingSync('syncTransport') || 'folder';
-    const { SYNC_TRANSPORT } = await import('@/lib/api/types.js');
+    const { SYNC_TRANSPORT, normalizeSyncTransport } = await import('@/lib/api/types.js');
     const { useAccountStore } = await import('@/store/account');
     const accountStore = useAccountStore();
 
     const remoteAllowed =
-      transportSetting === SYNC_TRANSPORT.REMOTE &&
+      normalizeSyncTransport(transportSetting) === SYNC_TRANSPORT.REMOTE &&
       accountStore.isAuthenticated;
 
     if (remoteAllowed) {

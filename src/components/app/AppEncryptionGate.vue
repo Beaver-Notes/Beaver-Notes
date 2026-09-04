@@ -24,14 +24,14 @@
         }}
       </p>
       <p class="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-        Encryption is always active — your notes and assets are protected at
+        Encryption is always active: your notes and assets are protected at
         rest.
       </p>
 
       <ui-input
         ref="passwordInput"
         v-model="password"
-        type="password"
+        :password="true"
         :placeholder="translations.settings?.password || 'Passphrase'"
         class="mt-4 w-full"
         :disabled="busy"

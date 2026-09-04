@@ -25,10 +25,7 @@ export async function decryptComment(key, { contentEncrypted, contentIv }, aad) 
   return new TextDecoder().decode(plaintext);
 }
 
-/**
- * Encrypt a workspace/org name. The backend stores a single opaque
- * `nameEncrypted` string, so the 12-byte IV is prepended to the ciphertext.
- */
+/** Encrypt a workspace/org name: 12-byte IV prepended to ciphertext (backend stores one opaque nameEncrypted string). */
 export async function encryptName(key, plaintext) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(

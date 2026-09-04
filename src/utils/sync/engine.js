@@ -1,5 +1,5 @@
 import { getSyncPath } from './path.js';
-import { SYNC_ROOT_DIR, STORAGE_KEY } from './constants.js';
+import { SYNC_ROOT_DIR } from './constants.js';
 import { syncAssets } from './sync-assets.js';
 import {
   flushPendingSyncWrites,
@@ -7,19 +7,21 @@ import {
   setSyncTrigger,
   hasPendingWrites,
 } from './pending-writes.js';
-import { mergeCursorDelta } from './transports/transport.js';
 import { applyRemote } from '@/composable/useNoteYjs.js';
 import { appendUpdate, appendBatch } from '@/lib/native/yjs.js';
 import { getAppDirectory } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
 import { emit } from '@tauri-apps/api/event';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
-import { yMapToObj } from '@/utils/yjs-helpers.js';
-import { syncDeletedAssets } from '@/lib/yjs/workspace-doc';
+import { yMapToObj } from '@/lib/yjs/helpers.js';
+import { syncDeletedAssets, reconcileUnknownNotePlaceholders, writeStoresFromWorkspace } from '@/lib/yjs/workspace-doc';
 import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
-import { fetchCloudKeyParams, publishCloudKeyParams, cloudKeyParamsReachable } from './vault-key-params.js';
-import { reconcileSyncKeyParams, syncKeyReady } from '@/lib/native/security.js';
+import { fetchCloudKeyParams } from './vault-key-params.js';
+import { reconcileSyncKeyParams } from '@/lib/native/security.js';
+import * as Y from 'yjs';
+import { getCurrentStateVector, saveStateVector } from './state-vector.js';
+import { getActiveDoc } from '@/lib/yjs/shared.js';
 import { logger } from '@/utils/logger';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
@@ -33,25 +35,6 @@ export function getSyncEngine() {
 export function initSyncEngine(deps) {
   engine = new SyncEngine(deps);
   return engine;
-}
-
-function mergeCursors(cursors, delta, remote) {
-  if (!remote) return mergeCursorDelta(cursors, delta);
-  let changed = false;
-  for (const [workspaceId, notes] of Object.entries(delta || {})) {
-    cursors[workspaceId] ||= {};
-    for (const [noteId, devices] of Object.entries(notes || {})) {
-      cursors[workspaceId][noteId] ||= {};
-      for (const [deviceId, value] of Object.entries(devices || {})) {
-        const previous = cursors[workspaceId][noteId][deviceId];
-        if (!previous || value.ts > previous.ts || (value.ts === previous.ts && value.sequence > previous.sequence)) {
-          cursors[workspaceId][noteId][deviceId] = value;
-          changed = true;
-        }
-      }
-    }
-  }
-  return changed;
 }
 
 export class SyncEngine {
@@ -97,33 +80,30 @@ export class SyncEngine {
     return this.enqueueSync(true);
   }
 
-  /**
-   * Signal that the app returned from a hidden state.
-   * Triggers a pull to pick up remote changes made while backgrounded.
-   */
+  /** Signal the app returned from hidden state; pulls changes made while backgrounded. */
   notifyForeground() {
     this._foregroundWake = true;
     return this.enqueueSync(true);
   }
 
   /**
-   * Start the pull-only periodic timer. Fires every PULL_ONLY_INTERVAL_MS
-   * to pull remote changes from other devices. Only pulls — does not push.
+   * Pull-only timer for folder sync (cloud relies on WebSocket events for
+   * real-time pull triggers, so it never starts the timer).
    */
   startPullTimer() {
     if (this._pullTimer !== null) return;
+    const transports = this.getActiveTransports();
+    const cloudOnly = transports.length === 1 && transports[0] === 'cloud';
+    if (cloudOnly) return;
     this._pullTimer = setInterval(async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       if (this.syncing) return;
-      // Skip entirely when no syncPath is configured and only local transport
-      // is active — there is nothing to pull from.
+      // Nothing to pull from with no syncPath and only the local transport.
       const syncPath = await getSyncPath();
       const transports = this.getActiveTransports();
       if (!syncPath && transports.length === 1 && transports[0] === 'local') return;
-      // Idle backoff: if the previous pull-only cycle found no updates and
-      // there is nothing pending locally, skip this tick to avoid pulling the
-      // network every 30s for no reason. Detection still resumes on the next
-      // tick, so remote changes are picked up at worst one interval later.
+      // Idle backoff: skip one tick after an idle pull-only cycle; remote
+      // changes are picked up at worst one interval later.
       if (this._idlePullBackoff) {
         this._idlePullBackoff = false;
         return;
@@ -175,11 +155,18 @@ export class SyncEngine {
     this.pending = false;
     this._forceFlush = _force;
 
-    // Early exit before any sync work or status emit: with no sync folder and
-    // only the local transport active there is nothing to do. Unconfigured
-    // installs (no folder, no account) must not pay for cycles on every
-    // visibility change / foreground wake / force. `syncing` was already set
-    // synchronously so concurrent enqueueSync callers still coalesce.
+    // Early exit before any sync work or status emit: nothing to do for
+    // unconfigured installs. `syncing` was set synchronously so concurrent
+    // enqueueSync callers still coalesce.
+    const { getSettingSync } = await import('@/lib/settings');
+    const { bufToBase64 } = await import('@/utils/crypto/codec.js');
+    const onboardingCompleted = getSettingSync('onboardingCompleted');
+    if (!onboardingCompleted) {
+      logger.info('[sync] onboarding not completed → skip cycle');
+      t?.end();
+      this._resolveSkip();
+      return;
+    }
     const syncPath = await getSyncPath();
     const activeTransportNames = this.getActiveTransports();
     if (!syncPath && activeTransportNames.includes('local')) {
@@ -210,45 +197,43 @@ export class SyncEngine {
 
       logger.info('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
 
-      // Check encryption key readiness before attempting any sync operations.
-      // If encryption is enabled but the key hasn't been unlocked yet, all
-      // decrypt/encrypt calls would fail with KEY_LOCKED, producing noisy
-      // errors and deferred pulls. Skip the cycle gracefully instead.
-      if (activeTransportNames.includes('cloud')) {
-        const keyReady = await syncKeyReady().catch(() => false);
-        if (!keyReady && (await import('@/utils/crypto/encryption.js')).isEncryptionEnabled()) {
-          logger.info('[sync] encryption enabled but key not ready — deferring cycle');
-          try { emit('sync:status', { status: 'unlock-required' }); } catch {}
-          outcome = { ok: true };
-          return;
-        }
+      // Resolve readiness once per cycle: replaces scattered disagreeing checks.
+      const { getSyncReadiness } = await import('./readiness.js');
+      const readiness = await getSyncReadiness();
+      logger.info('[sync] readiness', { isAuth: readiness.isAuth, plan: readiness.plan, syncAllowed: readiness.syncAllowed, keyReady: readiness.keyReady, wsId: readiness.workspaceId });
+
+      if (this.transports.cloud?.setReadiness) {
+        this.transports.cloud.setReadiness(readiness);
       }
 
-      // Vault key params: reconcile and publish only on force/foreground cycles
-      if (_force || isForegroundWake) {
+      if (!readiness.keyReady) {
+        logger.info('[sync] encryption key not ready: deferring cycle');
+        try { emit('sync:status', { status: 'unlock-required' }); } catch {}
+        outcome = { ok: true };
+        return;
+      }
+
+      // Reconcile every cycle so joiner adopts owner keys fast. Force-only left device on local key after failure.
+      {
         let syncPassphrase = null;
         try {
           syncPassphrase = await loadSecureBlob('encryptionPassphraseBlob');
-        } catch {
+        } catch (e) {
+          logger.warn('[sync] loadSecureBlob(encryptionPassphraseBlob) failed:', e?.message || e);
           syncPassphrase = null;
         }
-        let fetchedRemote = false;
         try {
-          const fetched = await fetchCloudKeyParams();
-          fetchedRemote = !!fetched;
-        } catch {
+          await fetchCloudKeyParams();
+        } catch (e) {
+          logger.warn('[sync] fetchCloudKeyParams failed:', e?.message || e);
         }
         try {
           await reconcileSyncKeyParams(syncPassphrase || undefined);
         } catch (e) {
-          console.warn('[sync] key-params reconcile failed:', e);
+          logger.warn('[sync] key-params reconcile failed:', e);
         }
-        // Only publish if the server doesn't already have key params.
-        // If we just fetched them, publishing would overwrite the vault owner's
-        // key params with this device's local key params (which may differ).
-        if (cloudKeyParamsReachable() && !fetchedRemote) {
-          publishCloudKeyParams().catch(() => {});
-        }
+        // Never auto-publish during reconcile. Published only by seed (first device) and adopt (joiner).
+        // Auto-publish on 404 race overwrites server params with local, breaking others.
       }
 
       if (syncPath) {
@@ -258,7 +243,8 @@ export class SyncEngine {
           await syncAssets(localDir, syncDir, (progress) => {
             try { emit('sync:progress', progress); } catch {}
           });
-        } catch {
+        } catch (err) {
+          logger.error('[sync] asset sync failed:', err?.message || err);
         }
       }
 
@@ -271,38 +257,40 @@ export class SyncEngine {
 
       await flushPendingSyncWrites();
 
-      const cursors = await this._loadCursors();
-
-      // Only pull when there's a reason: forced sync, foreground wake, or pending local writes.
-      // Idle cycles with nothing to push skip the pull to avoid unnecessary network traffic.
       let cloudBlocked = false;
       if (shouldPull) {
+        try { emit('sync:progress', { phase: 'pull', processed: 0, total: 0 }); } catch {}
         for (const name of activeTransportNames) {
           const transport = this.transports[name];
           logger.info(`[sync] ${name} pull start`);
           let hasMore = true;
+          const pullAffectedNotes = new Set();
           while (hasMore) {
             let pullResult;
             try {
-              pullResult = await transport.pull(cursors);
+              pullResult = await transport.pull();
             } catch (e) {
+              logger.warn(`[sync] ${name} pull error:`, e?.code, e?.message);
               if (e?.code === 'unlock-required') {
-                console.warn('[sync] pull deferred — encryption is locked or not configured');
+                logger.warn('[sync] pull deferred: encryption is locked or not configured');
                 try { emit('sync:status', { status: 'unlock-required' }); } catch {}
                 if (name === 'cloud') cloudBlocked = true;
                 break;
+              }
+              if (e?.code === 'DECRYPT_FAILED') {
+                // Local key mismatch: surface so user re-adopts, not silent defer.
+                try { emit('sync:status', { status: 'decrypt-failed', message: e.message }); } catch {}
+                throw e;
               }
               throw e;
             }
             const { updates } = pullResult;
             logger.info(`[sync] ${name} pull got ${updates.length} updates`);
-            let cursorsDirty = false;
             const succeeded = Array.from({ length: updates.length }, () => false);
 
             if (updates.length > 0) {
               let batchApplied = false;
               try {
-                const { bufToBase64 } = await import('@/utils/crypto/codec.js');
                 await appendBatch(
                   updates.map((u) => u.noteId),
                   updates.map((u) => bufToBase64(u.update)),
@@ -334,20 +322,56 @@ export class SyncEngine {
                 }
               }
             }
+            if (updates.length > 0) {
+              try { emit('sync:progress', { phase: 'pull', processed: updates.length, total: updates.length }); } catch {}
+            }
+
+            // Reconcile placeholders AFTER applying the batch: notes whose
+            // titled meta just arrived keep their titles; must never fail the cycle.
+            if (updates.length > 0) {
+              try {
+                reconcileUnknownNotePlaceholders(updates.map((u) => u.noteId));
+              } catch (err) {
+                console.warn('[sync] placeholder reconciliation failed:', err?.message);
+              }
+            }
+
+            // Refresh the Pinia store after every pull batch: the workspace-doc
+            // observer skips origin 'sync', so without this newly-arrived
+            // content shows as "untitled" until meta arrives next cycle.
+            if (updates.length > 0) {
+              try {
+                const hasMetaUpdates = updates.some((u) => u.noteId === 'meta');
+                const affectedIds = updates
+                  .filter((u) => u.noteId !== 'meta')
+                  .map((u) => u.noteId);
+                await writeStoresFromWorkspace(hasMetaUpdates && affectedIds.length === 0 ? null : new Set(affectedIds), {
+                  labels: false,
+                  labelColors: false,
+                  folders: false,
+                  deleted: false,
+                });
+              } catch (err) {
+                logger.warn('[sync] store refresh after pull failed:', err?.message);
+              }
+            }
 
             const allSucceeded = succeeded.every(Boolean);
             if (allSucceeded) {
-              if (name !== 'cloud') {
-                for (const upd of updates) {
-                  const delta = {};
-                  delta[`yjs-${upd.device}`] = { ts: upd.ts, seq: upd.seq };
-                  if (mergeCursorDelta(cursors, delta)) cursorsDirty = true;
+              if (updates.length > 0) {
+                const affectedNoteIds = new Set(updates.map((u) => u.noteId));
+                for (const noteId of affectedNoteIds) {
+                  pullAffectedNotes.add(noteId);
+                  try {
+                    const sv = await getCurrentStateVector(noteId);
+                    if (sv && Object.keys(sv).length > 0) {
+                      saveStateVector(noteId, sv);
+                    }
+                  } catch {
+                    // non-critical
+                  }
                 }
               }
-              if (name === 'cloud' && pullResult.cursorsDelta) {
-                cursorsDirty = mergeCursors(cursors, pullResult.cursorsDelta, true) || cursorsDirty;
-              }
-              if (cursorsDirty) await this._saveCursors(cursors);
             } else if (!allSucceeded) {
               hasMore = false;
               break;
@@ -355,13 +379,30 @@ export class SyncEngine {
             if (updates.length > 0) gotUpdates = true;
             hasMore = pullResult.hasMore === true;
           }
+
+          // Compact affected notes' snapshot caches so the staleness check
+          // doesn't false-positive on the new rows and loop bootstrap endlessly.
+          if (pullAffectedNotes.size > 0) {
+            const { compactUpdates } = await import('@/lib/native/yjs.js');
+            for (const noteId of pullAffectedNotes) {
+              try {
+                const doc = getActiveDoc(noteId);
+                if (doc) {
+                  const state = Y.encodeStateAsUpdate(doc);
+                  if (state.byteLength > 0) {
+                    await compactUpdates(noteId, state);
+                  }
+                }
+              } catch {
+                // Non-critical: stale snapshot cache still syncs.
+              }
+            }
+          }
         }
       } else {
-        logger.info('[sync] pull skipped — nothing to sync');
+        logger.info('[sync] pull skipped: nothing to sync');
       }
 
-      // After a pull-only cycle with zero remote updates and nothing pending
-      // locally, arm the idle backoff so the next timer tick skips the pull.
       if (pullOnly && !gotUpdates && !hasPendingWrites()) {
         this._idlePullBackoff = true;
       }
@@ -369,7 +410,7 @@ export class SyncEngine {
       if (shouldPush) {
         for (const name of activeTransportNames) {
           if (cloudBlocked && name === 'cloud') {
-            logger.info('[sync] cloud push skipped — pull deferred due to unlock-required');
+            logger.info('[sync] cloud push skipped: pull deferred due to unlock-required');
             continue;
           }
           const transport = this.transports[name];
@@ -377,7 +418,7 @@ export class SyncEngine {
           let pushResult;
           for (let attempt = 0; attempt < 3; attempt++) {
             try {
-              pushResult = await transport.push(cursors, { force: this._forceFlush });
+              pushResult = await transport.push({ force: this._forceFlush });
               break;
             } catch (err) {
               if (err?.code === 'unlock-required') throw err;
@@ -386,12 +427,9 @@ export class SyncEngine {
             }
           }
           logger.info(`[sync] ${name} push done`, { pushed: pushResult.pushed });
-          if (pushResult.cursorsDelta && mergeCursors(cursors, pushResult.cursorsDelta, name === 'cloud')) {
-            await this._saveCursors(cursors);
-          }
         }
       } else {
-        logger.info('[sync] push skipped — pull-only mode');
+        logger.info('[sync] push skipped: pull-only mode');
       }
 
       if (activeTransportNames.includes('cloud') && !cloudBlocked) {
@@ -399,7 +437,7 @@ export class SyncEngine {
         await this.transports.cloud.syncAssets((progress) => {
           try { emit('sync:progress', progress); } catch {}
         }).catch((err) => {
-          console.warn('[sync] cloud asset sync failed:', err?.message);
+          logger.warn('[sync] cloud asset sync failed:', err?.message);
         });
         logger.info('[sync] cloud syncAssets done');
       }
@@ -417,8 +455,8 @@ export class SyncEngine {
       try { emit('sync:status', { status: 'complete' }); } catch {}
       logger.info('[sync] cycle complete ok');
     } catch (err) {
-      console.error('[sync] Sync failed:', err);
-      console.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
+      logger.error('[sync] Sync failed:', err);
+      logger.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
       const status = err?.code === 'unlock-required' ? 'unlock-required' :
         err?.status === 401 || err?.status === 403 ? 'authorization-failed' : 'offline';
@@ -443,17 +481,11 @@ export class SyncEngine {
         this.pending = false;
         const pendingForce = this._pendingForce;
         this._pendingForce = false;
-        this._runCycle(pendingForce);
+        this._runCycle(pendingForce).catch((err) => {
+          logger.error('[sync] recursive cycle failed:', err);
+        });
       }
     }
-  }
-
-  async _loadCursors() {
-    return this.storage.get(STORAGE_KEY.SYNC_CURSORS, {}, 'settings');
-  }
-
-  async _saveCursors(cursors) {
-    return this.storage.set(STORAGE_KEY.SYNC_CURSORS, cursors, 'settings');
   }
 }
 

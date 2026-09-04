@@ -45,11 +45,13 @@ const commandAliases = {
   'storage:has': 'storage_has',
   'storage:reencryptLegacyRows': 'storage_reencrypt_legacy_rows',
   'safeStorage:isEncryptionAvailable': 'safe_storage_is_available',
+  'safeStorage:getBackendInfo': 'safe_storage_get_backend_info',
   'safeStorage:encryptString': 'safe_storage_encrypt',
   'safeStorage:decryptString': 'safe_storage_decrypt',
   'safeStorage:storeBlob': 'safe_storage_store_blob',
   'safeStorage:fetchBlob': 'safe_storage_fetch_blob',
   'safeStorage:clearBlob': 'safe_storage_clear_blob',
+  'safeStorage:setDevicePassword': 'safe_storage_set_device_password',
   'assetCrypto:setAppPassphrase': 'asset_crypto_set_passphrase',
   'assetCrypto:clearAppPassphrase': 'asset_crypto_clear_passphrase',
   'assetCrypto:migrateDir': 'asset_crypto_migrate_dir',
@@ -79,6 +81,7 @@ const commandAliases = {
   'crypto:getCachedDecryptedNote': 'encryption_get_cached_decrypted_note',
   'crypto:decryptLegacyNote': 'decrypt_legacy_cryptojs_note',
   'crypto:deriveArgon2Key': 'derive_argon2_key',
+  'vault:deriveProof': 'vault_derive_proof',
   'passwd:hash': 'passwd_hash',
   'passwd:compare': 'passwd_compare',
   'passwd:recordFailure': 'passwd_record_failure',
@@ -101,6 +104,8 @@ const commandAliases = {
   'import:evernote': 'import_evernote',
   'import:apple-notes': 'import_apple_notes',
   'show-edit-context-menu': 'show_edit_context_menu',
+  'backup:export': 'backup_export',
+  'backup:import': 'backup_import',
   'spotsearch:enableIndexing': 'enable_indexing',
   'spotsearch:indexItems': 'index_items',
   'spotsearch:deleteItems': 'delete_items',
@@ -113,6 +118,7 @@ const commandAliases = {
   'yjs:append': 'yjs_append',
   'yjs:appendBatch': 'yjs_append_batch',
   'yjs:getUpdates': 'yjs_get_updates',
+  'yjs:getStateVector': 'yjs_get_state_vector',
   'yjs:getSnapshot': 'yjs_get_snapshot',
   'yjs:getSnapshots': 'yjs_get_snapshots',
   'yjs:compact': 'yjs_compact',
@@ -121,6 +127,7 @@ const commandAliases = {
   'workspace:list': 'workspace_list',
   'workspace:getActive': 'workspace_get_active',
   'workspace:create': 'workspace_create',
+  'workspace:registerCloud': 'workspace_register_cloud',
   'workspace:switch': 'workspace_switch',
   'workspace:rename': 'workspace_rename',
   'workspace:delete': 'workspace_delete',
@@ -144,9 +151,7 @@ function withKeyVariants(
 }
 
 function normalizeBinaryData(data: unknown): string {
-  // Binary crosses the JSON IPC as base64 — the Rust side decodes it. This is
-  // ~3x smaller than the previous JSON number-array encoding (and the sync
-  // layer already uses base64), cutting IPC + parse cost on large snapshots.
+  // Binary crosses JSON IPC as base64, Rust decodes. ~3x smaller than JSON number array, cuts IPC cost.
   if (data == null) return '';
   if (typeof data === 'string') {
     // Plain-text callers (e.g. writing markdown) must be utf-8 encoded before
@@ -161,6 +166,12 @@ function normalizeBinaryData(data: unknown): string {
   }
   if (Array.isArray(data)) return bufToBase64(new Uint8Array(data));
   return bufToBase64(textEncoder.encode(String(data)));
+}
+
+// Yjs payloads are binary, never text. String here is already base64, must pass untouched: double encode otherwise.
+function normalizeYjsBinary(data: unknown): string {
+  if (typeof data === 'string') return data;
+  return normalizeBinaryData(data);
 }
 
 function normalizePayload(channel: Channel, payload: Payload): Record<string, unknown> {
@@ -238,8 +249,12 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('name', payload?.name),
         ...withKeyVariants('key', payload?.key),
       };
+    case 'safeStorage:getBackendInfo':
+      return {};
     case 'safeStorage:encryptString':
       return withKeyVariants('plain_text', payload);
+    case 'safeStorage:setDevicePassword':
+      return withKeyVariants('password', payload);
     case 'safeStorage:decryptString':
       return withKeyVariants('encrypted_base64', payload);
     case 'safeStorage:fetchBlob':
@@ -283,7 +298,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('password', payload?.password),
       };
     case 'encryption:encryptNotePayload':
-      return withKeyVariants('plain_json', payload);
+      return withKeyVariants('plain_bytes', payload);
     case 'encryption:decryptNotePayload':
       return withKeyVariants('payload', payload);
     case 'sync:encryptPayload':
@@ -306,6 +321,12 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('passphrase', payload?.passphrase),
         ...(payload?.keyParams != null ? withKeyVariants('keyParams', payload.keyParams) : {}),
       };
+    case 'vault:deriveProof':
+      return {
+        ...withKeyVariants('passphrase', payload?.passphrase),
+        ...withKeyVariants('workspace_id', payload?.workspaceId ?? payload?.workspace_id),
+        ...withKeyVariants('key_params_blob', payload?.keyParamsBlob ?? payload?.key_params_blob),
+      };
     case 'passwd:hash':
       return withKeyVariants('password', payload);
     case 'dialog:open':
@@ -324,17 +345,19 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'yjs:append':
       return {
         ...withKeyVariants('noteId', payload?.noteId),
-        ...withKeyVariants('update', normalizeBinaryData(payload?.update)),
+        ...withKeyVariants('update', normalizeYjsBinary(payload?.update)),
         ...withKeyVariants('device', payload?.device ?? ''),
       };
     case 'yjs:appendBatch':
       return {
         ...withKeyVariants('noteIds', payload?.noteIds),
-        updates: Array.isArray(payload?.updates) ? payload.updates.map((u: unknown) => normalizeBinaryData(u)) : [],
+        updates: Array.isArray(payload?.updates) ? payload.updates.map((u: unknown) => normalizeYjsBinary(u)) : [],
         ...withKeyVariants('devices', payload?.devices ?? []),
       };
     case 'yjs:getUpdates':
       return withKeyVariants('noteId', payload);
+    case 'yjs:getStateVector':
+      return withKeyVariants('noteId', payload?.noteId ?? payload);
     case 'yjs:getSnapshot':
       return withKeyVariants('noteId', payload);
     case 'yjs:getSnapshots':
@@ -342,7 +365,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'yjs:compact':
       return {
         ...withKeyVariants('noteId', payload?.noteId),
-        ...withKeyVariants('snapshot', normalizeBinaryData(payload?.snapshot)),
+        ...withKeyVariants('snapshot', normalizeYjsBinary(payload?.snapshot)),
       };
     case 'yjs:compactBatch':
       return withKeyVariants('noteId', payload);
@@ -356,6 +379,18 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {
         name: payload?.name ?? payload,
         copySettings: payload?.copySettings ?? false,
+      };
+    case 'workspace:registerCloud':
+      return {
+        ...withKeyVariants('id', payload?.id),
+        ...withKeyVariants('name', payload?.name),
+        ...withKeyVariants('org_id', payload?.orgId ?? payload?.org_id),
+        ...withKeyVariants('owner_id', payload?.ownerId ?? payload?.owner_id),
+        ...withKeyVariants(
+          'workspace_type',
+          payload?.workspaceType ?? payload?.workspace_type
+        ),
+        ...withKeyVariants('created_at', payload?.createdAt ?? payload?.created_at),
       };
     case 'workspace:switch':
       return withKeyVariants('id', payload?.id ?? payload);

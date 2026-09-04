@@ -1,18 +1,18 @@
 import { computed, reactive, ref, shallowRef, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import useAudioRecorder from '@/utils/assets/record.js';
+import { useAudioRecorder } from '@/composable/useAudioRecorder';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useUiState } from '@/composable/useUiState';
 import { useNoteStore } from '@/store/note';
 import { useEditorImage } from '@/utils/assets/editor-image';
 import { useDialog } from '@/lib/dialog';
-import { useStorage } from '@/lib/storage';
 import { useTranslations } from '@/composable/useTranslations';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
 import { backend, path } from '@/lib/tauri-bridge';
 import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
 import { exportBEA } from '@/utils/share/BEA';
+import { readNoteContents } from '@/lib/yjs/meta-store.js';
 import { exportPDF } from '@/utils/share/PDF';
 import {
   getTempSharePath,
@@ -34,8 +34,6 @@ import mime from 'mime';
 import { saveFile } from '@/utils/assets/storage.js';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/utils/ui/zoom';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
-
-const storage = useStorage('settings');
 
 const highlighterColors = [
   'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40',
@@ -75,8 +73,14 @@ export function useNoteMenu(props) {
   const visibleItems = toolbar.visibleItems;
   const showCustomizer = ref(false);
 
-  const { isRecording, formattedTime, toggleRecording, isPaused, pauseResume } =
-    useAudioRecorder(props, backend, storage, path);
+  const recorder = useAudioRecorder();
+  const isRecording = recorder.isRecording;
+  const formattedTime = recorder.formattedTime;
+
+  function toggleRecording() {
+    const cursorPos = props.editor?.state?.selection?.from ?? 0;
+    recorder.start(props.id, cursorPos);
+  }
 
   const uiState = useUiState();
   const noteStore = useNoteStore();
@@ -85,7 +89,6 @@ export function useNoteMenu(props) {
   const editorImage = useEditorImage(props.editor);
   useGroupTooltip();
 
-  // --- useNoteMenuActions inlined ---
   const isTableActive = computed(
     () => props.editor.isActive('tableCell') || props.editor.isActive('tableHeader')
   );
@@ -135,12 +138,7 @@ export function useNoteMenu(props) {
   }
 
   async function shareBEA() {
-    const storage = useStorage();
-    const allNotes = await storage.store();
-    const notesArray = Array.isArray(allNotes)
-      ? allNotes
-      : Object.values(allNotes.notes || {});
-    const noteToExport = notesArray.find((n) => n.id === props.id);
+    const noteToExport = noteStore.data[props.id];
     if (!noteToExport) return;
 
     const appDirectory = await getAppDirectory();
@@ -161,17 +159,17 @@ export function useNoteMenu(props) {
       notesAssets: await encodeAssets(
         path.join(appDirectory, 'assets', props.id)
       ),
-      fileAssets: await encodeAssets(
-        path.join(appDirectory, 'assets', props.id)
-      ),
+      fileAssets: {},
     };
+    // Content lives in per-note Yjs docs; fall back to any in-memory copy.
+    const contents = await readNoteContents([props.id]);
 
     const exportedData = {
       data: {
         id: props.id,
         title: noteToExport.title,
-        content: noteToExport.content,
-        lockedNotes: JSON.parse(localStorage.getItem('lockedNotes')) || {},
+        content: contents[props.id] ?? noteToExport.content,
+        isLocked: !!noteToExport.isLocked,
         assets,
         labels: noteToExport.labels || [],
       },
@@ -439,6 +437,13 @@ export function useNoteMenu(props) {
       : null
   );
 
+  const currentHighlightHex = computed(() => {
+    const c = currentHighlightClass.value;
+    if (!c) return null;
+    const m = c.match(/#[0-9A-Fa-f]{6}/);
+    return m ? m[0] : null;
+  });
+
   function setHighlightColor(color) {
     if (props.editor.isActive('highlight', { color })) {
       props.editor.commands.unsetHighlight();
@@ -459,7 +464,6 @@ export function useNoteMenu(props) {
     }
   }
 
-  // --- useNoteMenuState inlined ---
   const fontSize = ref(16);
   const imgUrl = shallowRef('');
   const fileUrl = shallowRef('');
@@ -549,18 +553,8 @@ export function useNoteMenu(props) {
     setStoredZoomLevel(level);
   }
 
-  function toggleReaderMode() {
-    setZoom(getStoredZoomLevel());
-    store.inReaderMode = !store.inReaderMode;
-    if (store.inReaderMode) {
-      document.documentElement.requestFullscreen();
-      props.editor.commands.focus();
-      props.editor.setOptions({ editable: false });
-    } else {
-      document.exitFullscreen();
-      props.editor.setOptions({ editable: true });
-    }
-  }
+  function exitReader(){ store.inReaderMode=false; try{ if(document.fullscreenElement) document.exitFullscreen(); }catch{} props.editor?.setOptions?.({editable:true}); document.documentElement.removeAttribute('data-reader-theme-legacy'); }
+  function toggleReaderMode(){ setZoom(getStoredZoomLevel()); const next=!store.inReaderMode; store.inReaderMode=next; if(next){ try{ document.documentElement.requestFullscreen?.(); }catch{} props.editor?.setOptions?.({editable:false}); } else exitReader(); }
 
   function deleteNode() {
     dialog.confirm({
@@ -597,25 +591,17 @@ export function useNoteMenu(props) {
   });
   onUnmounted(() => _unregShortcuts?.());
 
-  function onKeydown(e) {
-    if (e.key === 'Escape' && store.inReaderMode) {
-      toggleReaderMode();
-    }
-  }
-
-  onMounted(() => {
-    if (props.editor) {
-      props.editor.on('selectionUpdate', handleSelectionUpdate);
-    }
-    document.addEventListener('keydown', onKeydown);
+  let _unregShortcuts2;
+  onMounted(()=>{
+    const onFs=()=>{ if(!document.fullscreenElement && store.inReaderMode) exitReader(); };
+    const onKey=(e)=>{ if(e.key==='Escape' && store.inReaderMode) exitReader(); };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('keydown', onKey);
+    _unregShortcuts2=()=>{document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('keydown', onKey);};
+    if (props.editor) props.editor.on('selectionUpdate', handleSelectionUpdate);
   });
+  onUnmounted(()=>{ props.editor?.off?.('selectionUpdate', handleSelectionUpdate); _unregShortcuts2?.(); });
 
-  onUnmounted(() => {
-    props.editor?.off?.('selectionUpdate', handleSelectionUpdate);
-    document.removeEventListener('keydown', onKeydown);
-  });
-
-  // --- Original computed properties ---
   const visibleItemIds = computed(
     () => new Set(visibleItems.value.map((item) => item.id))
   );
@@ -663,10 +649,9 @@ export function useNoteMenu(props) {
     isRecording,
     formattedTime,
     toggleRecording,
-    isPaused,
-    pauseResume,
     currentTextColor,
     currentHighlightClass,
+    currentHighlightHex,
     drawActions,
     fmtMap,
     highlighterColors,
@@ -700,6 +685,7 @@ export function useNoteMenu(props) {
     insertVideo,
     showHeadingsTree,
     toggleReaderMode,
+    exitReader,
     updateFontSize,
     videoUrl,
   };

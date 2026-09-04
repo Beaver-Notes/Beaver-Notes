@@ -1,12 +1,7 @@
-// src/composables/selection.js
 import { ref, computed } from 'vue';
 import { triggerSelectionHaptic } from '@/lib/native/haptics';
 
-/**
- * Detects whether the user is on macOS.
- * Uses the modern userAgentData API where available, falling back to userAgent.
- * Evaluated once at module load — avoids repeated string parsing on every click.
- */
+// Evaluated once at load: avoids repeated UA parsing per click.
 const isMac = (() => {
   if (navigator.userAgentData?.platform) {
     return navigator.userAgentData.platform === 'macOS';
@@ -14,13 +9,7 @@ const isMac = (() => {
   return /mac/i.test(navigator.userAgent);
 })();
 
-/**
- * Patches `target` in-place so it mirrors `source`, making the minimum number
- * of mutations.  Used by the drag-selection rAF loop: we avoid replacing the
- * Set reference on every frame (which would trigger full-tree re-renders) and
- * instead mutate only the changed entries, then let the caller decide when to
- * signal Vue that the ref changed.
- */
+/** Patch target in place to mirror source with minimal mutations. For drag rAF loops, replacing Set would re-render tree. */
 export function patchSelectionSet(target, source) {
   for (const v of target) if (!source.has(v)) target.delete(v);
   for (const v of source) if (!target.has(v)) target.add(v);
@@ -54,10 +43,7 @@ export function useSelection({ suppressNextClick } = {}) {
     };
   });
 
-  /**
-   * Replace the Set reference so Vue's reactivity detects the change and
-   * re-evaluates every computed/watcher that depends on `selectedItems`.
-   */
+  // Replace the Set reference so Vue reactivity picks up the change.
   function clearSelection() {
     selectedItems.value = new Set();
     lastSelectedItem.value = null;

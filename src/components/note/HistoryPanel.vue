@@ -8,14 +8,13 @@
       >
         <!-- Desktop Layout -->
         <div class="max-md:hidden">
-          <!-- Header -->
           <div class="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-700">
             <div class="flex items-center gap-3">
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                Note History
+                {{ tr.noteHistory || 'Note History' }}
               </h3>
               <span v-if="filteredCommits.length" class="text-xs text-neutral-400 dark:text-neutral-500">
-                Last edited {{ relativeTime(filteredCommits[0]?.createdAt) }}
+                {{ fmt('lastEdited', { time: relativeTime(filteredCommits[0]?.createdAt) }) }}
               </span>
             </div>
             <div class="flex items-center gap-2">
@@ -24,9 +23,9 @@
                 @change="history.setFilter($event.target.value)"
                 class="text-xs border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-1 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
-                <option value="all">All</option>
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
+                <option value="all">{{ tr.all || 'All' }}</option>
+                <option value="today">{{ tr.today || 'Today' }}</option>
+                <option value="week">{{ tr.thisWeek || 'This Week' }}</option>
               </select>
               <button
                 @click="$emit('close')"
@@ -37,41 +36,34 @@
             </div>
           </div>
 
-          <!-- Loading State -->
           <div v-if="history.loading.value && !filteredCommits.length" class="flex items-center justify-center py-12">
             <div class="flex flex-col items-center gap-3">
               <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-              <span class="text-sm text-neutral-500">Loading history...</span>
+              <span class="text-sm text-neutral-500">{{ tr.loading || 'Loading history...' }}</span>
             </div>
           </div>
 
-          <!-- Error State -->
           <div v-else-if="history.error.value" class="flex items-center justify-center py-12 px-6">
             <div class="text-center">
               <p class="text-sm text-red-600 dark:text-red-400">{{ history.error.value }}</p>
             </div>
           </div>
 
-          <!-- Empty State -->
           <div v-else-if="!filteredCommits.length" class="flex items-center justify-center py-12 px-6">
             <div class="text-center">
-              <p class="text-sm text-neutral-500">No history available</p>
+              <p class="text-sm text-neutral-500">{{ tr.noHistory || 'No history available' }}</p>
             </div>
           </div>
 
-          <!-- Main Content -->
           <div v-else class="flex overflow-hidden">
-            <!-- Scatter Chart -->
             <div class="flex-1 p-4 min-h-[220px]">
               <div class="relative w-full h-full min-h-[180px]">
-                <!-- Y-axis labels -->
-                <div class="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-[10px] text-neutral-400 dark:text-neutral-500 pr-1">
+                                <div class="absolute left-0 top-0 bottom-6 w-8 flex flex-col justify-between text-xs text-neutral-400 dark:text-neutral-500 pr-1">
                   <span>6AM</span>
                   <span>2PM</span>
                   <span>10PM</span>
                 </div>
-                <!-- Chart area -->
-                <div class="ml-8 relative h-[calc(100%-24px)] border-b border-l border-neutral-200 dark:border-neutral-700">
+                                <div class="ml-8 relative h-[calc(100%-24px)] border-b border-l border-neutral-200 dark:border-neutral-700">
                   <div class="absolute inset-0 flex flex-col justify-between pointer-events-none">
                     <div class="border-t border-dashed border-neutral-200 dark:border-neutral-700 w-full h-0" style="top: 25%"></div>
                     <div class="border-t border-dashed border-neutral-200 dark:border-neutral-700 w-full h-0" style="top: 50%"></div>
@@ -95,7 +87,7 @@
                     @click="onDotClick(commit, idx)"
                   ></div>
                 </div>
-                <div class="ml-8 mt-1 flex justify-between text-[10px] text-neutral-400 dark:text-neutral-500">
+                <div class="ml-8 mt-1 flex justify-between text-xs text-neutral-400 dark:text-neutral-500">
                   <span>{{ dateRangeLabel.min }}</span>
                   <span v-if="dateRangeLabel.mid">{{ dateRangeLabel.mid }}</span>
                   <span>{{ dateRangeLabel.max }}</span>
@@ -103,7 +95,6 @@
               </div>
             </div>
 
-            <!-- Inspector Card -->
             <transition
               enter-active-class="transition-all duration-200 ease-out"
               enter-from-class="translate-x-4 opacity-0"
@@ -119,7 +110,7 @@
                 <div class="p-3 space-y-3">
                   <div class="flex items-center justify-between">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Version</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.version || 'Version' }}</p>
                       <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                         {{ filteredCommits.length - history.selectedCommitIndex.value }}
                       </p>
@@ -132,20 +123,20 @@
                     </button>
                   </div>
                   <div>
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Timestamp</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.timestamp || 'Timestamp' }}</p>
                     <p class="text-xs text-neutral-700 dark:text-neutral-300">
                       {{ formatDateTime(selectedCommitData.createdAt) }}
                     </p>
                   </div>
                   <div class="flex gap-4">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Words</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.words || 'Words' }}</p>
                       <p class="text-xs font-medium text-neutral-900 dark:text-neutral-100">
                         {{ wordCount.toLocaleString() }}
                       </p>
                     </div>
                     <div v-if="wordDiff !== null">
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Change</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.change || 'Change' }}</p>
                       <p
                         class="text-xs font-medium"
                         :class="wordDiff > 0 ? 'text-emerald-600 dark:text-emerald-400' : wordDiff < 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'"
@@ -155,13 +146,13 @@
                     </div>
                   </div>
                   <div v-if="snippet">
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400 mb-0.5">Preview</p>
-                    <p class="text-[11px] text-neutral-600 dark:text-neutral-400 line-clamp-2 leading-relaxed">
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-0.5">{{ tr.preview || 'Preview' }}</p>
+                    <p class="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2 leading-relaxed">
                       {{ snippet }}
                     </p>
                   </div>
                   <div v-if="selectedCommitData.authorName">
-                    <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Author</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.author || 'Author' }}</p>
                     <p class="text-xs text-neutral-700 dark:text-neutral-300">
                       {{ selectedCommitData.authorName }}
                     </p>
@@ -171,13 +162,13 @@
                       @click="togglePreview"
                       class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
-                      {{ showPreview ? 'Hide' : 'Preview' }}
+                      {{ showPreview ? (tr.hide || 'Hide') : (tr.preview || 'Preview') }}
                     </button>
                     <button
                       @click="$emit('restore', selectedCommitData)"
                       class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                     >
-                      Restore
+                      {{ tr.restore || 'Restore' }}
                     </button>
                   </div>
                 </div>
@@ -191,7 +182,6 @@
             </transition>
           </div>
 
-          <!-- Rotary Wheel Timeline -->
           <div v-if="filteredCommits.length" class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-2">
             <div class="flex items-center gap-3">
               <button
@@ -240,15 +230,14 @@
 
         <!-- Mobile Layout -->
         <div class="hidden max-md:block">
-          <!-- Header Row -->
           <div class="flex items-center justify-between px-3 py-2 border-b border-neutral-200 dark:border-neutral-700">
             <div class="flex items-center gap-2">
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                History
+                {{ tr.history || 'History' }}
               </h3>
-              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40 rounded-full">
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40 rounded-full">
                 <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
-                Auto
+                {{ tr.auto || 'Auto' }}
               </span>
             </div>
             <div class="flex items-center gap-1.5">
@@ -257,9 +246,9 @@
                 @change="history.setFilter($event.target.value)"
                 class="text-[11px] border border-neutral-200 dark:border-neutral-600 rounded px-1.5 py-0.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
               >
-                <option value="all">All</option>
-                <option value="today">Today</option>
-                <option value="week">Week</option>
+                <option value="all">{{ tr.all || 'All' }}</option>
+                <option value="today">{{ tr.today || 'Today' }}</option>
+                <option value="week">{{ tr.week || 'Week' }}</option>
               </select>
               <button
                 @click="$emit('close')"
@@ -270,24 +259,19 @@
             </div>
           </div>
 
-          <!-- Loading -->
           <div v-if="history.loading.value && !filteredCommits.length" class="flex items-center justify-center py-8">
             <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
 
-          <!-- Error -->
           <div v-else-if="history.error.value" class="flex items-center justify-center py-8 px-4">
             <p class="text-sm text-red-600 dark:text-red-400 text-center">{{ history.error.value }}</p>
           </div>
 
-          <!-- Empty -->
           <div v-else-if="!filteredCommits.length" class="flex items-center justify-center py-8 px-4">
-            <p class="text-sm text-neutral-500">No history available</p>
+            <p class="text-sm text-neutral-500">{{ tr.noHistory || 'No history available' }}</p>
           </div>
 
-          <!-- Mobile Content -->
           <div v-else>
-            <!-- Compact Chart -->
             <div class="px-3 pt-3">
               <div class="relative w-full h-24">
                 <div class="absolute left-0 top-0 bottom-4 w-6 flex flex-col justify-between text-[8px] text-neutral-400 dark:text-neutral-500">
@@ -321,7 +305,6 @@
               </div>
             </div>
 
-            <!-- Mobile Inspector (collapsible) -->
             <div
               :class="[
                 'transition-[max-height,opacity] duration-200 ease-in-out overflow-hidden',
@@ -334,19 +317,19 @@
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-3">
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Version</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.version || 'Version' }}</p>
                       <p class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
                         {{ filteredCommits.length - history.selectedCommitIndex.value }}
                       </p>
                     </div>
                     <div>
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Words</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.words || 'Words' }}</p>
                       <p class="text-xs font-medium text-neutral-900 dark:text-neutral-100">
                         {{ wordCount.toLocaleString() }}
                       </p>
                     </div>
                     <div v-if="wordDiff !== null">
-                      <p class="text-[10px] text-neutral-500 dark:text-neutral-400">Change</p>
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.change || 'Change' }}</p>
                       <p
                         class="text-xs font-medium"
                         :class="wordDiff > 0 ? 'text-emerald-600 dark:text-emerald-400' : wordDiff < 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500'"
@@ -373,13 +356,13 @@
                     @click="togglePreview"
                     class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300"
                   >
-                    {{ showPreview ? 'Hide' : 'Preview' }}
+                    {{ showPreview ? (tr.hide || 'Hide') : (tr.preview || 'Preview') }}
                   </button>
                   <button
                     @click="$emit('restore', selectedCommitData)"
                     class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-emerald-600 text-white"
                   >
-                    Restore
+                    {{ tr.restore || 'Restore' }}
                   </button>
                 </div>
                 <div
@@ -391,7 +374,6 @@
               </div>
             </div>
 
-            <!-- Mobile Timeline -->
             <div v-if="filteredCommits.length" class="border-t border-neutral-200 dark:border-neutral-700 px-3 py-2">
               <div class="flex items-center gap-2">
                 <button
@@ -402,7 +384,7 @@
                 </button>
                 <div class="flex-1 overflow-hidden">
                   <div class="text-center mb-0.5">
-                    <span class="text-[10px] font-medium text-neutral-700 dark:text-neutral-300">
+                    <span class="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                       {{ activeDateLabel }}
                     </span>
                   </div>
@@ -446,6 +428,7 @@
 <script>
 import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue';
 import { useNoteHistory } from '@/composable/useNoteHistory';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: {
@@ -455,13 +438,20 @@ export default {
   emits: ['close', 'restore'],
   setup(props) {
     const history = useNoteHistory();
+    const { translations } = useTranslations();
+    const tr = computed(() => translations.value?.history || {});
+    function fmt(key, params) {
+      const raw = tr.value[key] ?? key;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
     const showPreview = ref(false);
     const previewEditorEl = ref(null);
     const rotaryContainer = ref(null);
     const wheelOffset = ref(0);
     let previewEditor = null;
 
-    // --- Scatter chart ---
+    // Scatter chart
     function dotPosition(commit) {
       const d = new Date(commit.createdAt);
       const hours = d.getHours() + d.getMinutes() / 60;
@@ -497,7 +487,7 @@ export default {
       await history.loadSnapshot(commit.hash);
     }
 
-    // --- Inspector card ---
+    // Inspector card
     const selectedCommitData = computed(() => {
       const idx = history.selectedCommitIndex.value;
       if (idx < 0) return null;
@@ -531,7 +521,7 @@ export default {
       return selectedCommitData.value?.snippet || '';
     });
 
-    // --- Preview editor ---
+    // Preview editor
     async function togglePreview() {
       showPreview.value = !showPreview.value;
       if (showPreview.value && history.selectedCommit.value?.content) {
@@ -558,7 +548,7 @@ export default {
       }
     }
 
-    // --- Rotary wheel ---
+    // Rotary wheel
     const wheelTickCount = computed(() => Math.max(history.filteredCommits.value.length, 20));
 
     function getTickHeight(i) {
@@ -622,7 +612,7 @@ export default {
       rotateWheel(e.deltaX || e.deltaY);
     }
 
-    // --- Formatting helpers ---
+    // Formatting helpers
     function formatDateTime(dateStr) {
       if (!dateStr) return '';
       const d = new Date(dateStr);
@@ -640,15 +630,15 @@ export default {
       const then = new Date(dateStr).getTime();
       const diff = now - then;
       const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'just now';
-      if (mins < 60) return `${mins}m ago`;
+      if (mins < 1) return tr.value.justNow || 'just now';
+      if (mins < 60) return fmt('minutesAgo', { count: mins });
       const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return `${hrs}h ago`;
+      if (hrs < 24) return fmt('hoursAgo', { count: hrs });
       const days = Math.floor(hrs / 24);
-      return `${days}d ago`;
+      return fmt('daysAgo', { count: days });
     }
 
-    // --- Lifecycle ---
+    // Lifecycle
     onMounted(() => {
       history.loadCommits(props.workspaceId, props.noteId);
     });
@@ -704,6 +694,8 @@ export default {
       onWheel,
       formatDateTime,
       relativeTime,
+      tr,
+      fmt,
     };
   },
 };
