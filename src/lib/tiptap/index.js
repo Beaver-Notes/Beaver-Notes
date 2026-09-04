@@ -6,6 +6,11 @@ import StarterKit from '@tiptap/starter-kit';
 import { Highlight } from './exts/highlight';
 import Typography from '@tiptap/extension-typography';
 import Link from '@tiptap/extension-link';
+import { registerCustomProtocol } from 'linkifyjs';
+
+['http', 'https', 'mailto', 'note'].forEach((scheme) =>
+  registerCustomProtocol(scheme)
+);
 import Code from '@tiptap/extension-code';
 import markdownEngine from './exts/markdown-engine';
 import { Paste } from './exts/markdown-engine/paste';
@@ -157,6 +162,8 @@ function createBaseExtensions({ yjs = false } = {}) {
     Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
     Link.extend({
       inclusive: false,
+      onCreate() {},
+      onDestroy() {},
       addKeyboardShortcuts() {
         return {
           'Mod-k': () =>

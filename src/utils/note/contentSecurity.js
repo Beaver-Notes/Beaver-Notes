@@ -203,7 +203,16 @@ export function sanitizeImportedHtml(html, options = {}) {
     element.replaceWith(doc.createTextNode(element.outerHTML || ''));
   };
 
-  doc.querySelectorAll('iframe, script, style, link, object, embed, base, form, meta').forEach(replaceWithText);
+  doc.querySelectorAll('script, style, link, base, form, meta').forEach(replaceWithText);
+
+  // Unwrap containers whose children carry real content (Apple Notes wraps
+  // tables and attachments in <object>); textifying them dumps raw markup.
+  doc.querySelectorAll('object, embed').forEach((element) => {
+    element.replaceWith(...element.childNodes);
+  });
+  doc.querySelectorAll('iframe').forEach((element) => {
+    element.remove();
+  });
 
   doc.querySelectorAll('img').forEach((img) => {
     const safeSrc = sanitizeImageSource(img.getAttribute('src'), {
