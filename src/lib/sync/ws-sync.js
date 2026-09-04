@@ -332,20 +332,26 @@ export function useWsSync() {
     joinNoteRoom(noteId, doc)
   }
 
-  // Fail-closed role resolution: unknown roles get VIEWER. The server remains
-  // authoritative; this only gates local editing UI and Yjs sends.
+  // Fail-closed role resolution: a note with known sharing context that does
+  // not list us resolves VIEWER. Notes with no sharing context resolve
+  // EDITOR (local owner). The server remains authoritative; this only gates
+  // local editing UI and Yjs sends.
   function getRoomRole(noteId) {
     const accountStore = useAccountStore()
     const userId = accountStore.profile?.id
-    if (!userId) return ROLES.VIEWER
-
-    // 1. Check per-note collaborator role (most specific)
     const collaboratorStore = useCollaboratorStore()
+
+    // 1. Per-note collaborator role (most specific), but only when the store
+    // actually describes this note. Stale state from a previously opened
+    // note must not leak into this one.
     if (collaboratorStore.noteId === noteId) {
       const self = collaboratorStore.collaborators.find(
-        (c) => c.userId === userId || c.username === accountStore.profile?.username
+        (c) =>
+          (userId && c.userId === userId) ||
+          (accountStore.profile?.username && c.username === accountStore.profile.username),
       )
       if (self?.role) return self.role
+      return ROLES.VIEWER
     }
 
     // 2. Fall back to workspace role
@@ -353,9 +359,8 @@ export function useWsSync() {
     const wsRole = workspaceStore.activeWorkspace?.role
     if (wsRole) return wsRole === 'admin' || canEdit(wsRole) ? ROLES.EDITOR : ROLES.VIEWER
 
-    // 3. No sharing context (local note): owner
-    if (!collaboratorStore.noteId) return ROLES.EDITOR
-    return ROLES.VIEWER
+    // 3. No sharing context for this note: owner
+    return ROLES.EDITOR
   }
 
   return {

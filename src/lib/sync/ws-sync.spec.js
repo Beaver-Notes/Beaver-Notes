@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock dependencies
 vi.mock('@/store/account', () => ({
@@ -72,8 +72,24 @@ vi.mock('y-websocket', () => {
 })
 
 import { getWsSync } from './ws-sync.js'
+import { useAccountStore } from '@/store/account'
+import { useWorkspaceStore } from '@/store/workspace'
+import { useCollaboratorStore } from '@/store/collaborator'
 
 describe('ws-sync', () => {
+  beforeEach(() => {
+    useAccountStore.mockReturnValue({
+      token: 'mock-token',
+      status: 'authenticated',
+      profile: { id: 'user-1', username: 'testuser' },
+    })
+    useWorkspaceStore.mockReturnValue({
+      activeId: 'ws-1',
+      workspaces: [{ id: 'ws-1', role: 'editor' }],
+      activeWorkspace: { id: 'ws-1', role: 'editor' },
+    })
+    useCollaboratorStore.mockReturnValue({ noteId: '', collaborators: [] })
+  })
   it('creates a singleton instance', () => {
     const a = getWsSync()
     const b = getWsSync()
@@ -97,5 +113,39 @@ describe('ws-sync', () => {
   it('getRoomRole returns editor for editable workspace role', () => {
     const sync = getWsSync()
     expect(sync.getRoomRole('note-1')).toBe('editor')
+  })
+
+  it('getRoomRole ignores stale collaborator state from another note', () => {
+    useWorkspaceStore.mockReturnValue({ activeWorkspace: null })
+    useCollaboratorStore.mockReturnValue({ noteId: 'old-note', collaborators: [] })
+    const sync = getWsSync()
+    expect(sync.getRoomRole('new-note')).toBe('editor')
+  })
+
+  it('getRoomRole returns editor for local notes without an account', () => {
+    useAccountStore.mockReturnValue({ token: null, status: 'guest', profile: null })
+    useWorkspaceStore.mockReturnValue({ activeWorkspace: null })
+    const sync = getWsSync()
+    expect(sync.getRoomRole('local-note')).toBe('editor')
+  })
+
+  it('getRoomRole stays viewer when this note is shared but we are not listed', () => {
+    useWorkspaceStore.mockReturnValue({ activeWorkspace: null })
+    useCollaboratorStore.mockReturnValue({
+      noteId: 'shared-note',
+      collaborators: [{ userId: 'user-2', username: 'other', role: 'editor' }],
+    })
+    const sync = getWsSync()
+    expect(sync.getRoomRole('shared-note')).toBe('viewer')
+  })
+
+  it('getRoomRole returns our collaborator role for this note', () => {
+    useWorkspaceStore.mockReturnValue({ activeWorkspace: null })
+    useCollaboratorStore.mockReturnValue({
+      noteId: 'shared-note',
+      collaborators: [{ userId: 'user-1', username: 'testuser', role: 'viewer' }],
+    })
+    const sync = getWsSync()
+    expect(sync.getRoomRole('shared-note')).toBe('viewer')
   })
 })
