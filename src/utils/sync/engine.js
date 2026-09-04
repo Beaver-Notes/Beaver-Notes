@@ -186,7 +186,6 @@ export class SyncEngine {
     const shouldPull = _force || isForegroundWake || pullOnly || hasPendingWrites();
     const shouldPush = !pullOnly;
     let gotUpdates = false;
-    let pushedAny = false;
     logger.info('[sync] _runCycle start', { force: _force, foregroundWake: isForegroundWake, pullOnly, shouldPull, shouldPush });
 
     let outcome;
@@ -198,8 +197,7 @@ export class SyncEngine {
 
       logger.info('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
 
-      // Resolve sync readiness once per cycle — replaces scattered checks
-      // that could disagree with each other.
+      // Resolve readiness once per cycle: replaces scattered disagreeing checks.
       const { getSyncReadiness } = await import('./readiness.js');
       const readiness = await getSyncReadiness();
       logger.info('[sync] readiness', { isAuth: readiness.isAuth, plan: readiness.plan, syncAllowed: readiness.syncAllowed, keyReady: readiness.keyReady, wsId: readiness.workspaceId });
@@ -209,15 +207,13 @@ export class SyncEngine {
       }
 
       if (!readiness.keyReady) {
-        logger.info('[sync] encryption key not ready — deferring cycle');
+        logger.info('[sync] encryption key not ready: deferring cycle');
         try { emit('sync:status', { status: 'unlock-required' }); } catch {}
         outcome = { ok: true };
         return;
       }
 
-      // Reconcile on EVERY cycle so a joining device adopts the vault owner's
-      // keys as soon as possible — force-only reconcile left a device on its
-      // own local key after one failed attempt.
+      // Reconcile every cycle so joiner adopts owner keys fast. Force-only left device on local key after failure.
       {
         let syncPassphrase = null;
         try {
@@ -236,14 +232,8 @@ export class SyncEngine {
         } catch (e) {
           logger.warn('[sync] key-params reconcile failed:', e);
         }
-        // Never auto-publish key params during reconcile.
-        // Key params are published explicitly by:
-        //   1. seedCloudOnce – when the first device seeds the vault
-        //   2. adoptAndPublishVaultKeyParams – when a joining device adopts
-        // Auto-publishing here creates a race: if fetchCloudKeyParams returns
-        // 404 (intermittent), the server's existing params get overwritten with
-        // this device's local (different) params, breaking decryption for all
-        // other devices.
+        // Never auto-publish during reconcile. Published only by seed (first device) and adopt (joiner).
+        // Auto-publish on 404 race overwrites server params with local, breaking others.
       }
 
       if (syncPath) {
@@ -282,14 +272,13 @@ export class SyncEngine {
             } catch (e) {
               logger.warn(`[sync] ${name} pull error:`, e?.code, e?.message);
               if (e?.code === 'unlock-required') {
-                logger.warn('[sync] pull deferred — encryption is locked or not configured');
+                logger.warn('[sync] pull deferred: encryption is locked or not configured');
                 try { emit('sync:status', { status: 'unlock-required' }); } catch {}
                 if (name === 'cloud') cloudBlocked = true;
                 break;
               }
               if (e?.code === 'DECRYPT_FAILED') {
-                // Local key doesn't match the sync data — surface it so the
-                // user re-adopts instead of silently deferring forever.
+                // Local key mismatch: surface so user re-adopts, not silent defer.
                 try { emit('sync:status', { status: 'decrypt-failed', message: e.message }); } catch {}
                 throw e;
               }
@@ -405,13 +394,13 @@ export class SyncEngine {
                   }
                 }
               } catch {
-                // non-critical — snapshot cache may be stale but sync still works
+                // Non-critical: stale snapshot cache still syncs.
               }
             }
           }
         }
       } else {
-        logger.info('[sync] pull skipped — nothing to sync');
+        logger.info('[sync] pull skipped: nothing to sync');
       }
 
       if (pullOnly && !gotUpdates && !hasPendingWrites()) {
@@ -421,7 +410,7 @@ export class SyncEngine {
       if (shouldPush) {
         for (const name of activeTransportNames) {
           if (cloudBlocked && name === 'cloud') {
-            logger.info('[sync] cloud push skipped — pull deferred due to unlock-required');
+            logger.info('[sync] cloud push skipped: pull deferred due to unlock-required');
             continue;
           }
           const transport = this.transports[name];
@@ -438,10 +427,9 @@ export class SyncEngine {
             }
           }
           logger.info(`[sync] ${name} push done`, { pushed: pushResult.pushed });
-          if (pushResult.pushed > 0) pushedAny = true;
         }
       } else {
-        logger.info('[sync] push skipped — pull-only mode');
+        logger.info('[sync] push skipped: pull-only mode');
       }
 
       if (activeTransportNames.includes('cloud') && !cloudBlocked) {

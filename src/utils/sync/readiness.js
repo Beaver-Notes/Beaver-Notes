@@ -17,20 +17,15 @@ export async function getSyncReadiness() {
   const wantsCloud = transport !== SYNC_TRANSPORT.FOLDER;
   const isAuth = accountStore.isAuthenticated;
 
-  const subPlan =
-    accountStore.activeOrg?.subscription?.plan ??
-    accountStore.subscription?.plan ??
-    accountStore.plan;
+  // Fail-closed through the store: unknown plan reads as free, unknown auth as not allowed.
+  const syncAllowed = wantsCloud && accountStore.canUseCloudSync;
 
-  const free = subPlan === 'free';
-  const syncAllowed = wantsCloud && isAuth && !free;
-
-  // Encryption is always on after onboarding — just check key availability.
+  // Encryption always on after onboarding: check key availability.
   const keyReady = await syncKeyReady().catch(() => false);
 
   return {
     isAuth,
-    plan: subPlan,
+    plan: accountStore.plan,
     transport,
     wantsCloud,
     syncAllowed,

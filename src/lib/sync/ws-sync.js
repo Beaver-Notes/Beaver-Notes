@@ -18,17 +18,10 @@ import { ROLES } from '@/utils/permissions'
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
 
-// Text notification listeners per provider — tracked for cleanup
+// Text notification listeners per provider, tracked for cleanup.
 const notificationListeners = new WeakMap()
 
-/**
- * y-websocket's WebsocketProvider only handles binary messages (types 0-3).
- * The ws-relay server sends JSON text notifications via sendText() to signal
- * new data. Intercept these text messages on the raw WebSocket and trigger
- * a pull cycle so the client picks up the new updates.
- *
- * Re-attaches on reconnection since provider.ws is reassigned.
- */
+/** y-websocket handles only binary (types 0-3). Relay sends JSON text notifications: intercept and pull. Re-attaches on reconnect. */
 function createNotificationHandler() {
   return (event) => {
     if (typeof event.data !== 'string') return
@@ -39,7 +32,7 @@ function createNotificationHandler() {
         forceSyncNow().catch(() => {})
       }
     } catch {
-      // Not JSON — ignore
+      // Not JSON: ignore.
     }
   }
 }
@@ -91,8 +84,7 @@ export function getWebSocketUrl() {
   }
   // In production, the WS relay is behind the same domain as the API.
   // Caddy routes /ws/* to ws-relay. Derive WS URL from API URL.
-  const apiBase =
-    import.meta.env.VITE_BEAVER_SYNC_API_URL || 'http://localhost:4000'
+  const apiBase = getServerBase()
   try {
     const u = new URL(apiBase)
     const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -106,15 +98,29 @@ function getAuthToken() {
   return useAccountStore().token || ''
 }
 
+// One server base for WS URL derivation and the ws-ticket fetch, so custom-server
+// users talk to the same host over REST and WS. Store setting first, env fallback.
+function getServerBase() {
+  let serverUrl
+  try {
+    serverUrl = useAccountStore()?.serverUrl
+  } catch {
+    serverUrl = undefined
+  }
+  return (
+    ((typeof serverUrl === 'string' && serverUrl.trim()) ||
+      import.meta.env.VITE_BEAVER_SYNC_API_URL ||
+      'http://localhost:4000')
+  ).replace(/\/+$/, '')
+}
+
 // One-time short-lived ticket so the session token never appears in the WS URL.
-// Falls back to the raw token param against older backends without /auth/ws-ticket.
+// Fail-closed: no ticket means joining without auth params, the server rejects it.
 async function getWsParams(workspaceId) {
   const token = getAuthToken()
   if (!token) return {}
   try {
-    const apiBase =
-      import.meta.env.VITE_BEAVER_SYNC_API_URL || 'http://localhost:4000'
-    const res = await fetch(`${apiBase.replace(/\/+$/, '')}/auth/ws-ticket`, {
+    const res = await fetch(`${getServerBase()}/auth/ws-ticket`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -127,9 +133,10 @@ async function getWsParams(workspaceId) {
       if (ticket) return { ticket }
     }
   } catch {
-    // fall through to legacy token param
+    // fall through to unauthenticated join below
   }
-  return { token }
+  console.warn('[ws-sync] ws-ticket unavailable, joining without auth params')
+  return {}
 }
 
 function isAuthenticated() {

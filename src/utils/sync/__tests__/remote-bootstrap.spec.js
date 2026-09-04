@@ -150,7 +150,7 @@ vi.mock('../sync-repository.js', () => ({
   getCommitsDir: vi.fn(async () => '/commits'),
 }));
 vi.mock('@/lib/settings', () => ({ getSettingSync: vi.fn(() => 'remote') }));
-vi.mock('@/store/account', () => ({ useAccountStore: vi.fn(() => ({ isAuthenticated: true, subscription: { plan: 'pro' }, serverUrl: 'https://sync.test' })) }));
+vi.mock('@/store/account', () => ({ useAccountStore: vi.fn(() => ({ isAuthenticated: true, canUseCloudSync: true, plan: 'pro', subscription: { plan: 'pro' }, serverUrl: 'https://sync.test' })) }));
 vi.mock('@/lib/api/types', () => ({ SYNC_TRANSPORT: { REMOTE: 'remote', FOLDER: 'folder' }, normalizeSyncTransport: (v) => v === 'remote' ? 'remote' : 'folder', canUseCloudSync: vi.fn(() => true) }));
 vi.mock('@/lib/native/fs', () => ({
   ensureDir: vi.fn(async () => {}),
