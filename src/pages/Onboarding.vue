@@ -70,7 +70,8 @@
               <p
                 class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
               >
-                Let's get set up — sign in, secure your notes, then import and customize.
+                Let's get set up — sign in, secure your notes, then import and
+                customize.
               </p>
             </div>
           </div>
@@ -157,7 +158,7 @@
                         v-for="item in themes"
                         :key="item.name"
                         type="button"
-                        class="bg-input p-2 transition-all w-full rounded-lg"
+                        class="bg-neutral-100 dark:bg-neutral-800 p-2 transition-all w-full rounded-xl"
                         :class="
                           fresh.theme === item.name ? 'ring-1 ring-primary' : ''
                         "
@@ -166,7 +167,7 @@
                         <img
                           :src="item.img"
                           :alt="item.label"
-                          class="w-full border-2 mb-1 rounded-lg"
+                          class="w-full border-2 mb-1 rounded-xl"
                         />
                         <p
                           class="text-sm font-semibold text-neutral-600 dark:text-neutral-300"
@@ -352,7 +353,7 @@
                     >
                       <div class="flex items-center gap-4 p-4">
                         <div
-                          class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
+                          class="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
                           :style="
                             platform.iconBg
                               ? { background: platform.iconBg }
@@ -426,35 +427,33 @@
                     </div>
 
                     <template v-if="showLegacyLockedPrompt">
-                      <ui-card class="bg-input">
-                        <div class="flex flex-col gap-3 p-4">
-                          <p
-                            class="text-sm font-semibold text-neutral-800 dark:text-neutral-200"
-                          >
-                            Enter your old password
-                          </p>
-                          <p
-                            class="text-sm text-neutral-600 dark:text-neutral-400"
-                          >
-                            Your imported notes are locked. Enter your old
-                            Beaver Notes password to decrypt and re-encrypt them
-                            with the new system.
-                          </p>
-                          <ui-input
-                            v-model="legacyPasswordValue"
-                            :password="true"
-                            placeholder="Old password"
-                            class="w-full"
-                            @keyup.enter="submitLegacyPassword"
-                          />
-                          <p
-                            v-if="state.legacyPasswordError"
-                            class="text-xs text-red-500 dark:text-red-400"
-                          >
-                            {{ state.legacyPasswordError }}
-                          </p>
-                        </div>
-                      </ui-card>
+                      <div class="flex flex-col gap-3 p-4">
+                        <p
+                          class="text-sm font-semibold text-neutral-800 dark:text-neutral-200"
+                        >
+                          Enter your old password
+                        </p>
+                        <p
+                          class="text-sm text-neutral-600 dark:text-neutral-400"
+                        >
+                          Your imported notes are locked. Enter your old Beaver
+                          Notes password to decrypt and re-encrypt them with the
+                          new system.
+                        </p>
+                        <ui-input
+                          v-model="legacyPasswordValue"
+                          :password="true"
+                          placeholder="Old password"
+                          class="w-full"
+                          @keyup.enter="submitLegacyPassword"
+                        />
+                        <p
+                          v-if="state.legacyPasswordError"
+                          class="text-xs text-red-500 dark:text-red-400"
+                        >
+                          {{ state.legacyPasswordError }}
+                        </p>
+                      </div>
                     </template>
 
                     <template v-else>
@@ -580,9 +579,9 @@
                                 folder manually.
                               </p>
                             </div>
-                            <ui-button @click="browseForPortableData"
-                              >{{ tr.browseForData || 'Browse…' }}</ui-button
-                            >
+                            <ui-button @click="browseForPortableData">{{
+                              tr.browseForData || 'Browse…'
+                            }}</ui-button>
                           </div>
                         </ui-card>
                       </div>
@@ -703,11 +702,13 @@
                           >
                             Issues
                           </p>
-                            <ui-button
-                             variant="secondary"
-                             @click="copyMigrationIssues"
-                             >{{ tr.copyToClipboard || 'Copy to clipboard' }}</ui-button
-                           >
+                          <ui-button
+                            variant="secondary"
+                            @click="copyMigrationIssues"
+                            >{{
+                              tr.copyToClipboard || 'Copy to clipboard'
+                            }}</ui-button
+                          >
                         </div>
                         <div
                           class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
@@ -754,18 +755,31 @@
                     >
                       <div class="flex items-center gap-3 mb-3">
                         <div class="animate-spin">
-                          <v-remixicon name="riLoader4Line" class="text-primary" size="20" />
+                          <v-remixicon
+                            name="riLoader4Line"
+                            class="text-primary"
+                            size="20"
+                          />
                         </div>
-                        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                        <p
+                          class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                        >
                           Setting up cloud sync...
                         </p>
                       </div>
                       <div class="space-y-2">
-                        <div class="flex justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                        <div
+                          class="flex justify-between text-xs text-neutral-600 dark:text-neutral-400"
+                        >
                           <span>{{ seedPhaseLabel }}</span>
-                          <span>{{ accountStore.seedProgress.uploaded }} / {{ accountStore.seedProgress.total }}</span>
+                          <span
+                            >{{ accountStore.seedProgress.uploaded }} /
+                            {{ accountStore.seedProgress.total }}</span
+                          >
                         </div>
-                        <div class="h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+                        <div
+                          class="h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+                        >
                           <div
                             class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
                             :style="{ width: seedProgressPercent + '%' }"
@@ -779,8 +793,14 @@
                       class="mt-4 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
                     >
                       <div class="flex items-center gap-2 justify-center">
-                        <v-remixicon name="riCheckLine" class="text-green-600 dark:text-green-400" size="18" />
-                        <p class="text-sm font-medium text-green-700 dark:text-green-300">
+                        <v-remixicon
+                          name="riCheckLine"
+                          class="text-green-600 dark:text-green-400"
+                          size="18"
+                        />
+                        <p
+                          class="text-sm font-medium text-green-700 dark:text-green-300"
+                        >
                           Cloud sync ready
                         </p>
                       </div>
@@ -791,8 +811,14 @@
                       class="mt-4 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                     >
                       <div class="flex items-center gap-2 justify-center">
-                        <v-remixicon name="riErrorWarningLine" class="text-red-600 dark:text-red-400" size="18" />
-                        <p class="text-sm font-medium text-red-700 dark:text-red-300">
+                        <v-remixicon
+                          name="riErrorWarningLine"
+                          class="text-red-600 dark:text-red-400"
+                          size="18"
+                        />
+                        <p
+                          class="text-sm font-medium text-red-700 dark:text-red-300"
+                        >
                           Sync setup failed. You can retry from Settings.
                         </p>
                       </div>
@@ -830,9 +856,7 @@
                       <p
                         class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
                       >
-                        {{
-                          translations.account?.server || 'Server'
-                        }}
+                        {{ translations.account?.server || 'Server' }}
                       </p>
                       <ui-input
                         v-model="draftServerUrl"
@@ -948,7 +972,7 @@
                               translations.account?.emailPlaceholder || 'Email'
                             "
                           />
-                           <ui-input
+                          <ui-input
                             v-model="signInPassword"
                             :password="true"
                             class="w-full"
@@ -959,18 +983,59 @@
                             @keyup.enter="handleSignInWithPassword"
                           />
                           <div class="flex items-center justify-between">
-                            <button class="text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">{{ trAccount.forgotPassword || 'Forgot password?' }}</button>
-                            <span v-if="forgotMessage" class="text-xs" :class="forgotSent ? 'text-green-600' : 'text-amber-600'">{{ forgotMessage }}</span>
+                            <button
+                              class="text-xs text-primary hover:underline"
+                              type="button"
+                              @click="showForgot = !showForgot"
+                            >
+                              {{
+                                trAccount.forgotPassword || 'Forgot password?'
+                              }}
+                            </button>
+                            <span
+                              v-if="forgotMessage"
+                              class="text-xs"
+                              :class="
+                                forgotSent ? 'text-green-600' : 'text-amber-600'
+                              "
+                              >{{ forgotMessage }}</span
+                            >
                           </div>
-                          <div v-if="showForgot" class="flex flex-col gap-2 border rounded-lg p-3 bg-neutral-50 dark:bg-neutral-800">
-                            <ui-input v-model="forgotEmail" type="email" :placeholder="trAccount.forgotEmailPlaceholder || 'Email for reset link'" class="w-full" />
-                            <ui-button variant="secondary" :loading="forgotBusy" @click="handleForgot">{{ trAccount.sendResetLink || 'Send reset link' }}</ui-button>
-                            <p class="text-xs text-neutral-500">{{ trAccount.inboxHint || 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).' }}</p>
+                          <div
+                            v-if="showForgot"
+                            class="flex flex-col gap-2 border rounded-xl p-3 bg-neutral-50 dark:bg-neutral-800"
+                          >
+                            <ui-input
+                              v-model="forgotEmail"
+                              type="email"
+                              :placeholder="
+                                trAccount.forgotEmailPlaceholder ||
+                                'Email for reset link'
+                              "
+                              class="w-full"
+                            />
+                            <ui-button
+                              variant="secondary"
+                              :loading="forgotBusy"
+                              @click="handleForgot"
+                              >{{
+                                trAccount.sendResetLink || 'Send reset link'
+                              }}</ui-button
+                            >
+                            <p class="text-xs text-neutral-500">
+                              {{
+                                trAccount.inboxHint ||
+                                'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
+                              }}
+                            </p>
                           </div>
                           <ui-input
                             v-model="signUpUsername"
                             class="w-full"
-                            :placeholder="trAccount.displayNamePlaceholder || 'Display name (optional)'"
+                            :placeholder="
+                              trAccount.displayNamePlaceholder ||
+                              'Display name (optional)'
+                            "
                             maxlength="50"
                           />
                           <div class="flex gap-2">
@@ -1009,19 +1074,64 @@
                         {{ accountStore.error }}
                       </p>
 
-                      <div class="border-t border-neutral-200 dark:border-neutral-700 pt-3">
+                      <div
+                        class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
+                      >
                         <button
                           class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
                           @click="showRecovery = !showRecovery"
                         >
-                          {{ showRecovery ? '↑' : '↓' }} {{ trAuth.recoverPrompt || tr.recoverAccount || 'Lost access? Recover with code' }}
+                          {{ showRecovery ? '↑' : '↓' }}
+                          {{
+                            trAuth.recoverPrompt ||
+                            tr.recoverAccount ||
+                            'Lost access? Recover with code'
+                          }}
                         </button>
-                        <div v-if="showRecovery" class="mt-2 flex flex-col gap-2">
-                          <ui-input v-model="recoverEmail" type="email" class="w-full" :placeholder="trAccount.emailPlaceholder || 'Email'" />
-                          <ui-input v-model="recoverCode" class="w-full font-mono text-xs" :placeholder="trAuth.recoveryCodePlaceholder || '64-char recovery code'" />
-                          <p class="text-xs text-amber-600 dark:text-amber-400">{{ trAccount.recoveryHint || 'Restores ACCOUNT access only — E2E data needs vault passphrase.' }}</p>
-                          <ui-button class="w-full" variant="secondary" :loading="recoverBusy" @click="handleRecover">{{ tr.recoverAccount || trAuth.recoverAccount || 'Recover account' }}</ui-button>
-                          <p v-if="recoverMessage" class="text-xs" :class="recoverSuccess ? 'text-green-600' : 'text-red-500'">{{ recoverMessage }}</p>
+                        <div
+                          v-if="showRecovery"
+                          class="mt-2 flex flex-col gap-2"
+                        >
+                          <ui-input
+                            v-model="recoverEmail"
+                            type="email"
+                            class="w-full"
+                            :placeholder="trAccount.emailPlaceholder || 'Email'"
+                          />
+                          <ui-input
+                            v-model="recoverCode"
+                            class="w-full font-mono text-xs"
+                            :placeholder="
+                              trAuth.recoveryCodePlaceholder ||
+                              '64-char recovery code'
+                            "
+                          />
+                          <p class="text-xs text-amber-600 dark:text-amber-400">
+                            {{
+                              trAccount.recoveryHint ||
+                              'Restores ACCOUNT access only — E2E data needs vault passphrase.'
+                            }}
+                          </p>
+                          <ui-button
+                            class="w-full"
+                            variant="secondary"
+                            :loading="recoverBusy"
+                            @click="handleRecover"
+                            >{{
+                              tr.recoverAccount ||
+                              trAuth.recoverAccount ||
+                              'Recover account'
+                            }}</ui-button
+                          >
+                          <p
+                            v-if="recoverMessage"
+                            class="text-xs"
+                            :class="
+                              recoverSuccess ? 'text-green-600' : 'text-red-500'
+                            "
+                          >
+                            {{ recoverMessage }}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1102,16 +1212,16 @@
                       {{
                         vaultJoinMode
                           ? 'Join existing vault'
-                          : (translations.settings?.encryptionPassphrase ||
-                              'Encryption passphrase')
+                          : translations.settings?.encryptionPassphrase ||
+                            'Encryption passphrase'
                       }}
                     </h2>
                     <p class="text-neutral-600 dark:text-neutral-400">
                       {{
                         vaultJoinMode
                           ? 'This sync source has an existing encrypted vault. Enter its password to join.'
-                          : (translations.onboarding?.passwordDescription ||
-                              'Encryption is built into Beaver Notes. Set a passphrase to protect every note and asset on this device.')
+                          : translations.onboarding?.passwordDescription ||
+                            'Encryption is built into Beaver Notes. Set a passphrase to protect every note and asset on this device.'
                       }}
                     </p>
                   </div>
@@ -1147,21 +1257,12 @@
                       "
                     />
 
-                    <div
-                      class="mt-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3"
-                    >
-                      <p class="text-xs text-amber-700 dark:text-amber-300">
-                        <v-remixicon
-                          name="riErrorWarningLine"
-                          size="14"
-                          class="inline mr-1"
-                        />
-                        {{
-                          translations.onboarding?.passwordWarning ||
-                          'This passphrase cannot be recovered if forgotten. Store it in a password manager.'
-                        }}
-                      </p>
-                    </div>
+                    <p class="text-sm">
+                      {{
+                        translations.onboarding?.passwordWarning ||
+                        'This passphrase cannot be recovered if forgotten. Store it in a password manager.'
+                      }}
+                    </p>
                   </template>
 
                   <template v-else>
@@ -1275,9 +1376,7 @@
           </div>
         </div>
 
-        <div
-          class="flex flex-col items-center gap-3"
-        >
+        <div class="flex flex-col items-center gap-3">
           <Transition name="ob-toast">
             <p
               v-if="state.openingWorkspaceMessage"
@@ -1289,7 +1388,10 @@
           <div
             class="flex flex-wrap mobile:flex-col mobile:w-full mobile:items-stretch mobile:px-4 ob-bottom-nav justify-center gap-3"
           >
-            <ui-button @click="goToPreviousStep" :disabled="state.openingWorkspace">
+            <ui-button
+              @click="goToPreviousStep"
+              :disabled="state.openingWorkspace"
+            >
               <v-remixicon name="riArrowLeftLine" /> Back
             </ui-button>
             <ui-button
@@ -1298,7 +1400,8 @@
               @click="completeAndOpenWorkspace"
             >
               <template v-if="!state.openingWorkspace">
-                <v-remixicon name="riCheckLine" class="mr-1" /> Open Beaver Notes
+                <v-remixicon name="riCheckLine" class="mr-1" /> Open Beaver
+                Notes
               </template>
             </ui-button>
           </div>
@@ -1334,7 +1437,7 @@
 </template>
 
 <script>
-import { computed, ref } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStorage } from '@/lib/storage';
 import { useStore } from '@/store';
@@ -1369,7 +1472,10 @@ export default {
     function fmt(k, params) {
       const raw = tr.value[k] ?? k;
       if (!params) return raw;
-      return Object.entries(params).reduce((s, [kk, v]) => s.replace(`{${kk}}`, String(v)), raw);
+      return Object.entries(params).reduce(
+        (s, [kk, v]) => s.replace(`{${kk}}`, String(v)),
+        raw,
+      );
     }
     const accountStore = useAccountStore();
 
@@ -1377,7 +1483,8 @@ export default {
     const importExportRef = ref(null);
     async function runImportSource(...args) {
       if (!importExportRef.value) {
-        const { useImportExport } = await import('@/utils/import/import-export');
+        const { useImportExport } =
+          await import('@/utils/import/import-export');
         importExportRef.value = useImportExport({
           clipboard,
           folderStore,
@@ -1394,6 +1501,16 @@ export default {
       clipboard,
       runImportSource,
     });
+
+    // Keep <html> .dark class in sync with the onboarding's own isDark so
+    // Tailwind dark: variants activate for child components (Card, Button, Input, etc.)
+    watch(
+      () => flow.isDark.value,
+      (dark) => {
+        document.documentElement.classList.toggle('dark', dark);
+      },
+      { immediate: true },
+    );
 
     // Recycle the Settings account orchestration; errors surface through the onboarding toast.
     const account = useSettingsAccount({
@@ -1450,17 +1567,29 @@ export default {
     const forgotMessage = ref('');
     const forgotSent = ref(false);
     async function handleForgot() {
-      forgotMessage.value = ''; forgotSent.value = false;
+      forgotMessage.value = '';
+      forgotSent.value = false;
       const email = forgotEmail.value.trim() || signInEmail.value.trim();
-      if (!email) { forgotMessage.value = 'Enter your email.'; return; }
+      if (!email) {
+        forgotMessage.value = 'Enter your email.';
+        return;
+      }
       await ensureServerUrl();
       forgotBusy.value = true;
       try {
         const { requestPasswordReset } = await import('@/lib/api/auth');
-        const res = await requestPasswordReset(email, { baseUrl: accountStore.serverUrl });
-        forgotMessage.value = res?.message || 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).';
+        const res = await requestPasswordReset(email, {
+          baseUrl: accountStore.serverUrl,
+        });
+        forgotMessage.value =
+          res?.message ||
+          'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).';
         forgotSent.value = true;
-      } catch (e) { forgotMessage.value = e?.message || 'Failed to send reset link.'; } finally { forgotBusy.value = false; }
+      } catch (e) {
+        forgotMessage.value = e?.message || 'Failed to send reset link.';
+      } finally {
+        forgotBusy.value = false;
+      }
     }
     const showRecovery = ref(false);
     const recoverEmail = ref('');
@@ -1473,14 +1602,20 @@ export default {
       recoverSuccess.value = false;
       const email = recoverEmail.value.trim();
       const code = recoverCode.value.trim();
-      if (!email || !code) { recoverMessage.value = 'Email and code required.'; return; }
+      if (!email || !code) {
+        recoverMessage.value = 'Email and code required.';
+        return;
+      }
       await ensureServerUrl();
       recoverBusy.value = true;
       try {
         const { recoverAccount } = await import('@/lib/api/auth');
-        const { saveSessionToken, saveCachedProfile } = await import('@/lib/account-storage');
+        const { saveSessionToken, saveCachedProfile } =
+          await import('@/lib/account-storage');
         const { resetApiClient } = await import('@/lib/api/client');
-        const res = await recoverAccount(email, code, { baseUrl: accountStore.serverUrl });
+        const res = await recoverAccount(email, code, {
+          baseUrl: accountStore.serverUrl,
+        });
         const token = res?.token || res?.sessionToken;
         if (token) {
           await saveSessionToken(token);
@@ -1488,21 +1623,34 @@ export default {
           accountStore.setToken(token);
           accountStore.setStatus('authenticated');
           resetApiClient();
-          try { const data = await getAccount({ baseUrl: accountStore.serverUrl }); if (data?.profile) await saveCachedProfile(data.profile); } catch {}
+          try {
+            const data = await getAccount({ baseUrl: accountStore.serverUrl });
+            if (data?.profile) await saveCachedProfile(data.profile);
+          } catch {}
           recoverSuccess.value = true;
           recoverMessage.value = 'Recovered! Please enroll a new passkey now.';
           // prompt passkey enroll
-          const { passkeyRegisterBegin, passkeyRegisterComplete } = await import('@/lib/api/auth');
-          const opts = await passkeyRegisterBegin(email, 'Recovered device', { baseUrl: accountStore.serverUrl });
-          await passkeyRegisterComplete(email, { baseUrl: accountStore.serverUrl }, opts);
+          const { passkeyRegisterBegin, passkeyRegisterComplete } =
+            await import('@/lib/api/auth');
+          const opts = await passkeyRegisterBegin(email, 'Recovered device', {
+            baseUrl: accountStore.serverUrl,
+          });
+          await passkeyRegisterComplete(
+            email,
+            { baseUrl: accountStore.serverUrl },
+            opts,
+          );
           recoverMessage.value = 'Passkey enrolled successfully.';
         } else {
-          recoverMessage.value = res?.message || 'Recovered. Please add a passkey from Settings.';
+          recoverMessage.value =
+            res?.message || 'Recovered. Please add a passkey from Settings.';
           recoverSuccess.value = !!res?.requiresPasskeyEnroll;
         }
       } catch (e) {
         recoverMessage.value = e?.message || 'Recovery failed.';
-      } finally { recoverBusy.value = false; }
+      } finally {
+        recoverBusy.value = false;
+      }
     }
 
     const curtainOpen = ref(false);
@@ -1624,7 +1772,7 @@ export default {
               label: 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
-               onClick: flow.goToNextStep,
+              onClick: flow.goToNextStep,
             },
           ];
         }
@@ -1639,7 +1787,7 @@ export default {
               label: 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
-               onClick: flow.completeAccountStep,
+              onClick: flow.completeAccountStep,
             },
           ];
         }
@@ -1732,7 +1880,9 @@ export default {
       return { level: 4, label: 'Strong', percent: 100 };
     }
 
-    const strength = computed(() => assessStrength(flow.encryptionPassword.value));
+    const strength = computed(() =>
+      assessStrength(flow.encryptionPassword.value),
+    );
     const strengthPercent = computed(() => strength.value.percent);
     const strengthLabel = computed(() => strength.value.label);
     const strengthBarClass = computed(() => {
@@ -1971,7 +2121,7 @@ export default {
 }
 
 .ob-squirkle {
-  background: #FAE5B8;
+  background: #fae5b8;
   border-radius: 28%;
   overflow: hidden;
 }
