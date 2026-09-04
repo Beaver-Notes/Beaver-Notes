@@ -125,14 +125,14 @@ const emojiCategories = [
     groups: ['Food & Drink'],
   },
   {
-    name: 'Travel & Places',
-    icon: 'riPlaneLine',
-    groups: ['Travel & Places'],
-  },
-  {
     name: 'Activities',
     icon: 'riFootballLine',
     groups: ['Activities'],
+  },
+  {
+    name: 'Travel & Places',
+    icon: 'riPlaneLine',
+    groups: ['Travel & Places'],
   },
   {
     name: 'Objects',
@@ -140,9 +140,20 @@ const emojiCategories = [
     groups: ['Objects'],
   },
   {
-    name: 'Symbols & Flags',
+    name: 'Hearts',
+    icon: 'riHeartLine',
+    groups: ['Smileys & Emotion'],
+    subgroups: ['heart'],
+  },
+  {
+    name: 'Flags',
     icon: 'riFlagLine',
-    groups: ['Symbols', 'Flags'],
+    groups: ['Flags'],
+  },
+  {
+    name: 'Symbols',
+    icon: 'riShapesLine',
+    groups: ['Symbols'],
   },
 ];
 
