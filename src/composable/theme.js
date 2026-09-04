@@ -145,15 +145,16 @@ function clearSystemThemeSync() {
 async function syncSystemThemeFromNative() {
   if (currentTheme.value !== 'system') return;
 
+  // matchMedia tracks the OS theme; the native window theme reports Light
+  // when unset, so it can only demote, never inform. Browser wins.
+  applyResolvedTheme(getBrowserDarkPreference());
+  if (typeof window.matchMedia !== 'undefined') return;
+
   if (isTauri() && !backend.isMobileRuntime()) {
     try {
-      const nativeDark = await getNativeDarkTheme();
-      applyResolvedTheme(nativeDark);
-      return;
+      applyResolvedTheme(await getNativeDarkTheme());
     } catch {}
   }
-
-  applyResolvedTheme(getBrowserDarkPreference());
 }
 
 function ensureSystemThemeSync() {
@@ -184,6 +185,9 @@ function ensureSystemThemeSync() {
     'system-theme-changed',
     ({ dark }) => {
       if (currentTheme.value !== 'system') return;
+      // matchMedia already tracks the OS theme via its own listener;
+      // the native event can only disagree when the window theme is unset.
+      if (typeof window.matchMedia !== 'undefined') return;
       applyResolvedTheme(Boolean(dark));
     }
   );

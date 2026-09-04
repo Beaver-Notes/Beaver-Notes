@@ -67,6 +67,15 @@ describe('useOnboardingAppearance', () => {
     document.documentElement.classList.remove('green');
   });
 
+  it('selectAccentColor preserves the dark mode class', () => {
+    document.documentElement.classList.add('dark');
+    const { appearance } = setup();
+    appearance.selectAccentColor('amber');
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(document.documentElement.classList.contains('amber')).toBe(true);
+    document.documentElement.classList.remove('amber', 'dark');
+  });
+
   it('isDark derives from the chosen theme', () => {
     const { fresh, appearance } = setup();
     fresh.theme = 'dark';

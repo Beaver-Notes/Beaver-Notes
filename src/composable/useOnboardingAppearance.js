@@ -65,6 +65,8 @@ export function useOnboardingAppearance({ fresh, state, theme, goToStep }) {
   const selectAccentColor = (color) => {
     fresh.accentColor = color;
     const root = document.documentElement;
+    // 'dark' doubles as Tailwind's dark-mode switch: preserve it across the sweep.
+    const keepDark = root.classList.contains('dark');
     // Canonical amber plus legacy aliases: remove all.
     const accentColorNames = [
       'red',
@@ -81,6 +83,7 @@ export function useOnboardingAppearance({ fresh, state, theme, goToStep }) {
       if (accentColorNames.includes(cls)) root.classList.remove(cls);
     });
     root.classList.add(color);
+    if (keepDark) root.classList.add('dark');
   };
 
   const selectFont = (font) => {
