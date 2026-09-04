@@ -149,7 +149,7 @@
               <button
                 v-for="ws in workspaces"
                 :key="ws.id"
-                class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors"
+                class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left transition-colors"
                 :class="ws.id === activeWorkspaceId ? 'bg-primary/10 text-primary font-medium' : 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'"
                 @click="switchWs(ws.id)"
               >

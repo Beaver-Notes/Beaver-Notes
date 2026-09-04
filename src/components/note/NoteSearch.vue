@@ -4,7 +4,7 @@
     :style="wrapperStyle"
   >
     <div
-      class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
+      class="relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
     >
       <!-- Desktop Layout -->
       <div
@@ -275,8 +275,6 @@ export default {
     const { expanded: sidebarExpanded } = useSidebar();
     const mobileSearchInput = ref(null);
 
-    // Center within the content area (viewport minus sidebar), like undoBannerWrapperStyle.
-    // Keyboard inset only applies on mobile runtime; desktop falls back to bottom-4.
     const wrapperStyle = computed(() => {
       if (backend.isMobileRuntime()) {
         return { bottom: 'var(--app-keyboard-inset-bottom, 1rem)' };

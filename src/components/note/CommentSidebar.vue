@@ -2,8 +2,8 @@
   <transition :name="docked ? 'slide-right-docked' : 'slide-right'">
     <div
       :class="docked
-        ? 'relative shrink-0 flex w-[380px] max-w-[42%] self-start sticky top-4 h-[calc(100vh-2rem)] flex-col bg-[#fbfbfa] dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden max-lg:hidden'
-        : 'fixed inset-y-0 ltr:right-0 rtl:left-0 z-50 flex w-[380px] max-w-[92vw] flex-col bg-[#fbfbfa] dark:bg-neutral-950 ltr:border-l rtl:border-r border-neutral-200 dark:border-neutral-800 shadow-2xl'"
+        ? 'relative shrink-0 flex w-[380px] max-w-[42%] self-start sticky top-4 h-[calc(100vh-2rem)] flex-col bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-sm overflow-hidden max-lg:hidden'
+        : 'fixed inset-y-0 ltr:right-0 rtl:left-0 z-50 flex w-[380px] max-w-[92vw] flex-col bg-white dark:bg-neutral-950 ltr:border-l rtl:border-r border-neutral-200 dark:border-neutral-800 shadow-2xl'"
     >
       <!-- Header — Notion-style: small caps, count badge -->
       <div

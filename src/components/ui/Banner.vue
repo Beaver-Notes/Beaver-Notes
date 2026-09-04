@@ -1,30 +1,29 @@
 <template>
-  <div
-    role="status"
-    class="flex items-center space-x-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg py-3 px-4 max-w-md mx-auto shadow-md mb-4"
-  >
-    <v-remixicon :name="icon" class="text-lg text-primary" />
+  <ui-pill :fixed="false" class="pointer-events-auto max-w-[calc(100vw-2rem)]">
+    <div class="flex items-center gap-1.5 py-1 pl-1.5 pr-1">
+      <v-remixicon :name="icon" class="text-lg text-primary shrink-0" />
 
-    <p class="flex-grow text-gray-800 dark:text-gray-100">
-      {{ content }}
-    </p>
+      <p class="flex-grow min-w-0 text-sm text-gray-800 dark:text-gray-100">
+        {{ content }}
+      </p>
 
-    <button
-      class="p-1 text-sm text-primary hover:text-opacity-80 transition-colors"
-      :aria-label="primaryText"
-      @click="onPrimaryClick"
-    >
-      {{ primaryText }}
-    </button>
+      <button
+        class="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 transition-opacity"
+        :aria-label="primaryText"
+        @click="onPrimaryClick"
+      >
+        {{ primaryText }}
+      </button>
 
-    <button
-      class="p-1 text-sm text-primary hover:text-opacity-80 transition-colors"
-      :aria-label="secondaryText"
-      @click="onSecondaryClick"
-    >
-      {{ secondaryText }}
-    </button>
-  </div>
+      <button
+        class="shrink-0 rounded-full px-2.5 py-1.5 text-sm font-medium text-neutral-500 dark:text-neutral-400 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+        :aria-label="secondaryText"
+        @click="onSecondaryClick"
+      >
+        {{ secondaryText }}
+      </button>
+    </div>
+  </ui-pill>
 </template>
 
 <script>

@@ -3,13 +3,13 @@
     <ui-popover placement="bottom-start" trigger="click">
       <template #trigger="{ isShow }">
         <div
-          class="flex items-center -space-x-2.5 cursor-pointer rounded-full transition-transform duration-200 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]"
+          class="flex items-center -space-x-2.5 cursor-pointer rounded-full transition-transform duration-200 ease-[var(--ease-standard)]"
           :class="{ 'scale-[1.03]': isShow }"
         >
           <div
             v-for="(peer, i) in visiblePeers"
             :key="peer.id"
-            class="peer-avatar relative w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-all duration-200 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] hover:z-10 hover:-translate-y-0.5 hover:shadow-md"
+            class="peer-avatar relative w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-[transform,box-shadow] duration-200 ease-[var(--ease-standard)] hover:z-10 hover:-translate-y-0.5 hover:shadow-md"
             :style="{
               backgroundColor: peer.color,
               zIndex: visiblePeers.length - i,

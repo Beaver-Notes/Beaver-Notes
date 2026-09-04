@@ -7,7 +7,7 @@
       :style="barOffsetStyle"
     >
       <div
-        class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-xl overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
+        class="relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-xl overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
       >
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
@@ -92,8 +92,6 @@ const folderStore = useFolderStore();
 const { translations } = useTranslations();
 const { expanded: sidebarExpanded } = useSidebar();
 
-// Center within the content area (viewport minus sidebar), like undoBannerWrapperStyle.
-// Component is mobile:hidden, so no mobile branch needed.
 const barOffsetStyle = computed(() => ({
   paddingLeft: sidebarExpanded.value ? '16rem' : '4rem',
 }));

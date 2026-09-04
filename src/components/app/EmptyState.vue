@@ -29,7 +29,7 @@
         <div
           v-for="sc in shortcuts"
           :key="sc.id"
-          class="flex items-center gap-1.5 text-xs text-neutral-400 dark:text-neutral-500"
+          class="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400"
         >
           <span
             v-for="k in sc.keys"

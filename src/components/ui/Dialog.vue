@@ -7,7 +7,7 @@
         >
           <div v-if="state.options.icon" class="flex-shrink-0">
             <div
-              class="w-12 h-12 rounded-lg flex items-center justify-center"
+              class="w-12 h-12 rounded-xl flex items-center justify-center"
               :class="
                 state.options.okVariant === 'danger'
                   ? 'bg-red-100 dark:bg-red-900/30'
@@ -25,7 +25,7 @@
               />
             </div>
           </div>
-          <h3 class="font-semibold text-lg">{{ state.options.title }}</h3>
+          <h3 class="font-semibold text-lg tracking-tight leading-snug">{{ state.options.title }}</h3>
         </div>
         <p class="text-neutral-600 dark:text-neutral-200 leading-relaxed">
           {{ state.options.body }}
@@ -50,7 +50,7 @@
       >
         <div v-if="state.options.icon" class="flex-shrink-0">
           <div
-            class="w-12 h-12 rounded-lg flex items-center justify-center"
+            class="w-12 h-12 rounded-xl flex items-center justify-center"
             :class="
               state.options.okVariant === 'danger'
                 ? 'bg-red-100 dark:bg-red-900/30'
@@ -69,7 +69,7 @@
           </div>
         </div>
         <div class="flex-1 min-w-0">
-          <h3 class="font-semibold text-lg mb-3">{{ state.options.title }}</h3>
+          <h3 class="font-semibold text-lg tracking-tight leading-snug mb-3">{{ state.options.title }}</h3>
 
           <div v-if="state.options.body" class="mb-4">
             <p

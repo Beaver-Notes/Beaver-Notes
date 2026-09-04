@@ -10,7 +10,7 @@
     <template #header>
       <div class="flex flex-row items-center gap-4">
         <div
-          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10"
+          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10"
         >
           <v-remixicon name="riFolderLine" size="24" class="text-primary" />
         </div>

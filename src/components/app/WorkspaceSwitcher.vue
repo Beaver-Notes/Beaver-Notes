@@ -6,7 +6,7 @@
         <div
           v-if="expanded"
           ref="triggerEl"
-          class="transition-colors duration-150 rounded-lg flex items-center h-10 w-full px-2 gap-2 cursor-pointer text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100"
+          class="transition-colors duration-150 rounded-xl flex items-center h-10 w-full px-2 gap-2 cursor-pointer text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100"
         >
           <span
             class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
@@ -50,7 +50,7 @@
 
       <div class="min-w-[220px] py-1">
         <div
-          class="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 select-none"
+          class="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 select-none"
         >
           Workspaces
         </div>

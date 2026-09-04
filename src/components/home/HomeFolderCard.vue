@@ -22,21 +22,21 @@
 
     <div
       v-if="itemCount > 1"
-      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 top-[15%] left-[14%] w-[72%] h-[58%]"
+      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-300 bg-white p-3 top-[15%] left-[14%] w-[72%] h-[58%]"
     >
-      <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
-      <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
-      <div class="h-1 w-2/3 rounded-full bg-gray-100"></div>
+      <div class="mb-2 h-1 w-full rounded-full bg-neutral-100"></div>
+      <div class="mb-2 h-1 w-full rounded-full bg-neutral-100"></div>
+      <div class="h-1 w-2/3 rounded-full bg-neutral-100"></div>
     </div>
 
     <div
       v-if="itemCount > 0"
-      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 top-[23%] left-[21%] w-[72%] h-[64%]"
+      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-300 bg-white p-4 top-[23%] left-[21%] w-[72%] h-[64%]"
     >
       <div class="mb-3 h-2 w-12 rounded-full bg-blue-400/30"></div>
-      <div class="mb-2 h-1 w-full rounded-full bg-gray-200"></div>
-      <div class="mb-2 h-1 w-full rounded-full bg-gray-200"></div>
-      <div class="h-1 w-4/5 rounded-full bg-gray-200"></div>
+      <div class="mb-2 h-1 w-full rounded-full bg-neutral-200"></div>
+      <div class="mb-2 h-1 w-full rounded-full bg-neutral-200"></div>
+      <div class="h-1 w-4/5 rounded-full bg-neutral-200"></div>
     </div>
 
     <div
@@ -97,13 +97,13 @@
           <div
             v-if="showMenu"
             data-selection-keep
-            class="absolute right-0 bottom-7 z-30 w-44 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-lg py-1 overflow-hidden"
+            class="absolute right-0 bottom-7 z-30 w-44 rounded-xl border bg-white dark:bg-neutral-900 shadow-xl p-1.5 overflow-hidden text-neutral-900 dark:text-neutral-100"
             @click.stop
           >
-            <button class="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2" @click="onMenuCustomize"><v-remixicon name="riPaletteLine" class="size-4" />{{ translations.card?.customize || 'Customize' }}</button>
-            <button class="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2" @click="onMenuArchive"><v-remixicon :name="folder.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'" class="size-4" />{{ folder.isArchived ? (translations.card?.unarchive || 'Unarchive') : (translations.card?.archive || 'Archive') }}</button>
-            <button class="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2" @click="onMenuMove"><v-remixicon name="riFolderTransferLine" class="size-4" />{{ translations.card?.moveToFolder || 'Move' }}</button>
-            <button class="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2" @click="onMenuDelete"><v-remixicon name="riDeleteBin6Line" class="size-4" />{{ translations.card?.delete || 'Delete' }}</button>
+            <button class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg" @click="onMenuCustomize"><v-remixicon name="riPaletteLine" class="size-4" />{{ translations.card?.customize || 'Customize' }}</button>
+            <button class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg" @click="onMenuArchive"><v-remixicon :name="folder.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'" class="size-4" />{{ folder.isArchived ? (translations.card?.unarchive || 'Unarchive') : (translations.card?.archive || 'Archive') }}</button>
+            <button class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg" @click="onMenuMove"><v-remixicon name="riFolderTransferLine" class="size-4" />{{ translations.card?.moveToFolder || 'Move' }}</button>
+            <button class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2 rounded-lg" @click="onMenuDelete"><v-remixicon name="riDeleteBin6Line" class="size-4" />{{ translations.card?.delete || 'Delete' }}</button>
           </div>
         </div>
       </div>

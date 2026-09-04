@@ -16,7 +16,9 @@
           <ui-card
             v-else
             ref="modalContent"
-            role="document"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="title || undefined"
             :class="[
               'modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm',
               contentClass,
@@ -36,7 +38,7 @@
                 <div class="flex flex-row items-center gap-4">
                   <div
                     v-if="icon"
-                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
+                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
                     :class="iconVariant === 'danger'
                       ? 'bg-red-100 dark:bg-red-900/30'
                       : 'bg-neutral-100 dark:bg-neutral-700'"
@@ -47,7 +49,7 @@
                       :class="iconVariant === 'danger' ? 'text-red-500' : 'text-neutral-600 dark:text-neutral-300'"
                     />
                   </div>
-                  <h3 class="font-semibold text-lg">{{ title }}</h3>
+                  <h3 class="font-semibold text-lg tracking-tight leading-snug">{{ title }}</h3>
                 </div>
               </slot>
             </div>
@@ -243,7 +245,8 @@ export default {
       }
 
       isDragging.value = true;
-      dragOffsetY.value = Math.min(deltaY, 160);
+      // ponytail: rubber-band past the 160 soft bound instead of a hard clamp
+      dragOffsetY.value = deltaY <= 160 ? deltaY : 160 + (deltaY - 160) * 0.3;
       event.preventDefault();
     }
 

@@ -6,23 +6,29 @@
   <app-command-prompt />
   <div
     id="pill-dock"
-    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+4.25rem)]"
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2"
+    :class="uiState.inReaderMode ? 'mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+1rem)]' : 'mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+4.25rem)]'"
   ></div>
   <div
     v-if="showVerificationBanner"
-    class="fixed top-0 inset-x-0 z-40 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between gap-3 px-4 py-2.5"
+    class="fixed top-3 inset-x-0 z-40 flex justify-center px-4 pointer-events-none"
     role="status"
   >
-    <p class="text-xs font-medium text-amber-900 dark:text-amber-100">
-      Please verify your email. Check your inbox for a verification link.
-    </p>
-    <button
-      class="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      :disabled="verificationSending || verificationCooldown > 0"
-      @click="handleRequestVerification"
-    >
-      {{ verificationCooldown > 0 ? `Resend (${verificationCooldown}s)` : verificationSending ? 'Sending…' : 'Resend email' }}
-    </button>
+    <ui-pill :fixed="false" class="pointer-events-auto max-w-[calc(100vw-2rem)]">
+      <div class="flex items-center gap-1.5 py-1 pl-1.5 pr-1">
+        <v-remixicon name="riMailLine" class="text-lg text-amber-500 shrink-0" />
+        <p class="min-w-0 text-xs font-medium text-neutral-700 dark:text-neutral-200">
+          Please verify your email. Check your inbox for a verification link.
+        </p>
+        <button
+          class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          :disabled="verificationSending || verificationCooldown > 0"
+          @click="handleRequestVerification"
+        >
+          {{ verificationCooldown > 0 ? `Resend (${verificationCooldown}s)` : verificationSending ? 'Sending…' : 'Resend email' }}
+        </button>
+      </div>
+    </ui-pill>
   </div>
   <recording-pill />
   <app-encryption-gate
@@ -69,7 +75,8 @@
 
       <div
         v-show="updateBanner.show"
-        class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
+        class="fixed bottom-6 inset-x-0 z-[70] flex justify-center px-4 pointer-events-none"
+        :style="bottomBannerStyle"
       >
         <ui-banner
           :content="updateBanner.content"
@@ -82,7 +89,7 @@
 
       <div
         v-show="appEncryptionMigrationBanner.show"
-        class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
+        class="fixed bottom-6 inset-x-0 z-[70] flex justify-center px-4 pointer-events-none"
         :class="updateBanner.show ? 'mb-16' : ''"
         :style="bottomBannerStyle"
       >

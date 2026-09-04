@@ -21,7 +21,7 @@
     </div>
 
     <!-- Sort filter -->
-    <div class="flex flex-row w-full md:w-auto ltr:space-x-2 rtl:space-x-2 rtl:space-x-reverse border rounded-lg">
+    <div class="flex flex-row w-full md:w-auto ltr:space-x-2 rtl:space-x-2 rtl:space-x-reverse border rounded-xl">
       <div class="flex items-center divide-x btn-group flex-1">
         <ui-button
           v-tooltip="
