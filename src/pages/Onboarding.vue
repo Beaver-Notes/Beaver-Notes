@@ -1019,7 +1019,7 @@
                                 trAccount.sendResetLink || 'Send reset link'
                               }}</ui-button
                             >
-                            <p class="text-xs text-neutral-500">
+                            <p class="text-xs text-neutral-500 dark:text-neutral-400">
                               {{
                                 trAccount.inboxHint ||
                                 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
