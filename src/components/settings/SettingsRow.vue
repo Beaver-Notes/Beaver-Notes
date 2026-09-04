@@ -1,6 +1,7 @@
 <template>
   <div
-    class="settings-row flex flex-col sm:flex-row gap-3 px-4 py-3.5 sm:items-center items-start justify-between"
+    class="settings-row flex gap-x-3 gap-y-1 px-4 py-3.5"
+    :class="stacked ? 'mobile:flex-col mobile:items-start flex-row items-center' : 'flex-row flex-wrap items-center'"
   >
     <div class="min-w-0 flex-1">
       <label
@@ -12,14 +13,20 @@
       </label>
       <p
         v-if="description || $slots.description"
-        class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+        class="mobile:hidden mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
       >
         <slot name="description">{{ description }}</slot>
       </p>
     </div>
-    <div class="w-full sm:w-auto shrink-0 flex items-center gap-2" :class="controlClass">
+    <div class="w-auto shrink-0 flex items-center justify-end gap-2" :class="[controlClass, stacked ? 'mobile:w-full mobile:justify-start' : '']">
       <slot />
     </div>
+    <p
+      v-if="description || $slots.description"
+      class="hidden mobile:block w-full text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+    >
+      <slot name="description">{{ description }}</slot>
+    </p>
   </div>
 </template>
 
@@ -40,6 +47,10 @@ defineProps({
   controlClass: {
     type: String,
     default: '',
+  },
+  stacked: {
+    type: Boolean,
+    default: false,
   },
 });
 </script>

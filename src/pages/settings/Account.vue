@@ -105,7 +105,7 @@
               </ui-button>
             </div>
             <button class="mt-2 text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">{{ tr.forgotPassword || 'Forgot password?' }}</button>
-            <div v-if="showForgot" class="mt-2 flex flex-col gap-2 border rounded-lg p-3 bg-neutral-50 dark:bg-neutral-900">
+            <div v-if="showForgot" class="mt-2 flex flex-col gap-2 border rounded-xl p-3 bg-neutral-50 dark:bg-neutral-900">
               <ui-input v-model="forgotEmail" type="email" :placeholder="tr.emailPlaceholder || 'Email for reset link'" :aria-label="tr.emailPlaceholder || 'Email for reset link'" class="w-full" />
               <ui-button variant="secondary" :loading="forgotBusy" :aria-label="tr.sendResetLink || 'Send reset link'" @click="handleForgot">{{ tr.sendResetLink || 'Send reset link' }}</ui-button>
               <p v-if="forgotMessage" class="text-xs" :class="forgotSent ? 'text-green-600' : 'text-amber-600'">{{ forgotMessage }}</p>
@@ -147,7 +147,7 @@
             </div>
             <div v-else class="space-y-2">
               <div
-                class="rounded-lg bg-neutral-100 px-3 py-2 font-mono text-lg text-center tracking-widest dark:bg-neutral-900 dark:text-neutral-200"
+                class="rounded-xl bg-neutral-100 px-3 py-2 font-mono text-lg text-center tracking-widest dark:bg-neutral-900 dark:text-neutral-200"
               >
                 {{
                   translations.account?.quickConnectHint ||

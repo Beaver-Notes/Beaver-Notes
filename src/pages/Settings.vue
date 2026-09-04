@@ -18,7 +18,7 @@
             />
           </div>
           <ui-list
-            class="space-y-1 rounded-lg dark:text-[color:var(--selected-dark-text)] text-gray-600"
+            class="space-y-1 rounded-xl dark:text-[color:var(--selected-dark-text)] text-gray-600"
           >
             <router-link
               v-for="(item, id) in filteredSettings"
@@ -80,7 +80,7 @@
               {{ item.name }}
             </span>
             <v-remixicon
-              name="riArrowRightSLine"
+              name="riArrowRightLine"
               size="18"
               class="text-neutral-400 rtl:rotate-180"
             />
@@ -96,24 +96,20 @@
 
       <!-- Section content -->
       <div v-else>
-        <div
-          ref="mobileHeaderRef"
-          class="settings-mobile-header sticky z-[200] -mx-4 mb-6 bg-neutral-50 px-4 py-3 top-0 flex items-center gap-2"
-          :style="mobileHeaderStyle"
-        >
+        <div class="mb-5 flex items-center gap-1">
           <button
-            class="shrink-0 -ml-1 w-8 h-8 rounded-full flex items-center justify-center active:bg-neutral-200 dark:active:bg-neutral-800 transition-colors"
+            class="-ml-2 flex h-9 w-9 items-center justify-center text-neutral-500 dark:text-neutral-400 active:opacity-60 transition-opacity"
             :aria-label="translations.dialog?.back || 'Back to settings'"
             @click="exitSection"
           >
             <v-remixicon
-              name="riArrowLeftSLine"
-              size="20"
+              name="riArrowLeftLine"
+              size="26"
               class="rtl:rotate-180"
             />
           </button>
           <h1
-            class="text-lg font-semibold text-neutral-900 dark:text-neutral-100 truncate"
+            class="text-3xl font-bold text-neutral-900 dark:text-neutral-100"
           >
             {{ pageTitle }}
           </h1>
@@ -125,15 +121,13 @@
   </div>
 </template>
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 
 const { translations } = useTranslations();
 const route = useRoute();
 const router = useRouter();
-const mobileHeaderRef = ref(null);
-const isMobileHeaderStuck = ref(false);
 const searchQuery = ref('');
 
 // On mobile '/settings' is shared between the category menu and the "General"
@@ -259,36 +253,4 @@ watch(
   },
 );
 
-const mobileHeaderStyle = computed(() => ({
-  paddingTop: isMobileHeaderStuck.value
-    ? 'calc(var(--app-safe-area-top))'
-    : undefined,
-}));
-
-function syncStickyState() {
-  if (typeof window === 'undefined' || !mobileHeaderRef.value) return;
-
-  const { top } = mobileHeaderRef.value.getBoundingClientRect();
-  isMobileHeaderStuck.value = top <= 0;
-}
-
-onMounted(() => {
-  syncStickyState();
-  window.addEventListener('scroll', syncStickyState, { passive: true });
-  window.addEventListener('resize', syncStickyState, { passive: true });
-});
-
-onUnmounted(() => {
-  window.removeEventListener('scroll', syncStickyState);
-  window.removeEventListener('resize', syncStickyState);
-});
 </script>
-
-<style scoped>
-.settings-mobile-header {
-  transition:
-    box-shadow 180ms ease,
-    background-color 180ms ease;
-  @apply border-y border-neutral-200 shadow-sm dark:border-neutral-800 dark:bg-neutral-900;
-}
-</style>

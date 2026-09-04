@@ -19,7 +19,7 @@
             class="relative w-full h-[84px] sm:h-[96px] rounded-2xl border-2 overflow-hidden bg-[#f4f4f6] transition-colors"
             :class="
               theme.currentTheme.value === 'light'
-                ? 'border-primary ring-2 ring-primary/20'
+                ? 'ring-2 ring-primary'
                 : 'border-neutral-200 dark:border-neutral-700'
             "
           >
@@ -56,7 +56,7 @@
             class="relative w-full h-[84px] sm:h-[96px] rounded-2xl border-2 overflow-hidden bg-[#3c3c3c] transition-colors"
             :class="
               theme.currentTheme.value === 'dark'
-                ? 'border-primary ring-2 ring-primary/20'
+                ? 'ring-2 ring-primary'
                 : 'border-neutral-200 dark:border-neutral-700'
             "
           >
@@ -93,7 +93,7 @@
             class="relative w-full h-[84px] sm:h-[96px] rounded-2xl border-2 overflow-hidden flex transition-colors"
             :class="
               theme.currentTheme.value === 'system'
-                ? 'border-primary ring-2 ring-primary/20'
+                ? 'ring-2 ring-primary'
                 : 'border-neutral-200 dark:border-neutral-700'
             "
           >
@@ -108,7 +108,7 @@
               >
             </div>
             <div
-              class="absolute bottom-0 left-[52%] right-0 h-[56px] sm:h-[64px] bg-white rounded-tl-2xl pt-2 sm:pt-2.5 pl-3 sm:pl-3.5 flex items-start border-l border-black/10"
+              class="absolute bottom-0 left-[52%] right-0 h-[56px] sm:h-[64px] bg-white rounded-tl-2xl pt-2 sm:pt-2.5 pl-3 sm:pl-3.5 flex items-start"
             >
               <span
                 class="text-xl sm:text-2xl font-extrabold text-black tracking-tight"
@@ -164,13 +164,6 @@
     </settings-group>
 
     <div :title="translations.appearance.interfaceSize || 'Interface size'">
-      <div class="px-4 pt-3 pb-1">
-        <p
-          class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-        >
-          Adjust text and UI size. Smaller shows more content.
-        </p>
-      </div>
       <div class="p-4 pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <div
           v-for="opt in [
@@ -207,17 +200,12 @@
             class="relative w-full bg-white dark:bg-neutral-900 p-4 rounded-xl border-2 transition flex flex-col items-center gap-2 focus:outline-none"
             :class="
               String(state.zoomLevel) === opt.key
-                ? 'border-primary ring-2 ring-primary/20'
+                ? 'ring-2 ring-primary'
                 : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
             "
             :aria-pressed="String(state.zoomLevel) === opt.key"
             @click="setZoom(Number(opt.key))"
           >
-            <span
-              v-if="String(state.zoomLevel) === opt.key"
-              class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary flex items-center justify-center text-white shadow-sm"
-              ><v-remixicon name="riCheckLine" size="12"
-            /></span>
             <span
               class="font-bold leading-none tabular-nums text-neutral-900 dark:text-white"
               :style="{ fontSize: opt.px + 'px' }"
@@ -242,7 +230,8 @@
         control-id="appearance-font"
         :label="translations.appearance.selectFont || 'Interface font'"
         description="Font for the app shell and note list."
-        control-class="w-full sm:w-56"
+        stacked
+        control-class="w-40 sm:w-56"
       >
         <ui-select
           id="appearance-font"
@@ -278,7 +267,8 @@
         control-id="appearance-code-font"
         :label="translations.appearance.selectCodeFont || 'Code font'"
         description="Font for code blocks and inline code."
-        control-class="w-full sm:w-56"
+        stacked
+        control-class="w-40 sm:w-56"
       >
         <ui-select
           id="appearance-code-font"
@@ -347,7 +337,7 @@
         <button
           v-for="icon in alternateIcons"
           :key="icon.key"
-          class="flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition focus:outline-none focus:ring-1 focus:ring-primary"
+          class="flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition focus:outline-none focus:ring-1 focus:ring-primary"
           :class="
             currentIconName === icon.name ||
             (!currentIconName && icon.isDefault)

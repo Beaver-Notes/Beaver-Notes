@@ -67,7 +67,7 @@
             />
             <div
               v-if="openPopoverFor === name"
-              class="absolute z-10 top-7 left-0 flex items-center gap-1.5 p-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg"
+              class="absolute z-10 top-7 left-0 flex items-center gap-1.5 p-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-lg"
               @click.stop
             >
               <button
