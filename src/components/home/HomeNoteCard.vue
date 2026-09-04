@@ -1,7 +1,7 @@
 <template>
   <ui-card
     data-testid="note-card"
-    class="hover:ring-1 hover:ring-primary/20 hover:shadow-md hover:shadow-neutral-200/60 dark:hover:shadow-neutral-900 group note-card flex flex-col cursor-pointer"
+    class="hover:ring-1 hover:ring-primary/20 hover:shadow-[var(--shadow-md)] group note-card flex flex-col cursor-pointer"
     padding="p-0"
     @click="openNote($event, note.id)"
   >

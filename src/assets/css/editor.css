@@ -699,23 +699,23 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
 /*  Rounded outer corners (per-cell so resize handles sit cleanly inside)  */
 .tableWrapper tr:first-child > th:first-child,
 .tableWrapper tr:first-child > td:first-child {
-  border-top-left-radius: 0.75rem;
+  border-top-left-radius: 0.5rem;
   overflow: hidden;
 }
 
 .tableWrapper tr:first-child > th:last-child,
 .tableWrapper tr:first-child > td:last-child {
-  border-top-right-radius: 0.75rem;
+  border-top-right-radius: 0.5rem;
   overflow: hidden;
 }
 
 .tableWrapper tr:last-child > td:first-child {
-  border-bottom-left-radius: 0.75rem;
+  border-bottom-left-radius: 0.5rem;
   overflow: hidden;
 }
 
 .tableWrapper tr:last-child > td:last-child {
-  border-bottom-right-radius: 0.75rem;
+  border-bottom-right-radius: 0.5rem;
   overflow: hidden;
 }
 

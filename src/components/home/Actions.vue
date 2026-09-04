@@ -3,10 +3,11 @@
     <div
       v-if="selectedItems.size > 0"
       data-selection-keep
-      class="mobile:hidden fixed inset-x-0 z-40 transition-[opacity,transform] duration-300 ease-out mx-2 bottom-4 sm:pl-16"
+      class="mobile:hidden fixed inset-x-0 z-40 transition-[opacity,transform] duration-[var(--motion-slow)] ease-[var(--ease-standard)] mx-2 bottom-4"
+      :style="barOffsetStyle"
     >
       <div
-        class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
+        class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-xl overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
       >
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
@@ -70,6 +71,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useSidebar } from '@/composable/useSidebar';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useUndoStore } from '@/store/undo';
@@ -88,6 +90,13 @@ const emit = defineEmits(['clear', 'delete', 'move']);
 const noteStore = useNoteStore();
 const folderStore = useFolderStore();
 const { translations } = useTranslations();
+const { expanded: sidebarExpanded } = useSidebar();
+
+// Center within the content area (viewport minus sidebar), like undoBannerWrapperStyle.
+// Component is mobile:hidden, so no mobile branch needed.
+const barOffsetStyle = computed(() => ({
+  paddingLeft: sidebarExpanded.value ? '16rem' : '4rem',
+}));
 
 const selectedNotes = computed(() => {
   return Array.from(props.selectedItems)

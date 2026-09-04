@@ -1,7 +1,7 @@
 <template>
   <div
-    class="fixed inset-x-0 z-40 flex justify-center px-2 transition-all duration-300 ease-[var(--ease-standard)] md:pl-16"
-    :style="{ bottom: 'var(--app-keyboard-inset-bottom, 1rem)'}"
+    class="fixed inset-x-0 z-40 flex justify-center px-2 transition-all duration-300 ease-[var(--ease-standard)] bottom-4"
+    :style="wrapperStyle"
   >
     <div
       class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
@@ -250,8 +250,11 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, onUnmounted, ref, nextTick } from 'vue';
+import { shallowReactive, onMounted, onUnmounted, ref, nextTick, computed } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
+import { useUiState } from '@/composable/useUiState';
+import { useSidebar } from '@/composable/useSidebar';
+import { backend } from '@/lib/tauri-bridge';
 import Mousetrap from '@/lib/mousetrap';
 
 export default {
@@ -268,7 +271,19 @@ export default {
   emits: ['close'],
   setup(props) {
     const { translations } = useTranslations();
+    const uiState = useUiState();
+    const { expanded: sidebarExpanded } = useSidebar();
     const mobileSearchInput = ref(null);
+
+    // Center within the content area (viewport minus sidebar), like undoBannerWrapperStyle.
+    // Keyboard inset only applies on mobile runtime; desktop falls back to bottom-4.
+    const wrapperStyle = computed(() => {
+      if (backend.isMobileRuntime()) {
+        return { bottom: 'var(--app-keyboard-inset-bottom, 1rem)' };
+      }
+      if (uiState.inReaderMode) return {};
+      return { paddingLeft: sidebarExpanded.value ? '16rem' : '4rem' };
+    });
 
     const state = shallowReactive({
       query: '',
@@ -393,6 +408,7 @@ export default {
       props,
       state,
       translations,
+      wrapperStyle,
       mobileSearchInput,
       startSearch,
       replaceText,
