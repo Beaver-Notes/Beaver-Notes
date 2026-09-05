@@ -160,13 +160,13 @@
                   <div class="flex gap-2 pt-1">
                     <button
                       @click="togglePreview"
-                      class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                      class="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
                       {{ showPreview ? (tr.hide || 'Hide') : (tr.preview || 'Preview') }}
                     </button>
                     <button
                       @click="$emit('restore', selectedCommitData)"
-                      class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                      class="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                     >
                       {{ tr.restore || 'Restore' }}
                     </button>
@@ -192,7 +192,7 @@
               </button>
               <div class="flex-1 overflow-hidden">
                 <div class="text-center mb-0.5">
-                  <span class="text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+                  <span class="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                     {{ activeDateLabel }}
                   </span>
                 </div>
@@ -244,7 +244,7 @@
               <select
                 :value="history.timeFilter.value"
                 @change="history.setFilter($event.target.value)"
-                class="text-[11px] border border-neutral-200 dark:border-neutral-600 rounded px-1.5 py-0.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                class="text-xs border border-neutral-200 dark:border-neutral-600 rounded px-1.5 py-0.5 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
               >
                 <option value="all">{{ tr.all || 'All' }}</option>
                 <option value="today">{{ tr.today || 'Today' }}</option>
@@ -345,22 +345,22 @@
                     <v-remixicon name="riCloseLine" class="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <p class="text-[11px] text-neutral-500 dark:text-neutral-400">
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">
                   {{ formatDateTime(selectedCommitData.createdAt) }}
                 </p>
-                <div v-if="snippet" class="text-[11px] text-neutral-600 dark:text-neutral-400 line-clamp-2">
+                <div v-if="snippet" class="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2">
                   {{ snippet }}
                 </div>
                 <div class="flex gap-2">
                   <button
                     @click="togglePreview"
-                    class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300"
+                    class="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300"
                   >
                     {{ showPreview ? (tr.hide || 'Hide') : (tr.preview || 'Preview') }}
                   </button>
                   <button
                     @click="$emit('restore', selectedCommitData)"
-                    class="flex-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-emerald-600 text-white"
+                    class="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white"
                   >
                     {{ tr.restore || 'Restore' }}
                   </button>

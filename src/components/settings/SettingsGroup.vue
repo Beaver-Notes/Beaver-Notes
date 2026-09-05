@@ -9,7 +9,7 @@
       </span>
     </div>
     <div
-      class="settings-group divide-y divide-neutral-200 dark:divide-neutral-800 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
+      class="settings-group divide-y divide-neutral-200 dark:divide-neutral-800 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border"
       :class="danger ? 'border-red-200 dark:border-red-900/70 bg-red-50/80 dark:bg-red-950/30' : ''"
     >
       <slot />

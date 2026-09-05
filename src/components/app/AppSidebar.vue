@@ -38,7 +38,11 @@
       >
         <span
           class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
-          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
         >
           <v-remixicon
             name="riAddFill"
@@ -75,7 +79,11 @@
       >
         <span
           class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
-          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
         >
           <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
         </span>
@@ -115,7 +123,11 @@
       >
         <span
           class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
-          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
         >
           <v-remixicon
             name="riBookletLine"
@@ -153,7 +165,11 @@
       >
         <span
           class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
-          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
         >
           <v-remixicon
             name="riArchiveDrawerLine"
@@ -179,7 +195,7 @@
         class="mt-5 px-3 flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col"
       >
         <div
-          class="text-[11px] font-semibold font-bold tracking-widest text-neutral-500 dark:text-neutral-400 mb-2 px-3 select-none shrink-0"
+          class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-2 px-3 select-none shrink-0"
         >
           Recent
         </div>
@@ -215,7 +231,7 @@
               {{ item.title }}
             </span>
             <span
-              class="text-[11px] text-neutral-400 dark:text-neutral-500 shrink-0 tabular-nums"
+              class="text-xs text-neutral-400 dark:text-neutral-500 shrink-0 tabular-nums"
             >
               {{ formatRelativeTime(item.updatedAt) }}
             </span>
@@ -252,7 +268,11 @@
       >
         <span
           class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
-          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
         >
           <v-remixicon
             name="riLoopRightLine"
@@ -278,9 +298,15 @@
         >
           <div class="flex items-center gap-2 mb-1">
             <div class="animate-spin">
-              <v-remixicon name="riLoader4Line" size="12" class="text-primary" />
+              <v-remixicon
+                name="riLoader4Line"
+                size="12"
+                class="text-primary"
+              />
             </div>
-            <span class="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
+            <span
+              class="text-xs text-neutral-500 dark:text-neutral-400 truncate"
+            >
               {{ syncProgressStore.phaseMessage }}
             </span>
           </div>
@@ -300,17 +326,25 @@
         <button
           v-if="syncProgressStore.attention"
           class="px-3 pb-2 w-full flex items-center gap-2 text-left"
-          :class="syncProgressStore.attention.tone === 'action'
-            ? 'text-red-600 dark:text-red-400'
-            : 'text-neutral-500 dark:text-neutral-400'"
+          :class="
+            syncProgressStore.attention.tone === 'action'
+              ? 'text-red-600 dark:text-red-400'
+              : 'text-neutral-500 dark:text-neutral-400'
+          "
           @click="openSyncSettings"
         >
           <v-remixicon
-            :name="syncProgressStore.attention.tone === 'action' ? 'riAlertLine' : 'riCloudLine'"
+            :name="
+              syncProgressStore.attention.tone === 'action'
+                ? 'riAlertLine'
+                : 'riCloudLine'
+            "
             size="14"
             class="shrink-0"
           />
-          <span class="text-[11px] truncate">{{ syncProgressStore.attention.text }}</span>
+          <span class="text-xs truncate">{{
+            syncProgressStore.attention.text
+          }}</span>
         </button>
       </transition>
 
@@ -326,7 +360,11 @@
       >
         <span
           class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
-          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
         >
           <v-remixicon
             size="20"
@@ -364,7 +402,11 @@
       >
         <span
           class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
-          :class="expanded ? 'ltr:left-3 rtl:right-3 translate-x-0' : 'left-1/2 -translate-x-1/2'"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
         >
           <v-remixicon
             name="riSettingsLine"
@@ -446,11 +488,8 @@ export default {
     } = useAppShellActions();
 
     const showCreateFolderModal = ref(false);
-    const currentFolderId = computed(
-      () =>
-        route.name === 'Folder'
-          ? (route.params.id ?? null)
-          : null
+    const currentFolderId = computed(() =>
+      route.name === 'Folder' ? (route.params.id ?? null) : null,
     );
 
     function openCreateFolderModal() {
@@ -575,10 +614,7 @@ export default {
       }
 
       for (const folder of folderStore.folders) {
-        if (
-          !folder.isArchived &&
-          folder.updatedAt > cutoff
-        ) {
+        if (!folder.isArchived && folder.updatedAt > cutoff) {
           items.push({
             id: folder.id,
             updatedAt: folder.updatedAt,

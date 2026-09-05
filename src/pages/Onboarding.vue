@@ -467,22 +467,21 @@
                         >
                           <div class="flex flex-col gap-2 p-4">
                             <p
-                              class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
+                              class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
                             >
                               Evernote notebook
                             </p>
                             <ui-input
-                              :value="state.evernoteNotebookName"
+                              v-model="state.evernoteNotebookName"
                               placeholder="Notebook name (optional)"
                               class="w-full"
-                              @input="state.evernoteNotebookName = $event"
                             />
                           </div>
                         </ui-card>
 
                         <div class="flex flex-col gap-1">
                           <p
-                            class="text-xs font-semibold tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                            class="text-xs font-semibold text-neutral-500 dark:text-neutral-500 mb-1"
                           >
                             What gets copied
                           </p>
@@ -508,7 +507,7 @@
                               class="flex flex-col gap-1"
                             >
                               <span
-                                class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
+                                class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
                               >
                                 Portable data folder
                               </span>
@@ -523,7 +522,7 @@
                               class="flex flex-col gap-1"
                             >
                               <span
-                                class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
+                                class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
                               >
                                 Beaver Notes (Legacy)
                               </span>
@@ -538,7 +537,7 @@
                               class="flex flex-col gap-1"
                             >
                               <span
-                                class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
+                                class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
                               >
                                 New Beaver Notes
                               </span>
@@ -563,7 +562,7 @@
                           >
                             <div>
                               <p
-                                class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                                class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500 mb-1"
                               >
                                 Windows Portable
                               </p>
@@ -597,7 +596,7 @@
                       <div class="flex flex-col gap-3 p-4">
                         <div class="flex items-center justify-between">
                           <p
-                            class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
+                            class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
                           >
                             Importing…
                           </p>
@@ -648,7 +647,7 @@
                       <div class="flex flex-col gap-3 p-4">
                         <div class="flex items-center justify-between">
                           <p
-                            class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
+                            class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
                           >
                             Import complete
                           </p>
@@ -675,7 +674,7 @@
                     <ui-card v-if="state.migrationResult" class="bg-input">
                       <div class="flex flex-col gap-1 p-4">
                         <p
-                          class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                          class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500 mb-1"
                         >
                           Import summary
                         </p>
@@ -693,7 +692,7 @@
                       <div class="flex flex-col gap-3 p-4">
                         <div class="flex items-center justify-between gap-3">
                           <p
-                            class="text-xs font-bold font-bold tracking-widest text-neutral-500 dark:text-neutral-500"
+                            class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
                           >
                             Issues
                           </p>
@@ -706,7 +705,7 @@
                           >
                         </div>
                         <div
-                          class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                          class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-xs whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
                         >
                           {{ state.migrationIssuesText }}
                         </div>
@@ -847,25 +846,6 @@
                       </p>
                     </div>
 
-                    <div class="flex flex-col gap-2">
-                      <p
-                        class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
-                      >
-                        {{ translations.account?.server || 'Server' }}
-                      </p>
-                      <ui-input
-                        v-model="draftServerUrl"
-                        class="w-full"
-                        :placeholder="defaultServerUrl"
-                      />
-                      <p class="text-xs text-neutral-400 dark:text-neutral-500">
-                        {{
-                          translations.account?.serverHint ||
-                          'Default works with Beaver Cloud. Change this for a self-hosted instance.'
-                        }}
-                      </p>
-                    </div>
-
                     <ul
                       class="space-y-2 text-sm text-neutral-700 dark:text-neutral-300"
                     >
@@ -904,10 +884,14 @@
                       </li>
                     </ul>
 
-                    <div class="flex flex-col gap-2">
+                    <div
+                      class="flex flex-col gap-3 rounded-2xl border border-neutral-200/70 bg-neutral-50 p-4 dark:border-neutral-700/60 dark:bg-neutral-800/50"
+                    >
                       <ui-input
                         v-model="passkeyEmail"
                         type="email"
+                        autocomplete="email"
+                        inputmode="email"
                         class="w-full"
                         :placeholder="
                           translations.account?.emailPlaceholder ||
@@ -918,152 +902,33 @@
                           'Email (optional)'
                         "
                       />
-                      <div class="flex gap-2">
-                        <ui-button
-                          class="flex-1"
-                          :loading="accountStore.busy"
-                          :disabled="accountStore.busy"
-                          @click="handleSignInWithPasskey"
-                        >
-                          <v-remixicon name="riFingerprintLine" class="mr-1" />
-                          {{ translations.account?.signIn || 'Sign in' }}
-                        </ui-button>
-                        <ui-button
-                          class="flex-1"
-                          variant="primary"
-                          :loading="accountStore.busy"
-                          :disabled="accountStore.busy"
-                          @click="handleSignUpWithPasskey"
-                        >
-                          {{
-                            translations.account?.createAccount ||
-                            'Create account'
-                          }}
-                        </ui-button>
-                      </div>
-
-                      <div
-                        class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
+                      <ui-button
+                        class="w-full"
+                        variant="primary"
+                        :loading="accountStore.busy"
+                        :disabled="accountStore.busy"
+                        @click="handleSignUpWithPasskey"
                       >
-                        <button
-                          class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-                          @click="showPasswordAuth = !showPasswordAuth"
-                        >
-                          {{ showPasswordAuth ? '↑' : '↓' }}
-                          {{
-                            translations.account?.withPassword ||
-                            'Or sign in with password'
-                          }}
-                        </button>
-                        <div
-                          v-if="showPasswordAuth"
-                          class="mt-2 flex flex-col gap-2"
-                        >
-                          <ui-input
-                            v-model="signInEmail"
-                            type="email"
-                            class="w-full"
-                            :placeholder="
-                              translations.account?.emailPlaceholder || 'Email'
-                            "
-                          />
-                          <ui-input
-                            v-model="signInPassword"
-                            :password="true"
-                            class="w-full"
-                            :placeholder="
-                              translations.account?.passwordPlaceholder ||
-                              'Password'
-                            "
-                            @keyup.enter="handleSignInWithPassword"
-                          />
-                          <div class="flex items-center justify-between">
-                            <button
-                              class="text-xs text-primary hover:underline"
-                              type="button"
-                              @click="showForgot = !showForgot"
-                            >
-                              {{
-                                trAccount.forgotPassword || 'Forgot password?'
-                              }}
-                            </button>
-                            <span
-                              v-if="forgotMessage"
-                              class="text-xs"
-                              :class="
-                                forgotSent ? 'text-green-600' : 'text-amber-600'
-                              "
-                              >{{ forgotMessage }}</span
-                            >
-                          </div>
-                          <div
-                            v-if="showForgot"
-                            class="flex flex-col gap-2 border rounded-xl p-3 bg-neutral-50 dark:bg-neutral-800"
-                          >
-                            <ui-input
-                              v-model="forgotEmail"
-                              type="email"
-                              :placeholder="
-                                trAccount.forgotEmailPlaceholder ||
-                                'Email for reset link'
-                              "
-                              class="w-full"
-                            />
-                            <ui-button
-                              variant="secondary"
-                              :loading="forgotBusy"
-                              @click="handleForgot"
-                              >{{
-                                trAccount.sendResetLink || 'Send reset link'
-                              }}</ui-button
-                            >
-                            <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                              {{
-                                trAccount.inboxHint ||
-                                'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
-                              }}
-                            </p>
-                          </div>
-                          <ui-input
-                            v-model="signUpUsername"
-                            class="w-full"
-                            :placeholder="
-                              trAccount.displayNamePlaceholder ||
-                              'Display name (optional)'
-                            "
-                            maxlength="50"
-                          />
-                          <div class="flex gap-2">
-                            <ui-button
-                              class="flex-1"
-                              :loading="accountStore.busy"
-                              :disabled="accountStore.busy"
-                              @click="handleSignInWithPassword"
-                            >
-                              {{
-                                translations.account?.signInWithPassword ||
-                                'Sign in'
-                              }}
-                            </ui-button>
-                            <ui-button
-                              class="flex-1"
-                              variant="primary"
-                              :loading="accountStore.busy"
-                              :disabled="accountStore.busy"
-                              @click="handleSignUpWithPassword"
-                            >
-                              {{
-                                translations.account?.createAccount ||
-                                'Create account'
-                              }}
-                            </ui-button>
-                          </div>
-                        </div>
-                      </div>
-
+                        <v-remixicon name="riFingerprintLine" class="mr-1" />
+                        {{
+                          translations.account?.createAccount ||
+                          'Create account'
+                        }}
+                      </ui-button>
+                      <ui-button
+                        class="w-full"
+                        variant="secondary"
+                        :loading="accountStore.busy"
+                        :disabled="accountStore.busy"
+                        @click="handleSignInWithPasskey"
+                      >
+                        {{
+                          translations.account?.signIn || 'Sign in'
+                        }}</ui-button
+                      >
                       <p
                         v-if="accountStore.error"
-                        class="text-sm text-red-500"
+                        class="text-sm text-red-500 text-center"
                         role="alert"
                       >
                         {{ accountStore.error }}
@@ -1073,62 +938,260 @@
                         class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
                       >
                         <button
-                          class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-                          @click="showRecovery = !showRecovery"
+                          class="inline-flex items-center gap-1 text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                          @click="showMoreOptions = !showMoreOptions"
                         >
-                          {{ showRecovery ? '↑' : '↓' }}
+                          <v-remixicon
+                            v-if="showMoreOptions"
+                            name="riArrowUpSLine"
+                            size="14"
+                          />
+                          <v-remixicon
+                            v-else
+                            name="riArrowDownSLine"
+                            size="14"
+                          />
                           {{
-                            trAuth.recoverPrompt ||
-                            tr.recoverAccount ||
-                            'Lost access? Recover with code'
+                            translations.account?.moreSignInOptions ||
+                            'More sign-in options'
                           }}
                         </button>
                         <div
-                          v-if="showRecovery"
+                          v-if="showMoreOptions"
                           class="mt-2 flex flex-col gap-2"
                         >
-                          <ui-input
-                            v-model="recoverEmail"
-                            type="email"
-                            class="w-full"
-                            :placeholder="trAccount.emailPlaceholder || 'Email'"
-                          />
-                          <ui-input
-                            v-model="recoverCode"
-                            type="password"
-                            autocomplete="off"
-                            class="w-full font-mono text-xs"
-                            :placeholder="
-                              trAuth.recoveryCodePlaceholder ||
-                              '64-char recovery code'
-                            "
-                          />
-                          <p class="text-xs text-amber-600 dark:text-amber-400">
-                            {{
-                              trAccount.recoveryHint ||
-                              'Restores ACCOUNT access only. E2E data needs vault passphrase.'
-                            }}
-                          </p>
-                          <ui-button
-                            class="w-full"
-                            variant="secondary"
-                            :loading="recoverBusy"
-                            @click="handleRecover"
-                            >{{
-                              tr.recoverAccount ||
-                              trAuth.recoverAccount ||
-                              'Recover account'
-                            }}</ui-button
+                          <div class="flex flex-col gap-2">
+                            <p
+                              class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
+                            >
+                              {{ translations.account?.server || 'Server' }}
+                            </p>
+                            <ui-input
+                              v-model="draftServerUrl"
+                              class="w-full"
+                              :placeholder="defaultServerUrl"
+                            />
+                            <p
+                              class="text-xs text-neutral-400 dark:text-neutral-500"
+                            >
+                              {{
+                                translations.account?.serverHint ||
+                                'Default works with Beaver Cloud. Change this for a self-hosted instance.'
+                              }}
+                            </p>
+                          </div>
+
+                          <div
+                            class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
                           >
-                          <p
-                            v-if="recoverMessage"
-                            class="text-xs"
-                            :class="
-                              recoverSuccess ? 'text-green-600' : 'text-red-500'
-                            "
+                            <button
+                              class="inline-flex items-center gap-1 text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                              @click="showPasswordAuth = !showPasswordAuth"
+                            >
+                              <v-remixicon
+                                v-if="showPasswordAuth"
+                                name="riArrowUpSLine"
+                                size="14"
+                              />
+                              <v-remixicon
+                                v-else
+                                name="riArrowDownSLine"
+                                size="14"
+                              />
+                              {{
+                                translations.account?.withPassword ||
+                                'Or sign in with password'
+                              }}
+                            </button>
+                            <div
+                              v-if="showPasswordAuth"
+                              class="mt-2 flex flex-col gap-2"
+                            >
+                              <ui-input
+                                v-model="signInEmail"
+                                type="email"
+                                class="w-full"
+                                :placeholder="
+                                  translations.account?.emailPlaceholder ||
+                                  'Email'
+                                "
+                              />
+                              <ui-input
+                                v-model="signInPassword"
+                                :password="true"
+                                class="w-full"
+                                :placeholder="
+                                  translations.account?.passwordPlaceholder ||
+                                  'Password'
+                                "
+                                @keyup.enter="handleSignInWithPassword"
+                              />
+                              <div class="flex items-center justify-between">
+                                <button
+                                  class="text-xs text-primary hover:underline"
+                                  type="button"
+                                  @click="showForgot = !showForgot"
+                                >
+                                  {{
+                                    trAccount.forgotPassword ||
+                                    'Forgot password?'
+                                  }}
+                                </button>
+                                <span
+                                  v-if="forgotMessage"
+                                  class="text-xs"
+                                  :class="
+                                    forgotSent
+                                      ? 'text-green-600'
+                                      : 'text-amber-600'
+                                  "
+                                  >{{ forgotMessage }}</span
+                                >
+                              </div>
+                              <div
+                                v-if="showForgot"
+                                class="flex flex-col gap-2 border rounded-xl p-3 bg-neutral-50 dark:bg-neutral-800"
+                              >
+                                <ui-input
+                                  v-model="forgotEmail"
+                                  type="email"
+                                  :placeholder="
+                                    trAccount.forgotEmailPlaceholder ||
+                                    'Email for reset link'
+                                  "
+                                  class="w-full"
+                                />
+                                <ui-button
+                                  variant="secondary"
+                                  :loading="forgotBusy"
+                                  @click="handleForgot"
+                                  >{{
+                                    trAccount.sendResetLink || 'Send reset link'
+                                  }}</ui-button
+                                >
+                                <p
+                                  class="text-xs text-neutral-500 dark:text-neutral-400"
+                                >
+                                  {{
+                                    trAccount.inboxHint ||
+                                    'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
+                                  }}
+                                </p>
+                              </div>
+                              <ui-input
+                                v-model="signUpUsername"
+                                class="w-full"
+                                :placeholder="
+                                  trAccount.displayNamePlaceholder ||
+                                  'Display name (optional)'
+                                "
+                                maxlength="50"
+                              />
+                              <div class="flex gap-2">
+                                <ui-button
+                                  class="flex-1"
+                                  :loading="accountStore.busy"
+                                  :disabled="accountStore.busy"
+                                  @click="handleSignInWithPassword"
+                                >
+                                  {{
+                                    translations.account?.signInWithPassword ||
+                                    'Sign in'
+                                  }}
+                                </ui-button>
+                                <ui-button
+                                  class="flex-1"
+                                  variant="primary"
+                                  :loading="accountStore.busy"
+                                  :disabled="accountStore.busy"
+                                  @click="handleSignUpWithPassword"
+                                >
+                                  {{
+                                    translations.account?.createAccount ||
+                                    'Create account'
+                                  }}
+                                </ui-button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
                           >
-                            {{ recoverMessage }}
-                          </p>
+                            <button
+                              class="inline-flex items-center gap-1 text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                              @click="showRecovery = !showRecovery"
+                            >
+                              <v-remixicon
+                                v-if="showRecovery"
+                                name="riArrowUpSLine"
+                                size="14"
+                              />
+                              <v-remixicon
+                                v-else
+                                name="riArrowDownSLine"
+                                size="14"
+                              />
+                              {{
+                                trAuth.recoverPrompt ||
+                                tr.recoverAccount ||
+                                'Lost access? Recover with code'
+                              }}
+                            </button>
+                            <div
+                              v-if="showRecovery"
+                              class="mt-2 flex flex-col gap-2"
+                            >
+                              <ui-input
+                                v-model="recoverEmail"
+                                type="email"
+                                class="w-full"
+                                :placeholder="
+                                  trAccount.emailPlaceholder || 'Email'
+                                "
+                              />
+                              <ui-input
+                                v-model="recoverCode"
+                                type="password"
+                                autocomplete="off"
+                                class="w-full font-mono text-xs"
+                                :placeholder="
+                                  trAuth.recoveryCodePlaceholder ||
+                                  '64-char recovery code'
+                                "
+                              />
+                              <p
+                                class="text-xs text-amber-600 dark:text-amber-400"
+                              >
+                                {{
+                                  trAccount.recoveryHint ||
+                                  'Restores ACCOUNT access only. E2E data needs vault passphrase.'
+                                }}
+                              </p>
+                              <ui-button
+                                class="w-full"
+                                variant="secondary"
+                                :loading="recoverBusy"
+                                @click="handleRecover"
+                                >{{
+                                  tr.recoverAccount ||
+                                  trAuth.recoverAccount ||
+                                  'Recover account'
+                                }}</ui-button
+                              >
+                              <p
+                                v-if="recoverMessage"
+                                class="text-xs"
+                                :class="
+                                  recoverSuccess
+                                    ? 'text-green-600'
+                                    : 'text-red-500'
+                                "
+                              >
+                                {{ recoverMessage }}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1558,6 +1621,7 @@ export default {
     };
 
     const showForgot = ref(false);
+    const showMoreOptions = ref(false);
     const forgotEmail = ref('');
     const forgotBusy = ref(false);
     const forgotMessage = ref('');
@@ -1913,6 +1977,7 @@ export default {
       handleSignInWithPassword,
       handleSignUpWithPassword,
       showForgot,
+      showMoreOptions,
       forgotEmail,
       forgotBusy,
       forgotMessage,

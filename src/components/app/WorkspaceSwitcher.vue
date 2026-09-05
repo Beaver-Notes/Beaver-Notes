@@ -1,6 +1,9 @@
 <template>
   <div v-if="isAuthenticated">
-    <ui-popover v-model="popoverOpen" :placement="expanded ? 'bottom-start' : 'right-start'">
+    <ui-popover
+      v-model="popoverOpen"
+      :placement="expanded ? 'bottom-start' : 'right-start'"
+    >
       <template #trigger>
         <!-- Expanded: full-width pill trigger -->
         <div
@@ -50,56 +53,52 @@
 
       <div class="min-w-[220px] py-1">
         <div
-          class="px-2.5 pb-1.5 text-[11px] font-semibold font-bold tracking-widest text-neutral-500 dark:text-neutral-400 select-none"
+          class="px-2.5 pb-1.5 text-xs font-semibold font-bold text-neutral-500 dark:text-neutral-400 select-none"
         >
           Workspaces
         </div>
 
-        <div
-          v-for="ws in workspaces"
-          :key="ws.id"
-          class="group relative"
-        >
+        <div v-for="ws in workspaces" :key="ws.id" class="group relative">
           <button
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
             @click="switchWorkspace(ws.id)"
           >
-          <span
-            class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none"
-            :class="
-              ws.id === activeId
-                ? 'bg-primary/10 text-primary'
-                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400'
-            "
-          >
-            <span v-if="ws.emoji">{{ ws.emoji }}</span>
-            <v-remixicon v-else name="riFolderLine" size="14" />
-          </span>
+            <span
+              class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none"
+              :class="
+                ws.id === activeId
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400'
+              "
+            >
+              <span v-if="ws.emoji">{{ ws.emoji }}</span>
+              <v-remixicon v-else name="riFolderLine" size="14" />
+            </span>
 
-          <span
-            class="truncate flex-1 min-w-0"
-            :class="
-              ws.id === activeId
-                ? 'text-primary font-medium'
-                : 'text-neutral-700 dark:text-neutral-300'
-            "
-          >
-            {{ ws.name }}
-          </span>
+            <span
+              class="truncate flex-1 min-w-0"
+              :class="
+                ws.id === activeId
+                  ? 'text-primary font-medium'
+                  : 'text-neutral-700 dark:text-neutral-300'
+              "
+            >
+              {{ ws.name }}
+            </span>
 
-          <span
-            v-if="ws.role && ws.role !== 'owner'"
-            class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
-          >
-            {{ ws.role }}
-          </span>
+            <span
+              v-if="ws.role && ws.role !== 'owner'"
+              class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
+            >
+              {{ ws.role }}
+            </span>
 
-          <v-remixicon
-            v-if="ws.id === activeId"
-            name="riCheckLine"
-            size="14"
-            class="shrink-0 text-primary"
-          />
+            <v-remixicon
+              v-if="ws.id === activeId"
+              name="riCheckLine"
+              size="14"
+              class="shrink-0 text-primary"
+            />
           </button>
           <button
             v-if="canManageWorkspace(ws)"
@@ -115,7 +114,11 @@
             @click.stop="goToTeamSettings"
             aria-label="Team settings"
           >
-            <v-remixicon name="riSettingsLine" size="12" class="text-neutral-400" />
+            <v-remixicon
+              name="riSettingsLine"
+              size="12"
+              class="text-neutral-400"
+            />
           </button>
         </div>
 
@@ -233,8 +236,7 @@ export default {
 
     function canManageWorkspace(ws) {
       return (
-        dashboardFlag.value &&
-        (ws.role === 'owner' || ws.role === 'admin')
+        dashboardFlag.value && (ws.role === 'owner' || ws.role === 'admin')
       );
     }
 
@@ -245,7 +247,9 @@ export default {
           .then((plans) => {
             dashboardFlag.value = Boolean(plans?.flags?.dashboard);
           })
-          .catch(() => { /* plans optional */ });
+          .catch(() => {
+            /* plans optional */
+          });
       }
       await nextTick();
     });
@@ -277,11 +281,13 @@ export default {
           const wsId = formDialogWorkspace.value?.id;
           if (wsId) {
             const cloud = await import('@/composable/useCloudWorkspaces');
-            await cloud.useCloudWorkspaces().updateWorkspaceDecoration(wsId, { emoji, color });
+            await cloud
+              .useCloudWorkspaces()
+              .updateWorkspaceDecoration(wsId, { emoji, color });
             if (name !== formDialogWorkspace.value.name) {
               await workspaceStore.rename(wsId, name);
             } else {
-              const ws = workspaceStore.workspaces.find(w => w.id === wsId);
+              const ws = workspaceStore.workspaces.find((w) => w.id === wsId);
               if (ws) {
                 ws.emoji = emoji;
                 ws.color = color;
@@ -294,7 +300,10 @@ export default {
         window.location.reload();
       } catch (err) {
         emitter.emit('show-dialog', 'alert', {
-          title: formDialogMode.value === 'create' ? 'Create Failed' : 'Update Failed',
+          title:
+            formDialogMode.value === 'create'
+              ? 'Create Failed'
+              : 'Update Failed',
           description: err?.message || 'Failed to update workspace.',
         });
       }

@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -161,6 +161,45 @@ fn extract_attribute(fragment: &str, name: &str) -> Option<String> {
     Some(fragment[start..end].to_string())
 }
 
+fn resolve_import_stage_dir(app: &AppHandle, prefix: &str) -> Result<PathBuf, AppError> {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let mut bases = vec![std::env::temp_dir()];
+    if let Ok(dir) = app.path().temp_dir() {
+        if !bases.contains(&dir) {
+            bases.push(dir);
+        }
+    }
+    let mut tried = Vec::new();
+    for base in &bases {
+        if let Ok(entries) = fs::read_dir(base) {
+            let scope = format!("{prefix}_");
+            for entry in entries.flatten() {
+                if entry.file_name().to_string_lossy().starts_with(&scope) {
+                    let _ = fs::remove_dir_all(entry.path());
+                }
+            }
+        }
+    }
+    for dir in bases.into_iter().map(|base| base.join(format!("{prefix}_{stamp}"))) {
+        tried.push(dir.display().to_string());
+        if fs::create_dir_all(&dir).is_err() {
+            continue;
+        }
+        let probe = dir.join(".write-probe");
+        if fs::write(&probe, b"probe").is_ok() {
+            let _ = fs::remove_file(&probe);
+            return Ok(dir);
+        }
+    }
+    Err(AppError::Io(format!(
+        "No writable import staging dir (tried {}).",
+        tried.join(", ")
+    )))
+}
+
 fn parse_enex_timestamp(value: &str) -> i64 {
     NaiveDateTime::parse_from_str(value.trim(), "%Y%m%dT%H%M%SZ")
         .map(|dt| Utc.from_utc_datetime(&dt).timestamp_millis())
@@ -294,7 +333,8 @@ fn parse_evernote_resources(
                 .unwrap_or_else(|| hash.clone());
 
             let file_path = temp_dir.join(format!("{hash}_{index}"));
-            fs::write(&file_path, &bytes)?;
+            fs::write(&file_path, &bytes)
+                .map_err(|error| AppError::Io(format!("{}: {}", file_path.display(), error)))?;
 
             Ok(ImportResourcePayload {
                 hash,
@@ -549,30 +589,28 @@ pub(crate) async fn import_evernote(
 ) -> Result<(), AppError> {
     let app_handle = app.clone();
     std::thread::spawn(move || {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        let temp_dir = std::env::temp_dir().join(format!("beaver_import_{timestamp}"));
-        if let Err(error) = fs::create_dir_all(&temp_dir) {
-            let _ = app_handle.emit_to(
-                MAIN_WINDOW_LABEL,
-                "import-complete",
-                ImportCompletePayload {
-                    source: "evernote",
-                    imported: 0,
-                    errors: vec![ImportErrorPayload {
-                        title: Path::new(&enex_path)
-                            .file_name()
-                            .and_then(|value| value.to_str())
-                            .unwrap_or("Evernote import")
-                            .to_string(),
-                        reason: format!("{}: {}", enex_path, error),
-                    }],
-                },
-            );
-            return;
-        }
+        let temp_dir = match resolve_import_stage_dir(&app_handle, "beaver_import") {
+            Ok(dir) => dir,
+            Err(error) => {
+                let _ = app_handle.emit_to(
+                    MAIN_WINDOW_LABEL,
+                    "import-complete",
+                    ImportCompletePayload {
+                        source: "evernote",
+                        imported: 0,
+                        errors: vec![ImportErrorPayload {
+                            title: Path::new(&enex_path)
+                                .file_name()
+                                .and_then(|value| value.to_str())
+                                .unwrap_or("Evernote import")
+                                .to_string(),
+                            reason: format!("{}: {}", enex_path, error),
+                        }],
+                    },
+                );
+                return;
+            }
+        };
 
         let raw = match fs::read(&enex_path) {
             Ok(bytes) => bytes,
@@ -643,8 +681,6 @@ pub(crate) async fn import_evernote(
                 }
             }
         }
-
-        let _ = fs::remove_dir_all(&temp_dir);
 
         let _ = app_handle.emit_to(
             MAIN_WINDOW_LABEL,

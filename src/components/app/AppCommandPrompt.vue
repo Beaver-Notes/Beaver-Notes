@@ -202,7 +202,7 @@
           </div>
 
           <div
-            class="flex items-center justify-between px-4 py-1.5 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400"
+            class="flex items-center justify-between px-4 py-1.5 border-t border-neutral-100 dark:border-neutral-800 text-xs text-neutral-400"
           >
             <span class="flex items-center gap-3">
               <span class="flex items-center gap-1">

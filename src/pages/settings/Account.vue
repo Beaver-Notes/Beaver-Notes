@@ -67,7 +67,9 @@
             @click="showPasswordAuth = !showPasswordAuth"
           >
             {{ showPasswordAuth ? '↑' : '↓' }}
-            {{ translations.account?.withPassword || 'Or sign in with password' }}
+            {{
+              translations.account?.withPassword || 'Or sign in with password'
+            }}
           </button>
           <div v-if="showPasswordAuth" class="mt-2 flex flex-col gap-2">
             <ui-input
@@ -104,12 +106,44 @@
                 {{ translations.account?.createAccount || 'Create account' }}
               </ui-button>
             </div>
-            <button class="mt-2 text-xs text-primary hover:underline" type="button" @click="showForgot = !showForgot">{{ tr.forgotPassword || 'Forgot password?' }}</button>
-            <div v-if="showForgot" class="mt-2 flex flex-col gap-2 border rounded-xl p-3 bg-neutral-50 dark:bg-neutral-900">
-              <ui-input v-model="forgotEmail" type="email" :placeholder="tr.emailPlaceholder || 'Email for reset link'" :aria-label="tr.emailPlaceholder || 'Email for reset link'" class="w-full" />
-              <ui-button variant="secondary" :loading="forgotBusy" :aria-label="tr.sendResetLink || 'Send reset link'" @click="handleForgot">{{ tr.sendResetLink || 'Send reset link' }}</ui-button>
-              <p v-if="forgotMessage" class="text-xs" :class="forgotSent ? 'text-green-600' : 'text-amber-600'">{{ forgotMessage }}</p>
-              <p class="text-xs text-neutral-500">{{ tr.inboxHint || 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).' }}</p>
+            <button
+              class="mt-2 text-xs text-primary hover:underline"
+              type="button"
+              @click="showForgot = !showForgot"
+            >
+              {{ tr.forgotPassword || 'Forgot password?' }}
+            </button>
+            <div
+              v-if="showForgot"
+              class="mt-2 flex flex-col gap-2 border rounded-xl p-3 bg-neutral-50 dark:bg-neutral-900"
+            >
+              <ui-input
+                v-model="forgotEmail"
+                type="email"
+                :placeholder="tr.emailPlaceholder || 'Email for reset link'"
+                :aria-label="tr.emailPlaceholder || 'Email for reset link'"
+                class="w-full"
+              />
+              <ui-button
+                variant="secondary"
+                :loading="forgotBusy"
+                :aria-label="tr.sendResetLink || 'Send reset link'"
+                @click="handleForgot"
+                >{{ tr.sendResetLink || 'Send reset link' }}</ui-button
+              >
+              <p
+                v-if="forgotMessage"
+                class="text-xs"
+                :class="forgotSent ? 'text-green-600' : 'text-amber-600'"
+              >
+                {{ forgotMessage }}
+              </p>
+              <p class="text-xs text-neutral-500">
+                {{
+                  tr.inboxHint ||
+                  'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
+                }}
+              </p>
             </div>
           </div>
         </div>
@@ -122,7 +156,10 @@
             @click="showQuickConnect = !showQuickConnect"
           >
             {{ showQuickConnect ? '↑' : '↓' }}
-            {{ translations.account?.quickConnect || 'Signing in from another device?' }}
+            {{
+              translations.account?.quickConnect ||
+              'Signing in from another device?'
+            }}
           </button>
           <div v-if="showQuickConnect" class="mt-2 space-y-2">
             <p class="text-xs text-neutral-500 dark:text-neutral-400">
@@ -140,14 +177,12 @@
                 @click="startQuickConnect"
               >
                 <v-remixicon name="riQrCodeLine" class="mr-1" />
-                {{
-                  translations.account?.quickConnectStart || 'Start'
-                }}
+                {{ translations.account?.quickConnectStart || 'Start' }}
               </ui-button>
             </div>
             <div v-else class="space-y-2">
               <div
-                class="rounded-xl bg-neutral-100 px-3 py-2 font-mono text-lg text-center tracking-widest dark:bg-neutral-900 dark:text-neutral-200"
+                class="rounded-xl bg-neutral-100 px-3 py-2 font-mono text-lg text-center dark:bg-neutral-900 dark:text-neutral-200"
               >
                 {{
                   translations.account?.quickConnectHint ||
@@ -224,11 +259,13 @@
               <span
                 v-if="accountStore.profile?.emailVerified === true"
                 class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-              >{{ tr.verified || 'Verified' }}</span>
+                >{{ tr.verified || 'Verified' }}</span
+              >
               <span
                 v-else-if="accountStore.profile?.emailVerified === false"
                 class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-              >{{ tr.unverified || 'Unverified' }}</span>
+                >{{ tr.unverified || 'Unverified' }}</span
+              >
             </p>
             <p
               class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate"
@@ -247,19 +284,36 @@
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5 flex items-center justify-between gap-3"
         >
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.emailVerification || 'Email verification' }}</p>
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ tr.emailVerification || 'Email verification' }}
+            </p>
             <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-              {{ tr.verifyToInvite || 'Verify your email to invite collaborators.' }}
+              {{
+                tr.verifyToInvite ||
+                'Verify your email to invite collaborators.'
+              }}
             </p>
           </div>
           <ui-button
             variant="secondary"
             :loading="emailVerifySending"
             :disabled="emailVerifySending || emailVerifyCooldown > 0"
-            :aria-label="emailVerifyCooldown > 0 ? (fmt('resendWithCooldown', { seconds: emailVerifyCooldown }) || `Resend (${emailVerifyCooldown}s)`) : (tr.verifyEmail || 'Verify email')"
+            :aria-label="
+              emailVerifyCooldown > 0
+                ? fmt('resendWithCooldown', { seconds: emailVerifyCooldown }) ||
+                  `Resend (${emailVerifyCooldown}s)`
+                : tr.verifyEmail || 'Verify email'
+            "
             @click="handleRequestEmailVerification"
           >
-            {{ emailVerifyCooldown > 0 ? (fmt('resendWithCooldown', { seconds: emailVerifyCooldown }) || `Resend (${emailVerifyCooldown}s)`) : (tr.verifyEmail || 'Verify email') }}
+            {{
+              emailVerifyCooldown > 0
+                ? fmt('resendWithCooldown', { seconds: emailVerifyCooldown }) ||
+                  `Resend (${emailVerifyCooldown}s)`
+                : tr.verifyEmail || 'Verify email'
+            }}
           </ui-button>
         </div>
 
@@ -267,9 +321,14 @@
         <div
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
         >
-          <div v-if="!editingUsername" class="flex items-center justify-between gap-3">
+          <div
+            v-if="!editingUsername"
+            class="flex items-center justify-between gap-3"
+          >
             <div>
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+              <p
+                class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+              >
                 {{ translations.account?.username || 'Username' }}
               </p>
               <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
@@ -317,75 +376,103 @@
 
         <!-- Seeding Progress -->
         <div class="beaver-sync-ready">
-        <div
-          v-if="accountStore.seedStatus === 'seeding'"
-          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
-        >
-          <div class="flex items-center gap-3 mb-3">
-            <div class="animate-spin">
-              <v-remixicon name="riLoader4Line" class="text-primary" size="18" />
-            </div>
-            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-              {{ seedPhaseLabel }}
-            </p>
-          </div>
-          <div class="space-y-2">
-            <div class="flex justify-between text-xs text-neutral-600 dark:text-neutral-400">
-              <span>{{ seedPhaseLabel }}</span>
-              <span>{{ accountStore.seedProgress.uploaded }} / {{ accountStore.seedProgress.total }}</span>
-            </div>
-            <div class="h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
-              <div
-                class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
-                :style="{ width: seedProgressPercent + '%' }"
-              ></div>
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-else-if="accountStore.seedStatus === 'done'"
-          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
-        >
-          <div class="flex items-center gap-2">
-            <v-remixicon name="riCheckLine" class="text-green-600 dark:text-green-400" size="18" />
-            <p class="text-sm font-medium text-green-700 dark:text-green-300">
-              {{ tr.cloudSyncReady || 'Cloud sync ready' }}
-            </p>
-          </div>
-        </div>
-
-        <!-- Vault import prompt for existing apps -->
-        <div
-          v-if="showVaultImportPrompt"
-          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
-        >
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                {{ translations.account?.vaultDetected || 'Vault detected' }}
+          <div
+            v-if="accountStore.seedStatus === 'seeding'"
+            class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+          >
+            <div class="flex items-center gap-3 mb-3">
+              <div class="animate-spin">
+                <v-remixicon
+                  name="riLoader4Line"
+                  class="text-primary"
+                  size="18"
+                />
+              </div>
+              <p
+                class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+              >
+                {{ seedPhaseLabel }}
               </p>
-              <p class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                {{ translations.account?.vaultDetectedBody || 'A vault was found in your sync source. Import it to unlock your notes.' }}
-               </p>
             </div>
-            <ui-button size="sm" @click="importVaultDialog">
-              {{ translations.account?.importVault || 'Import' }}
-            </ui-button>
+            <div class="space-y-2">
+              <div
+                class="flex justify-between text-xs text-neutral-600 dark:text-neutral-400"
+              >
+                <span>{{ seedPhaseLabel }}</span>
+                <span
+                  >{{ accountStore.seedProgress.uploaded }} /
+                  {{ accountStore.seedProgress.total }}</span
+                >
+              </div>
+              <div
+                class="h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+              >
+                <div
+                  class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                  :style="{ width: seedProgressPercent + '%' }"
+                ></div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div
-          v-else-if="accountStore.seedStatus === 'error'"
-          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
-        >
-          <div class="flex items-center gap-2">
-            <v-remixicon name="riErrorWarningLine" class="text-red-600 dark:text-red-400" size="18" />
-            <p class="text-sm font-medium text-red-700 dark:text-red-300">
-              {{ tr.syncSetupFailed || 'Sync setup failed' }}
-            </p>
+          <div
+            v-else-if="accountStore.seedStatus === 'done'"
+            class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+          >
+            <div class="flex items-center gap-2">
+              <v-remixicon
+                name="riCheckLine"
+                class="text-green-600 dark:text-green-400"
+                size="18"
+              />
+              <p class="text-sm font-medium text-green-700 dark:text-green-300">
+                {{ tr.cloudSyncReady || 'Cloud sync ready' }}
+              </p>
+            </div>
           </div>
-        </div>
+
+          <!-- Vault import prompt for existing apps -->
+          <div
+            v-if="showVaultImportPrompt"
+            class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p
+                  class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                >
+                  {{ translations.account?.vaultDetected || 'Vault detected' }}
+                </p>
+                <p
+                  class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+                >
+                  {{
+                    translations.account?.vaultDetectedBody ||
+                    'A vault was found in your sync source. Import it to unlock your notes.'
+                  }}
+                </p>
+              </div>
+              <ui-button size="sm" @click="importVaultDialog">
+                {{ translations.account?.importVault || 'Import' }}
+              </ui-button>
+            </div>
+          </div>
+
+          <div
+            v-else-if="accountStore.seedStatus === 'error'"
+            class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+          >
+            <div class="flex items-center gap-2">
+              <v-remixicon
+                name="riErrorWarningLine"
+                class="text-red-600 dark:text-red-400"
+                size="18"
+              />
+              <p class="text-sm font-medium text-red-700 dark:text-red-300">
+                {{ tr.syncSetupFailed || 'Sync setup failed' }}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div
@@ -413,9 +500,15 @@
             @click="handleManageBilling"
           >
             <v-remixicon name="riExternalLinkLine" class="mr-1" />
-            {{ tr.manageBilling || translations.account?.managePlan || 'Manage billing' }}
+            {{
+              tr.manageBilling ||
+              translations.account?.managePlan ||
+              'Manage billing'
+            }}
           </ui-button>
-          <span v-else class="text-xs text-neutral-400">{{ tr.free || 'Free' }}</span>
+          <span v-else class="text-xs text-neutral-400">{{
+            tr.free || 'Free'
+          }}</span>
         </div>
 
         <!-- Billing: upgrade / manage -->
@@ -423,27 +516,43 @@
           v-if="billingMessage"
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-2"
         >
-          <p class="text-xs" :class="billingSuccess ? 'text-green-600' : 'text-amber-600'">{{ billingMessage }}</p>
+          <p
+            class="text-xs"
+            :class="billingSuccess ? 'text-green-600' : 'text-amber-600'"
+          >
+            {{ billingMessage }}
+          </p>
         </div>
         <div
-          v-if="!accountStore.isPaidPlan || accountStore.plan === PLAN_NAMES.STARTER"
+          v-if="
+            !accountStore.isPaidPlan || accountStore.plan === PLAN_NAMES.STARTER
+          "
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
         >
-          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.upgrade || 'Upgrade' }}</p>
-          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ tr.upgradeDescription || 'Choose a plan. Checkout opens in your browser (subscription activates via webhook).' }}</p>
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+            {{ tr.upgrade || 'Upgrade' }}
+          </p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+            {{
+              tr.upgradeDescription ||
+              'Choose a plan. Checkout opens in your browser (subscription activates via webhook).'
+            }}
+          </p>
           <div class="mt-3 flex flex-wrap gap-2">
             <ui-button
               v-for="opt in billingOptions"
               :key="opt.key"
               size="sm"
-              :variant="opt.plan === accountStore.plan ? 'secondary' : 'primary'"
+              :variant="
+                opt.plan === accountStore.plan ? 'secondary' : 'primary'
+              "
               :loading="billingBusy"
               :disabled="billingBusy || opt.plan === accountStore.plan"
               @click="handleCheckout(opt.plan, opt.interval)"
             >
               {{ opt.label }}
             </ui-button>
-              <ui-button
+            <ui-button
               v-if="accountStore.isPaidPlan"
               size="sm"
               variant="secondary"
@@ -455,15 +564,26 @@
               {{ tr.manageBilling || 'Manage billing' }}
             </ui-button>
           </div>
-          <p v-if="billingError" class="mt-2 text-xs text-red-500">{{ billingError }}</p>
+          <p v-if="billingError" class="mt-2 text-xs text-red-500">
+            {{ billingError }}
+          </p>
         </div>
         <div
           v-else-if="accountStore.isPaidPlan"
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5 flex items-center justify-between gap-3"
         >
           <div>
-            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.billing || 'Billing' }}</p>
-            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ tr.manageBillingDescription || 'Manage payment method, invoices, or cancel.' }}</p>
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ tr.billing || 'Billing' }}
+            </p>
+            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+              {{
+                tr.manageBillingDescription ||
+                'Manage payment method, invoices, or cancel.'
+              }}
+            </p>
           </div>
           <ui-button
             variant="secondary"
@@ -478,7 +598,10 @@
         </div>
 
         <div
-          v-if="accountStore.subscription?.storage && accountStore.plan !== PLAN_NAMES.ENTERPRISE"
+          v-if="
+            accountStore.subscription?.storage &&
+            accountStore.plan !== PLAN_NAMES.ENTERPRISE
+          "
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
         >
           <div class="flex items-center justify-between">
@@ -488,8 +611,18 @@
               {{ translations.account?.storage || 'Storage' }}
             </p>
             <p class="text-xs text-neutral-500 dark:text-neutral-400">
-              {{ (accountStore.subscription.storage.usedBytes / 1073741824).toFixed(1) }} /
-              {{ (accountStore.subscription.storage.quotaBytes / 1073741824).toFixed(0) }} GB
+              {{
+                (
+                  accountStore.subscription.storage.usedBytes / 1073741824
+                ).toFixed(1)
+              }}
+              /
+              {{
+                (
+                  accountStore.subscription.storage.quotaBytes / 1073741824
+                ).toFixed(0)
+              }}
+              GB
             </p>
           </div>
           <div
@@ -505,25 +638,27 @@
         </div>
 
         <div class="beaver-sync-ready">
-        <div
-          v-if="!accountStore.isPaidPlan"
-          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
-        >
-          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-            {{
-              translations.account?.cloudSyncCtaHeading ||
-              'Cloud sync is part of Basic.'
-            }}
-          </p>
-          <p
-            class="mt-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+          <div
+            v-if="!accountStore.isPaidPlan"
+            class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
           >
-            {{
-              translations.account?.cloudSyncCtaBody ||
-              'Upgrade to Basic or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.'
-            }}
-          </p>
-        </div>
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{
+                translations.account?.cloudSyncCtaHeading ||
+                'Cloud sync is part of Basic.'
+              }}
+            </p>
+            <p
+              class="mt-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              {{
+                translations.account?.cloudSyncCtaBody ||
+                'Upgrade to Basic or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.'
+              }}
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -586,7 +721,11 @@
       >
         <div v-if="loadingSessions" class="px-4 py-6 text-center">
           <div class="animate-spin inline-block">
-            <v-remixicon name="riLoader4Line" class="text-neutral-400" size="20" />
+            <v-remixicon
+              name="riLoader4Line"
+              class="text-neutral-400"
+              size="20"
+            />
           </div>
         </div>
         <div v-else-if="!sessions.length" class="px-4 py-3.5">
@@ -602,15 +741,36 @@
           <div
             class="shrink-0 w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center"
           >
-            <v-remixicon :name="session.deviceInfo?.platform === 'mobile' ? 'riSmartphoneLine' : 'riComputerLine'" />
+            <v-remixicon
+              :name="
+                session.deviceInfo?.platform === 'mobile'
+                  ? 'riSmartphoneLine'
+                  : 'riComputerLine'
+              "
+            />
           </div>
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
-              {{ session.deviceInfo?.label || session.userAgent || 'Unknown session' }}
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate"
+            >
+              {{
+                session.deviceInfo?.label ||
+                session.userAgent ||
+                'Unknown session'
+              }}
             </p>
-            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate">
-              {{ session.createdAt ? new Date(session.createdAt).toLocaleString() : '' }}
-              <span v-if="session.expiresAt"> · expires {{ new Date(session.expiresAt).toLocaleDateString() }}</span>
+            <p
+              class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate"
+            >
+              {{
+                session.createdAt
+                  ? new Date(session.createdAt).toLocaleString()
+                  : ''
+              }}
+              <span v-if="session.expiresAt">
+                · expires
+                {{ new Date(session.expiresAt).toLocaleDateString() }}</span
+              >
             </p>
           </div>
           <ui-button
@@ -658,36 +818,114 @@
           </ui-button>
         </div>
         <!-- Change password -->
-        <div class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5">
-          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.changePassword || 'Change password' }}</p>
-          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ tr.changePasswordDescription || 'Verifies current password, rotates, revokes other sessions.' }}</p>
+        <div
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+            {{ tr.changePassword || 'Change password' }}
+          </p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+            {{
+              tr.changePasswordDescription ||
+              'Verifies current password, rotates, revokes other sessions.'
+            }}
+          </p>
           <div class="mt-2 flex flex-col gap-2">
-            <ui-input v-model="changeCurrent" :password="true" :placeholder="tr.currentPasswordPlaceholder || 'Current password'" :aria-label="tr.currentPasswordPlaceholder || 'Current password'" class="w-full" />
-            <ui-input v-model="changeNew" :password="true" :placeholder="tr.newPasswordPlaceholder || 'New password (min 12 chars)'" :aria-label="tr.newPasswordPlaceholder || 'New password (min 12 chars)'" class="w-full" />
-            <ui-input v-model="changeConfirm" :password="true" :placeholder="tr.confirmPasswordPlaceholder || 'Confirm new password'" :aria-label="tr.confirmPasswordPlaceholder || 'Confirm new password'" class="w-full" />
-            <p v-if="changeMessage" class="text-xs" :class="changeSuccess ? 'text-green-600' : 'text-red-500'">{{ changeMessage }}</p>
-            <ui-button variant="secondary" :loading="changeBusy" :aria-label="tr.changePassword || 'Change password'" @click="handleChangePassword">{{ tr.changePassword || 'Change password' }}</ui-button>
+            <ui-input
+              v-model="changeCurrent"
+              :password="true"
+              :placeholder="tr.currentPasswordPlaceholder || 'Current password'"
+              :aria-label="tr.currentPasswordPlaceholder || 'Current password'"
+              class="w-full"
+            />
+            <ui-input
+              v-model="changeNew"
+              :password="true"
+              :placeholder="
+                tr.newPasswordPlaceholder || 'New password (min 12 chars)'
+              "
+              :aria-label="
+                tr.newPasswordPlaceholder || 'New password (min 12 chars)'
+              "
+              class="w-full"
+            />
+            <ui-input
+              v-model="changeConfirm"
+              :password="true"
+              :placeholder="
+                tr.confirmPasswordPlaceholder || 'Confirm new password'
+              "
+              :aria-label="
+                tr.confirmPasswordPlaceholder || 'Confirm new password'
+              "
+              class="w-full"
+            />
+            <p
+              v-if="changeMessage"
+              class="text-xs"
+              :class="changeSuccess ? 'text-green-600' : 'text-red-500'"
+            >
+              {{ changeMessage }}
+            </p>
+            <ui-button
+              variant="secondary"
+              :loading="changeBusy"
+              :aria-label="tr.changePassword || 'Change password'"
+              @click="handleChangePassword"
+              >{{ tr.changePassword || 'Change password' }}</ui-button
+            >
           </div>
         </div>
         <!-- Recovery code -->
-        <div class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5">
+        <div
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+              <p
+                class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+              >
                 {{ tr.recoveryCode || 'Recovery code' }}
               </p>
-              <p class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                {{ tr.recoveryCodeDescription || 'Single code to recover your account if you lose all passkeys. Regenerating invalidates the old code. Restores ACCOUNT access only. E2E data needs vault passphrase.' }}
+              <p
+                class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+              >
+                {{
+                  tr.recoveryCodeDescription ||
+                  'Single code to recover your account if you lose all passkeys. Regenerating invalidates the old code. Restores ACCOUNT access only. E2E data needs vault passphrase.'
+                }}
               </p>
-              <p v-if="recoveryCode" class="mt-2 font-mono text-xs break-all bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-amber-900 dark:text-amber-100">
+              <p
+                v-if="recoveryCode"
+                class="mt-2 font-mono text-xs break-all bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-amber-900 dark:text-amber-100"
+              >
                 {{ recoveryCode }}
               </p>
-              <p v-if="recoveryCode" class="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                {{ tr.recoveryCodeHint || 'Copy now: this code will not be shown again. Store it securely.' }}
+              <p
+                v-if="recoveryCode"
+                class="mt-1 text-xs text-amber-700 dark:text-amber-400"
+              >
+                {{
+                  tr.recoveryCodeHint ||
+                  'Copy now: this code will not be shown again. Store it securely.'
+                }}
               </p>
             </div>
-            <ui-button variant="secondary" :loading="recoveryBusy" :aria-label="recoveryCode ? (tr.regenerate || 'Regenerate') : (tr.generate || 'Generate')" @click="handleGenerateRecoveryCode">
-              {{ recoveryCode ? (tr.regenerate || 'Regenerate') : (tr.generate || 'Generate') }}
+            <ui-button
+              variant="secondary"
+              :loading="recoveryBusy"
+              :aria-label="
+                recoveryCode
+                  ? tr.regenerate || 'Regenerate'
+                  : tr.generate || 'Generate'
+              "
+              @click="handleGenerateRecoveryCode"
+            >
+              {{
+                recoveryCode
+                  ? tr.regenerate || 'Regenerate'
+                  : tr.generate || 'Generate'
+              }}
             </ui-button>
           </div>
         </div>
@@ -761,7 +999,10 @@
               {{ translations.account?.exportData || 'Export account data' }}
             </p>
             <p class="text-xs leading-relaxed text-red-700 dark:text-red-300">
-              {{ translations.account?.exportDataBody || 'Download a copy of your account information.' }}
+              {{
+                translations.account?.exportDataBody ||
+                'Download a copy of your account information.'
+              }}
             </p>
           </div>
           <ui-button variant="secondary" @click="exportAccountData">
@@ -827,7 +1068,11 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
-import { generateRecoveryCode as apiGenerateRecoveryCode, requestEmailVerification as apiRequestEmailVerification, changePassword as apiChangePassword } from '@/lib/api/account';
+import {
+  generateRecoveryCode as apiGenerateRecoveryCode,
+  requestEmailVerification as apiRequestEmailVerification,
+  changePassword as apiChangePassword,
+} from '@/lib/api/account';
 import { createCheckoutSession, createPortalSession } from '@/lib/api/billing';
 
 export default {
@@ -839,7 +1084,10 @@ export default {
     function fmt(key, params) {
       const raw = tr.value[key] ?? key;
       if (!params) return raw;
-      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+      return Object.entries(params).reduce(
+        (s, [k, v]) => s.replace(`{${k}}`, String(v)),
+        raw,
+      );
     }
     const accountStore = useAccountStore();
     const account = useSettingsAccount({ dialog, translations });
@@ -851,16 +1099,29 @@ export default {
     const forgotMessage = ref('');
     const forgotSent = ref(false);
     async function handleForgot() {
-      forgotMessage.value = ''; forgotSent.value = false;
-      const email = forgotEmail.value.trim() || accountStore.profile?.email || '';
-      if (!email) { forgotMessage.value = 'Enter your email.'; return; }
+      forgotMessage.value = '';
+      forgotSent.value = false;
+      const email =
+        forgotEmail.value.trim() || accountStore.profile?.email || '';
+      if (!email) {
+        forgotMessage.value = 'Enter your email.';
+        return;
+      }
       forgotBusy.value = true;
       try {
         const { requestPasswordReset } = await import('@/lib/api/auth');
-        const res = await requestPasswordReset(email, { baseUrl: accountStore.serverUrl });
-        forgotMessage.value = res?.message || 'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).';
+        const res = await requestPasswordReset(email, {
+          baseUrl: accountStore.serverUrl,
+        });
+        forgotMessage.value =
+          res?.message ||
+          'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).';
         forgotSent.value = true;
-      } catch (e) { forgotMessage.value = e?.message || 'Failed.'; } finally { forgotBusy.value = false; }
+      } catch (e) {
+        forgotMessage.value = e?.message || 'Failed.';
+      } finally {
+        forgotBusy.value = false;
+      }
     }
     const changeCurrent = ref('');
     const changeNew = ref('');
@@ -869,17 +1130,35 @@ export default {
     const changeMessage = ref('');
     const changeSuccess = ref(false);
     async function handleChangePassword() {
-      changeMessage.value = ''; changeSuccess.value = false;
-      if (!changeCurrent.value || !changeNew.value) { changeMessage.value = 'All fields required.'; return; }
-      if (changeNew.value.length < 12) { changeMessage.value = 'New password must be at least 12 characters.'; return; }
-      if (changeNew.value !== changeConfirm.value) { changeMessage.value = 'Passwords do not match.'; return; }
+      changeMessage.value = '';
+      changeSuccess.value = false;
+      if (!changeCurrent.value || !changeNew.value) {
+        changeMessage.value = 'All fields required.';
+        return;
+      }
+      if (changeNew.value.length < 12) {
+        changeMessage.value = 'New password must be at least 12 characters.';
+        return;
+      }
+      if (changeNew.value !== changeConfirm.value) {
+        changeMessage.value = 'Passwords do not match.';
+        return;
+      }
       changeBusy.value = true;
       try {
-        await apiChangePassword(changeCurrent.value, changeNew.value, { baseUrl: accountStore.serverUrl });
+        await apiChangePassword(changeCurrent.value, changeNew.value, {
+          baseUrl: accountStore.serverUrl,
+        });
         changeMessage.value = 'Password changed. Other sessions revoked.';
         changeSuccess.value = true;
-        changeCurrent.value = ''; changeNew.value = ''; changeConfirm.value = '';
-      } catch (e) { changeMessage.value = e?.message || 'Failed to change password.'; } finally { changeBusy.value = false; }
+        changeCurrent.value = '';
+        changeNew.value = '';
+        changeConfirm.value = '';
+      } catch (e) {
+        changeMessage.value = e?.message || 'Failed to change password.';
+      } finally {
+        changeBusy.value = false;
+      }
     }
     const recoveryCode = ref('');
     const recoveryBusy = ref(false);
@@ -893,16 +1172,50 @@ export default {
     const billingMessage = ref('');
     const billingSuccess = ref(false);
     const billingOptions = [
-      { key: 'starter-monthly', plan: 'starter', interval: 'monthly', label: 'Starter Monthly' },
-      { key: 'starter-yearly', plan: 'starter', interval: 'yearly', label: 'Starter Yearly' },
-      { key: 'pro-monthly', plan: 'pro', interval: 'monthly', label: 'Pro Monthly' },
-      { key: 'pro-yearly', plan: 'pro', interval: 'yearly', label: 'Pro Yearly' },
-      { key: 'team-monthly', plan: 'team', interval: 'monthly', label: 'Team Monthly' },
-      { key: 'team-yearly', plan: 'team', interval: 'yearly', label: 'Team Yearly' },
+      {
+        key: 'starter-monthly',
+        plan: 'starter',
+        interval: 'monthly',
+        label: 'Starter Monthly',
+      },
+      {
+        key: 'starter-yearly',
+        plan: 'starter',
+        interval: 'yearly',
+        label: 'Starter Yearly',
+      },
+      {
+        key: 'pro-monthly',
+        plan: 'pro',
+        interval: 'monthly',
+        label: 'Pro Monthly',
+      },
+      {
+        key: 'pro-yearly',
+        plan: 'pro',
+        interval: 'yearly',
+        label: 'Pro Yearly',
+      },
+      {
+        key: 'team-monthly',
+        plan: 'team',
+        interval: 'monthly',
+        label: 'Team Monthly',
+      },
+      {
+        key: 'team-yearly',
+        plan: 'team',
+        interval: 'yearly',
+        label: 'Team Yearly',
+      },
     ];
     // Server-supplied billing URLs are untrusted input: only open https links
     // on Stripe checkout/portal hosts or the configured sync server itself.
-    const BILLING_HOSTS = new Set(['checkout.stripe.com', 'billing.stripe.com', 'js.stripe.com']);
+    const BILLING_HOSTS = new Set([
+      'checkout.stripe.com',
+      'billing.stripe.com',
+      'js.stripe.com',
+    ]);
     function isAllowedBillingUrl(url) {
       let parsed;
       try {
@@ -937,16 +1250,20 @@ export default {
       billingError.value = '';
       billingMessage.value = '';
       try {
-        const res = await createCheckoutSession(plan, interval, { baseUrl: accountStore.serverUrl });
+        const res = await createCheckoutSession(plan, interval, {
+          baseUrl: accountStore.serverUrl,
+        });
         const url = res?.url;
         if (url) await openBillingUrl(url);
         else throw new Error('No checkout URL returned');
-        billingMessage.value = 'Checkout opened in browser. Complete payment there; subscription activates shortly via webhook.';
+        billingMessage.value =
+          'Checkout opened in browser. Complete payment there; subscription activates shortly via webhook.';
         billingSuccess.value = true;
       } catch (e) {
-        const msg = e?.body?.error === 'EMAIL_NOT_VERIFIED'
-          ? 'Please verify your email before upgrading.'
-          : (e?.message || 'Failed to start checkout.');
+        const msg =
+          e?.body?.error === 'EMAIL_NOT_VERIFIED'
+            ? 'Please verify your email before upgrading.'
+            : e?.message || 'Failed to start checkout.';
         billingError.value = msg;
         dialog.alert({ title: 'Checkout failed', body: msg, okText: 'Close' });
       } finally {
@@ -957,14 +1274,20 @@ export default {
       billingBusy.value = true;
       billingError.value = '';
       try {
-        const res = await createPortalSession({ baseUrl: accountStore.serverUrl });
+        const res = await createPortalSession({
+          baseUrl: accountStore.serverUrl,
+        });
         const url = res?.url;
         if (url) await openBillingUrl(url);
         else throw new Error('No portal URL returned');
       } catch (e) {
         const msg = e?.message || 'Failed to open billing portal.';
         billingError.value = msg;
-        dialog.alert({ title: 'Billing portal failed', body: msg, okText: 'Close' });
+        dialog.alert({
+          title: 'Billing portal failed',
+          body: msg,
+          okText: 'Close',
+        });
       } finally {
         billingBusy.value = false;
       }
@@ -975,7 +1298,8 @@ export default {
         const { useAccountAuth } = await import('@/composable/useAccountAuth');
         const auth = useAccountAuth();
         await auth.refreshProfile?.();
-        billingMessage.value = 'Billing return received. If you completed checkout, your subscription will activate shortly.';
+        billingMessage.value =
+          'Billing return received. If you completed checkout, your subscription will activate shortly.';
         billingSuccess.value = true;
       } catch {
         // silent
@@ -986,20 +1310,27 @@ export default {
     onMounted(() => {
       try {
         const url = new URL(window.location.href);
-        if (url.searchParams.get('session_id') || url.searchParams.get('canceled') || url.pathname.includes('billing/return')) {
+        if (
+          url.searchParams.get('session_id') ||
+          url.searchParams.get('canceled') ||
+          url.pathname.includes('billing/return')
+        ) {
           handleBillingReturn();
         }
       } catch {}
       // lazy import deep-link listener if available
-      import('@tauri-apps/plugin-deep-link').then((m) => {
-        const onOpenUrl = m.onOpenUrl || m.getCurrent || null;
-        if (typeof onOpenUrl === 'function') {
-          onOpenUrl((urls) => {
-            const list = Array.isArray(urls) ? urls : [urls];
-            if (list.some((u) => String(u).includes('billing/return'))) handleBillingReturn();
-          }).catch(() => {});
-        }
-      }).catch(() => {});
+      import('@tauri-apps/plugin-deep-link')
+        .then((m) => {
+          const onOpenUrl = m.onOpenUrl || m.getCurrent || null;
+          if (typeof onOpenUrl === 'function') {
+            onOpenUrl((urls) => {
+              const list = Array.isArray(urls) ? urls : [urls];
+              if (list.some((u) => String(u).includes('billing/return')))
+                handleBillingReturn();
+            }).catch(() => {});
+          }
+        })
+        .catch(() => {});
     });
     const emailVerifySending = ref(false);
     const emailVerifyCooldown = ref(0);
@@ -1009,14 +1340,25 @@ export default {
       emailVerifySending.value = true;
       try {
         await apiRequestEmailVerification({ baseUrl: accountStore.serverUrl });
-        dialog.alert({ title: 'Verification email sent', body: 'Check your inbox for the verification link (expires in 24 hours).', okText: 'Close' });
+        dialog.alert({
+          title: 'Verification email sent',
+          body: 'Check your inbox for the verification link (expires in 24 hours).',
+          okText: 'Close',
+        });
         emailVerifyCooldown.value = 60;
         emailVerifyTimer = setInterval(() => {
           emailVerifyCooldown.value -= 1;
-          if (emailVerifyCooldown.value <= 0) { clearInterval(emailVerifyTimer); emailVerifyTimer = null; }
+          if (emailVerifyCooldown.value <= 0) {
+            clearInterval(emailVerifyTimer);
+            emailVerifyTimer = null;
+          }
         }, 1000);
       } catch (e) {
-        dialog.alert({ title: 'Failed to send', body: e?.message || 'Failed to send verification email.', okText: 'Close' });
+        dialog.alert({
+          title: 'Failed to send',
+          body: e?.message || 'Failed to send verification email.',
+          okText: 'Close',
+        });
       } finally {
         emailVerifySending.value = false;
       }
@@ -1029,8 +1371,10 @@ export default {
         return;
       }
       try {
-        const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-        const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
+        const { fetchCloudKeyParams } =
+          await import('@/utils/sync/vault-key-params.js');
+        const { hasRemoteVaultKeyParams } =
+          await import('@/utils/crypto/encryption.js');
         await fetchCloudKeyParams({ force: true }).catch(() => null);
         showVaultImportPrompt.value = await hasRemoteVaultKeyParams();
       } catch {
@@ -1044,46 +1388,65 @@ export default {
 
     async function importVaultDialog() {
       dialog.confirm({
-        title: translations.value?.account?.importVaultTitle || 'Import vault from sync',
-        body: translations.value?.account?.importVaultBody || 'Importing will replace this device\'s encryption key. Notes encrypted with a different key may no longer be readable.',
+        title:
+          translations.value?.account?.importVaultTitle ||
+          'Import vault from sync',
+        body:
+          translations.value?.account?.importVaultBody ||
+          "Importing will replace this device's encryption key. Notes encrypted with a different key may no longer be readable.",
         icon: 'riShieldKeyholeLine',
         okText: translations.value?.account?.importVault || 'Import',
         cancelText: translations.value.dialog?.cancel || 'Cancel',
         onConfirm: () => {
           dialog.prompt({
-            title: translations.value?.account?.vaultPasswordTitle || 'Enter vault password',
-            body: translations.value?.account?.vaultPasswordBody || 'Enter the password for the existing encrypted vault in your sync source.',
+            title:
+              translations.value?.account?.vaultPasswordTitle ||
+              'Enter vault password',
+            body:
+              translations.value?.account?.vaultPasswordBody ||
+              'Enter the password for the existing encrypted vault in your sync source.',
             icon: 'riLockLine',
             okText: translations.value?.account?.importVault || 'Import',
             cancelText: translations.value.dialog?.cancel || 'Cancel',
-            placeholder: translations.value.settings?.password || 'Vault password',
+            placeholder:
+              translations.value.settings?.password || 'Vault password',
             password: true,
             onConfirm: async (pass) => {
               if (!pass) {
                 dialog.alert({
                   title: translations.value.settings?.alertTitle || 'Alert',
-                  body: translations.value.settings?.invalidPassword || 'Enter the vault password.',
+                  body:
+                    translations.value.settings?.invalidPassword ||
+                    'Enter the vault password.',
                   okText: translations.value.dialog?.close || 'Close',
                 });
                 return;
               }
               try {
-                const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
-                const { getFetchedCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+                const { adoptVaultKey } =
+                  await import('@/utils/crypto/encryption.js');
+                const { getFetchedCloudKeyParams } =
+                  await import('@/utils/sync/vault-key-params.js');
                 const fetched = getFetchedCloudKeyParams();
                 const res = await adoptVaultKey(pass, fetched?.paramsBlob);
                 if (!res.ok) {
                   dialog.alert({
                     title: translations.value.settings?.alertTitle || 'Alert',
-                    body: res.error || 'Failed to import the vault. Check the password.',
+                    body:
+                      res.error ||
+                      'Failed to import the vault. Check the password.',
                     okText: translations.value.dialog?.close || 'Close',
                   });
                   return;
                 }
                 showVaultImportPrompt.value = false;
                 dialog.alert({
-                  title: translations.value?.account?.vaultImported || 'Vault imported',
-                  body: translations.value?.account?.vaultImportedBody || 'The vault has been imported. The app will reload.',
+                  title:
+                    translations.value?.account?.vaultImported ||
+                    'Vault imported',
+                  body:
+                    translations.value?.account?.vaultImportedBody ||
+                    'The vault has been imported. The app will reload.',
                   okText: translations.value.dialog?.close || 'Close',
                   onConfirm: () => window.location.reload(),
                 });
@@ -1103,7 +1466,9 @@ export default {
     async function handleGenerateRecoveryCode() {
       recoveryBusy.value = true;
       try {
-        const res = await apiGenerateRecoveryCode({ baseUrl: accountStore.serverUrl });
+        const res = await apiGenerateRecoveryCode({
+          baseUrl: accountStore.serverUrl,
+        });
         recoveryCode.value = res?.recoveryCode || '';
         // Auto-clear the displayed code so it does not linger in the DOM.
         if (recoveryClearTimer) clearTimeout(recoveryClearTimer);
@@ -1127,7 +1492,11 @@ export default {
           });
         }
       } catch (e) {
-        dialog.alert({ title: 'Failed to generate', body: e?.message || 'Failed to generate recovery code.', okText: 'Close' });
+        dialog.alert({
+          title: 'Failed to generate',
+          body: e?.message || 'Failed to generate recovery code.',
+          okText: 'Close',
+        });
       } finally {
         recoveryBusy.value = false;
       }
@@ -1164,8 +1533,19 @@ export default {
       showVaultImportPrompt,
       goToSecurity,
       importVaultDialog,
-      showForgot, forgotEmail, forgotBusy, forgotMessage, forgotSent, handleForgot,
-      changeCurrent, changeNew, changeConfirm, changeBusy, changeMessage, changeSuccess, handleChangePassword,
+      showForgot,
+      forgotEmail,
+      forgotBusy,
+      forgotMessage,
+      forgotSent,
+      handleForgot,
+      changeCurrent,
+      changeNew,
+      changeConfirm,
+      changeBusy,
+      changeMessage,
+      changeSuccess,
+      handleChangePassword,
       recoveryCode,
       recoveryBusy,
       handleGenerateRecoveryCode,

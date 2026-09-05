@@ -50,7 +50,7 @@
               </button>
             </div>
             <div v-else key="edit" class="flex items-center gap-1 whitespace-nowrap">
-              <span class="text-[11px] font-medium text-neutral-400">Limit:</span>
+              <span class="text-xs font-medium text-neutral-400">Limit:</span>
               <input
                 v-model="limitInput"
                 type="number"

@@ -10,7 +10,10 @@
     </label>
 
     <div
-      class="ui-select__content flex items-center w-full block transition focus-within:ring-1 ring-secondary bg-input rounded-xl appearance-none focus:outline-none relative"
+      :class="[
+        'ui-select__content flex items-center w-full transition focus-within:ring-1 ring-secondary bg-input appearance-none focus:outline-none relative',
+        radiusClass,
+      ]"
     >
       <v-remixicon
         v-if="prependIcon"
@@ -49,7 +52,11 @@
 
       <Teleport to="body">
         <Transition
-          :enter-active-class="openedViaKeyboard ? 'transition-none' : 'transition duration-150 ease-out motion-reduce:transition-none'"
+          :enter-active-class="
+            openedViaKeyboard
+              ? 'transition-none'
+              : 'transition duration-150 ease-out motion-reduce:transition-none'
+          "
           enter-from-class="opacity-0 scale-95"
           enter-to-class="opacity-100 scale-100"
           leave-active-class="transition duration-150 ease-out motion-reduce:transition-none"
@@ -60,7 +67,12 @@
             v-show="isOpen"
             ref="dropdown"
             :style="floatingStyles"
-            :class="['bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 p-1.5 box-border flex flex-col min-w-0', originClass, menuClass]"
+            :class="[
+              'bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl z-50 p-1.5 box-border flex flex-col min-w-0',
+              radiusClass,
+              originClass,
+              menuClass,
+            ]"
             role="listbox"
             :aria-activedescendant="
               focusedIndex >= 0
@@ -76,15 +88,18 @@
                 :placeholder="translations.index?.search || 'Search...'"
                 class="w-full box-border max-w-full"
                 @keydown="onSearchKeydown"
+                radius="lg"
               />
             </div>
 
             <div class="max-h-48 overflow-y-auto space-y-0.5 min-w-0">
               <div
                 v-if="placeholder && !hideePlaceholderInDropdown"
-                class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-500 transition-colors truncate cursor-pointer"
+                class="p-1.5 rounded-lg hoverable transition-colors truncate cursor-pointer"
                 :class="{
-                  'bg-neutral-100 dark:bg-neutral-700': modelValue === '',
+                  'bg-primary bg-opacity-10 text-primary dark:bg-secondary dark:bg-opacity-10 dark:text-secondary':
+                    modelValue === '',
+                  'text-neutral-500': modelValue !== '',
                 }"
                 :title="placeholder"
                 @click="select({ value: '', text: placeholder })"
@@ -97,14 +112,17 @@
                 :key="`${option.value}-${index}`"
                 :ref="(el) => setOptionRef(el, index)"
                 :id="`${selectId}-option-${index}`"
-                class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors truncate cursor-pointer"
+                class="p-1.5 rounded-lg hoverable transition-colors truncate cursor-pointer"
                 role="option"
                 :title="option.text"
                 :aria-selected="option.value === String(modelValue)"
                 :class="{
+                  'bg-primary bg-opacity-10 text-primary dark:bg-secondary dark:bg-opacity-10 dark:text-secondary':
+                    option.value === String(modelValue),
                   'bg-neutral-100 dark:bg-neutral-700':
-                    option.value === String(modelValue) ||
-                    (index === focusedIndex && !option.disabled),
+                    option.value !== String(modelValue) &&
+                    index === focusedIndex &&
+                    !option.disabled,
                   'opacity-50 cursor-not-allowed': option.disabled,
                 }"
                 @click="select(option)"
@@ -158,6 +176,10 @@ export default {
     options: {
       type: Array,
       default: () => [],
+    },
+    radius: {
+      type: String,
+      default: 'xl',
     },
   },
   emits: ['update:modelValue', 'change'],
@@ -419,6 +441,18 @@ export default {
       }
     });
 
+    const radiusClass = computed(() => {
+      const map = {
+        sm: 'rounded-sm',
+        md: 'rounded-md',
+        lg: 'rounded-lg',
+        xl: 'rounded-xl',
+        '2xl': 'rounded-2xl',
+        full: 'rounded-full',
+      };
+      return map[props.radius] || 'rounded-xl';
+    });
+
     return {
       selectId,
       selectButton,
@@ -440,6 +474,7 @@ export default {
       onKeydown,
       onSearchKeydown,
       handleBlur,
+      radiusClass,
     };
   },
 };

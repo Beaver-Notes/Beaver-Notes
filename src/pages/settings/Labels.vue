@@ -113,7 +113,7 @@
           />
 
           <span
-            class="shrink-0 text-[11px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 tabular-nums px-2 py-0.5 rounded-full"
+            class="shrink-0 text-xs font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 tabular-nums px-2 py-0.5 rounded-full"
           >
             {{ noteCountFor(name) }}
           </span>

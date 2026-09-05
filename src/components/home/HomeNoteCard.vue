@@ -74,7 +74,7 @@
       >
         <v-remixicon name="riLockLine" size="32" class="text-neutral-400 dark:text-neutral-500" />
         <span class="text-xs font-medium text-neutral-600 dark:text-neutral-300">{{ translations.card.isLocked || 'Locked note' }}</span>
-        <span class="text-[11px] text-neutral-400 dark:text-neutral-500 text-center leading-tight">{{ translations.card.unlockToEdit || 'Tap to unlock: Face ID / vault password' }}</span>
+        <span class="text-xs text-neutral-400 dark:text-neutral-500 text-center leading-tight">{{ translations.card.unlockToEdit || 'Tap to unlock: Face ID / vault password' }}</span>
       </div>
     </div>
 

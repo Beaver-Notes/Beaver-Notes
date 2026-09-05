@@ -82,6 +82,7 @@ export default {
       placement: placementRef,
       middleware,
       whileElementsMounted: autoUpdate,
+      transform: false,
     });
     const originClass = computed(() => {
       const p = String(floatingPlacement.value || '');
@@ -184,7 +185,7 @@ export default {
 .ui-popover-enter-from,
 .ui-popover-leave-to {
   opacity: 0;
-  transform: scale(0.95);
+  transform: translateY(-8px) scale(0.98);
 }
 @media (prefers-reduced-motion: reduce) {
   .ui-popover-enter-active,

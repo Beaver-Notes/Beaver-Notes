@@ -1,4 +1,4 @@
-const IMAGE_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:', 'data:'];
+const IMAGE_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:', 'data:', 'resource://'];
 const MEDIA_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:'];
 
 function normalizeSourceValue(value) {

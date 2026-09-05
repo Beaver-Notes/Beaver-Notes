@@ -137,7 +137,7 @@
         </template>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hoverable transition-colors"
           :class="{ 'text-primary': note.isBookmarked }"
           @click="toggleBookmark"
         >
@@ -156,7 +156,7 @@
         </button>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hoverable transition-colors"
           :class="{ 'text-primary': note.isArchived }"
           @click="toggleArchive"
         >
@@ -175,7 +175,7 @@
         </button>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hoverable transition-colors"
           @click="lockNote"
         >
           <v-remixicon name="riLockLine" />
@@ -204,7 +204,7 @@
         <hr class="border-t my-1 border-neutral-200 dark:border-neutral-700" />
 
         <div
-          class="flex w-full items-center justify-between gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          class="flex w-full items-center justify-between gap-2 rounded-lg p-1.5 text-left hoverable transition-colors"
         >
           <div class="flex items-center gap-2">
             <v-remixicon name="riExpandWidthLine" />
@@ -221,7 +221,7 @@
         </div>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hoverable transition-colors"
           :class="{ 'text-primary': note.showWordCount }"
           @click="toggleWordCount"
         >
@@ -237,7 +237,7 @@
 
         <!-- Copy note content -->
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hoverable transition-colors"
           @click="copyNoteContent"
         >
           <v-remixicon

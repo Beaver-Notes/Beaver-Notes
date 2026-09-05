@@ -17,7 +17,7 @@
           </h3>
           <span
             v-if="totalThreads"
-            class="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[11px] font-medium text-neutral-600 dark:text-neutral-400 tabular-nums"
+            class="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-xs font-medium text-neutral-600 dark:text-neutral-400 tabular-nums"
           >
             {{ totalThreads }}
           </span>
@@ -40,7 +40,7 @@
         <template v-else>
           <div v-if="pendingThreadId" class="p-3">
             <div class="rounded-xl border border-dashed border-primary/30 bg-primary/[0.04] dark:bg-primary/10 p-3">
-              <p class="text-[11px] font-medium tracking-wide font-bold text-neutral-500 dark:text-neutral-400 mb-2">
+              <p class="text-xs font-medium tracking-wide font-bold text-neutral-500 dark:text-neutral-400 mb-2">
                 {{ translationsComments.newComment || 'New thread' }}
               </p>
               <div class="flex gap-2 items-end">
@@ -61,7 +61,7 @@
                   <v-remixicon name="riSendPlaneFill" size="14" />
                 </button>
               </div>
-              <p class="text-[11px] text-neutral-400 mt-1.5">↩︎ send · ⇧↩︎ new line</p>
+              <p class="text-xs text-neutral-400 mt-1.5">↩︎ send · ⇧↩︎ new line</p>
             </div>
           </div>
 
@@ -93,8 +93,8 @@
                         <span class="text-[13px] font-medium text-neutral-900 dark:text-neutral-100 truncate">
                           {{ comment.authorName || 'Unknown' }}
                         </span>
-                        <span class="text-[11px] text-neutral-400">·</span>
-                        <span class="text-[11px] text-neutral-500 dark:text-neutral-400 tabular-nums">
+                        <span class="text-xs text-neutral-400">·</span>
+                        <span class="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">
                           {{ formatRelative(comment.createdAt) }}
                         </span>
                         <button
@@ -122,7 +122,7 @@
                   <v-remixicon name="riCheckLine" size="13" class="text-emerald-600" />
                   {{ translationsComments.resolve || 'Resolve' }}
                 </button>
-                <span class="ltr:ml-auto rtl:mr-auto text-[11px] text-neutral-400 hidden group-hover:inline">{{ thread.comments.length }} {{ thread.comments.length === 1 ? 'comment' : 'comments' }}</span>
+                <span class="ltr:ml-auto rtl:mr-auto text-xs text-neutral-400 hidden group-hover:inline">{{ thread.comments.length }} {{ thread.comments.length === 1 ? 'comment' : 'comments' }}</span>
               </div>
 
               <div class="px-3 py-2.5 bg-white dark:bg-neutral-900 border-t border-neutral-100 dark:border-neutral-800">
@@ -184,7 +184,7 @@
                     <div class="flex-1 min-w-0">
                       <div class="flex items-baseline gap-1.5">
                         <span class="text-[13px] font-medium text-neutral-900 dark:text-neutral-100">{{ comment.authorName || 'Unknown' }}</span>
-                        <span class="text-[11px] text-neutral-500">{{ formatRelative(comment.createdAt) }}</span>
+                        <span class="text-xs text-neutral-500">{{ formatRelative(comment.createdAt) }}</span>
                       </div>
                       <p class="mt-0.5 text-[13px] leading-[1.5] text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap break-words">{{ comment.content }}</p>
                     </div>
@@ -220,7 +220,7 @@
       <div class="shrink-0 p-3 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
         <div class="flex gap-2.5 items-end">
           <div
-            class="hidden sm:grid shrink-0 w-7 h-7 rounded-full place-items-center text-[11px] font-semibold text-white"
+            class="hidden sm:grid shrink-0 w-7 h-7 rounded-full place-items-center text-xs font-semibold text-white"
             :style="{ backgroundColor: getAuthorColor(accountStore.profile?.id || 'me') }"
           >
             {{ getInitials(accountStore.profile?.username || 'Me') }}
@@ -243,7 +243,7 @@
             </button>
           </div>
         </div>
-        <p class="hidden sm:block text-[11px] text-neutral-400 mt-1.5 ltr:ml-9 rtl:mr-9">↵ to send · ⇧↵ for new line</p>
+        <p class="hidden sm:block text-xs text-neutral-400 mt-1.5 ltr:ml-9 rtl:mr-9">↵ to send · ⇧↵ for new line</p>
       </div>
     </div>
   </transition>

@@ -34,7 +34,7 @@
           <span
             v-for="k in sc.keys"
             :key="k"
-            class="inline-flex items-center justify-center min-w-[24px] px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 shadow-[0_1px_0_theme(colors.neutral.200)] dark:shadow-[0_1px_0_theme(colors.neutral.700)]"
+            class="inline-flex items-center justify-center min-w-[24px] px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded text-xs font-semibold text-neutral-500 dark:text-neutral-400 shadow-[0_1px_0_theme(colors.neutral.200)] dark:shadow-[0_1px_0_theme(colors.neutral.700)]"
             >{{ k }}</span
           >
           <span>{{ sc.label }}</span>

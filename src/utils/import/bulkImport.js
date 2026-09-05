@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { path } from '@/lib/tauri-bridge';
-import { ensureDir, readDir, readFile, readFileBinary, writeFile } from '@/lib/native/fs';
+import { ensureDir, readDir, readFile, readFileBinaryBytes, writeFile } from '@/lib/native/fs';
 import { onImportComplete, onImportProgress } from '@/lib/native/imports';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
@@ -268,18 +268,16 @@ async function processRustImportNote(note, state, appDirectory) {
   await ensureKeyReadyForWrite();
 
   const resourcePromises = (note.resources || []).map((resource) => {
-    try {
-      // Binary-safe: readFile would corrupt non-UTF8 resources via read_to_string.
-      return readFileBinary(resource.path).then((data) =>
-        writeFile(
-          path.join(noteAssetDir, resource.filename || resource.hash),
-          data
-        )
-      );
-    } catch (error) {
-      console.warn('Resource write failed:', error);
-      return Promise.resolve();
-    }
+    const dest = path.join(noteAssetDir, resource.filename || resource.hash);
+    return readFileBinaryBytes(resource.path)
+      .then((data) => writeFile(dest, data))
+      .catch((error) => {
+        console.warn('Resource write failed:', error);
+        state.errors.push({
+          title: note.title || 'Untitled',
+          reason: `Asset ${resource.filename || resource.hash} could not be saved: ${error?.message || String(error)}`,
+        });
+      });
   });
   await Promise.all(resourcePromises);
 

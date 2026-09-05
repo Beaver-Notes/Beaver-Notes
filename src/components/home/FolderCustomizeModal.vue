@@ -37,7 +37,7 @@
       />
 
       <div>
-        <p class="text-[11px] font-semibold text-neutral-500 mb-2">
+        <p class="text-xs font-semibold text-neutral-500 mb-2">
           {{ translations.card?.colors || 'Colors' }}
         </p>
         <div class="flex flex-wrap gap-2.5">
