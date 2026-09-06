@@ -39,15 +39,17 @@ export function useIapBilling({ accountStore } = {}) {
   async function loadProducts() {
     loading.value = true;
     error.value = '';
+    let iap = null;
     try {
-      const iap = await loadIap();
+      iap = await loadIap();
       products.value = await iap.getProducts(Object.values(IAP_PRODUCT_IDS), 'subs');
-      await subscribeUpdates(iap);
     } catch (e) {
       error.value = e?.message || 'Store unavailable. Please try again.';
     } finally {
       loading.value = false;
     }
+    // ponytail: listener subscribes independently — its failure must not set a products error
+    if (iap) subscribeUpdates(iap).catch(() => {});
   }
 
   let updatesSubscribed = false;
@@ -75,9 +77,10 @@ export function useIapBilling({ accountStore } = {}) {
     const { refreshProfile } = useAccountAuth();
     const productId = IAP_PRODUCT_IDS[`${plan}-${interval}`];
     if (!productId) throw new Error(`No store product for ${plan}/${interval}`);
-    const iap = await loadIap();
     // ponytail: accountId is crypto.randomUUID, maps 1:1 to Apple's appAccountToken
     const accountId = accountStore?.profile?.id ?? accountStore?.activeAccountId;
+    if (!accountId) throw new Error('Sign in required before purchase');
+    const iap = await loadIap();
     const options = isIOSRuntime()
       ? { appAccountToken: accountId }
       : { obfuscatedAccountId: accountId };

@@ -292,10 +292,10 @@ export function useOnboardingFlow({
   // Sync step hidden for beta: Sync not ready yet.
   const activeFlow = computed(() => {
     const flow = ['welcome', 'account', 'plans', 'password', 'import', 'customize', 'finish'];
-    return flow;
+    return isMobileRuntime ? flow : flow.filter((s) => s !== 'plans');
   });
 
-  const isCardStep = computed(() => WIZARD_STEPS.includes(step.value));
+  const isCardStep = computed(() => WIZARD_STEPS.includes(step.value) && (isMobileRuntime || step.value !== 'plans'));
 
   const migrationDetectionCopy = computed(() => {
     if (customLegacyStatus.value?.hasLegacyData) {

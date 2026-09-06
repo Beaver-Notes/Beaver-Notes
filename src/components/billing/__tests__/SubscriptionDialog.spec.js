@@ -24,4 +24,23 @@ describe('SubscriptionDialog', () => {
     await choose[0].trigger('click');
     expect(w.emitted('select')?.[0]).toEqual(['starter', 'monthly']);
   });
+  it('emits restore from the restore button', async () => {
+    const w = mount(SubscriptionDialog, {
+      props: { modelValue: true, signedIn: true, isPaid: false, currentPlan: 'free' },
+      global: {
+        stubs: {
+          'ui-modal': { template: '<div class="ui-modal"><slot /></div>' },
+          'ui-card': { template: '<div><slot /></div>' },
+          'ui-button': {
+            emits: ['click'],
+            template: '<button @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    });
+    const restore = w.findAll('button').filter((b) => b.text().match(/restore/i));
+    expect(restore).toHaveLength(1);
+    await restore[0].trigger('click');
+    expect(w.emitted('restore')).toHaveLength(1);
+  });
 });

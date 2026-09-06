@@ -603,12 +603,14 @@
           :products="iap.products.value"
           :loading="iap.loading.value"
           :error="iap.error.value"
+          :busy="iapBusy"
           :interval="plansInterval"
           :is-paid="accountStore.isPaidPlan"
           :current-plan="accountStore.plan"
           :signed-in="accountStore.isAuthenticated"
           @update:interval="plansInterval = $event"
-          @select="(plan, interval) => iap.buy(plan, interval)"
+          @select="handleIapSelect"
+          @restore="handleIapRestore"
         />
 
         <div
@@ -1090,7 +1092,7 @@ import {
 import { createCheckoutSession, createPortalSession } from '@/lib/api/billing';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import SubscriptionDialog from '@/components/billing/SubscriptionDialog.vue';
-import { useIapBilling, MOBILE_PLANS } from '@/composable/useIapBilling';
+import { useIapBilling } from '@/composable/useIapBilling';
 
 export default {
   components: { SubscriptionDialog },
@@ -1193,6 +1195,46 @@ export default {
     const iap = useIapBilling({ accountStore });
     const showPlansDialog = ref(false);
     const plansInterval = ref('monthly');
+    const iapBusy = ref(false);
+    async function handleIapSelect(plan, interval) {
+      iapBusy.value = true;
+      billingError.value = '';
+      billingMessage.value = '';
+      try {
+        const result = await iap.buy(plan, interval);
+        if (result) {
+          showPlansDialog.value = false;
+          billingMessage.value = `Subscribed to ${result}. Your plan is now active.`;
+          billingSuccess.value = true;
+        } else {
+          billingMessage.value = 'Payment processing — your plan will activate shortly';
+          billingSuccess.value = false;
+        }
+      } catch (e) {
+        const msg = e?.message || 'Purchase failed.';
+        billingError.value = msg;
+        dialog.alert({ title: 'Purchase failed', body: msg, okText: 'Close' });
+      } finally {
+        iapBusy.value = false;
+      }
+    }
+    async function handleIapRestore() {
+      iapBusy.value = true;
+      billingError.value = '';
+      billingMessage.value = '';
+      try {
+        await iap.restore();
+        showPlansDialog.value = false;
+        billingMessage.value = 'Purchases restored. Your plan is now active.';
+        billingSuccess.value = true;
+      } catch (e) {
+        const msg = e?.message || 'Restore failed.';
+        billingError.value = msg;
+        dialog.alert({ title: 'Restore failed', body: msg, okText: 'Close' });
+      } finally {
+        iapBusy.value = false;
+      }
+    }
     const billingOptions = [
       {
         key: 'starter-monthly',
@@ -1597,6 +1639,9 @@ export default {
       showPlansDialog,
       plansInterval,
       iap,
+      iapBusy,
+      handleIapSelect,
+      handleIapRestore,
       ...account,
     };
   },

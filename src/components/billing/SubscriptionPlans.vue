@@ -23,6 +23,8 @@
           <ui-button
             variant="primary"
             :data-plan="row.plan"
+            :loading="busy"
+            :disabled="busy"
             @click="$emit('select', row.plan, interval)"
           >Choose</ui-button>
         </div>
@@ -44,6 +46,7 @@ export default {
     products: { type: Array, default: () => [] },
     loading: { type: Boolean, default: false },
     error: { type: String, default: '' },
+    busy: { type: Boolean, default: false },
     interval: { type: String, default: 'monthly' },
     isPaid: { type: Boolean, default: false },
     currentPlan: { type: String, default: 'free' },

@@ -1198,7 +1198,7 @@
                   </template>
                 </template>
 
-                <template v-else-if="step === 'plans'">
+                <template v-else-if="step === 'plans' && isMobileRuntime">
                   <div class="flex flex-col items-center gap-2 text-center mb-1">
                     <h2 class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200">
                       Choose a plan
@@ -1211,13 +1211,19 @@
                     :products="iapBilling.products.value"
                     :loading="iapBilling.loading.value"
                     :error="iapBilling.error.value"
+                    :busy="plansBusy"
                     :interval="plansInterval"
                     :is-paid="accountStore.isPaidPlan"
                     :current-plan="accountStore.plan"
                     :signed-in="accountStore.isAuthenticated"
                     @update:interval="plansInterval = $event"
-                    @select="(plan, interval) => iapBilling.buy(plan, interval)"
+                    @select="handlePlansSelect"
                   />
+                  <div v-if="accountStore.isAuthenticated" class="flex justify-center">
+                    <ui-button variant="secondary" size="sm" :loading="plansBusy" :disabled="plansBusy" @click="handlePlansRestore">
+                      Restore purchases
+                    </ui-button>
+                  </div>
                 </template>
 
                 <!-- Sync -->
@@ -1564,6 +1570,32 @@ export default {
     const accountStore = useAccountStore();
     const iapBilling = useIapBilling({ accountStore });
     const plansInterval = ref('monthly');
+    const plansBusy = ref(false);
+    async function handlePlansSelect(plan, interval) {
+      plansBusy.value = true;
+      flow.state.error = '';
+      try {
+        const result = await iapBilling.buy(plan, interval);
+        if (!result) {
+          flow.state.error = 'Payment processing — your plan will activate shortly';
+        }
+      } catch (e) {
+        flow.state.error = e?.message || 'Purchase failed.';
+      } finally {
+        plansBusy.value = false;
+      }
+    }
+    async function handlePlansRestore() {
+      plansBusy.value = true;
+      flow.state.error = '';
+      try {
+        await iapBilling.restore();
+      } catch (e) {
+        flow.state.error = e?.message || 'Restore failed.';
+      } finally {
+        plansBusy.value = false;
+      }
+    }
 
     // Lazy-load useImportExport (tiptap, marked, ~13MB) only when import is triggered
     const importExportRef = ref(null);
@@ -1604,6 +1636,7 @@ export default {
           iapBilling.loadProducts();
         }
       },
+      { immediate: true },
     );
 
     // Recycle the Settings account orchestration; errors surface through the onboarding toast.
@@ -2063,6 +2096,9 @@ export default {
       seedProgressPercent,
       iapBilling,
       plansInterval,
+      plansBusy,
+      handlePlansSelect,
+      handlePlansRestore,
     };
   },
 };

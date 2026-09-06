@@ -8,7 +8,7 @@ vi.mock('@/composable/useAccountAuth', () => ({
   useAccountAuth: () => ({ refreshProfile: vi.fn(async () => null) }),
 }));
 
-import { IAP_PRODUCT_IDS, planFromProductId, MOBILE_PLANS } from '../useIapBilling.js';
+import { IAP_PRODUCT_IDS, planFromProductId, MOBILE_PLANS, useIapBilling } from '../useIapBilling.js';
 
 describe('IAP product map', () => {
   it('maps the four store IDs', () => {
@@ -22,5 +22,9 @@ describe('IAP product map', () => {
   it('excludes team on mobile', () => {
     expect(MOBILE_PLANS.every((p) => p.plan !== 'team')).toBe(true);
     expect(MOBILE_PLANS).toHaveLength(4);
+  });
+  it('requires sign-in before purchase', async () => {
+    const billing = useIapBilling({ accountStore: {} });
+    await expect(billing.buy('starter', 'monthly')).rejects.toThrow('Sign in required before purchase');
   });
 });
