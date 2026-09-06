@@ -1213,6 +1213,7 @@ export default {
       } catch (e) {
         const msg = e?.message || 'Purchase failed.';
         billingError.value = msg;
+        billingSuccess.value = false;
         dialog.alert({ title: 'Purchase failed', body: msg, okText: 'Close' });
       } finally {
         iapBusy.value = false;
@@ -1224,12 +1225,18 @@ export default {
       billingMessage.value = '';
       try {
         await iap.restore();
-        showPlansDialog.value = false;
-        billingMessage.value = 'Purchases restored. Your plan is now active.';
-        billingSuccess.value = true;
+        if (accountStore.isPaidPlan) {
+          showPlansDialog.value = false;
+          billingMessage.value = 'Purchases restored. Your plan is now active.';
+          billingSuccess.value = true;
+        } else {
+          billingMessage.value = 'No purchases found for this account.';
+          billingSuccess.value = false;
+        }
       } catch (e) {
         const msg = e?.message || 'Restore failed.';
         billingError.value = msg;
+        billingSuccess.value = false;
         dialog.alert({ title: 'Restore failed', body: msg, okText: 'Close' });
       } finally {
         iapBusy.value = false;

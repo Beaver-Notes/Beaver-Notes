@@ -73,13 +73,13 @@ export function useIapBilling({ accountStore } = {}) {
   }
 
   async function buy(plan, interval) {
-    const { useAccountAuth } = await import('@/composable/useAccountAuth');
-    const { refreshProfile } = useAccountAuth();
     const productId = IAP_PRODUCT_IDS[`${plan}-${interval}`];
     if (!productId) throw new Error(`No store product for ${plan}/${interval}`);
     // ponytail: accountId is crypto.randomUUID, maps 1:1 to Apple's appAccountToken
     const accountId = accountStore?.profile?.id ?? accountStore?.activeAccountId;
     if (!accountId) throw new Error('Sign in required before purchase');
+    const { useAccountAuth } = await import('@/composable/useAccountAuth');
+    const { refreshProfile } = useAccountAuth();
     const iap = await loadIap();
     const options = isIOSRuntime()
       ? { appAccountToken: accountId }

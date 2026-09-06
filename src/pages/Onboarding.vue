@@ -1590,6 +1590,9 @@ export default {
       flow.state.error = '';
       try {
         await iapBilling.restore();
+        if (!accountStore.isPaidPlan) {
+          flow.state.error = 'No purchases found for this account.';
+        }
       } catch (e) {
         flow.state.error = e?.message || 'Restore failed.';
       } finally {

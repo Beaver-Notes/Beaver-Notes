@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ref } from 'vue';
+import { mount, flushPromises } from '@vue/test-utils';
 
 const mobileFlag = vi.hoisted(() => ({ value: false }));
+const iapCtl = vi.hoisted(() => ({ buyImpl: null, restoreImpl: null, paid: true }));
 
 vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: ref({}) }),
@@ -14,8 +16,20 @@ vi.mock('@/composable/useTheme', () => ({
 
 vi.mock('@/composable/useOnboardingAppearance', () => ({
   useOnboardingAppearance: () => ({
+    isDark: ref(false),
+    themes: [],
+    fonts: [],
+    languages: [],
+    themeLabels: {},
+    selectTheme: vi.fn(),
     selectAccentColor: vi.fn(),
+    selectFont: vi.fn(),
+    selectLanguage: vi.fn(),
+    selectSounds: vi.fn(),
+    selectSpotlight: vi.fn(),
     selectZoomLevel: vi.fn(),
+    prepareFreshWorkspace: vi.fn(),
+    useDefaultPreferences: vi.fn(),
   }),
 }));
 
@@ -30,12 +44,15 @@ vi.mock('@/lib/settings', () => ({
 vi.mock('@/store/account', () => ({
   useAccountStore: () => ({
     isAuthenticated: true,
-    isPaidPlan: true,
+    get isPaidPlan() {
+      return iapCtl.paid;
+    },
     canUseCloudSync: true,
     serverUrl: 'https://api.test',
     status: 'authenticated',
     subscription: { plan: 'team' },
     profile: { id: 'u1' },
+    seedProgress: {},
     setProfile: vi.fn(),
     setSubscription: vi.fn(),
     setDevices: vi.fn(),
@@ -52,7 +69,7 @@ vi.mock('@/utils/onboarding/index.js', () => ({
   runOnboardingMigration: vi.fn(async () => {}),
   runOnboardingMigrationFromPath: vi.fn(async () => {}),
   ENTRANCE_DELAYS: { logo: 120, text: 580, cta: 1020 },
-  CURTAIN_DURATIONS: { in: 420, out: 320 },
+  CURTAIN_DURATIONS: { in: 420, out: 320, hold: 0, open: 0 },
 }));
 
 vi.mock('@/utils/crypto/encryption.js', () => ({
@@ -110,8 +127,114 @@ vi.mock('@/lib/tauri-bridge', () => ({
     listenPayload: vi.fn(async () => () => {}),
     listen: vi.fn(),
   },
+  clipboard: {},
   addCloseHandler: vi.fn(),
   path: { join: (...p) => p.join('/') },
+}));
+
+vi.mock('@/lib/tauri/runtime', () => ({
+  isMacOSRuntime: () => false,
+  isMobileRuntime: () => mobileFlag.value,
+  isIOSRuntime: () => false,
+}));
+
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useRouter: () => ({ push: vi.fn(), replace: vi.fn(async () => {}) }),
+  };
+});
+
+vi.mock('@/lib/storage', () => ({
+  useStorage: () => ({ value: {} }),
+}));
+
+vi.mock('@/store', () => ({
+  useStore: () => ({}),
+}));
+
+vi.mock('@/store/note', () => ({
+  useNoteStore: () => ({}),
+}));
+
+vi.mock('@/store/folder', () => ({
+  useFolderStore: () => ({}),
+}));
+
+vi.mock('@/composable/useSounds', () => ({
+  useSounds: () => ({ play: vi.fn() }),
+}));
+
+vi.mock('@/composable/useSettingsAccount', () => ({
+  useSettingsAccount: () => ({
+    signInEmail: ref(''),
+    signInPassword: ref(''),
+    signUpUsername: ref(''),
+    passkeyEmail: ref(''),
+    quickConnectCode: ref(''),
+    quickConnectSecret: ref(''),
+    quickConnectExpiresAt: ref(null),
+    showPasswordAuth: ref(false),
+    showQuickConnect: ref(false),
+    showServerUrlEditor: ref(false),
+    draftServerUrl: ref('https://api.test'),
+    defaultServerUrl: 'https://api.test',
+    deletingAccount: ref(false),
+    deletePassword: ref(''),
+    saveServerUrl: vi.fn(),
+    resetServerUrl: vi.fn(),
+    handleSignInWithPassword: vi.fn(),
+    handleSignUpWithPassword: vi.fn(),
+    handleSignInWithPasskey: vi.fn(),
+    handleSignUpWithPasskey: vi.fn(),
+    startQuickConnect: vi.fn(),
+    pollQuickConnect: vi.fn(),
+    authorizeQuickConnect: vi.fn(),
+    handleSignOut: vi.fn(),
+    handleSignOutEverywhere: vi.fn(),
+    handleRevokeDevice: vi.fn(),
+    openDeleteAccount: vi.fn(),
+    cancelDeleteAccount: vi.fn(),
+    confirmDeleteAccount: vi.fn(),
+    clearError: vi.fn(),
+    triggerSeed: vi.fn(),
+    editingUsername: ref(false),
+    draftUsername: ref(''),
+    startEditUsername: vi.fn(),
+    cancelEditUsername: vi.fn(),
+    saveUsername: vi.fn(),
+    sessions: ref([]),
+    loadingSessions: ref(false),
+    loadSessions: vi.fn(),
+    revokeSession: vi.fn(),
+    exportAccountData: vi.fn(),
+  }),
+}));
+
+vi.mock('@/composable/useIapBilling', () => ({
+  MOBILE_PLANS: [
+    { plan: 'starter', interval: 'monthly' },
+    { plan: 'starter', interval: 'yearly' },
+    { plan: 'pro', interval: 'monthly' },
+    { plan: 'pro', interval: 'yearly' },
+  ],
+  IAP_PRODUCT_IDS: {
+    'starter-monthly': 'com.beavernotes.starter.monthly',
+    'starter-yearly': 'com.beavernotes.starter.yearly',
+    'pro-monthly': 'com.beavernotes.pro.monthly',
+    'pro-yearly': 'com.beavernotes.pro.yearly',
+  },
+  planFromProductId: () => null,
+  useIapBilling: () => ({
+    products: ref([]),
+    loading: ref(false),
+    error: ref(''),
+    loadProducts: vi.fn(),
+    openManage: vi.fn(),
+    buy: (...a) => iapCtl.buyImpl(...a),
+    restore: (...a) => iapCtl.restoreImpl(...a),
+  }),
 }));
 
 vi.mock('@/assets/images/logo-transparent.png', () => ({ default: 'logo.png' }));
@@ -138,6 +261,7 @@ vi.mock('@/lib/account-storage', () => ({
 }));
 
 import { useOnboardingFlow } from '../useOnboardingFlow.js';
+import Onboarding from '../../pages/Onboarding.vue';
 
 describe('onboarding plans step', () => {
   it('registers plans after account in flow and wizard steps', () => {
@@ -156,6 +280,11 @@ describe('onboarding plans step', () => {
     const vue = readFileSync('src/pages/Onboarding.vue', 'utf8');
     expect(vue).toMatch(/step === 'plans' && isMobileRuntime/);
     expect(vue).toMatch(/\{ immediate: true \}/);
+  });
+  it('gates restore success on paid plan', () => {
+    const vue = readFileSync('src/pages/Onboarding.vue', 'utf8');
+    expect(vue).toMatch(/handlePlansRestore/);
+    expect(vue).toMatch(/No purchases found for this account\./);
   });
 });
 
@@ -177,5 +306,74 @@ describe('onboarding plans gating (mocked runtime)', () => {
     mobileFlag.value = true;
     const flow = makeFlow();
     expect(flow.trackedSteps.value).toContain('plans');
+  });
+});
+
+describe('onboarding plans handlers (mounted)', () => {
+  beforeEach(() => {
+    mobileFlag.value = true;
+    iapCtl.paid = true;
+    iapCtl.buyImpl = async () => 'pro';
+    iapCtl.restoreImpl = async () => {};
+  });
+
+  const mountOnboarding = () =>
+    mount(Onboarding, {
+      global: {
+        stubs: {
+          'ui-button': { template: '<button><slot /></button>' },
+          'ui-input': true,
+          'ui-card': true,
+          'ui-modal': true,
+          'v-remixicon': true,
+          SubscriptionPlans: { template: '<div />' },
+        },
+      },
+    });
+
+  it('buy resolving a plan clears the error and releases busy', async () => {
+    iapCtl.buyImpl = async () => 'pro';
+    const w = mountOnboarding();
+    await flushPromises();
+    await w.vm.handlePlansSelect('pro', 'monthly');
+    expect(w.vm.plansBusy).toBe(false);
+  });
+
+  it('buy resolving null shows the processing message', async () => {
+    iapCtl.buyImpl = async () => null;
+    const w = mountOnboarding();
+    await flushPromises();
+    await w.vm.handlePlansSelect('pro', 'monthly');
+    expect(w.vm.state.error).toMatch(/Payment processing/);
+    expect(w.vm.plansBusy).toBe(false);
+  });
+
+  it('buy throwing surfaces the error', async () => {
+    iapCtl.buyImpl = async () => {
+      throw new Error('card declined');
+    };
+    const w = mountOnboarding();
+    await flushPromises();
+    await w.vm.handlePlansSelect('pro', 'monthly');
+    expect(w.vm.state.error).toBe('card declined');
+    expect(w.vm.plansBusy).toBe(false);
+  });
+
+  it('restore with nothing owned shows the neutral message', async () => {
+    iapCtl.paid = false;
+    const w = mountOnboarding();
+    await flushPromises();
+    await w.vm.handlePlansRestore();
+    expect(w.vm.state.error).toMatch(/No purchases found/);
+    expect(w.vm.plansBusy).toBe(false);
+  });
+
+  it('restore when paid leaves the error clear', async () => {
+    iapCtl.paid = true;
+    const w = mountOnboarding();
+    await flushPromises();
+    await w.vm.handlePlansRestore();
+    expect(w.vm.state.error).toBe('');
+    expect(w.vm.plansBusy).toBe(false);
   });
 });
