@@ -1,6 +1,6 @@
 <template>
   <div
-    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center max-w-[calc(100vw-16px)] select-none"
+    class="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-50 flex flex-col items-center max-w-[calc(100vw-16px)] select-none drop-shadow-xl"
   >
     <div
       v-if="showSizes"
@@ -22,7 +22,7 @@
     </div>
 
     <div
-      class="relative flex items-center justify-center gap-1 px-4 rounded-2xl bg-white dark:bg-neutral-900 borderUndo"
+      class="relative flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-white/95 dark:bg-neutral-900/95 backdrop-blur border border-neutral-200/80 dark:border-neutral-700/60 shadow-xl"
     >
       <div class="flex items-start gap-1 h-20 overflow-hidden px-1">
         <button
