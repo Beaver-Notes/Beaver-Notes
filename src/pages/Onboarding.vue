@@ -1198,6 +1198,28 @@
                   </template>
                 </template>
 
+                <template v-else-if="step === 'plans'">
+                  <div class="flex flex-col items-center gap-2 text-center mb-1">
+                    <h2 class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200">
+                      Choose a plan
+                    </h2>
+                    <p class="text-neutral-600 dark:text-neutral-400">
+                      Sync is free to try. Upgrade for more storage and history.
+                    </p>
+                  </div>
+                  <SubscriptionPlans
+                    :products="iapBilling.products.value"
+                    :loading="iapBilling.loading.value"
+                    :error="iapBilling.error.value"
+                    :interval="plansInterval"
+                    :is-paid="accountStore.isPaidPlan"
+                    :current-plan="accountStore.plan"
+                    :signed-in="accountStore.isAuthenticated"
+                    @update:interval="plansInterval = $event"
+                    @select="(plan, interval) => iapBilling.buy(plan, interval)"
+                  />
+                </template>
+
                 <!-- Sync -->
                 <template v-else-if="step === 'sync'">
                   <div
@@ -1508,6 +1530,8 @@ import { useSounds } from '@/composable/useSounds';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
+import SubscriptionPlans from '@/components/billing/SubscriptionPlans.vue';
+import { useIapBilling } from '@/composable/useIapBilling';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { CURTAIN_DURATIONS } from '@/utils/onboarding/index.js';
 
@@ -1515,6 +1539,7 @@ const { hold: CURTAIN_HOLD, open: CURTAIN_OPEN } = CURTAIN_DURATIONS;
 
 export default {
   name: 'AppOnboarding',
+  components: { SubscriptionPlans },
 
   setup() {
     const router = useRouter();
@@ -1537,6 +1562,8 @@ export default {
       );
     }
     const accountStore = useAccountStore();
+    const iapBilling = useIapBilling({ accountStore });
+    const plansInterval = ref('monthly');
 
     // Lazy-load useImportExport (tiptap, marked, ~13MB) only when import is triggered
     const importExportRef = ref(null);
@@ -1569,6 +1596,14 @@ export default {
         document.documentElement.classList.toggle('dark', dark);
       },
       { immediate: true },
+    );
+    watch(
+      () => flow.step.value,
+      (s) => {
+        if (s === 'plans' && accountStore.isAuthenticated && !iapBilling.products.value.length) {
+          iapBilling.loadProducts();
+        }
+      },
     );
 
     // Recycle the Settings account orchestration; errors surface through the onboarding toast.
@@ -1860,6 +1895,29 @@ export default {
         ];
       }
 
+      if (s === 'plans') {
+        if (accountStore.isPaidPlan) {
+          return [
+            {
+              key: 'continue',
+              label: 'Continue',
+              icon: 'riArrowRightLine',
+              variant: 'primary',
+              testid: 'onboarding-plans-next',
+              onClick: flow.goToNextStep,
+            },
+          ];
+        }
+        return [
+          {
+            key: 'skip',
+            label: 'Skip for now',
+            testid: 'onboarding-plans-skip',
+            onClick: flow.goToNextStep,
+          },
+        ];
+      }
+
       if (s === 'sync') {
         if (flow.fresh.syncPath) {
           return [
@@ -2003,6 +2061,8 @@ export default {
       footerButtons,
       seedPhaseLabel,
       seedProgressPercent,
+      iapBilling,
+      plansInterval,
     };
   },
 };

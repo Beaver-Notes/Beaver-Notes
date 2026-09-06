@@ -55,7 +55,7 @@ import { loadSessionToken } from '@/lib/account-storage';
 import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
 
 // Steps inside the persistent wizard frame; 'welcome'/'finish' are full-screen hero steps.
-const WIZARD_STEPS = ['account', 'sync', 'password', 'import', 'customize'];
+const WIZARD_STEPS = ['account', 'plans', 'sync', 'password', 'import', 'customize'];
 
 export function useOnboardingFlow({
   router,
@@ -291,7 +291,7 @@ export function useOnboardingFlow({
 
   // Sync step hidden for beta: Sync not ready yet.
   const activeFlow = computed(() => {
-    const flow = ['welcome', 'account', 'password', 'import', 'customize', 'finish'];
+    const flow = ['welcome', 'account', 'plans', 'password', 'import', 'customize', 'finish'];
     return flow;
   });
 
