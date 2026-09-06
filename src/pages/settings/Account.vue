@@ -539,19 +539,20 @@
             }}
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <ui-button
-              v-for="opt in billingOptions"
-              :key="opt.key"
-              size="sm"
-              :variant="
-                opt.plan === accountStore.plan ? 'secondary' : 'primary'
-              "
-              :loading="billingBusy"
-              :disabled="billingBusy || opt.plan === accountStore.plan"
-              @click="handleCheckout(opt.plan, opt.interval)"
-            >
-              {{ opt.label }}
-            </ui-button>
+            <template v-for="opt in billingOptions" :key="opt.key">
+              <ui-button
+                v-if="!isMobile || opt.plan !== 'team'"
+                size="sm"
+                :variant="
+                  opt.plan === accountStore.plan ? 'secondary' : 'primary'
+                "
+                :loading="billingBusy"
+                :disabled="billingBusy || opt.plan === accountStore.plan"
+                @click="handleCheckout(opt.plan, opt.interval)"
+              >
+                {{ opt.label }}
+              </ui-button>
+            </template>
             <ui-button
               v-if="accountStore.isPaidPlan"
               size="sm"
@@ -596,6 +597,19 @@
             {{ tr.manageBilling || 'Manage billing' }}
           </ui-button>
         </div>
+
+        <SubscriptionDialog
+          v-model="showPlansDialog"
+          :products="iap.products.value"
+          :loading="iap.loading.value"
+          :error="iap.error.value"
+          :interval="plansInterval"
+          :is-paid="accountStore.isPaidPlan"
+          :current-plan="accountStore.plan"
+          :signed-in="accountStore.isAuthenticated"
+          @update:interval="plansInterval = $event"
+          @select="(plan, interval) => iap.buy(plan, interval)"
+        />
 
         <div
           v-if="
@@ -1074,8 +1088,12 @@ import {
   changePassword as apiChangePassword,
 } from '@/lib/api/account';
 import { createCheckoutSession, createPortalSession } from '@/lib/api/billing';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
+import SubscriptionDialog from '@/components/billing/SubscriptionDialog.vue';
+import { useIapBilling, MOBILE_PLANS } from '@/composable/useIapBilling';
 
 export default {
+  components: { SubscriptionDialog },
   setup() {
     const router = useRouter();
     const dialog = useDialog();
@@ -1171,6 +1189,10 @@ export default {
     const billingError = ref('');
     const billingMessage = ref('');
     const billingSuccess = ref(false);
+    const isMobile = isMobileRuntime();
+    const iap = useIapBilling({ accountStore });
+    const showPlansDialog = ref(false);
+    const plansInterval = ref('monthly');
     const billingOptions = [
       {
         key: 'starter-monthly',
@@ -1246,6 +1268,13 @@ export default {
       }
     }
     async function handleCheckout(plan, interval) {
+      if (isMobile) {
+        plansInterval.value = interval;
+        if (!iap.products.value.length && !iap.loading.value)
+          await iap.loadProducts();
+        showPlansDialog.value = true;
+        return;
+      }
       billingBusy.value = true;
       billingError.value = '';
       billingMessage.value = '';
@@ -1271,6 +1300,10 @@ export default {
       }
     }
     async function handleManageBilling() {
+      if (isMobile) {
+        await iap.openManage();
+        return;
+      }
       billingBusy.value = true;
       billingError.value = '';
       try {
@@ -1560,6 +1593,10 @@ export default {
       handleCheckout,
       handleManageBilling,
       handleBillingReturn,
+      isMobile,
+      showPlansDialog,
+      plansInterval,
+      iap,
       ...account,
     };
   },
