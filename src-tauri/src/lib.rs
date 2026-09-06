@@ -73,7 +73,8 @@ pub fn run() {
             .plugin(tauri_plugin_haptics::init())
             .plugin(tauri_plugin_secure_keystore::init())
             .plugin(tauri_plugin_pdf_render::init())
-            .plugin(tauri_plugin_sharesheet::init());
+            .plugin(tauri_plugin_sharesheet::init())
+            .plugin(tauri_plugin_iap::init());
     }
 
     #[cfg(desktop)]

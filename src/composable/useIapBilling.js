@@ -27,11 +27,7 @@ export const MOBILE_PLANS = [
 ];
 
 async function loadIap() {
-  // ponytail: variable specifier because dep not in package.json yet (later task
-  // adds it); Vitest 4 hard-fails static unresolvable imports (@vite-ignore
-  // ineffective). Convert to static import('...') once installed, or mobile breaks.
-  const pkg = '@choochmeque/tauri-plugin-iap-api';
-  return import(/* @vite-ignore */ pkg);
+  return import('@choochmeque/tauri-plugin-iap-api');
 }
 
 export function useIapBilling({ accountStore } = {}) {
