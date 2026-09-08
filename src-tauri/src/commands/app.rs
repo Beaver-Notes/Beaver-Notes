@@ -124,12 +124,14 @@ pub(crate) async fn migration_run_with_path(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn migration_read_legacy_data(dir: String) -> Result<Option<String>, AppError> {
+pub(crate) fn migration_read_legacy_data(app: AppHandle, state: State<'_, AppState>, dir: String) -> Result<Option<String>, AppError> {
     #[cfg(desktop)]
     {
         let base = std::path::Path::new(&dir);
+        assert_path_access(&app, state.inner(), &base, "migration read legacy data")?;
         for name in ["data.json", "config.json"] {
             let p = base.join(name);
+            assert_path_access(&app, state.inner(), &p, "migration read legacy data file")?;
             if p.exists() {
                 let content = std::fs::read_to_string(&p)?;
                 return Ok(Some(content));
@@ -140,32 +142,35 @@ pub(crate) fn migration_read_legacy_data(dir: String) -> Result<Option<String>, 
 
     #[cfg(not(desktop))]
     {
-        let _ = dir;
+        let _ = (app, state, dir);
         Ok(None)
     }
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Result<(), AppError> {
+pub(crate) fn migration_write_legacy_data(app: AppHandle, state: State<'_, AppState>, dir: String, content: String) -> Result<(), AppError> {
     #[cfg(desktop)]
     {
         let base = std::path::Path::new(&dir);
+        assert_path_access(&app, state.inner(), &base, "migration write legacy data")?;
         for name in ["data.json", "config.json"] {
             let p = base.join(name);
             if p.exists() {
+                assert_path_access(&app, state.inner(), &p, "migration write legacy data file")?;
                 std::fs::write(&p, content)?;
                 return Ok(());
             }
         }
         let p = base.join("data.json");
+        assert_path_access(&app, state.inner(), &p, "migration write legacy data file")?;
         std::fs::write(&p, content)?;
         Ok(())
     }
 
     #[cfg(not(desktop))]
     {
-        let _ = (dir, content);
+        let _ = (app, state, dir, content);
         Ok(())
     }
 }

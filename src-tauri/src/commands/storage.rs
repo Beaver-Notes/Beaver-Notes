@@ -533,6 +533,27 @@ pub(crate) async fn storage_replace(
     data: RawJson,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+    if name == SETTINGS_STORE || name == "settings" {
+        let flat = flatten_store_value(data.0.clone());
+        for k in ["syncPath", "defaultPath", "default-path"] {
+            if let Some(v) = flat.get(k).and_then(|x| x.as_str()) {
+                let trimmed = v.trim();
+                if !trimmed.is_empty() {
+                    let path = std::path::Path::new(trimmed);
+                    if !path.is_absolute() {
+                        return Err(AppError::Other(format!("[storage] rejected {k}: not an absolute path")));
+                    }
+                    let canonical = std::fs::canonicalize(path).map_err(|e| AppError::Other(format!("[storage] rejected {k}: cannot canonicalize: {e}")))?;
+                    if !canonical.is_dir() {
+                        return Err(AppError::Other(format!("[storage] rejected {k}: not a directory")));
+                    }
+                    if canonical == std::path::Path::new("/") {
+                        return Err(AppError::Other(format!("[storage] rejected {k}: filesystem root not allowed")));
+                    }
+                }
+            }
+        }
+    }
     let pool = pick_pool(&name, &app, &state)?;
     let is_settings = name == SETTINGS_STORE;
     let app_key = current_app_key(state.inner())?;
@@ -680,6 +701,24 @@ pub(crate) async fn storage_set(
     value: RawJson,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+    if (name == SETTINGS_STORE || name == "settings") && matches!(key.as_str(), "syncPath" | "defaultPath" | "default-path") {
+        if let Some(s) = value.0.as_str() {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                let path = std::path::Path::new(trimmed);
+                if !path.is_absolute() {
+                    return Err(AppError::Other(format!("[storage] rejected {key}: not an absolute path")));
+                }
+                let canonical = std::fs::canonicalize(path).map_err(|e| AppError::Other(format!("[storage] rejected {key}: cannot canonicalize: {e}")))?;
+                if !canonical.is_dir() {
+                    return Err(AppError::Other(format!("[storage] rejected {key}: not a directory")));
+                }
+                if canonical == std::path::Path::new("/") {
+                    return Err(AppError::Other(format!("[storage] rejected {key}: filesystem root not allowed")));
+                }
+            }
+        }
+    }
     let pool = pick_pool(&name, &app, &state)?;
     let is_settings = name == SETTINGS_STORE;
     let app_key = current_app_key(state.inner())?;

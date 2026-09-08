@@ -1,8 +1,10 @@
 use std::{
     fs,
     io::Write,
+    net::IpAddr,
     path::{Path, PathBuf},
 };
+use reqwest::Url;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde_json::Value;
@@ -318,13 +320,34 @@ pub(crate) async fn fs_download_url(
     let dest_path = PathBuf::from(&dest);
     assert_path_access(&app, &state, &dest_path, "download destination")?;
 
+    let parsed = Url::parse(&url).map_err(|e| AppError::Other(format!("Invalid URL: {e}")))?;
+    if parsed.scheme() != "https" {
+        return Err(AppError::Other("Only https:// URLs are allowed".into()));
+    }
+    let host = parsed.host_str().ok_or_else(|| AppError::Other("URL missing host".into()))?;
+    if host.eq_ignore_ascii_case("localhost")
+        || host.eq_ignore_ascii_case("metadata.google.internal")
+        || host.eq_ignore_ascii_case("kubernetes.default.svc")
+    {
+        return Err(AppError::Other("Blocked host".into()));
+    }
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if is_private_ip(&ip) {
+            return Err(AppError::Other("Blocked private IP".into()));
+        }
+    }
+    if parsed.username() != "" || parsed.password().is_some() {
+        return Err(AppError::Other("URL must not contain credentials".into()));
+    }
+
     if let Some(parent) = dest_path.parent() {
         fs::create_dir_all(parent)?;
     }
 
     let client = reqwest::Client::builder()
         .use_rustls_tls()
-        .timeout(std::time::Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| AppError::Other(format!("Failed to create HTTP client: {e}")))?;
 
@@ -341,6 +364,7 @@ pub(crate) async fn fs_download_url(
         )));
     }
 
+    const MAX_DOWNLOAD_BYTES: u64 = 50 * 1024 * 1024;
     let mut file = fs::File::create(&dest_path)?;
     let mut total: u64 = 0;
     let mut stream = resp.bytes_stream();
@@ -349,10 +373,30 @@ pub(crate) async fn fs_download_url(
     while let Some(chunk_result) = stream.next().await {
         let chunk =
             chunk_result.map_err(|e| AppError::Other(format!("Download stream error: {e}")))?;
-        file.write_all(&chunk)?;
         total += chunk.len() as u64;
+        if total > MAX_DOWNLOAD_BYTES {
+            drop(file);
+            let _ = fs::remove_file(&dest_path);
+            return Err(AppError::Other("Download exceeds size limit".into()));
+        }
+        file.write_all(&chunk)?;
     }
 
     file.flush()?;
     Ok(total)
+}
+
+fn is_private_ip(ip: &IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4.is_multicast()
+                || v4.is_broadcast()
+                || v4.is_unspecified()
+                || v4.octets()[0] == 0
+        }
+        IpAddr::V6(v6) => v6.is_loopback() || v6.is_unspecified() || v6.is_multicast(),
+    }
 }

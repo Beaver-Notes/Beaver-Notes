@@ -45,9 +45,12 @@ pub(crate) const PROTOCOL_VERSION: u8 = 4;
 /// v4 (JSON number arrays) still decrypted for compat.
 pub(crate) const SYNC_PAYLOAD_VERSION: u8 = 5;
 pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
-/// AAD binding for note-content encryption. Fixed domain string: it proves the
-/// ciphertext is genuine note content (and not forged/moved across contexts).
+/// AAD binding for note-content encryption. Bound to note identity to prevent
+/// cross-note ciphertext transplantation.
 pub(crate) const NOTE_AAD: &str = "beaver-notes:note-content:v1";
+fn note_aad(note_key: &str) -> String {
+    format!("{}:{}", NOTE_AAD, note_key)
+}
 /// Envelope version for raw-byte note payloads. v6 encrypts raw UTF-8 bytes
 /// directly instead of round-tripping through serde_json. v3 envelopes are
 /// still decrypted for backward compatibility.
@@ -522,6 +525,17 @@ pub(crate) fn derive_items_key_from_params(
     // Use the vault's published KDF params, never module defaults: a legacy
     // 16 MiB manifest derived with defaults yields a different KEK and a
     // spurious WrongPassword for the correct passphrase.
+    if params.argon2_memory_kib < ARGON2_MEMORY_KIB
+        || params.argon2_iterations < ARGON2_ITERATIONS
+        || params.argon2_parallelism < ARGON2_PARALLELISM
+    {
+        return Err(AppError::Crypto(
+            "KeyParams KDF params below minimum — possible downgrade".into(),
+        ));
+    }
+    if params.version < ENCRYPTION_MANIFEST_VERSION || params.kdf != "argon2id" {
+        return Err(AppError::Crypto("Unsupported KeyParams version/kdf".into()));
+    }
     let kek = derive_kek_argon2id_with_params(
         passphrase,
         &salt,

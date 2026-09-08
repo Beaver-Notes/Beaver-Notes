@@ -144,8 +144,9 @@ function sanitizeNode(node, parentType = '') {
     }
 
     nextNode.attrs = {
-      ...node.attrs,
       src: safeSrc,
+      alt: node.attrs?.alt,
+      title: node.attrs?.title,
     };
     return nextNode;
   }
@@ -161,7 +162,6 @@ function sanitizeNode(node, parentType = '') {
     }
 
     nextNode.attrs = {
-      ...node.attrs,
       src: safeSrc,
     };
   }

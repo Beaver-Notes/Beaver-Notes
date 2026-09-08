@@ -437,7 +437,7 @@ fn normalize_path_lexical(path: &Path) -> PathBuf {
     normalized
 }
 
-fn is_path_inside(root: &Path, candidate: &Path) -> bool {
+pub(crate) fn is_path_inside(root: &Path, candidate: &Path) -> bool {
     // Strict mode: only absolute paths participate in access checks.
     if !root.is_absolute() || !candidate.is_absolute() {
         return false;
@@ -946,9 +946,24 @@ pub(crate) fn grant_dialog_paths(state: &AppState, paths: &[PathBuf]) {
 pub(crate) fn sync_roots_from_settings(app: &AppHandle, state: &AppState) {
     for key in ["syncPath", "defaultPath", "default-path"] {
         if let Some(value) = get_cached_settings_value(app, state, key) {
-            if !value.trim().is_empty() {
-                grant_trusted_path(state, Path::new(&value));
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                continue;
             }
+            let path = Path::new(trimmed);
+            if !path.is_absolute() {
+                continue;
+            }
+            let Ok(canonical) = fs::canonicalize(path) else {
+                continue;
+            };
+            if !canonical.is_dir() {
+                continue;
+            }
+            if canonical == Path::new("/") {
+                continue;
+            }
+            grant_trusted_path(state, &canonical);
         }
     }
 }
@@ -968,9 +983,24 @@ pub(crate) fn assert_path_access(
 
     for key in ["syncPath", "defaultPath", "default-path"] {
         if let Some(value) = get_cached_settings_value(app, state, key) {
-            if !value.trim().is_empty() {
-                allowed_roots.push(PathBuf::from(value));
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                continue;
             }
+            let path = Path::new(trimmed);
+            if !path.is_absolute() {
+                continue;
+            }
+            let Ok(canonical) = fs::canonicalize(path) else {
+                continue;
+            };
+            if !canonical.is_dir() {
+                continue;
+            }
+            if canonical == Path::new("/") {
+                continue;
+            }
+            allowed_roots.push(canonical);
         }
     }
     if let Ok(granted) = state.security.granted_paths.lock() {

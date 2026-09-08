@@ -102,11 +102,13 @@ pub(crate) fn workspace_register_cloud(
     workspace_type: Option<String>,
     created_at: Option<String>,
 ) -> Result<WorkspaceInfo, AppError> {
-    if id.is_empty() || id == DEFAULT_WORKSPACE_ID {
+    validate_workspace_id(&id)?;
+
+    let ws_root = workspace_root(&app, &state)?;
+    let ws_dir = ws_root.join(&id);
+    if !is_path_inside(&ws_root, &ws_dir) {
         return Err(AppError::Other("Invalid workspace id".into()));
     }
-
-    let ws_dir = workspace_root(&app, &state)?.join(&id);
     if !ws_dir.exists() {
         std::fs::create_dir_all(&ws_dir)?;
         let data_path = ws_dir.join("data.db");
@@ -145,11 +147,16 @@ pub(crate) fn workspace_switch(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), AppError> {
+    validate_workspace_id(&id)?;
     let registry = load_workspace_registry(&app, &state)?;
     if !registry.iter().any(|w| w.id == id) {
         return Err(AppError::Other(format!("Workspace not found: {id}")));
     }
-    let ws_dir = workspace_root(&app, &state)?.join(&id);
+    let ws_root = workspace_root(&app, &state)?;
+    let ws_dir = ws_root.join(&id);
+    if !is_path_inside(&ws_root, &ws_dir) {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
     if !ws_dir.exists() {
         return Err(AppError::Other(format!(
             "Workspace directory missing: {id}"
@@ -187,6 +194,7 @@ pub(crate) fn workspace_delete(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), AppError> {
+    validate_workspace_id(&id)?;
     if id == DEFAULT_WORKSPACE_ID {
         return Err(AppError::Other(
             "Cannot delete the default workspace".into(),
@@ -199,7 +207,11 @@ pub(crate) fn workspace_delete(
         ));
     }
 
-    let ws_dir = workspace_root(&app, &state)?.join(&id);
+    let ws_root = workspace_root(&app, &state)?;
+    let ws_dir = ws_root.join(&id);
+    if !is_path_inside(&ws_root, &ws_dir) {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
     if ws_dir.exists() {
         std::fs::remove_dir_all(&ws_dir)?;
     }
@@ -241,6 +253,22 @@ fn slugify(name: &str) -> String {
     } else {
         result
     }
+}
+
+fn validate_workspace_id(id: &str) -> Result<(), AppError> {
+    if id.is_empty() || id == DEFAULT_WORKSPACE_ID {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    if id.contains('/') || id.contains('\\') || id.contains('\0') {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    if id.contains("..") || id.starts_with('.') || id.ends_with('.') {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    Ok(())
 }
 
 fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, AppError> {

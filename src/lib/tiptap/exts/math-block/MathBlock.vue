@@ -96,7 +96,7 @@ export default {
         displayMode: true,
         throwOnError: false,
         fleqn: true,
-        trust: true,
+        trust: false,
         strict: 'ignore',
         output: 'htmlAndMathml',
       });

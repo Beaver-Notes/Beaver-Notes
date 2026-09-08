@@ -909,8 +909,11 @@ pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool,
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn safe_storage_set_device_password(password: String) -> Result<(), AppError> {
-    set_device_password(&password)
+pub(crate) fn safe_storage_set_device_password(state: State<AppState>, password: String) -> Result<(), AppError> {
+    assert_not_locked(state.inner())?;
+    set_device_password(&password).inspect_err(|_| {
+        let _ = passwd_record_failure(state.clone());
+    })
 }
 
 #[tauri::command]

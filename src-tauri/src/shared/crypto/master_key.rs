@@ -11,7 +11,7 @@ use super::super::AppError;
 use super::super::SAFE_STORAGE_SERVICE;
 use super::keys::{
     decrypt_bytes_with_key, derive_kek_argon2id_with_params, encrypt_bytes_with_key, random_key,
-    random_nonce, WrappedKeyEnvelope,
+    random_nonce, WrappedKeyEnvelope, ARGON2_ITERATIONS, ARGON2_MEMORY_KIB, ARGON2_PARALLELISM,
 };
 
 use aes_gcm::aead::{Aead, KeyInit};
@@ -327,14 +327,34 @@ pub(crate) fn set_device_password(password: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+const DEVICE_SALT_FILE: &str = "device.salt";
+
+fn device_salt_path() -> Result<std::path::PathBuf, AppError> {
+    Ok(app_data_dir()?.join(DEVICE_SALT_FILE))
+}
+
+fn load_or_create_device_salt() -> Result<Vec<u8>, AppError> {
+    let p = device_salt_path()?;
+    if p.exists() {
+        let raw = std::fs::read(&p)?;
+        if raw.len() >= 16 {
+            return Ok(raw);
+        }
+    }
+    let mut salt = vec![0u8; 16];
+    rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut salt);
+    atomic_write(&p, &salt)?;
+    Ok(salt)
+}
+
 fn derive_device_kek(password: &str) -> Result<[u8; 32], AppError> {
-    // Manifest KDF: keeps the on-disk file decryptable across KDF bumps.
+    let salt = load_or_create_device_salt()?;
     derive_kek_argon2id_with_params(
         password,
-        b"beaver-notes-device-password", // fixed salt is fine here: the KEK only protects a file whose contents are random
-        32 * 1024,
-        2,
-        2,
+        &salt,
+        ARGON2_MEMORY_KIB,
+        ARGON2_ITERATIONS,
+        ARGON2_PARALLELISM,
     )
 }
 
