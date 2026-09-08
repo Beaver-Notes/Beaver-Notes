@@ -42,12 +42,22 @@ export default defineConfig({
     assetsDir: '.',
     rollupOptions: {
       output: {
-        manualChunks: {
-          vue: ['vue', 'vue-router', 'pinia'],
-          yjs: ['yjs', 'y-prosemirror', 'lib0'],
-          editor: ['@tiptap/core', 'prosemirror-model', 'prosemirror-view'],
-          'beautiful-mermaid': ['beautiful-mermaid'],
-          katex: ['katex'],
+        // Object form was removed in Vite 8 (Rolldown requires a function)
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (/[\\/]node_modules[\\/](vue|vue-router|pinia)[\\/]/.test(id))
+            return 'vue';
+          if (/[\\/]node_modules[\\/](yjs|y-prosemirror|lib0)[\\/]/.test(id))
+            return 'yjs';
+          if (
+            /[\\/]node_modules[\\/](@tiptap[\\/]core|prosemirror-model|prosemirror-view)[\\/]/.test(
+              id,
+            )
+          )
+            return 'editor';
+          if (/[\\/]node_modules[\\/]beautiful-mermaid[\\/]/.test(id))
+            return 'beautiful-mermaid';
+          if (/[\\/]node_modules[\\/]katex[\\/]/.test(id)) return 'katex';
         },
       },
     },

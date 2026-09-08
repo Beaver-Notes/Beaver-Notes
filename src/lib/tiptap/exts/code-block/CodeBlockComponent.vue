@@ -28,7 +28,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { NodeViewWrapper, NodeViewContent, nodeViewProps } from '@tiptap/vue-3';
 import { useClipboard } from '../../../../composable/clipboard';
 import { detectLanguage } from '@speed-highlight/core/detect';
-import { highlightText } from '@speed-highlight/core';
+import { highlightHTML } from '@speed-highlight/core';
 import defaultThemeStyles from '@speed-highlight/core/themes/default.css?raw';
 import darkThemeStyles from '@speed-highlight/core/themes/atom-dark.css?raw';
 import { codeHighlightPluginKey, parseHighlightedHtml } from './plugin';
@@ -152,7 +152,7 @@ export default {
       const lang = LANGUAGES.includes(language) ? language : 'plain';
 
       try {
-        const html = await highlightText(code, lang);
+        const html = highlightHTML(code, lang);
         if (seq !== highlightSeq) return;
         const inner = extractCodeHtml(html);
         if (!inner) {
@@ -204,7 +204,7 @@ export default {
     const { copyState, copyToClipboard } = useClipboard();
     const copyIcon = computed(() =>
       copyState.value === 1
-        ? 'riCheckFill'
+        ? 'riCheckCircle'
         : copyState.value === 2
         ? 'riErrorWarningLine'
         : 'riClipboardLine'
