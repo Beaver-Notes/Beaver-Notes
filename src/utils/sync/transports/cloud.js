@@ -275,6 +275,7 @@ export class CloudTransport extends Transport {
     const { appendUpdate } = await import('@/lib/native/yjs.js');
     const { applyRemote } = await import('@/lib/yjs/shared.js');
     let applied = 0;
+    const appliedIds = [];
 
     for (let i = 0; i < decrypted.length; i++) {
       const item = decrypted[i];
@@ -289,6 +290,7 @@ export class CloudTransport extends Transport {
         // Hydrate active in-memory docs so editors show content without a reload.
         applyRemote(noteId, updateBytes);
         applied++;
+        appliedIds.push(noteId);
       } catch (err) {
         console.warn(`[sync] bootstrap: apply failed for ${downloadedItems[i]?._noteId}:`, err?.message);
       }
@@ -321,12 +323,86 @@ export class CloudTransport extends Transport {
       if (!decrypted[i]?.update) continue;
       bootstrapNoteIds.push(downloadedItems[i]._noteId);
     }
+    // History fallback: notes with no usable snapshot (missing URL or
+    // undecryptable) restore their latest version-history commit into Yjs.
+    try {
+      const appliedSet = new Set(appliedIds);
+      const missing = needsBootstrap.map((d) => d.noteId).filter((id) => !appliedSet.has(id));
+      if (missing.length > 0) {
+        const restored = await this._restoreFromHistory(missing);
+        bootstrapNoteIds.push(...restored);
+      }
+    } catch (err) {
+      console.warn('[sync] bootstrap: history restore failed:', err?.message);
+    }
     try {
       reconcileUnknownNotePlaceholders(bootstrapNoteIds);
     } catch (err) {
       console.warn('[sync] bootstrap: placeholder reconciliation failed:', err?.message);
     }
-    return applied > 0;
+    return applied > 0 || bootstrapNoteIds.length > 0;
+  }
+
+  // Restore latest history commits for notes with empty local state.
+  // Local-empty only: never overwrites existing content, never resurrects
+  // (deleted notes leave meta, same as sync). Per-note try/catch, never blocks.
+  async _restoreFromHistory(noteIds) {
+    if (!noteIds?.length) return [];
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) return [];
+    const restored = [];
+    try {
+      const { listCommits, getCommitSnapshot } = await import('@/lib/api/history.js');
+      const { getSnapshots, appendUpdate, compactUpdates } = await import('@/lib/native/yjs.js');
+      const { applyRemote, getActiveDoc } = await import('@/lib/yjs/shared.js');
+      const { prosemirrorJSONToYDoc } = await import('y-prosemirror');
+      const { generateJSON, getSchema } = await import('@tiptap/core');
+      const { extensions } = await import('@/lib/tiptap');
+      const schema = getSchema(extensions);
+
+      for (const noteId of noteIds) {
+        try {
+          // Skip anything with local content: snapshot bytes or live doc.
+          const snaps = await getSnapshots([noteId]).catch(() => ({}));
+          if (snaps?.[noteId]?.length) continue;
+          const active = getActiveDoc(noteId);
+          if (active) {
+            let hasContent = false;
+            try {
+              hasContent = active.getXmlFragment('content')?.length > 0
+                || active.getText('title')?.toString()?.length > 0;
+            } catch {}
+            if (hasContent) continue;
+          }
+          const commits = await listCommits(workspaceId, noteId).catch(() => []);
+          if (!commits?.length) continue;
+          const sorted = [...commits].sort((a, b) => (b.ts ?? b.clock ?? 0) - (a.ts ?? a.clock ?? 0));
+          const latest = sorted[0];
+          const hash = latest.hash ?? latest.id ?? latest.commitHash;
+          if (!hash) continue;
+          const snap = await getCommitSnapshot(hash, noteId);
+          if (!snap?.content && !snap?.title) continue;
+          const pmJson = generateJSON(snap.content || '<p></p>', extensions);
+          const ydoc = prosemirrorJSONToYDoc(schema, pmJson, 'content');
+          try {
+            if (snap.title) ydoc.getText('title').insert(0, snap.title);
+            const update = Y.encodeStateAsUpdate(ydoc);
+            await appendUpdate(noteId, update, getSyncDeviceId());
+            try { applyRemote(noteId, update); } catch {}
+            try { await compactUpdates(noteId, update); } catch {}
+            restored.push(noteId);
+            logger.info('[sync] history restore applied for', noteId);
+          } finally {
+            ydoc.destroy();
+          }
+        } catch (err) {
+          logger.warn('[sync] history restore failed for', noteId, err?.message);
+        }
+      }
+    } catch (err) {
+      logger.warn('[sync] history restore skipped:', err?.message);
+    }
+    return restored;
   }
 
   async pull() {
@@ -1009,6 +1085,50 @@ export class CloudTransport extends Transport {
     // No-op: server handles compaction.
   }
 
+  // Download-failure accounting with TTL: a miss during the doc-vs-asset
+  // race (peer pulls before our upload lands) must retry later, not become
+  // a permanent session skip. 5 strikes within 5 minutes still backs off.
+  _downloadFailures(key) {
+    const e = this._failedDownloads.get(key);
+    if (!e) return 0;
+    if (Date.now() - e.t > 5 * 60 * 1000) {
+      this._failedDownloads.delete(key);
+      return 0;
+    }
+    return e.n;
+  }
+
+  _noteDownloadFailure(key) {
+    this._failedDownloads.set(key, { n: this._downloadFailures(key) + 1, t: Date.now() });
+  }
+
+  // Decode a downloaded asset to disk: enveloped bytes decrypt in place,
+  // legacy plaintext passes through and is re-uploaded encrypted
+  // (self-healing migration; safe from loops since the local file then exists).
+  async _decryptAssetToDisk(flatKey, dest) {
+    let stored;
+    try {
+      stored = await readFileBinaryBytes(dest);
+    } catch {
+      return;
+    }
+    if (!stored || stored.byteLength === 0) return;
+    const { isEncryptedEnvelopeBytes, decryptAssetBytes } = await import('../crypto.js');
+    if (isEncryptedEnvelopeBytes(stored)) {
+      try {
+        await writeFs(dest, await decryptAssetBytes(flatKey, stored));
+      } catch (err) {
+        console.warn('[sync] asset decrypt failed:', flatKey, err?.message);
+      }
+      return;
+    }
+    try {
+      await uploadAsset(flatKey, stored);
+    } catch (err) {
+      console.warn('[sync] legacy asset re-upload failed:', flatKey, err?.message);
+    }
+  }
+
   async syncAssets(onProgress) {
     if (!this._remoteAllowed()) return;
 
@@ -1264,7 +1384,7 @@ export class CloudTransport extends Transport {
         await Promise.all(batch.map(async ({ assetKey, url }) => {
           const op = downloadMap.get(assetKey);
           if (!op) return;
-          const failures = this._failedDownloads.get(assetKey) || 0;
+          const failures = this._downloadFailures(assetKey);
           if (failures >= DOWNLOAD_BACKOFF_THRESHOLD) {
             logger.info('[sync] skipping repeatedly failed download:', assetKey);
             return;
@@ -1274,9 +1394,10 @@ export class CloudTransport extends Transport {
               await ensureDir(path.dirname(op.dest)).catch(() => {});
               const bytesWritten = await downloadUrl(url, op.dest);
               if (!bytesWritten || bytesWritten === 0) {
-                this._failedDownloads.set(assetKey, failures + 1);
+                this._noteDownloadFailure(assetKey);
                 return;
               }
+              await this._decryptAssetToDisk(assetKey, op.dest);
               this._failedDownloads.delete(assetKey);
               return;
             } catch (err) {
@@ -1292,7 +1413,7 @@ export class CloudTransport extends Transport {
                 continue;
               }
               console.warn('[sync] streaming download failed:', assetKey, msg);
-              this._failedDownloads.set(assetKey, failures + 1);
+              this._noteDownloadFailure(assetKey);
               return;
             }
           }
@@ -1307,20 +1428,21 @@ export class CloudTransport extends Transport {
       // Fallback for any keys that didn't get presigned URLs
       for (const op of downloads) {
         if (!presignedKeys.has(op.flatKey)) {
-          const failures = this._failedDownloads.get(op.flatKey) || 0;
+          const failures = this._downloadFailures(op.flatKey);
           if (failures >= DOWNLOAD_BACKOFF_THRESHOLD) continue;
           try {
             const data = await downloadAsset(op.flatKey);
             if (data) {
               await ensureDir(path.dirname(op.dest)).catch(() => {});
               await writeFs(op.dest, data);
+              await this._decryptAssetToDisk(op.flatKey, op.dest);
               this._failedDownloads.delete(op.flatKey);
             } else {
-              this._failedDownloads.set(op.flatKey, failures + 1);
+              this._noteDownloadFailure(op.flatKey);
             }
           } catch (err) {
             console.warn('[sync] fallback download failed:', op.flatKey, err?.message);
-            this._failedDownloads.set(op.flatKey, failures + 1);
+            this._noteDownloadFailure(op.flatKey);
           }
           await new Promise((r) => setTimeout(r, DOWNLOAD_DELAY_MS));
           processed++;
@@ -1351,13 +1473,23 @@ export class CloudTransport extends Transport {
   async _recordCommits(noteIds) {
     if (!noteIds?.size) return;
     try {
-      const { captureNoteSnapshot } = await import('../commit-snapshot.js');
+      const { captureNoteSnapshot, captureNoteSnapshotFromBytes } = await import('../commit-snapshot.js');
       const { createCommit } = await import('@/lib/api/history.js');
 
       for (const noteId of noteIds) {
         if (noteId === 'meta') continue;
         try {
-          const snapshot = await captureNoteSnapshot(noteId);
+          // Active docs capture live; background notes fall back to cached
+          // full-state bytes so history covers notes never opened this session.
+          let snapshot = await captureNoteSnapshot(noteId);
+          if (!snapshot) {
+            try {
+              const { getSnapshots } = await import('@/lib/native/yjs.js');
+              const snaps = await getSnapshots([noteId]);
+              const bytes = snaps?.[noteId];
+              if (bytes?.length) snapshot = await captureNoteSnapshotFromBytes(noteId, bytes);
+            } catch {}
+          }
           if (snapshot) {
             await createCommit(noteId, snapshot);
           }

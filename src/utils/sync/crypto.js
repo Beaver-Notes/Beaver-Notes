@@ -114,9 +114,52 @@ export function syncAssetName(localFilename) {
     ? `${localFilename}${ENCRYPTED_ASSET_EXT}`
     : localFilename;
 }
-
 export function localAssetName(syncFilename) {
   return syncFilename.endsWith(ENCRYPTED_ASSET_EXT)
     ? syncFilename.slice(0, -ENCRYPTED_ASSET_EXT.length)
     : syncFilename;
+}
+
+// Asset bytes E2EE: same sync key as docs, AAD `asset:<flatKey>` binds the
+// ciphertext to its server key. Envelopes reuse the v4/v5 JSON format so
+// detection mirrors decryptJSON.
+export function isEncryptedEnvelopeBytes(bytes) {
+  if (!bytes || bytes.byteLength < 6) return false;
+  const head = new TextDecoder().decode(bytes.subarray(0, 6));
+  return head === '{"v":4' || head === '{"v":5';
+}
+
+export async function encryptAssetBytes(flatKey, data) {
+  await ensureSyncKeyReadyForWrite();
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  const envelope = await syncEncryptPayload(
+    JSON.stringify({ asset: flatKey }),
+    bufToBase64(bytes),
+    `asset:${flatKey}`
+  );
+  return new TextEncoder().encode(envelope);
+}
+
+export async function decryptAssetBytes(flatKey, bytes) {
+  const input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  // Legacy plaintext passthrough: pre-E2EE assets decrypt to themselves and
+  // are re-uploaded encrypted by the caller (self-healing migration).
+  if (!isEncryptedEnvelopeBytes(input)) return input;
+  const raw = new TextDecoder().decode(input);
+  try {
+    const res = await syncDecryptPayload(raw, `asset:${flatKey}`);
+    return base64ToBuf(res.update);
+  } catch (e) {
+    const msg = String(e?.message ?? e);
+    if (msg.includes('KEY_LOCKED')) {
+      throw new SyncCryptoError(
+        'Encryption is locked. Unlock it in Settings to sync.',
+        'KEY_LOCKED'
+      );
+    }
+    throw new SyncCryptoError(
+      'The encryption password on this device does not match the one used to encrypt the sync data. Make sure both devices use the same encryption password.',
+      'DECRYPT_FAILED'
+    );
+  }
 }

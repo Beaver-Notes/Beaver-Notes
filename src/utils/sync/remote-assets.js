@@ -2,6 +2,7 @@
 
 import { getApiClient } from '@/lib/api/client.js';
 import { uint8ArrayToBase64 } from '@/utils/helpers/index.js';
+import { encryptAssetBytes } from './crypto.js';
 
 let apiClient = null;
 
@@ -48,21 +49,32 @@ export async function listRemoteAssets() {
   return [];
 }
 
+async function encryptAssetItems(items) {
+  const out = [];
+  for (const item of items) {
+    out.push({ key: item.key, data: uint8ArrayToBase64(await encryptAssetBytes(item.key, item.data)) });
+  }
+  return out;
+}
+
 export async function uploadAsset(flatKey, data) {
   const client = getClient();
+  // E2EE: bytes are enveloped before leaving the device; the server only
+  // ever sees ciphertext (encryption at rest there is a second layer).
+  const encrypted = await encryptAssetBytes(flatKey, data);
   try {
-    const result = await client.put(`/assets/${encodeURIComponent(flatKey)}`, data, {
+    const result = await client.put(`/assets/${encodeURIComponent(flatKey)}`, encrypted, {
       contentType: 'application/octet-stream',
       headers: {
         'Content-Type': 'application/octet-stream',
-        'Content-Length': String(data.byteLength ?? data.length),
+        'Content-Length': String(encrypted.byteLength ?? encrypted.length),
       },
       timeoutMs: 60000,
     });
     return result || { status: 'uploaded' };
   } catch (err) {
     if (err?.status === 413) {
-      console.warn('[sync] asset too large:', flatKey, data.byteLength ?? data.length);
+      console.warn('[sync] asset too large:', flatKey, encrypted.byteLength ?? encrypted.length);
       return { status: 'skipped' };
     }
     throw err;
@@ -72,10 +84,7 @@ export async function uploadAsset(flatKey, data) {
 export async function batchUploadAssets(items) {
   const client = getClient();
   const payload = {
-    assets: items.map((item) => ({
-      key: item.key,
-      data: uint8ArrayToBase64(item.data),
-    })),
+    assets: await encryptAssetItems(items),
   };
   const result = await client.post('/assets/batch', payload, { timeoutMs: 120000 });
   return result || { results: [], uploaded: 0, skipped: 0 };
@@ -85,10 +94,7 @@ export async function batchUploadAssets(items) {
 export async function seedBatchUploadAssets(items) {
   const client = getClient();
   const payload = {
-    assets: items.map((item) => ({
-      key: item.key,
-      data: uint8ArrayToBase64(item.data),
-    })),
+    assets: await encryptAssetItems(items),
   };
   const result = await client.post('/assets/seed-batch', payload, { timeoutMs: 300000 });
   return result || { results: [], uploaded: 0, skipped: 0 };

@@ -27,6 +27,16 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
   const localColor = ref(getColorFromId(localUserId));
   const getAw = () => resolveAwareness(awarenessOrRef);
 
+  // True when the peer's user id is our own account: same human, not a
+  // collaborator. Anonymous/local-only has no stable id: never self-match,
+  // so strangers are never hidden.
+  function isSelfId(peerId) {
+    if (!peerId || peerId === 'anonymous') return false;
+    if (!localUserId || localUserId === 'anonymous' || localUserId === 'local')
+      return false;
+    return peerId === localUserId;
+  }
+
   function setLocalState(state) {
     const aw = getAw();
     if (!aw) return;
@@ -48,12 +58,21 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
     const aw = getAw();
     if (!aw) return;
     const states = aw.getStates();
-    const newPeers = new Map();
+    const byUser = new Map();
     states.forEach((state, clientId) => {
       if (clientId === aw.clientID) return;
       const user = state?.user;
-      if (user) {
-        newPeers.set(clientId, {
+      if (!user) return;
+      // Own other devices (same account, different client) are sync, not
+      // collaboration: never count them as people.
+      if (isSelfId(user.id)) return;
+      // One avatar per human: stale reconnects share the user id, so the
+      // second ghost entry collapses instead of inflating the count.
+      // Anonymous has no stable id: key by client so strangers stay distinct.
+      const key =
+        user.id && user.id !== 'anonymous' ? `u:${user.id}` : `c:${clientId}`;
+      if (!byUser.has(key)) {
+        byUser.set(key, {
           id: user.id,
           name: user.name || 'Anonymous',
           color: user.color || getColorFromId(user.id),
@@ -61,7 +80,7 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
         });
       }
     });
-    peers.value = newPeers;
+    peers.value = byUser;
   }
 
   function init() {

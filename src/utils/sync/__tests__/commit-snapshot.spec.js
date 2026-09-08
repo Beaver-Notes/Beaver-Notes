@@ -50,3 +50,35 @@ describe('captureNoteSnapshot', () => {
     doc.destroy();
   });
 });
+
+describe('captureNoteSnapshotFromBytes', () => {
+  it('round-trips content+title through full-state bytes', async () => {
+    const { captureNoteSnapshotFromBytes } = await import('../commit-snapshot.js');
+    const src = new Y.Doc();
+    src.getText('title').insert(0, 'Bytes Title');
+    const bytes = Y.encodeStateAsUpdate(src);
+    src.destroy();
+
+    const result = await captureNoteSnapshotFromBytes('note-1', bytes);
+    expect(result).not.toBeNull();
+    expect(result.title).toContain('Bytes Title');
+  });
+
+  it('returns null for empty/corrupt bytes', async () => {
+    const { captureNoteSnapshotFromBytes } = await import('../commit-snapshot.js');
+    expect(await captureNoteSnapshotFromBytes('n', new Uint8Array(0))).toBeNull();
+    expect(await captureNoteSnapshotFromBytes('n', new Uint8Array([1, 2, 3]))).toBeNull();
+  });
+});
+
+describe('isEncryptedEnvelopeBytes', () => {
+  it('detects v4/v5 envelopes, passes through binary', async () => {
+    const { isEncryptedEnvelopeBytes } = await import('../crypto.js');
+    const enc = (s) => new TextEncoder().encode(s);
+    expect(isEncryptedEnvelopeBytes(enc('{"v":5,"meta":{}}'))).toBe(true);
+    expect(isEncryptedEnvelopeBytes(enc('{"v":4,"meta":{}}'))).toBe(true);
+    expect(isEncryptedEnvelopeBytes(enc('{"foo":1}'))).toBe(false);
+    expect(isEncryptedEnvelopeBytes(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBe(false);
+    expect(isEncryptedEnvelopeBytes(new Uint8Array(0))).toBe(false);
+  });
+});

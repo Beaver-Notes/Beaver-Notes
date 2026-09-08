@@ -35,12 +35,15 @@ export default {
   props: {
     awareness: { type: Object, default: null },
     userName: { type: String, default: 'Anonymous' },
+    userId: { type: String, default: '' },
     maxVisible: { type: Number, default: 3 },
   },
   setup(props) {
+    // userId is the account id when logged in: it must match the id the page
+    // sets on the same awareness, or self-exclusion can't recognize us.
     const { peers, init, destroy } = usePresence(
       () => props.awareness,
-      props.awareness?.clientID?.toString() || 'local',
+      props.userId || props.awareness?.clientID?.toString() || 'local',
       props.userName
     );
 

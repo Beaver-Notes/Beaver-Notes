@@ -407,6 +407,21 @@ export class SyncEngine {
         this._idlePullBackoff = true;
       }
 
+      // Assets upload BEFORE the doc push: push fires pg_notify and the WS
+      // relay broadcasts the Yjs update instantly, so any assets:// ref in
+      // the pushed doc must already have bytes on the server or the peer
+      // pulls a valid ref with nothing behind it (broken image until some
+      // unrelated later cycle heals it).
+      if (activeTransportNames.includes('cloud') && !cloudBlocked) {
+        logger.info('[sync] cloud syncAssets start');
+        await this.transports.cloud.syncAssets((progress) => {
+          try { emit('sync:progress', progress); } catch {}
+        }).catch((err) => {
+          logger.warn('[sync] cloud asset sync failed:', err?.message);
+        });
+        logger.info('[sync] cloud syncAssets done');
+      }
+
       if (shouldPush) {
         for (const name of activeTransportNames) {
           if (cloudBlocked && name === 'cloud') {
@@ -430,16 +445,6 @@ export class SyncEngine {
         }
       } else {
         logger.info('[sync] push skipped: pull-only mode');
-      }
-
-      if (activeTransportNames.includes('cloud') && !cloudBlocked) {
-        logger.info('[sync] cloud syncAssets start');
-        await this.transports.cloud.syncAssets((progress) => {
-          try { emit('sync:progress', progress); } catch {}
-        }).catch((err) => {
-          logger.warn('[sync] cloud asset sync failed:', err?.message);
-        });
-        logger.info('[sync] cloud syncAssets done');
       }
 
       if (hasLocal) {

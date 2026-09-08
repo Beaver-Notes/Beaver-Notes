@@ -181,6 +181,7 @@
           :ydoc="ydoc"
           :awareness="awareness"
           :user-name="accountStore.profile?.username || 'Anonymous'"
+          :user-id="accountStore.profile?.id || ''"
           :note="note"
           :role="noteRole"
           :cursor-position="note.lastCursorPosition"

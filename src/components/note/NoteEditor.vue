@@ -5,6 +5,7 @@
       v-if="awareness"
       :awareness="awareness"
       :user-name="userName"
+      :user-id="userId"
       class="mb-2"
     />
     <drag-handle
@@ -96,6 +97,7 @@ export default {
     ydoc: { type: Object, default: null },
     awareness: { type: Object, default: null },
     userName: { type: String, default: 'Anonymous' },
+    userId: { type: String, default: '' },
     role: { type: String, default: 'editor' },
   },
   emits: ['init', 'update', 'update:modelValue', 'comment-activated'],
