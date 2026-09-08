@@ -53,9 +53,13 @@
 </template>
 
 <script>
-import { computed, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useStore } from '@/store';
+import {
+  setScribbleSuppressed,
+  clearScribbleSuppressed,
+} from '@/lib/native/scribble';
 import DrawMode from './DrawMode.vue';
 import PaperToolbar from './PaperToolbar.vue';
 import { cloneDrawingToolDefaults } from './helpers/drawHelper.js';
@@ -88,6 +92,7 @@ export default {
     const wrapperRef = ref(null);
     const drawModeRef = ref(null);
     const isEditing = ref(false);
+    const scribbleScope = `paper-${Math.random().toString(36).slice(2, 8)}`;
     const defaultSettings = cloneDrawingToolDefaults();
     const presets = ref(loadPresets());
 
@@ -140,7 +145,12 @@ export default {
     });
 
     function enterEditing() {
-      if (!isEditing.value) isEditing.value = true;
+      if (isEditing.value) return;
+      // ponytail: touch taps don't node-select like desktop clicks; select explicitly so the toolbar gate holds
+      try {
+        props.editor?.commands?.setNodeSelection?.(props.getPos?.());
+      } catch {}
+      isEditing.value = true;
     }
     function exitEditing() {
       isEditing.value = false;
@@ -151,6 +161,10 @@ export default {
         if (!sel) isEditing.value = false;
       }
     );
+    watch(isEditing, (editing) => {
+      setScribbleSuppressed(scribbleScope, editing);
+    });
+    onUnmounted(() => clearScribbleSuppressed(scribbleScope));
 
     function handleToolbarState(s) {
       toolbarState.value = { ...toolbarState.value, ...s };
