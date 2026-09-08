@@ -29,16 +29,22 @@ vi.mock('@/utils/sync/remote-yjs.js', () => ({
 }));
 
 // Identity stand-in for the sync-crypto envelope: cloud.js hands decrypt*
-// already-atob'd plaintext JSON strings whose `update` is a plain byte array.
+// already-atob'd v4/v5 JSON envelopes; unwrap `meta` like Rust does, whose
+// `update` is a plain byte array here.
+const unwrapEnvelope = (raw) => {
+  const parsed = JSON.parse(raw);
+  if (parsed?.v === 4 || parsed?.v === 5) return { ...parsed.meta };
+  return parsed;
+};
 vi.mock('@/utils/sync/crypto.js', () => ({
   encryptJSON: vi.fn(),
   encryptBatch: vi.fn(),
-  decryptJSON: vi.fn(async (raw) => JSON.parse(raw)),
-  decryptBatch: vi.fn(async (raws) => raws.map((raw) => JSON.parse(raw))),
+  decryptJSON: vi.fn(async (raw) => unwrapEnvelope(raw)),
+  decryptBatch: vi.fn(async (raws) => raws.map((raw) => unwrapEnvelope(raw))),
 }));
 
 function encodeEnvelope(payload) {
-  return b64(new TextEncoder().encode(JSON.stringify(payload)));
+  return b64(new TextEncoder().encode(JSON.stringify({ v: 5, meta: payload, iv: 'x', enc: 'y' })));
 }
 
 vi.mock('@/utils/sync/sync-yjs.js', () => ({

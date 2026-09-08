@@ -769,6 +769,41 @@
                       </p>
                     </div>
 
+                    <!-- Email verification lives inside this step, not in a global pill -->
+                    <div
+                      v-if="accountStore.profile?.emailVerified === false"
+                      class="mt-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+                    >
+                      <div class="flex items-center gap-2 justify-center">
+                        <v-remixicon
+                          name="riMailLine"
+                          class="text-amber-600 dark:text-amber-400"
+                          size="18"
+                        />
+                        <p
+                          class="text-sm font-medium text-amber-700 dark:text-amber-300"
+                        >
+                          Please verify your email. Check your inbox for a
+                          verification link.
+                        </p>
+                      </div>
+                      <div class="flex justify-center mt-3">
+                        <button
+                          class="rounded-full px-4 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          :disabled="verifySending || verifyCooldown > 0"
+                          @click="handleResendVerification"
+                        >
+                          {{
+                            verifyCooldown > 0
+                              ? `Resend (${verifyCooldown}s)`
+                              : verifySending
+                                ? 'Sending…'
+                                : 'Resend email'
+                          }}
+                        </button>
+                      </div>
+                    </div>
+
                     <!-- Seeding Progress -->
                     <div
                       v-if="accountStore.seedStatus === 'seeding'"
@@ -1537,7 +1572,7 @@
 </template>
 
 <script>
-import { computed, ref, watch, onMounted } from 'vue';
+    import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStorage } from '@/lib/storage';
 import { useStore } from '@/store';
@@ -1708,6 +1743,34 @@ export default {
 
     const showMoreOptions = ref(false);
     const accountView = ref('signin');
+
+    // Inline email-verification resend for the account step (same throttle as App.vue).
+    const verifySending = ref(false);
+    const verifyCooldown = ref(0);
+    let verifyTimer = null;
+    async function handleResendVerification() {
+      if (verifySending.value || verifyCooldown.value > 0) return;
+      verifySending.value = true;
+      try {
+        const { requestEmailVerification } = await import('@/lib/api/account');
+        await requestEmailVerification({ baseUrl: accountStore.serverUrl });
+        verifyCooldown.value = 60;
+        verifyTimer = setInterval(() => {
+          verifyCooldown.value -= 1;
+          if (verifyCooldown.value <= 0 && verifyTimer) {
+            clearInterval(verifyTimer);
+            verifyTimer = null;
+          }
+        }, 1000);
+      } catch (err) {
+        flow.state.error = err?.message || 'Failed to send verification email.';
+      } finally {
+        verifySending.value = false;
+      }
+    }
+    onBeforeUnmount(() => {
+      if (verifyTimer) clearInterval(verifyTimer);
+    });
     // Same values/classes as the old dots; 'light' is the legacy amber alias.
     const accentDots = [
       { value: 'red', label: 'Red', class: 'bg-red-500' },
@@ -2096,6 +2159,9 @@ export default {
       handleSignUpWithPassword,
       showMoreOptions,
       accountView,
+      verifySending,
+      verifyCooldown,
+      handleResendVerification,
       accentDots,
       forgotEmail,
       forgotBusy,

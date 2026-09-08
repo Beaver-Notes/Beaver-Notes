@@ -792,6 +792,14 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     }
 
     sync_roots_from_settings(app.handle(), state.inner());
+    // The previous Electron app's data lives outside the sandbox and is never
+    // picked via a dialog, so trust it here — otherwise the onboarding import
+    // trips the fs-access gate on the auto-detected legacy dir.
+    if let Some(legacy) = legacy_store_dir(app.handle()) {
+        if legacy.exists() {
+            grant_trusted_path(&state, &legacy);
+        }
+    }
     grant_trusted_path(
         &state,
         &crate::shared::app_storage_dir(app.handle(), state.inner())?,

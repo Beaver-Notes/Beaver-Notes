@@ -270,6 +270,8 @@ export default {
     const verificationCooldown = ref(0);
     let cooldownTimer = null;
     const showVerificationBanner = computed(() => {
+      // Onboarding shows its own inline notice inside the account step.
+      if (!onboardingCompleted.value) return false;
       if (!accountStore.isAuthenticated) return false;
       const v = accountStore.profile?.emailVerified;
       // Null means legacy/unknown: treat as verified to avoid nagging old installs.

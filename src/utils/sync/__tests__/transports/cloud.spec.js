@@ -221,7 +221,7 @@ describe('CloudTransport', () => {
       const { decryptBatch } = await import('../../crypto.js');
 
       const updatePayload = { device: 'remote-device', ts: 100, sequence: 3, noteId: 'note-a', update: [1, 2, 3] };
-      const base64Data = btoa(JSON.stringify(updatePayload));
+      const base64Data = btoa(JSON.stringify({ v: 5, meta: updatePayload, iv: 'x', enc: 'y' }));
 
       pullUpdates.mockResolvedValue({
         notes: {
@@ -245,15 +245,81 @@ describe('CloudTransport', () => {
       expect(result.updates[0].device).toBe('remote-device');
     });
 
+    it('skips plaintext relay rows without failing the batch and still advances the checkpoint', async () => {
+      const { pullUpdates, getRemoteState } = await import('../../remote-yjs.js');
+      const { decryptBatch } = await import('../../crypto.js');
+      const { parseSyncFilename } = await import('../../sync-yjs.js');
+
+      // RAW Yjs binary persisted with update_encrypted=0: base64 of bytes that
+      // are not a JSON envelope (mirrors server formatUpdate dropping the flag).
+      const plaintextData = btoa(String.fromCharCode(0, 1, 2, 3, 200, 255, 10, 20));
+      const nextCheckpoint = { ts: 100, sequence: 3, deviceId: 'remote-device' };
+      pullUpdates.mockResolvedValue({
+        notes: {
+          'note-a': {
+            updates: [{ key: 'note-a~~remote-device~~100~~3.yjs.json', data: plaintextData }],
+            nextCheckpoint,
+            hasMore: false,
+          },
+        },
+      });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
+      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'remote-device', ts: 100, sequence: 3 });
+
+      const result = await transport.pull({});
+
+      expect(result.updates).toEqual([]);
+      expect(result.hasMore).toBe(false);
+      expect(decryptBatch).not.toHaveBeenCalled();
+      expect(localStorage.getItem('syncServerCheckpoints:note-a')).toBe(JSON.stringify(nextCheckpoint));
+    });
+
+    it('decrypts enveloped rows while skipping plaintext rows in the same batch', async () => {
+      const { pullUpdates, getRemoteState } = await import('../../remote-yjs.js');
+      const { decryptBatch } = await import('../../crypto.js');
+      const { parseSyncFilename } = await import('../../sync-yjs.js');
+
+      const envelopePayload = { device: 'remote-device', ts: 100, sequence: 3, noteId: 'note-a', update: [1, 2, 3] };
+      const envelopeData = btoa(JSON.stringify({ v: 5, meta: envelopePayload, iv: 'x', enc: 'y' }));
+      const plaintextData = btoa(String.fromCharCode(0, 1, 2, 3, 200, 255));
+      const nextCheckpoint = { ts: 101, sequence: 4, deviceId: 'remote-device' };
+      pullUpdates.mockResolvedValue({
+        notes: {
+          'note-a': {
+            updates: [
+              { key: 'note-a~~remote-device~~100~~3.yjs.json', data: envelopeData },
+              { key: 'note-a~~remote-device~~101~~4.yjs.json', data: plaintextData },
+            ],
+            nextCheckpoint,
+            hasMore: false,
+          },
+        },
+      });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
+      parseSyncFilename
+        .mockReturnValueOnce({ docId: 'note-a', isSnapshot: false, device: 'remote-device', ts: 100, sequence: 3 })
+        .mockReturnValueOnce({ docId: 'note-a', isSnapshot: false, device: 'remote-device', ts: 101, sequence: 4 });
+      decryptBatch.mockResolvedValueOnce([{ ...envelopePayload }]);
+
+      const result = await transport.pull({});
+
+      expect(result.updates).toHaveLength(1);
+      expect(result.updates[0].noteId).toBe('note-a');
+      // Plaintext row never reaches Rust serde_json.
+      expect(decryptBatch).toHaveBeenCalledTimes(1);
+      expect(decryptBatch.mock.calls[0][0]).toHaveLength(1);
+      expect(localStorage.getItem('syncServerCheckpoints:note-a')).toBe(JSON.stringify(nextCheckpoint));
+    });
+
     it('skips entries that fail decrypt', async () => {
       const { pullUpdates } = await import('../../remote-yjs.js');
       const { getRemoteState } = await import('../../remote-yjs.js');
-      const { decryptJSON } = await import('../../crypto.js');
+      const { decryptBatch, decryptJSON } = await import('../../crypto.js');
 
       pullUpdates.mockResolvedValue({
         notes: {
           bad: {
-            updates: [{ key: 'bad.yjs.json', data: btoa('invalid') }],
+            updates: [{ key: 'bad.yjs.json', data: btoa(JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' })) }],
             nextCheckpoint: null,
             hasMore: false,
           },
@@ -264,6 +330,7 @@ describe('CloudTransport', () => {
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       parseSyncFilename.mockReturnValue({ docId: 'bad', isSnapshot: false, device: 'remote-device', ts: 50, sequence: 0 });
 
+      decryptBatch.mockResolvedValueOnce([null]);
       decryptJSON.mockRejectedValue(new Error('decrypt failed'));
 
       await expect(transport.pull({})).rejects.toMatchObject({ code: 'unlock-required' });
@@ -317,16 +384,18 @@ describe('CloudTransport', () => {
 
     it('does not return a cursor for a malformed update payload', async () => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
+      const { decryptBatch } = await import('../../crypto.js');
       getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'bad' }] });
       pullUpdates.mockResolvedValue({ notes: {
         bad: {
-          updates: [{ key: 'bad~~device~~1~~1.yjs.json', data: btoa(JSON.stringify({ nope: true })) }],
+          updates: [{ key: 'bad~~device~~1~~1.yjs.json', data: btoa(JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' })) }],
           nextCheckpoint: { ts: 1, sequence: 1, deviceId: 'device' },
           hasMore: false,
         },
       } });
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       parseSyncFilename.mockReturnValue({ docId: 'bad', isSnapshot: false, device: 'device', ts: 1, sequence: 1 });
+      decryptBatch.mockResolvedValueOnce([{ nope: true }]);
 
       await expect(transport.pull({})).rejects.toMatchObject({ code: 'unlock-required' });
     });
@@ -335,21 +404,25 @@ describe('CloudTransport', () => {
       ['noteId', { noteId: 'other' }],
       ['device', { device: 'other' }],
       ['timestamp', { ts: 2 }],
-      ['sequence', { sequence: 2 }],
+      // No 'sequence' row: pull validation intentionally prefers the payload's
+      // sequence over the filename's (see "Prefer the payload's sequence"),
+      // so a mismatched-but-valid sequence is accepted, not rejected.
     ])('rejects a pulled update with a mismatched %s and does not advance its page', async (_field, change) => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
+      const { decryptBatch } = await import('../../crypto.js');
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
       parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'device-a', ts: 1, sequence: 1 });
       pullUpdates.mockResolvedValue({ notes: {
         'note-a': {
-          updates: [{ key: 'note-a~~device-a~~1~~1.yjs.json', data: btoa(JSON.stringify({
-            noteId: 'note-a', device: 'device-a', ts: 1, sequence: 1, update: [1], ...change,
-          })) }],
+          updates: [{ key: 'note-a~~device-a~~1~~1.yjs.json', data: btoa(JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' })) }],
           nextCheckpoint: { deviceId: 'device-a', ts: 1, sequence: 1 },
           hasMore: true,
         },
       } });
+      decryptBatch.mockResolvedValueOnce([{
+        noteId: 'note-a', device: 'device-a', ts: 1, sequence: 1, update: [1], ...change,
+      }]);
 
       await expect(transport.pull({})).rejects.toMatchObject({ code: 'unlock-required' });
     });
@@ -360,18 +433,20 @@ describe('CloudTransport', () => {
       ['update payload', { update: 'not-binary' }],
     ])('rejects a pulled update with an invalid %s', async (_field, change) => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
+      const { decryptBatch } = await import('../../crypto.js');
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
       parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'device-a', ts: 1, sequence: 1 });
       pullUpdates.mockResolvedValue({ notes: {
         'note-a': {
-          updates: [{ key: 'note-a~~device-a~~1~~1.yjs.json', data: btoa(JSON.stringify({
-            noteId: 'note-a', device: 'device-a', ts: 1, sequence: 1, update: [1], ...change,
-          })) }],
+          updates: [{ key: 'note-a~~device-a~~1~~1.yjs.json', data: btoa(JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' })) }],
           nextCheckpoint: { deviceId: 'device-a', ts: 1, sequence: 1 },
           hasMore: false,
         },
       } });
+      decryptBatch.mockResolvedValueOnce([{
+        noteId: 'note-a', device: 'device-a', ts: 1, sequence: 1, update: [1], ...change,
+      }]);
 
       await expect(transport.pull({})).rejects.toMatchObject({ code: 'unlock-required' });
     });

@@ -656,7 +656,11 @@ export function useOnboardingFlow({
       importPhase.value = 'done';
       state.migrationProgress = 100;
     } catch (e) {
-      state.error = e?.message || String(e);
+      const raw = e?.message || String(e);
+      // Never leak backend gate internals to the UI; tell the user the fix.
+      state.error = raw.includes('[fs-access]')
+        ? 'Beaver Notes was blocked from reading that folder. Click "Browse…" and select it again from the system dialog to grant access.'
+        : raw;
       importPhase.value = 'confirm';
     } finally {
       unlistenProgress?.();

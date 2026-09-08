@@ -413,23 +413,55 @@ export class CloudTransport extends Transport {
         throw malformedRemoteUpdate();
       }
       const aadSuffix = buildAadSuffix(parsed);
-      parseResults.push({ raw, parsed, aadSuffix });
+      // The relay persists some rows as RAW Yjs binary (update_encrypted=0)
+      // but formatUpdate base64-encodes bytes without an encrypted flag, so
+      // plaintext rows are indistinguishable server-side. Only v4/v5 JSON
+      // envelopes can decrypt; anything else would hit Rust serde_json as
+      // binary-as-text → null → zero-survivor unlock-required.
+      let isEnvelope = false;
+      try {
+        const envelope = JSON.parse(raw);
+        isEnvelope = envelope?.v === 4 || envelope?.v === 5;
+      } catch {
+        isEnvelope = false;
+      }
+      parseResults.push({ raw, parsed, aadSuffix, isEnvelope });
+    }
+    const skippedPlaintext = parseResults.filter((r) => !r.isEnvelope).length;
+    if (skippedPlaintext > 0) {
+      logger.debug(`[sync] pull: skipping ${skippedPlaintext} plaintext (unenveloped) update(s)`);
+    }
+    const envelopeIndexes = parseResults.map((r, i) => (r.isEnvelope ? i : -1)).filter((i) => i >= 0);
+
+    // All-plaintext batch: nothing to decrypt, but the checkpoint must still
+    // advance past the skipped rows or pull would re-fetch them forever.
+    if (envelopeIndexes.length === 0 && parseResults.length > 0) {
+      for (const [noteId, checkpoint] of pendingCheckpoints) {
+        saveServerCheckpoint(noteId, checkpoint);
+      }
+      return { updates: [], hasMore };
     }
 
     let decryptedPayloads;
     let sawDecryptFailed = false;
+    // Plaintext rows are excluded from decrypt entirely; envelopeIndexes maps
+    // decrypt-batch positions back to parseResults positions.
+    const envelopeRaws = envelopeIndexes.map((i) => parseResults[i].raw);
+    const envelopeAads = envelopeIndexes.map((i) => parseResults[i].aadSuffix);
     try {
-      decryptedPayloads = await decryptBatch(
-        parseResults.map((r) => r.raw),
-        parseResults.map((r) => r.aadSuffix)
-      );
-      const nullCount = decryptedPayloads.filter((p) => !p).length;
-      logger.info(`[sync] decryptBatch: ${decryptedPayloads.length} items, ${nullCount} null`);
+      const envelopeResults = await decryptBatch(envelopeRaws, envelopeAads);
+      decryptedPayloads = parseResults.map(() => null);
+      envelopeIndexes.forEach((parseIdx, batchIdx) => {
+        decryptedPayloads[parseIdx] = envelopeResults[batchIdx];
+      });
+      const nullCount = envelopeResults.filter((p) => !p).length;
+      logger.info(`[sync] decryptBatch: ${envelopeResults.length} items, ${nullCount} null${skippedPlaintext > 0 ? `, ${skippedPlaintext} plaintext skipped` : ''}`);
 
       // Batch decrypt failures (e.g. collab key not sync key) retried individually.
       // Still-failing skipped: partial sync beats stalling.
-      if (nullCount > 0 && nullCount < decryptedPayloads.length) {
-        for (let i = 0; i < decryptedPayloads.length; i++) {
+      if (nullCount > 0 && nullCount < envelopeResults.length) {
+        for (let b = 0; b < envelopeResults.length; b++) {
+          const i = envelopeIndexes[b];
           if (decryptedPayloads[i]) continue;
           try {
             decryptedPayloads[i] = await decryptJSON(parseResults[i].raw, parseResults[i].aadSuffix);
@@ -442,20 +474,21 @@ export class CloudTransport extends Transport {
     } catch (batchErr) {
       if (batchErr?.code === 'DECRYPT_FAILED') sawDecryptFailed = true;
       logger.warn('[sync] batch decrypt failed, falling back to individual:', batchErr?.message);
-      decryptedPayloads = [];
-      for (const r of parseResults) {
+      decryptedPayloads = parseResults.map(() => null);
+      for (const i of envelopeIndexes) {
         try {
-          decryptedPayloads.push(await decryptJSON(r.raw, r.aadSuffix));
+          decryptedPayloads[i] = await decryptJSON(parseResults[i].raw, parseResults[i].aadSuffix);
         } catch (caughtError) {
           if (caughtError?.code === 'DECRYPT_FAILED') sawDecryptFailed = true;
-          decryptedPayloads.push(null);
+          decryptedPayloads[i] = null;
         }
       }
     }
 
-    // Zero survivors means key locked/unavailable: surface so engine defers; some survivors is partial sync.
-    const survivingCount = decryptedPayloads.filter((p) => p !== null).length;
-    if (survivingCount === 0 && decryptedPayloads.length > 0) {
+    // Zero survivors among ENVELOPE candidates means key locked/unavailable:
+    // surface so engine defers. Skipped plaintext rows never count toward this.
+    const survivingCount = envelopeIndexes.filter((i) => decryptedPayloads[i] !== null).length;
+    if (survivingCount === 0 && envelopeIndexes.length > 0) {
       logger.warn('[sync] all decrypted payloads are null: key may be locked');
       const error = new Error('Remote update cannot be decrypted');
       error.code = sawDecryptFailed ? 'DECRYPT_FAILED' : 'unlock-required';
@@ -463,6 +496,7 @@ export class CloudTransport extends Transport {
     }
 
     for (let i = 0; i < parseResults.length; i++) {
+      if (!parseResults[i].isEnvelope) continue;
       const { parsed } = parseResults[i];
       const payload = decryptedPayloads[i];
       if (!payload) {

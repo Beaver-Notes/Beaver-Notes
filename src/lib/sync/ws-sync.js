@@ -76,21 +76,32 @@ export async function setRoomKey(roomName, hexKey) {
 }
 
 export function getWebSocketUrl() {
-  const configured =
+  // The user's server URL (Settings → Server) is authoritative: a custom
+  // server is useless if realtime still points at a hardcoded host.
+  const server = getServerBase().replace(/\/+$/, '');
+  const stockApi = (
+    import.meta.env.VITE_BEAVER_SYNC_API_URL || 'http://localhost:4000'
+  ).replace(/\/+$/, '');
+  const envWs = (
     import.meta.env.VITE_BEAVER_SYNC_WS_URL ||
-    import.meta.env.VITE_HOCUSPOCUS_URL
-  if (configured) {
-    return configured.replace(/\/+$/, '')
-  }
-  // In production, the WS relay is behind the same domain as the API.
-  // Caddy routes /ws/* to ws-relay. Derive WS URL from API URL.
-  const apiBase = getServerBase()
+    import.meta.env.VITE_HOCUSPOCUS_URL ||
+    ''
+  ).replace(/\/+$/, '');
+  // Stock dev default keeps the explicit override (API :4000, relay :8080).
+  if (envWs && server === stockApi) return envWs;
+  // Otherwise the relay lives on the server's own origin (prod Caddy routes
+  // WS on the same host). Dev/test stacks split ports: API :3000/:4000 pairs
+  // with the relay on :8080.
   try {
-    const u = new URL(apiBase)
-    const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${wsProto}//${u.host}`
+    const u = new URL(server);
+    const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host =
+      u.port === '3000' || u.port === '4000'
+        ? `${u.hostname}:8080`
+        : u.host;
+    return `${wsProto}//${host}`;
   } catch {
-    return 'ws://localhost:8080'
+    return envWs || 'ws://localhost:8080';
   }
 }
 
