@@ -333,32 +333,30 @@
       v-if="isMobileRuntime && iconsSupported"
       :title="translations.appearance.appIcon || 'App icon'"
     >
-      <div class="px-4 py-4 grid grid-cols-4 gap-3">
+      <div class="flex flex-col">
         <button
           v-for="icon in alternateIcons"
           :key="icon.key"
-          class="flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition focus:outline-none focus:ring-1 focus:ring-primary"
-          :class="
-            currentIconName === icon.name ||
-            (!currentIconName && icon.isDefault)
-              ? 'border-primary'
-              : 'border-transparent'
-          "
+          class="flex flex-row items-center gap-1 p-2 border-b last:border-b-0 transition"
           @click="
             icon.isDefault ? handleResetIcon() : handleChangeIcon(icon.name)
           "
         >
-          <div
-            class="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-sm"
-            :style="{ backgroundColor: icon.color }"
-          >
-            {{ icon.label }}
-          </div>
+          <img
+            :src="icon.img"
+            :alt="icon.label"
+            class="w-14 h-14 rounded-2xl shadow-sm"
+          />
           <span
             class="text-xs text-neutral-500 dark:text-neutral-400 truncate w-full text-center"
           >
             {{ icon.label }}
           </span>
+          <v-remixicon
+             v-if="currentIconName === icon.name || (!currentIconName && icon.isDefault)"
+             name="riCheckCircle"
+             class="text-primary"
+           />
         </button>
       </div>
     </settings-group>
@@ -395,6 +393,23 @@ import {
 } from '@/lib/native/app-icon';
 import SettingsGroup from '@/components/settings/SettingsGroup.vue';
 import SettingsRow from '@/components/settings/SettingsRow.vue';
+import iosDefaultImg from '@/assets/images/app-icons/ios-default.png';
+import ios1Img from '@/assets/images/app-icons/ios-1.png';
+import ios2Img from '@/assets/images/app-icons/ios-2.png';
+import ios3Img from '@/assets/images/app-icons/ios-3.png';
+import ios4Img from '@/assets/images/app-icons/ios-4.png';
+import ios5Img from '@/assets/images/app-icons/ios-5.png';
+import ios6Img from '@/assets/images/app-icons/ios-6.png';
+import ios7Img from '@/assets/images/app-icons/ios-7.png';
+import ios8Img from '@/assets/images/app-icons/ios-8.png';
+import androidDefaultImg from '@/assets/images/app-icons/android-default.webp';
+import androidDevImg from '@/assets/images/app-icons/android-dev.webp';
+import androidDarkImg from '@/assets/images/app-icons/android-dark.webp';
+import androidFullImg from '@/assets/images/app-icons/android-full.webp';
+import androidSpaceImg from '@/assets/images/app-icons/android-space.webp';
+import androidDarkOutlineImg from '@/assets/images/app-icons/android-darkoutline.webp';
+import androidFeltImg from '@/assets/images/app-icons/android-felt.webp';
+import androidRainbowImg from '@/assets/images/app-icons/android-rainbow.webp';
 
 export default {
   components: { SettingsGroup, SettingsRow },
@@ -572,29 +587,34 @@ export default {
     const currentIconName = ref(null);
 
     const androidIcons = [
-      { key: 'dev', name: 'dev', label: 'Dev', color: '#6b7280' },
-      { key: 'dark', name: 'dark', label: 'Dark', color: '#1f2937' },
-      { key: 'full', name: 'full', label: 'Full', color: '#7c3aed' },
-      { key: 'space', name: 'space', label: 'Space', color: '#0ea5e9' },
+      { key: 'dev', name: 'dev', label: 'Dev', img: androidDevImg },
+      { key: 'dark', name: 'dark', label: 'Dark', img: androidDarkImg },
+      { key: 'full', name: 'full', label: 'Full', img: androidFullImg },
+      { key: 'space', name: 'space', label: 'Space', img: androidSpaceImg },
       {
         key: 'darkoutline',
         name: 'darkoutline',
         label: 'Dark Outline',
-        color: '#4b5563',
+        img: androidDarkOutlineImg,
       },
-      { key: 'felt', name: 'felt', label: 'Felt', color: '#059669' },
-      { key: 'rainbow', name: 'rainbow', label: 'Rainbow', color: '#f59e0b' },
+      { key: 'felt', name: 'felt', label: 'Felt', img: androidFeltImg },
+      {
+        key: 'rainbow',
+        name: 'rainbow',
+        label: 'Rainbow',
+        img: androidRainbowImg,
+      },
     ];
 
     const iosIcons = [
-      { key: 'icon1', name: 'AppIcon 1', label: 'Icon 1', color: '#ef4444' },
-      { key: 'icon2', name: 'AppIcon 2', label: 'Icon 2', color: '#f97316' },
-      { key: 'icon3', name: 'AppIcon 3', label: 'Icon 3', color: '#eab308' },
-      { key: 'icon4', name: 'AppIcon 4', label: 'Icon 4', color: '#22c55e' },
-      { key: 'icon5', name: 'AppIcon 5', label: 'Icon 5', color: '#3b82f6' },
-      { key: 'icon6', name: 'AppIcon 6', label: 'Icon 6', color: '#8b5cf6' },
-      { key: 'icon7', name: 'AppIcon 7', label: 'Icon 7', color: '#ec4899' },
-      { key: 'icon8', name: 'AppIcon 8', label: 'Icon 8', color: '#14b8a6' },
+      { key: 'icon1', name: 'AppIcon 1', label: 'Icon 1', img: ios1Img },
+      { key: 'icon2', name: 'AppIcon 2', label: 'Icon 2', img: ios2Img },
+      { key: 'icon3', name: 'AppIcon 3', label: 'Icon 3', img: ios3Img },
+      { key: 'icon4', name: 'AppIcon 4', label: 'Icon 4', img: ios4Img },
+      { key: 'icon5', name: 'AppIcon 5', label: 'Icon 5', img: ios5Img },
+      { key: 'icon6', name: 'AppIcon 6', label: 'Icon 6', img: ios6Img },
+      { key: 'icon7', name: 'AppIcon 7', label: 'Icon 7', img: ios7Img },
+      { key: 'icon8', name: 'AppIcon 8', label: 'Icon 8', img: ios8Img },
     ];
 
     const alternateIcons = computed(() => {
@@ -604,7 +624,7 @@ export default {
           key: 'default',
           name: null,
           label: 'Default',
-          color: '#6b7280',
+          img: isIOSRuntime ? iosDefaultImg : androidDefaultImg,
           isDefault: true,
         },
         ...icons,
