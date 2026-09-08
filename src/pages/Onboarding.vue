@@ -1,6 +1,6 @@
 <template>
   <div
-    class="ob-shell relative overflow-x-hidden overflow-y-auto flex items-center justify-center antialiased select-none"
+    class="ob-shell no-scrollbar relative overflow-x-hidden overflow-y-auto flex items-center justify-center antialiased select-none"
     :class="isDark ? 'ob-dark' : 'ob-light'"
     :style="{ fontFamily: 'var(--selected-font, sans-serif)' }"
   >
@@ -115,7 +115,7 @@
             </div>
           </div>
 
-          <div class="flex-1 min-h-0 overflow-y-auto px-1">
+          <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-1">
             <Transition
               :name="
                 navDirection === 'forward' ? 'ob-slide-fwd' : 'ob-slide-back'
@@ -151,93 +151,120 @@
                     <div
                       class="grid grid-cols-3 gap-3 w-full text-neutral-600 dark:text-neutral-300"
                     >
-                      <button
+                      <label
                         v-for="item in themes"
                         :key="item.name"
-                        type="button"
-                        class="bg-neutral-100 dark:bg-neutral-800 p-2 transition-all w-full rounded-xl"
-                        :class="
-                          fresh.theme === item.name ? 'ring-1 ring-primary' : ''
-                        "
-                        @click="selectTheme(item.name)"
+                        class="cursor-pointer min-w-0 select-none"
                       >
-                        <img
-                          :src="item.img"
-                          :alt="item.label"
-                          class="w-full border-2 mb-1 rounded-xl"
+                        <input
+                          type="radio"
+                          name="ob-theme"
+                          :value="item.name"
+                          class="peer sr-only"
+                          :checked="fresh.theme === item.name"
+                          @change="selectTheme(item.name)"
                         />
-                        <p
-                          class="text-sm font-semibold text-neutral-600 dark:text-neutral-300"
+                        <div
+                          class="relative w-full h-[84px] rounded-2xl border-2 overflow-hidden transition-colors"
+                          :class="
+                            fresh.theme === item.name
+                              ? 'ring-2 ring-primary'
+                              : 'border-neutral-200 dark:border-neutral-700'
+                          "
                         >
-                          {{ themeLabels[item.name] || item.label }}
-                        </p>
-                      </button>
+                          <template v-if="item.name === 'light'">
+                            <div
+                              class="absolute inset-0 bg-[#f4f4f6]"
+                            ></div>
+                            <div
+                              class="absolute bottom-0 left-[14px] right-0 h-[56px] bg-white rounded-tl-2xl pt-2 pl-3 flex items-start"
+                            >
+                              <span
+                                class="text-xl font-extrabold text-black tracking-tight"
+                                >Aa</span
+                              >
+                            </div>
+                          </template>
+                          <template v-else-if="item.name === 'dark'">
+                            <div
+                              class="absolute inset-0 bg-[#3c3c3c]"
+                            ></div>
+                            <div
+                              class="absolute bottom-0 left-[14px] right-0 h-[56px] bg-[#121212] rounded-tl-2xl pt-2 pl-3 flex items-start"
+                            >
+                              <span
+                                class="text-xl font-extrabold text-white tracking-tight"
+                                >Aa</span
+                              >
+                            </div>
+                          </template>
+                          <template v-else>
+                            <div
+                              class="absolute inset-0 flex"
+                            >
+                              <div class="w-1/2 h-full bg-[#3c3c3c]"></div>
+                              <div class="w-1/2 h-full bg-[#f4f4f6]"></div>
+                            </div>
+                            <div
+                              class="absolute bottom-0 left-[14px] right-1/2 h-[56px] bg-[#121212] rounded-tl-2xl pt-2 pl-3"
+                            >
+                              <span
+                                class="text-xl font-extrabold text-white tracking-tight"
+                                >Aa</span
+                              >
+                            </div>
+                            <div
+                              class="absolute bottom-0 left-[52%] right-0 h-[56px] bg-white rounded-tl-2xl pt-2 pl-3 flex items-start"
+                            >
+                              <span
+                                class="text-xl font-extrabold text-black tracking-tight"
+                                >Aa</span
+                              >
+                            </div>
+                          </template>
+                        </div>
+                        <span
+                          class="mt-1.5 block text-xs font-medium text-center"
+                          :class="
+                            fresh.theme === item.name
+                              ? 'text-primary'
+                              : 'text-neutral-600 dark:text-neutral-400'
+                          "
+                          >{{ themeLabels[item.name] || item.label }}</span
+                        >
+                      </label>
                     </div>
                   </div>
 
-                  <div class="flex flex-row items-center justify-center gap-4">
+                  <div class="flex flex-row items-center justify-between gap-3">
                     <p
-                      class="text-sm font-medium text-neutral-800 dark:text-neutral-200 w-full justify-center"
+                      class="text-sm font-medium text-neutral-800 dark:text-neutral-200 shrink-0"
                     >
                       Accent color
                     </p>
-                    <div class="w-full justify-center flex gap-2 right-0">
+                    <div class="flex flex-wrap justify-end gap-2.5">
                       <button
-                        class="bg-red-500 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
-                        :class="{
-                          'ring-2 ring-primary border':
-                            fresh.accentColor === 'red',
-                        }"
-                        @click="selectAccentColor('red')"
-                      ></button>
-                      <button
-                        class="bg-amber-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
-                        :class="{
-                          'ring-2 ring-primary border':
-                            fresh.accentColor === 'light',
-                        }"
-                        @click="selectAccentColor('light')"
-                      ></button>
-                      <button
-                        class="bg-emerald-500 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
-                        :class="{
-                          'ring-2 ring-primary border':
-                            fresh.accentColor === 'green',
-                        }"
-                        @click="selectAccentColor('green')"
-                      ></button>
-                      <button
-                        class="bg-blue-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
-                        :class="{
-                          'ring-2 ring-primary border':
-                            fresh.accentColor === 'blue',
-                        }"
-                        @click="selectAccentColor('blue')"
-                      ></button>
-                      <button
-                        class="bg-purple-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
-                        :class="{
-                          'ring-2 ring-primary border':
-                            fresh.accentColor === 'purple',
-                        }"
-                        @click="selectAccentColor('purple')"
-                      ></button>
-                      <button
-                        class="bg-pink-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
-                        :class="{
-                          'ring-2 ring-primary border':
-                            fresh.accentColor === 'pink',
-                        }"
-                        @click="selectAccentColor('pink')"
-                      ></button>
-                      <button
-                        class="bg-neutral-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
-                        :class="{
-                          'ring-2 ring-primary border':
-                            fresh.accentColor === 'neutral',
-                        }"
-                        @click="selectAccentColor('neutral')"
-                      ></button>
+                        v-for="c in accentDots"
+                        :key="c.value"
+                        type="button"
+                        class="w-8 h-8 rounded-full transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-neutral-900"
+                        :class="c.class"
+                        :aria-label="c.label"
+                        :aria-pressed="fresh.accentColor === c.value"
+                        :title="c.label"
+                        @click="selectAccentColor(c.value)"
+                      >
+                        <span
+                          v-if="fresh.accentColor === c.value"
+                          class="flex items-center justify-center w-full h-full"
+                        >
+                          <v-remixicon
+                            name="riCheckLine"
+                            size="16"
+                            class="text-white drop-shadow"
+                          />
+                        </span>
+                      </button>
                     </div>
                   </div>
 
@@ -846,73 +873,42 @@
                       </p>
                     </div>
 
-                    <ul
-                      class="space-y-2 text-sm text-neutral-700 dark:text-neutral-300"
-                    >
-                      <li class="flex items-start gap-3">
-                        <v-remixicon
-                          name="riShieldCheckLine"
-                          class="mt-0.5 text-primary"
-                          size="18"
-                        />
-                        <span>{{
-                          translations.account?.onboardingBulletPrivacy ||
-                          'Zero-knowledge encryption: the server only sees encrypted blobs.'
-                        }}</span>
-                      </li>
-                      <li class="flex items-start gap-3">
-                        <v-remixicon
-                          name="riFingerprintLine"
-                          class="mt-0.5 text-primary"
-                          size="18"
-                        />
-                        <span>{{
-                          translations.account?.onboardingBulletAuth ||
-                          'Sign in with a passkey or a password. QuickConnect works across devices.'
-                        }}</span>
-                      </li>
-                      <li class="flex items-start gap-3">
-                        <v-remixicon
-                          name="riStarLine"
-                          class="mt-0.5 text-primary"
-                          size="18"
-                        />
-                        <span>{{
-                          translations.account?.onboardingBulletFree ||
-                          'A free account keeps your notes on this device only. Cloud sync is part of Basic and up.'
-                        }}</span>
-                      </li>
-                    </ul>
-
-                    <div
-                      class="flex flex-col gap-3 rounded-2xl border border-neutral-200/70 bg-neutral-50 p-4 dark:border-neutral-700/60 dark:bg-neutral-800/50"
-                    >
+                    <div class="flex flex-col gap-5 px-1">
+                      <template v-if="accountView === 'signin'">
                       <ui-input
-                        v-model="passkeyEmail"
+                        v-model="signInEmail"
                         type="email"
                         autocomplete="email"
                         inputmode="email"
                         class="w-full"
                         :placeholder="
-                          translations.account?.emailPlaceholder ||
-                          'Email (optional)'
+                          translations.account?.emailPlaceholder || 'Email'
                         "
                         :aria-label="
-                          translations.account?.emailPlaceholder ||
-                          'Email (optional)'
+                          translations.account?.emailPlaceholder || 'Email'
                         "
+                      />
+                      <ui-input
+                        v-model="signInPassword"
+                        :password="true"
+                        autocomplete="current-password"
+                        class="w-full"
+                        :placeholder="
+                          translations.account?.passwordPlaceholder ||
+                          'Password'
+                        "
+                        @keyup.enter="handleSignInWithPassword"
                       />
                       <ui-button
                         class="w-full"
                         variant="primary"
                         :loading="accountStore.busy"
                         :disabled="accountStore.busy"
-                        @click="handleSignUpWithPasskey"
+                        @click="handleSignInWithPassword"
                       >
-                        <v-remixicon name="riFingerprintLine" class="mr-1" />
                         {{
-                          translations.account?.createAccount ||
-                          'Create account'
+                          translations.account?.signInWithPassword ||
+                          'Sign in'
                         }}
                       </ui-button>
                       <ui-button
@@ -922,10 +918,24 @@
                         :disabled="accountStore.busy"
                         @click="handleSignInWithPasskey"
                       >
+                        <v-remixicon name="riFingerprintLine" class="mr-1" />
                         {{
-                          translations.account?.signIn || 'Sign in'
-                        }}</ui-button
-                      >
+                          translations.account?.continueWithPasskey ||
+                          'Continue with passkey'
+                        }}
+                      </ui-button>
+                      <p class="text-center text-sm text-neutral-500 dark:text-neutral-400">
+                        <button
+                          class="text-primary hover:underline font-semibold cursor-pointer"
+                          type="button"
+                          @click="accountView = 'recovery'"
+                        >
+                          {{
+                            translations.account?.cantSignIn ||
+                            "Can't sign in?"
+                          }}
+                        </button>
+                      </p>
                       <p
                         v-if="accountStore.error"
                         class="text-sm text-red-500 text-center"
@@ -953,7 +963,7 @@
                           />
                           {{
                             translations.account?.moreSignInOptions ||
-                            'More sign-in options'
+                            'Advanced options'
                           }}
                         </button>
                         <div
@@ -981,219 +991,222 @@
                             </p>
                           </div>
 
-                          <div
-                            class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
-                          >
-                            <button
-                              class="inline-flex items-center gap-1 text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-                              @click="showPasswordAuth = !showPasswordAuth"
-                            >
-                              <v-remixicon
-                                v-if="showPasswordAuth"
-                                name="riArrowUpSLine"
-                                size="14"
-                              />
-                              <v-remixicon
-                                v-else
-                                name="riArrowDownSLine"
-                                size="14"
-                              />
-                              {{
-                                translations.account?.withPassword ||
-                                'Or sign in with password'
-                              }}
-                            </button>
-                            <div
-                              v-if="showPasswordAuth"
-                              class="mt-2 flex flex-col gap-2"
-                            >
-                              <ui-input
-                                v-model="signInEmail"
-                                type="email"
-                                class="w-full"
-                                :placeholder="
-                                  translations.account?.emailPlaceholder ||
-                                  'Email'
-                                "
-                              />
-                              <ui-input
-                                v-model="signInPassword"
-                                :password="true"
-                                class="w-full"
-                                :placeholder="
-                                  translations.account?.passwordPlaceholder ||
-                                  'Password'
-                                "
-                                @keyup.enter="handleSignInWithPassword"
-                              />
-                              <div class="flex items-center justify-between">
-                                <button
-                                  class="text-xs text-primary hover:underline"
-                                  type="button"
-                                  @click="showForgot = !showForgot"
-                                >
-                                  {{
-                                    trAccount.forgotPassword ||
-                                    'Forgot password?'
-                                  }}
-                                </button>
-                                <span
-                                  v-if="forgotMessage"
-                                  class="text-xs"
-                                  :class="
-                                    forgotSent
-                                      ? 'text-green-600'
-                                      : 'text-amber-600'
-                                  "
-                                  >{{ forgotMessage }}</span
-                                >
-                              </div>
-                              <div
-                                v-if="showForgot"
-                                class="flex flex-col gap-2 border rounded-xl p-3 bg-neutral-50 dark:bg-neutral-800"
-                              >
-                                <ui-input
-                                  v-model="forgotEmail"
-                                  type="email"
-                                  :placeholder="
-                                    trAccount.forgotEmailPlaceholder ||
-                                    'Email for reset link'
-                                  "
-                                  class="w-full"
-                                />
-                                <ui-button
-                                  variant="secondary"
-                                  :loading="forgotBusy"
-                                  @click="handleForgot"
-                                  >{{
-                                    trAccount.sendResetLink || 'Send reset link'
-                                  }}</ui-button
-                                >
-                                <p
-                                  class="text-xs text-neutral-500 dark:text-neutral-400"
-                                >
-                                  {{
-                                    trAccount.inboxHint ||
-                                    'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
-                                  }}
-                                </p>
-                              </div>
-                              <ui-input
-                                v-model="signUpUsername"
-                                class="w-full"
-                                :placeholder="
-                                  trAccount.displayNamePlaceholder ||
-                                  'Display name (optional)'
-                                "
-                                maxlength="50"
-                              />
-                              <div class="flex gap-2">
-                                <ui-button
-                                  class="flex-1"
-                                  :loading="accountStore.busy"
-                                  :disabled="accountStore.busy"
-                                  @click="handleSignInWithPassword"
-                                >
-                                  {{
-                                    translations.account?.signInWithPassword ||
-                                    'Sign in'
-                                  }}
-                                </ui-button>
-                                <ui-button
-                                  class="flex-1"
-                                  variant="primary"
-                                  :loading="accountStore.busy"
-                                  :disabled="accountStore.busy"
-                                  @click="handleSignUpWithPassword"
-                                >
-                                  {{
-                                    translations.account?.createAccount ||
-                                    'Create account'
-                                  }}
-                                </ui-button>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div
-                            class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
-                          >
-                            <button
-                              class="inline-flex items-center gap-1 text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-                              @click="showRecovery = !showRecovery"
-                            >
-                              <v-remixicon
-                                v-if="showRecovery"
-                                name="riArrowUpSLine"
-                                size="14"
-                              />
-                              <v-remixicon
-                                v-else
-                                name="riArrowDownSLine"
-                                size="14"
-                              />
-                              {{
-                                trAuth.recoverPrompt ||
-                                tr.recoverAccount ||
-                                'Lost access? Recover with code'
-                              }}
-                            </button>
-                            <div
-                              v-if="showRecovery"
-                              class="mt-2 flex flex-col gap-2"
-                            >
-                              <ui-input
-                                v-model="recoverEmail"
-                                type="email"
-                                class="w-full"
-                                :placeholder="
-                                  trAccount.emailPlaceholder || 'Email'
-                                "
-                              />
-                              <ui-input
-                                v-model="recoverCode"
-                                type="password"
-                                autocomplete="off"
-                                class="w-full font-mono text-xs"
-                                :placeholder="
-                                  trAuth.recoveryCodePlaceholder ||
-                                  '64-char recovery code'
-                                "
-                              />
-                              <p
-                                class="text-xs text-amber-600 dark:text-amber-400"
-                              >
-                                {{
-                                  trAccount.recoveryHint ||
-                                  'Restores ACCOUNT access only. E2E data needs vault passphrase.'
-                                }}
-                              </p>
-                              <ui-button
-                                class="w-full"
-                                variant="secondary"
-                                :loading="recoverBusy"
-                                @click="handleRecover"
-                                >{{
-                                  tr.recoverAccount ||
-                                  trAuth.recoverAccount ||
-                                  'Recover account'
-                                }}</ui-button
-                              >
-                              <p
-                                v-if="recoverMessage"
-                                class="text-xs"
-                                :class="
-                                  recoverSuccess
-                                    ? 'text-green-600'
-                                    : 'text-red-500'
-                                "
-                              >
-                                {{ recoverMessage }}
-                              </p>
-                            </div>
-                          </div>
                         </div>
                       </div>
+                      <p class="text-center text-sm text-neutral-500 dark:text-neutral-400">
+                        {{
+                          translations.account?.noAccountYet ||
+                          'No account yet?'
+                        }}
+                        <button
+                          class="text-primary hover:underline font-semibold cursor-pointer"
+                          type="button"
+                          @click="accountView = 'signup'"
+                        >
+                          {{
+                            translations.account?.createOne ||
+                            'Create one'
+                          }}
+                        </button>
+                      </p>
+                    </template>
+                    <template v-else-if="accountView === 'signup'">
+                      <button
+                        class="self-start inline-flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                        type="button"
+                        @click="accountView = 'signin'"
+                      >
+                        <v-remixicon name="riArrowLeftSLine" size="14" />
+                        {{
+                          translations.account?.backToSignIn ||
+                          'Back to sign in'
+                        }}
+                      </button>
+                      <p
+                        class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 text-center"
+                      >
+                        {{
+                          translations.account?.createAccountTitle ||
+                          'Create your account'
+                        }}
+                      </p>
+                      <ui-input
+                        v-model="signUpUsername"
+                        class="w-full"
+                        :placeholder="
+                          trAccount.displayNamePlaceholder ||
+                          'Display name (optional)'
+                        "
+                        maxlength="50"
+                      />
+                      <ui-input
+                        v-model="signInEmail"
+                        type="email"
+                        autocomplete="email"
+                        inputmode="email"
+                        class="w-full"
+                        :placeholder="
+                          translations.account?.emailPlaceholder || 'Email'
+                        "
+                      />
+                      <ui-input
+                        v-model="signInPassword"
+                        :password="true"
+                        autocomplete="new-password"
+                        class="w-full"
+                        :placeholder="
+                          translations.account?.passwordPlaceholder ||
+                          'Password'
+                        "
+                        @keyup.enter="handleSignUpWithPassword"
+                      />
+                      <ui-button
+                        class="w-full"
+                        variant="primary"
+                        :loading="accountStore.busy"
+                        :disabled="accountStore.busy"
+                        @click="handleSignUpWithPassword"
+                      >
+                        {{
+                          translations.account?.createAccount ||
+                          'Create account'
+                        }}
+                      </ui-button>
+                      <ui-button
+                        class="w-full"
+                        variant="secondary"
+                        :loading="accountStore.busy"
+                        :disabled="accountStore.busy"
+                        @click="handleSignUpWithPasskey"
+                      >
+                        <v-remixicon name="riFingerprintLine" class="mr-1" />
+                        {{
+                          translations.account?.createWithPasskey ||
+                          'Create with passkey'
+                        }}
+                      </ui-button>
+                      <p
+                        v-if="accountStore.error"
+                        class="text-sm text-red-500 text-center"
+                        role="alert"
+                      >
+                        {{ accountStore.error }}
+                      </p>
+                    </template>
+                    <template v-else>
+                      <button
+                        class="self-start inline-flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                        type="button"
+                        @click="accountView = 'signin'"
+                      >
+                        <v-remixicon name="riArrowLeftSLine" size="14" />
+                        {{
+                          translations.account?.backToSignIn ||
+                          'Back to sign in'
+                        }}
+                      </button>
+                      <p
+                        class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 text-center"
+                      >
+                        {{
+                          translations.account?.cantSignIn ||
+                          "Can't sign in?"
+                        }}
+                      </p>
+                      <ui-input
+                        v-model="forgotEmail"
+                        type="email"
+                        :placeholder="
+                          trAccount.forgotEmailPlaceholder ||
+                          'Email for reset link'
+                        "
+                        class="w-full"
+                      />
+                      <ui-button
+                        variant="secondary"
+                        :loading="forgotBusy"
+                        @click="handleForgot"
+                        >{{
+                          trAccount.sendResetLink || 'Send reset link'
+                        }}</ui-button
+                      >
+                      <p
+                        v-if="forgotMessage"
+                        class="text-xs text-center"
+                        :class="
+                          forgotSent ? 'text-green-600' : 'text-amber-600'
+                        "
+                        >{{ forgotMessage }}</p
+                      >
+                      <p
+                        class="text-xs text-neutral-500 dark:text-neutral-400 text-center"
+                      >
+                        {{
+                          trAccount.inboxHint ||
+                          'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
+                        }}
+                      </p>
+                      <div
+                        class="border-t border-neutral-200 dark:border-neutral-700 pt-3 flex flex-col gap-2"
+                      >
+                        <p
+                          class="text-xs font-semibold tracking-wide text-neutral-500 dark:text-neutral-400 text-center"
+                        >
+                          {{
+                            trAuth.recoverPrompt ||
+                            tr.recoverAccount ||
+                            'Have a recovery code?'
+                          }}
+                        </p>
+                        <ui-input
+                          v-model="recoverEmail"
+                          type="email"
+                          class="w-full"
+                          :placeholder="
+                            trAccount.emailPlaceholder || 'Email'
+                          "
+                        />
+                        <ui-input
+                          v-model="recoverCode"
+                          type="password"
+                          autocomplete="off"
+                          class="w-full font-mono text-xs"
+                          :placeholder="
+                            trAuth.recoveryCodePlaceholder ||
+                            '64-char recovery code'
+                          "
+                        />
+                        <p
+                          class="text-xs text-amber-600 dark:text-amber-400 text-center"
+                        >
+                          {{
+                            trAccount.recoveryHint ||
+                            'Restores ACCOUNT access only. E2E data needs vault passphrase.'
+                          }}
+                        </p>
+                        <ui-button
+                          class="w-full"
+                          variant="secondary"
+                          :loading="recoverBusy"
+                          @click="handleRecover"
+                          >{{
+                            tr.recoverAccount ||
+                            trAuth.recoverAccount ||
+                            'Recover account'
+                          }}</ui-button
+                        >
+                        <p
+                          v-if="recoverMessage"
+                          class="text-xs text-center"
+                          :class="
+                            recoverSuccess
+                              ? 'text-green-600'
+                              : 'text-red-500'
+                          "
+                          >{{ recoverMessage }}</p
+                        >
+                      </div>
+                    </template>
                     </div>
                   </template>
                 </template>
@@ -1676,10 +1689,12 @@ export default {
 
     const handleSignInWithPasskey = async () => {
       await ensureServerUrl();
+      account.passkeyEmail.value = account.signInEmail.value;
       await account.handleSignInWithPasskey();
     };
     const handleSignUpWithPasskey = async () => {
       await ensureServerUrl();
+      account.passkeyEmail.value = account.signInEmail.value;
       await account.handleSignUpWithPasskey();
     };
     const handleSignInWithPassword = async () => {
@@ -1691,8 +1706,18 @@ export default {
       await account.handleSignUpWithPassword();
     };
 
-    const showForgot = ref(false);
     const showMoreOptions = ref(false);
+    const accountView = ref('signin');
+    // Same values/classes as the old dots; 'light' is the legacy amber alias.
+    const accentDots = [
+      { value: 'red', label: 'Red', class: 'bg-red-500' },
+      { value: 'light', label: 'Amber', class: 'bg-amber-400' },
+      { value: 'green', label: 'Green', class: 'bg-emerald-500' },
+      { value: 'blue', label: 'Blue', class: 'bg-blue-400' },
+      { value: 'purple', label: 'Purple', class: 'bg-purple-400' },
+      { value: 'pink', label: 'Pink', class: 'bg-pink-400' },
+      { value: 'neutral', label: 'Neutral', class: 'bg-neutral-400' },
+    ];
     const forgotEmail = ref('');
     const forgotBusy = ref(false);
     const forgotMessage = ref('');
@@ -1700,7 +1725,7 @@ export default {
     async function handleForgot() {
       forgotMessage.value = '';
       forgotSent.value = false;
-      const email = forgotEmail.value.trim() || signInEmail.value.trim();
+      const email = forgotEmail.value.trim() || account.signInEmail.value.trim();
       if (!email) {
         forgotMessage.value = 'Enter your email.';
         return;
@@ -1722,7 +1747,6 @@ export default {
         forgotBusy.value = false;
       }
     }
-    const showRecovery = ref(false);
     const recoverEmail = ref('');
     const recoverCode = ref('');
     const recoverBusy = ref(false);
@@ -2070,14 +2094,14 @@ export default {
       handleSignUpWithPasskey,
       handleSignInWithPassword,
       handleSignUpWithPassword,
-      showForgot,
       showMoreOptions,
+      accountView,
+      accentDots,
       forgotEmail,
       forgotBusy,
       forgotMessage,
       forgotSent,
       handleForgot,
-      showRecovery,
       recoverEmail,
       recoverCode,
       recoverBusy,

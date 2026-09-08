@@ -55,7 +55,7 @@ import { loadSessionToken } from '@/lib/account-storage';
 import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
 
 // Steps inside the persistent wizard frame; 'welcome'/'finish' are full-screen hero steps.
-const WIZARD_STEPS = ['account', 'plans', 'sync', 'password', 'import', 'customize'];
+const WIZARD_STEPS = ['account', 'plans', 'password', 'import', 'sync', 'customize'];
 
 export function useOnboardingFlow({
   router,
@@ -289,10 +289,21 @@ export function useOnboardingFlow({
     ),
   );
 
-  // Sync step hidden for beta: Sync not ready yet.
+  // Plans step only earns its place for signed-in free users (the upgrade
+  // path): guests have nothing to upgrade, paid logins already have a plan.
+  const showPlansStep = computed(
+    () => accountStore.isAuthenticated && !accountStore.isPaidPlan,
+  );
+
+  // Sync step is for local-only users; account holders sync via cloud.
   const activeFlow = computed(() => {
-    const flow = ['welcome', 'account', 'plans', 'password', 'import', 'customize', 'finish'];
-    return isMobileRuntime ? flow : flow.filter((s) => s !== 'plans');
+    const flow = ['welcome', 'account', 'plans', 'password', 'import', 'sync', 'customize', 'finish'];
+    const base = isMobileRuntime ? flow : flow.filter((s) => s !== 'plans');
+    return base.filter(
+      (s) =>
+        (s !== 'plans' || showPlansStep.value) &&
+        (s !== 'sync' || !accountStore.isAuthenticated),
+    );
   });
 
   const isCardStep = computed(() => WIZARD_STEPS.includes(step.value) && (isMobileRuntime || step.value !== 'plans'));

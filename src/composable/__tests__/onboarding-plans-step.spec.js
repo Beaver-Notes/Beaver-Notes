@@ -4,7 +4,7 @@ import { ref } from 'vue';
 import { mount, flushPromises } from '@vue/test-utils';
 
 const mobileFlag = vi.hoisted(() => ({ value: false }));
-const iapCtl = vi.hoisted(() => ({ buyImpl: null, restoreImpl: null, paid: true }));
+const iapCtl = vi.hoisted(() => ({ buyImpl: null, restoreImpl: null, paid: true, authed: true }));
 
 vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: ref({}) }),
@@ -43,7 +43,9 @@ vi.mock('@/lib/settings', () => ({
 
 vi.mock('@/store/account', () => ({
   useAccountStore: () => ({
-    isAuthenticated: true,
+    get isAuthenticated() {
+      return iapCtl.authed;
+    },
     get isPaidPlan() {
       return iapCtl.paid;
     },
@@ -296,22 +298,52 @@ describe('onboarding plans gating (mocked runtime)', () => {
       runImportSource: vi.fn(async () => {}),
     });
 
-  it('excludes plans from flow on desktop', () => {
+  it('includes sync step for guests, hides it when authenticated', () => {
     mobileFlag.value = false;
-    const flow = makeFlow();
-    expect(flow.trackedSteps.value).not.toContain('plans');
-    expect(flow.trackedSteps.value).toEqual(['account', 'password', 'import', 'customize']);
+    iapCtl.authed = false;
+    iapCtl.paid = false;
+    expect(makeFlow().trackedSteps.value).toEqual([
+      'account',
+      'password',
+      'import',
+      'sync',
+      'customize',
+    ]);
+    iapCtl.authed = true;
+    expect(makeFlow().trackedSteps.value).toEqual([
+      'account',
+      'password',
+      'import',
+      'customize',
+    ]);
   });
-  it('includes plans in flow on mobile', () => {
+  it('includes plans in flow on mobile for signed-in free users', () => {
     mobileFlag.value = true;
+    iapCtl.authed = true;
+    iapCtl.paid = false;
     const flow = makeFlow();
     expect(flow.trackedSteps.value).toContain('plans');
+  });
+  it('excludes plans on mobile when a paid plan is present', () => {
+    mobileFlag.value = true;
+    iapCtl.authed = true;
+    iapCtl.paid = true;
+    const flow = makeFlow();
+    expect(flow.trackedSteps.value).not.toContain('plans');
+  });
+  it('excludes plans on mobile without signup/login', () => {
+    mobileFlag.value = true;
+    iapCtl.authed = false;
+    iapCtl.paid = false;
+    const flow = makeFlow();
+    expect(flow.trackedSteps.value).not.toContain('plans');
   });
 });
 
 describe('onboarding plans handlers (mounted)', () => {
   beforeEach(() => {
     mobileFlag.value = true;
+    iapCtl.authed = true;
     iapCtl.paid = true;
     iapCtl.buyImpl = async () => 'pro';
     iapCtl.restoreImpl = async () => {};
