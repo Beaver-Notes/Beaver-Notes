@@ -80,7 +80,7 @@ if (reachableHost) {
     `[tauri-dev-server] Reusing existing dev server on ${reachableHost}:${DEV_PORT}.`
   );
 
-  // Keep alive for Tauri dev session.
+  setInterval(() => {}, 3600000);
   await new Promise(() => {});
 }
 

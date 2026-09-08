@@ -135,7 +135,7 @@ pub(crate) fn open_file_external(
         }
     }
 
-    let temp_dir = state.files.external_open_dir.clone();
+    let temp_dir = state.files.external_open_dir();
     fs::create_dir_all(&temp_dir)?;
     let ext = full_path
         .extension()

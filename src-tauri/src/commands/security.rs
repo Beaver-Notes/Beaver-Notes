@@ -1090,7 +1090,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     if let Some(cached) = get_cached_decrypted_asset(state_inner, &path) {
         let metadata = fs::metadata(&path_buf)?;
         let cache_path = crate::shared::decrypted_cache_path(
-            &state_inner.files.asset_cache_dir,
+            &state_inner.files.asset_cache_dir(),
             &path_buf,
             &metadata,
         )?;
@@ -1104,7 +1104,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     if is_encrypted_asset_buffer(&raw) {
         let metadata = fs::metadata(&path_buf)?;
         let output_path = crate::shared::decrypted_cache_path(
-            &state_inner.files.asset_cache_dir,
+            &state_inner.files.asset_cache_dir(),
             &path_buf,
             &metadata,
         )?;

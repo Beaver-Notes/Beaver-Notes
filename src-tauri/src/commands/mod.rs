@@ -9,6 +9,8 @@ pub(crate) mod index;
 pub(crate) mod pdf;
 pub(crate) mod search;
 pub(crate) mod security;
+#[cfg(target_os = "ios")]
+pub(crate) mod splash;
 pub(crate) mod storage;
 pub(crate) mod updates;
 pub(crate) mod workspace;

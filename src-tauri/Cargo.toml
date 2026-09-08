@@ -119,6 +119,9 @@ objc2-web-kit = { version = "0.3", features = [
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-core-foundation = "0.3"
+objc2-ui-kit = { version = "0.3", features = ["UIView", "UIColor", "UIApplication", "UIInterface", "objc2-core-foundation"] }
+objc2-quartz-core = { version = "0.3", features = ["CALayer"] }
+raw-window-handle = "0.6"
 block2 = "0.6"
 objc2-web-kit = { version = "0.3", features = ["block2", "objc2-core-foundation"] }
 

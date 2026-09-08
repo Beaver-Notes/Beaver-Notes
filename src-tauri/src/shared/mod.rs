@@ -1062,11 +1062,11 @@ fn prune_asset_cache_dir(asset_cache_dir: &Path) {
 }
 
 pub(crate) fn clear_asset_cache(state: &AppState) {
-    let _ = fs::remove_dir_all(&state.files.asset_cache_dir);
+    let _ = fs::remove_dir_all(state.files.asset_cache_dir());
 }
 
 pub(crate) fn clear_external_open_dir(state: &AppState) {
-    let _ = fs::remove_dir_all(&state.files.external_open_dir);
+    let _ = fs::remove_dir_all(state.files.external_open_dir());
 }
 
 /// Write decrypted bytes so only the owner can read them (0o600 on unix).

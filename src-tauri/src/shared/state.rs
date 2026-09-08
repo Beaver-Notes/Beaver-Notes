@@ -112,9 +112,27 @@ impl CacheState {
 pub(crate) struct FileState {
     pub(crate) pending_open_files: Arc<Mutex<Vec<String>>>,
     pub(crate) external_open_files: Arc<Mutex<HashMap<PathBuf, PathBuf>>>,
-    pub(crate) asset_cache_dir: PathBuf,
-    pub(crate) external_open_dir: PathBuf,
+    /// Behind locks so setup can relocate them into the app sandbox on
+    /// Android, where std::env::temp_dir() is not writable (EACCES abort).
+    pub(crate) asset_cache_dir: RwLock<PathBuf>,
+    pub(crate) external_open_dir: RwLock<PathBuf>,
     pub(crate) portable_storage_dir: Option<PathBuf>,
+}
+
+impl FileState {
+    pub(crate) fn asset_cache_dir(&self) -> PathBuf {
+        self.asset_cache_dir
+            .read()
+            .map(|dir| dir.clone())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn external_open_dir(&self) -> PathBuf {
+        self.external_open_dir
+            .read()
+            .map(|dir| dir.clone())
+            .unwrap_or_default()
+    }
 }
 
 impl FileState {
@@ -126,8 +144,8 @@ impl FileState {
         Self {
             pending_open_files: Arc::new(Mutex::new(Vec::new())),
             external_open_files: Arc::new(Mutex::new(HashMap::new())),
-            asset_cache_dir,
-            external_open_dir,
+            asset_cache_dir: RwLock::new(asset_cache_dir),
+            external_open_dir: RwLock::new(external_open_dir),
             portable_storage_dir,
         }
     }

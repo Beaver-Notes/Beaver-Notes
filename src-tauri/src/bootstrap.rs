@@ -534,7 +534,7 @@ fn register_asset_protocol(
                 .ok()
                 .map(|value| value.clone())
                 .filter(|value| !value.is_empty());
-            (state.files.asset_cache_dir.clone(), transient_passphrase)
+            (state.files.asset_cache_dir(), transient_passphrase)
         };
         let range = request
             .headers()
@@ -757,6 +757,27 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("bootstrap.setup_app");
     let state = app.state::<AppState>();
 
+    // Android: std::env::temp_dir() is not app-writable, so the run()-time
+    // scratch dirs abort setup with EACCES. Relocate them under the sandbox
+    // temp dir once the AppHandle exists; desktop keeps the run() values.
+    #[cfg(target_os = "android")]
+    {
+        let base = app
+            .path()
+            .temp_dir()
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        *state
+            .files
+            .asset_cache_dir
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = base.join("beaver-notes-asset-cache");
+        *state
+            .files
+            .external_open_dir
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = base.join("beaver-notes-open");
+    }
+
     // Workspace migration (must run BEFORE any settings_pool call)
     migrate_to_workspace_layout(app.handle(), state.inner())?;
 
@@ -781,7 +802,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
             .temp_dir()
             .map_err(|e| AppError::Other(e.to_string()))?,
     );
-    fs::create_dir_all(&state.files.asset_cache_dir)?;
+    fs::create_dir_all(state.files.asset_cache_dir())?;
 
     // Fold any legacy plaintext `master.key` into the secure chain, then delete; never fails startup.
     let _ = crate::shared::migrate_legacy_master_key();

@@ -88,3 +88,12 @@ try {
 }
 
 performance.mark('app:mounted');
+
+// iOS-only: dismiss the native launch splash once the first frame is painted.
+if (backend.isIOSRuntime()) {
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      backend.emit('splash:first-paint').catch(console.error);
+    }),
+  );
+}

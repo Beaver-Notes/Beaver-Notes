@@ -270,6 +270,12 @@ pub fn run() {
 
             bootstrap::setup_app(app)?;
 
+            #[cfg(target_os = "ios")]
+            {
+                crate::commands::splash::show_splash(app.handle());
+                crate::commands::splash::watch_first_paint(app.handle());
+            }
+
             // Listen for deep links when the app is already running (from tauri-plugin-deep-link)
             let handle = app.handle().clone();
             app.listen("deep-link://new-url", move |event| {

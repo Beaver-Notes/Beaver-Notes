@@ -1,4 +1,4 @@
-import { listen } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { bindCloseHandlers, addCloseHandler } from '@/lib/tauri/close-handlers';
 import {
@@ -28,6 +28,9 @@ export const backend = {
   },
   listen(channel, callback) {
     return listen(channel, (event) => callback(event, event.payload));
+  },
+  emit(channel, payload) {
+    return emit(channel, payload);
   },
   listenPayload(channel, callback) {
     return listen(channel, (event) => callback(event.payload));
