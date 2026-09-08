@@ -1,8 +1,7 @@
 <template>
   <aside
-    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 ltr:border-r rtl:border-l border-neutral-200/40 dark:border-neutral-800/40 select-none"
+    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 ltr:border-r rtl:border-l border-neutral-200/40 dark:border-neutral-800/40 select-none pt-[var(--app-safe-area-top)]"
     :class="expanded ? 'w-64' : 'w-16'"
-    :style="{ paddingTop: titlebarInset }"
   >
     <div
       class="pt-5 px-3 mb-3 shrink-0"
@@ -462,7 +461,6 @@ export default {
     const theme = useTheme();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
-    const titlebarInset = ref('0px');
 
     // DOM Element pointers to calculate indicator pill transitions cleanly
     const homeBtn = ref(null);
@@ -504,17 +502,6 @@ export default {
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
 
     onMounted(() => {
-      const computedStyle = window.getComputedStyle(document.documentElement);
-
-      const envTop = computedStyle
-        .getPropertyValue('--safe-area-inset-top')
-        .trim();
-      if (envTop && envTop !== '0px') {
-        titlebarInset.value = envTop;
-      } else {
-        titlebarInset.value = '0px';
-      }
-
       if (typeof window !== 'undefined') {
         window.addNote = addNote;
       }
@@ -713,7 +700,6 @@ export default {
 
       openNote,
       openSyncSettings,
-      titlebarInset,
       translations,
       theme,
       spinning,
