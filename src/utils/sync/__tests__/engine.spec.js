@@ -600,4 +600,29 @@ describe('SyncEngine notifications', () => {
 
     expect(notify).not.toHaveBeenCalled();
   });
+
+  it('forces a push when assets uploaded but the doc push was throttled', async () => {
+    mockCloudTransport.syncAssets.mockResolvedValue(2);
+    mockCloudTransport.push
+      .mockResolvedValueOnce({ updates: [], pushed: 0, throttled: true })
+      .mockResolvedValue({ updates: [], pushed: 1 });
+
+    await engine.enqueueSync(false);
+
+    expect(mockCloudTransport.push).toHaveBeenCalledWith(
+      expect.objectContaining({ force: true })
+    );
+  });
+
+  it('does not force a push when nothing was uploaded', async () => {
+    mockCloudTransport.syncAssets.mockResolvedValue(0);
+    mockCloudTransport.push.mockResolvedValue({ updates: [], pushed: 0, throttled: true });
+
+    await engine.enqueueSync(false);
+
+    expect(mockCloudTransport.push).toHaveBeenCalledTimes(1);
+    expect(mockCloudTransport.push).not.toHaveBeenCalledWith(
+      expect.objectContaining({ force: true })
+    );
+  });
 });

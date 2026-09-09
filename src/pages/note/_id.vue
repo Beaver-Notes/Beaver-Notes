@@ -451,8 +451,8 @@ export default {
     }
     const presence = usePresence(
       awareness,
-      accountStore.profile?.id || 'anonymous',
-      displayNameForPresence(),
+      () => accountStore.profile?.id || 'anonymous',
+      () => displayNameForPresence(),
     );
 
     // Create/destroy Awareness only after ydoc resolves; never cache across doc switches
@@ -485,12 +485,13 @@ export default {
       { immediate: true },
     );
 
+    // Re-advertise when identity resolves late (profile loads async): the id
+    // getter is fresh, so re-setting pushes the real account id to peers.
     watch(
-      () => accountStore.profile?.username || accountStore.profile?.email,
-      (name) => {
+      () => [accountStore.profile?.id, accountStore.profile?.username, accountStore.profile?.email],
+      () => {
         if (awareness.value) {
-          const display = displayNameForPresence();
-          presence.setLocalState({ name: display });
+          presence.setLocalState({ name: displayNameForPresence() });
         }
       },
     );

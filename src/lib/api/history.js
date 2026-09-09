@@ -6,7 +6,12 @@ export async function listCommits(workspaceId, noteId) {
   const response = await client.get('/commits/history', {
     query: { noteId },
   });
-  return response?.commits || [];
+  // listHistory returns `commitId`; expose it as `hash` too since the
+  // history UI and sync restore look up snapshots by `hash`.
+  return (response?.commits || []).map((c) => ({
+    ...c,
+    hash: c.hash ?? c.commitId ?? c.id ?? c.commitHash,
+  }));
 }
 
 export async function getCommitSnapshot(commitHash, noteId = '') {
@@ -15,6 +20,20 @@ export async function getCommitSnapshot(commitHash, noteId = '') {
     `/commits/${encodeURIComponent(commitHash)}`
   );
   const payload = response?.data || response;
+
+  // Server returns the v4/v5 sync envelope as a JSON string. The snapshot
+  // ({ content, title }) lives in the envelope's encrypted meta, so decrypt
+  // and return it directly. Anything else is undecryptable here → null.
+  if (typeof payload === 'string') {
+    try {
+      const { decryptJSON } = await import('@/utils/sync/crypto.js');
+      const decrypted = await decryptJSON(payload, noteId);
+      if (decrypted?.content || decrypted?.title) return decrypted;
+    } catch (err) {
+      console.warn('[history] failed to decrypt commit snapshot:', err?.message);
+    }
+    return null;
+  }
 
   // Server returns the encrypted envelope { v, nonce, cipher }.
   // Decrypt it client-side with the sync key to get plaintext content.
@@ -31,7 +50,7 @@ export async function getCommitSnapshot(commitHash, noteId = '') {
     }
   }
 
-  return payload;
+  return null;
 }
 
 /**

@@ -412,16 +412,20 @@ export class SyncEngine {
       // the pushed doc must already have bytes on the server or the peer
       // pulls a valid ref with nothing behind it (broken image until some
       // unrelated later cycle heals it).
+      let assetsUploaded = 0;
       if (activeTransportNames.includes('cloud') && !cloudBlocked) {
         logger.info('[sync] cloud syncAssets start');
-        await this.transports.cloud.syncAssets((progress) => {
-          try { emit('sync:progress', progress); } catch {}
-        }).catch((err) => {
+        try {
+          assetsUploaded = (await this.transports.cloud.syncAssets((progress) => {
+            try { emit('sync:progress', progress); } catch {}
+          })) ?? 0;
+        } catch (err) {
           logger.warn('[sync] cloud asset sync failed:', err?.message);
-        });
-        logger.info('[sync] cloud syncAssets done');
+        }
+        logger.info('[sync] cloud syncAssets done', { assetsUploaded });
       }
 
+      let cloudPushThrottled = false;
       if (shouldPush) {
         for (const name of activeTransportNames) {
           if (cloudBlocked && name === 'cloud') {
@@ -441,7 +445,19 @@ export class SyncEngine {
               try { emit('sync:status', { status: 'retrying' }); } catch {}
             }
           }
+          if (name === 'cloud' && pushResult?.throttled) cloudPushThrottled = true;
           logger.info(`[sync] ${name} push done`, { pushed: pushResult.pushed });
+        }
+        // New asset bytes are up but the doc push was throttle-skipped: no
+        // pg_notify fires, so an idle peer would wait forever for refs it
+        // already holds via WS. Force one push to notify it.
+        if (assetsUploaded > 0 && cloudPushThrottled && !cloudBlocked) {
+          logger.info('[sync] assets uploaded while push throttled: forcing push to notify peer');
+          try {
+            await this.transports.cloud.push({ force: true });
+          } catch (err) {
+            logger.warn('[sync] forced asset-notify push failed:', err?.message);
+          }
         }
       } else {
         logger.info('[sync] push skipped: pull-only mode');

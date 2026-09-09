@@ -378,7 +378,7 @@ export class CloudTransport extends Transport {
           if (!commits?.length) continue;
           const sorted = [...commits].sort((a, b) => (b.ts ?? b.clock ?? 0) - (a.ts ?? a.clock ?? 0));
           const latest = sorted[0];
-          const hash = latest.hash ?? latest.id ?? latest.commitHash;
+          const hash = latest.hash ?? latest.commitId ?? latest.id ?? latest.commitHash;
           if (!hash) continue;
           const snap = await getCommitSnapshot(hash, noteId);
           if (!snap?.content && !snap?.title) continue;
@@ -1130,20 +1130,20 @@ export class CloudTransport extends Transport {
   }
 
   async syncAssets(onProgress) {
-    if (!this._remoteAllowed()) return;
+    if (!this._remoteAllowed()) return 0;
 
     const workspaceId = await this._ensureWorkspace();
-    if (!workspaceId) return;
+    if (!workspaceId) return 0;
     try {
       const state = await getRemoteState(workspaceId);
       if (state?.status !== 'initialized') {
         logger.info(`[sync] syncAssets: workspace status ${state?.status ?? 'unknown'}: skipping asset sync (seed handles assets)`);
-        return;
+        return 0;
       }
     } catch (e) {
       if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
         logger.info('[sync] syncAssets: workspace not accessible: skipping asset sync');
-        return;
+        return 0;
       }
       throw e;
     }
@@ -1152,7 +1152,7 @@ export class CloudTransport extends Transport {
     const appDir = await getAppDirectory();
     if (!appDir) {
       logger.info('[sync] syncAssets: no appDir');
-      return;
+      return 0;
     }
 
     logger.info('[sync] syncAssets appDir:', appDir);
@@ -1223,8 +1223,11 @@ export class CloudTransport extends Transport {
 
     const total = ops.length;
     logger.info('[sync] syncAssets total ops:', total, '| remote:', remoteKeys.length);
-    if (total === 0) return;
+    if (total === 0) return 0;
     let processed = 0;
+    // Uploaded byte count so the engine can force-notify the peer: a push
+    // skipped by throttle fires no pg_notify, leaving the peer's refs dangling.
+    let uploadedTotal = 0;
 
     onProgress?.({ phase: 'assets-scan', processed: 0, total });
 
@@ -1303,6 +1306,7 @@ export class CloudTransport extends Transport {
       if (result) {
         const uploaded = result?.uploaded ?? 0;
         const skipped = result?.skipped ?? 0;
+        uploadedTotal += uploaded;
         logger.info(`[sync] batch ${batchNum}/${batches.length}: uploaded=${uploaded} skipped=${skipped} items=${batch.length}`);
       }
 
@@ -1312,6 +1316,7 @@ export class CloudTransport extends Transport {
           for (let attempt = 0; attempt < 3; attempt++) {
             try {
               await uploadAsset(item.key, item.data);
+              uploadedTotal++;
               break;
             } catch (e) {
               const s = e?.status || e?.statusCode;
@@ -1334,6 +1339,7 @@ export class CloudTransport extends Transport {
         for (const item of batch) {
           try {
             await uploadAsset(item.key, item.data);
+            uploadedTotal++;
           } catch (e) {
             console.warn('[sync] individual upload failed:', item.key, e?.message);
           }
@@ -1467,6 +1473,7 @@ export class CloudTransport extends Transport {
     if (deletedAssetsDirty) {
       mergeIntoMap('deletedAssets', deletedAssets);
     }
+    return uploadedTotal;
   }
 
   /** Fire-and-forget version-history commits for pushed notes; never blocks sync. */

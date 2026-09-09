@@ -17,6 +17,9 @@ vi.mock('@/utils/sync/crypto', () => ({
     return { v: 3, nonce: 'test-nonce', cipher: btoa(String.fromCharCode(...update)) };
   }),
   decryptJSON: vi.fn(async (raw) => {
+    if (typeof raw === 'string') {
+      return { content: '<p>Envelope snapshot</p>', title: 'Envelope Note' };
+    }
     if (raw?.cipher) {
       const bytes = Uint8Array.from(atob(raw.cipher), (c) => c.charCodeAt(0));
       return { noteId: 'test-note', ts: 1000, update: bytes };
@@ -65,7 +68,7 @@ describe('history API', () => {
     expect(result).toEqual(snapshot);
   });
 
-  it('getCommitSnapshot falls back to raw response when decryption fails', async () => {
+  it('getCommitSnapshot returns null when decryption fails', async () => {
     const { getCommitSnapshot } = await import('@/lib/api/history');
     const { getApiClient } = await import('@/lib/api/client');
     const { decryptJSON } = await import('@/utils/sync/crypto');
@@ -78,6 +81,35 @@ describe('history API', () => {
     });
 
     const result = await getCommitSnapshot('commit-456', 'note-abc');
-    expect(result).toEqual({ v: 3, nonce: 'n', cipher: 'x' });
+    expect(result).toBeNull();
+  });
+
+  it('getCommitSnapshot decrypts a v5 envelope string into the snapshot', async () => {
+    const { getCommitSnapshot } = await import('@/lib/api/history');
+    const { getApiClient } = await import('@/lib/api/client');
+
+    const envelope = JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' });
+    getApiClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue({ data: envelope }),
+      post: vi.fn(),
+    });
+
+    const result = await getCommitSnapshot('1700000000000-test-device-001-7', 'note-abc');
+    expect(result).toEqual({ content: '<p>Envelope snapshot</p>', title: 'Envelope Note' });
+  });
+
+  it('listCommits exposes commitId as hash', async () => {
+    const { listCommits } = await import('@/lib/api/history');
+    const { getApiClient } = await import('@/lib/api/client');
+
+    getApiClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue({
+        commits: [{ commitId: '1700000000000-dev-1', deviceId: 'dev', clock: 1, ts: 1700000000000 }],
+      }),
+      post: vi.fn(),
+    });
+
+    const commits = await listCommits('ws', 'note-abc');
+    expect(commits[0].hash).toBe('1700000000000-dev-1');
   });
 });

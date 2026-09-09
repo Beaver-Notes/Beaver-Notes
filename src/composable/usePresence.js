@@ -1,4 +1,5 @@
-import { ref, isRef } from 'vue';
+import { computed, ref, isRef } from 'vue';
+import { logger } from '@/utils/logger';
 
 const PEER_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
@@ -24,25 +25,31 @@ function resolveAwareness(a) {
 
 export function usePresence(awarenessOrRef, localUserId, localUserName) {
   const peers = ref(new Map());
-  const localColor = ref(getColorFromId(localUserId));
+  // Id/name may arrive after mount (profile loads async): accept a getter so
+  // a '' captured at setup can't permanently defeat self-exclusion.
+  const resolveVal = (v) => (typeof v === 'function' ? v() : isRef(v) ? v.value : v);
+  const getLocalId = () => resolveVal(localUserId);
+  const getLocalName = () => resolveVal(localUserName);
+  const localColor = computed(() => getColorFromId(getLocalId()));
   const getAw = () => resolveAwareness(awarenessOrRef);
 
   // True when the peer's user id is our own account: same human, not a
   // collaborator. Anonymous/local-only has no stable id: never self-match,
   // so strangers are never hidden.
   function isSelfId(peerId) {
+    const localId = getLocalId();
     if (!peerId || peerId === 'anonymous') return false;
-    if (!localUserId || localUserId === 'anonymous' || localUserId === 'local')
+    if (!localId || localId === 'anonymous' || localId === 'local')
       return false;
-    return peerId === localUserId;
+    return peerId === localId;
   }
 
   function setLocalState(state) {
     const aw = getAw();
     if (!aw) return;
     aw.setLocalStateField('user', {
-      id: localUserId,
-      name: localUserName,
+      id: getLocalId(),
+      name: getLocalName(),
       color: localColor.value,
       ...state,
     });
@@ -59,10 +66,12 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
     if (!aw) return;
     const states = aw.getStates();
     const byUser = new Map();
+    const seen = [];
     states.forEach((state, clientId) => {
       if (clientId === aw.clientID) return;
       const user = state?.user;
       if (!user) return;
+      seen.push(`${clientId}=${user.id ?? '?'}:${user.name ?? '?'}`);
       // Own other devices (same account, different client) are sync, not
       // collaboration: never count them as people.
       if (isSelfId(user.id)) return;
@@ -80,6 +89,10 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
         });
       }
     });
+    // Debug aid for ghost reports: which remote states survived filtering.
+    if (byUser.size > 0) {
+      logger.debug('[presence] peers', { local: getLocalId(), remote: seen });
+    }
     peers.value = byUser;
   }
 

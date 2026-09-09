@@ -41,15 +41,24 @@ export default {
   setup(props) {
     // userId is the account id when logged in: it must match the id the page
     // sets on the same awareness, or self-exclusion can't recognize us.
-    const { peers, init, destroy } = usePresence(
+    // Getters, not values: profile/awareness may load after mount.
+    const { peers, init, destroy, setLocalState } = usePresence(
       () => props.awareness,
-      props.userId || props.awareness?.clientID?.toString() || 'local',
-      props.userName
+      () => props.userId || props.awareness?.clientID?.toString() || 'local',
+      () => props.userName
     );
 
     onMounted(() => {
       init();
     });
+
+    // Re-advertise when our id resolves late (profile loads async).
+    watch(
+      () => props.userId,
+      () => {
+        if (props.awareness) setLocalState({});
+      }
+    );
 
     // Re-init when awareness becomes available after mount (per-doc guard)
     watch(
