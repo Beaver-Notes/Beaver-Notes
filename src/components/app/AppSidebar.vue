@@ -257,13 +257,20 @@
       <button
         v-tooltip:right="
           !expanded
-            ? `${translations.sidebar.toggleSync} (${keyBinding}+Shift+Y)`
+            ? syncStateText ||
+              `${translations.sidebar.toggleSync} (${keyBinding}+Shift+Y)`
             : undefined
         "
-        :aria-label="translations.sidebar.toggleSync"
+        :aria-label="syncStateText || translations.sidebar.toggleSync"
         class="relative w-full rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
-        :class="[{ '!text-primary': spinning }]"
-        @click="manualSync"
+        :class="[
+          { '!text-primary': spinning || syncProgressStore.isSyncing },
+          {
+            '!text-red-600 dark:!text-red-400':
+              syncAttentionIcon === 'riAlertLine' && !spinning,
+          },
+        ]"
+        @click="syncButtonAction"
       >
         <span
           class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
@@ -273,10 +280,50 @@
               : 'left-1/2 -translate-x-1/2'
           "
         >
+          <svg
+            v-if="syncProgressStore.hasProgress"
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            class="shrink-0 -rotate-90"
+            role="progressbar"
+            :aria-valuemin="0"
+            :aria-valuemax="100"
+            :aria-valuenow="syncProgressStore.progress"
+            :aria-label="syncProgressStore.phaseMessage"
+          >
+            <circle
+              cx="10"
+              cy="10"
+              r="8"
+              fill="none"
+              stroke-width="2.5"
+              class="stroke-neutral-200 dark:stroke-neutral-700"
+            />
+            <circle
+              cx="10"
+              cy="10"
+              r="8"
+              fill="none"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              class="stroke-primary transition-all duration-300"
+              :stroke-dasharray="donutDash"
+            />
+          </svg>
           <v-remixicon
+            v-else-if="syncAttentionIcon"
+            :name="syncAttentionIcon"
+            size="20"
+            class="shrink-0 transition-transform duration-200"
+          />
+          <v-remixicon
+            v-else
             name="riLoopRightLine"
             size="20"
-            :class="{ 'animate-spin': spinning }"
+            :class="{
+              'animate-spin': spinning || syncProgressStore.isSyncing,
+            }"
             class="shrink-0 transition-transform duration-200"
           />
         </span>
@@ -285,67 +332,10 @@
             v-if="expanded"
             class="ltr:ml-9 rtl:mr-9 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
-            Sync
+            {{ syncStateText || 'Sync' }}
           </span>
         </transition>
       </button>
-
-      <transition name="fade-fast">
-        <div
-          v-if="syncProgressStore.isSyncing && syncProgressStore.phase"
-          class="px-3 pb-2"
-        >
-          <div class="flex items-center gap-2 mb-1">
-            <div class="animate-spin">
-              <v-remixicon
-                name="riLoader4Line"
-                size="12"
-                class="text-primary"
-              />
-            </div>
-            <span
-              class="text-xs text-neutral-500 dark:text-neutral-400 truncate"
-            >
-              {{ syncProgressStore.phaseMessage }}
-            </span>
-          </div>
-          <div
-            v-if="syncProgressStore.total > 0"
-            class="h-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
-          >
-            <div
-              class="h-full rounded-full bg-primary transition-all duration-300"
-              :style="{ width: syncProgressStore.progress + '%' }"
-            />
-          </div>
-        </div>
-      </transition>
-
-      <transition name="fade-fast">
-        <button
-          v-if="syncProgressStore.attention"
-          class="px-3 pb-2 w-full flex items-center gap-2 text-left"
-          :class="
-            syncProgressStore.attention.tone === 'action'
-              ? 'text-red-600 dark:text-red-400'
-              : 'text-neutral-500 dark:text-neutral-400'
-          "
-          @click="openSyncSettings"
-        >
-          <v-remixicon
-            :name="
-              syncProgressStore.attention.tone === 'action'
-                ? 'riAlertLine'
-                : 'riCloudLine'
-            "
-            size="14"
-            class="shrink-0"
-          />
-          <span class="text-xs truncate">{{
-            syncProgressStore.attention.text
-          }}</span>
-        </button>
-      </transition>
 
       <button
         v-tooltip:right="
@@ -458,6 +448,22 @@ export default {
     const route = useRoute();
     const spinning = ref(false);
     const syncProgressStore = useSyncProgressStore();
+    const syncStateText = computed(() =>
+      syncProgressStore.isSyncing
+        ? syncProgressStore.phaseMessage
+        : (syncProgressStore.attention?.text ?? ''),
+    );
+    const syncAttentionIcon = computed(() =>
+      !syncProgressStore.isSyncing && syncProgressStore.attention
+        ? syncProgressStore.attention.tone === 'action'
+          ? 'riAlertLine'
+          : 'riCloudLine'
+        : '',
+    );
+    const donutDash = computed(() => {
+      const circumference = 2 * Math.PI * 8;
+      return `${(syncProgressStore.progress / 100) * circumference} ${circumference}`;
+    });
     const theme = useTheme();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
@@ -679,6 +685,14 @@ export default {
       }, 1000);
     }
 
+    function syncButtonAction() {
+      if (syncAttentionIcon.value === 'riAlertLine') {
+        openSyncSettings();
+      } else {
+        manualSync();
+      }
+    }
+
     return {
       expanded,
       toggleExpanded,
@@ -704,9 +718,11 @@ export default {
       theme,
       spinning,
       syncProgressStore,
+      syncStateText,
+      donutDash,
       addNote,
       addFolder,
-      manualSync,
+      syncButtonAction,
       keyBinding,
       folderStore,
       showCreateFolderModal,

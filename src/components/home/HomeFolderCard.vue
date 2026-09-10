@@ -3,6 +3,7 @@
     class="folder-card relative group cursor-pointer w-full min-h-[130px] max-h-[180px] [perspective:1000px] [aspect-ratio:6/5]"
     :class="{ 'is-drag-over': isDragOver }"
     @click="handleCardClick($event, folder.id)"
+    @contextmenu.prevent="openCtxMenu"
   >
     <div
       class="absolute top-[10%] left-0 z-0 h-[20%] w-[40%] rounded-tl-xl rounded-tr-md transition-colors"
@@ -99,10 +100,45 @@
             class="absolute right-0 bottom-7 z-30 w-44 rounded-xl border bg-white dark:bg-neutral-900 shadow-xl p-1.5 overflow-hidden text-neutral-900 dark:text-neutral-100"
             @click.stop
           >
-            <button class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg" @click="onMenuCustomize"><v-remixicon name="riPaletteLine" class="size-4" />{{ translations.card?.customize || 'Customize' }}</button>
-            <button class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg" @click="onMenuArchive"><v-remixicon :name="folder.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'" class="size-4" />{{ folder.isArchived ? (translations.card?.unarchive || 'Unarchive') : (translations.card?.archive || 'Archive') }}</button>
-            <button class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg" @click="onMenuMove"><v-remixicon name="riFolderTransferLine" class="size-4" />{{ translations.card?.moveToFolder || 'Move' }}</button>
-            <button class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2 rounded-lg" @click="onMenuDelete"><v-remixicon name="riDeleteBin6Line" class="size-4" />{{ translations.card?.delete || 'Delete' }}</button>
+            <button
+              class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg"
+              @click="onMenuCustomize"
+            >
+              <v-remixicon name="riPaletteLine" class="size-4" />{{
+                translations.card?.customize || 'Customize'
+              }}
+            </button>
+            <button
+              class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg"
+              @click="onMenuArchive"
+            >
+              <v-remixicon
+                :name="
+                  folder.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'
+                "
+                class="size-4"
+              />{{
+                folder.isArchived
+                  ? translations.card?.unarchive || 'Unarchive'
+                  : translations.card?.archive || 'Archive'
+              }}
+            </button>
+            <button
+              class="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 rounded-lg"
+              @click="onMenuMove"
+            >
+              <v-remixicon name="riFolderTransferLine" class="size-4" />{{
+                translations.card?.moveToFolder || 'Move'
+              }}
+            </button>
+            <button
+              class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2 rounded-lg"
+              @click="onMenuDelete"
+            >
+              <v-remixicon name="riDeleteBin6Line" class="size-4" />{{
+                translations.card?.delete || 'Delete'
+              }}
+            </button>
           </div>
         </div>
       </div>
@@ -110,7 +146,8 @@
 
     <folder-customize-modal
       v-model="showCustomizeModal"
-      :folder="folder"
+      :folder="customizeFolder"
+      :parent-id="customizeParent"
       @saved="onCustomizeSaved"
     />
     <folder-tree
@@ -120,6 +157,14 @@
       mode="folder"
       overlay-class="z-[60]"
       @moved="showMoveModal = false"
+    />
+    <folder-context-menu
+      v-if="ctxMenu"
+      :x="ctxMenu.x"
+      :y="ctxMenu.y"
+      :is-archived="folder.isArchived"
+      @select="onCtxSelect"
+      @close="ctxMenu = null"
     />
   </div>
 </template>
@@ -132,6 +177,7 @@ import { useFolderStore } from '@/store/folder';
 import { useDialog } from '@/lib/dialog';
 import { useRouter } from 'vue-router';
 import FolderCustomizeModal from './FolderCustomizeModal.vue';
+import FolderContextMenu from './FolderContextMenu.vue';
 import FolderTree from './FolderTree.vue';
 import { DEFAULT_FOLDER_COLOR } from '@/lib/folder-styles';
 
@@ -148,6 +194,9 @@ const router = useRouter();
 const showCustomizeModal = ref(false);
 const showMenu = ref(false);
 const showMoveModal = ref(false);
+const ctxMenu = ref(null);
+const customizeFolder = ref(null);
+const customizeParent = ref(null);
 
 function handleCardClick(event, folderId) {
   if (event.metaKey || event.ctrlKey || event.shiftKey) return;
@@ -156,25 +205,59 @@ function handleCardClick(event, folderId) {
 }
 
 function openCustomizeModal() {
+  customizeFolder.value = props.folder;
+  customizeParent.value = null;
   showCustomizeModal.value = true;
 }
 
 function onCustomizeSaved() {
   showCustomizeModal.value = false;
 }
-function onMenuCustomize() { showMenu.value = false; showCustomizeModal.value = true; }
-function onMenuArchive() { showMenu.value = false; if (props.folder.isArchived) folderStore.unarchive(props.folder.id); else folderStore.archive(props.folder.id); }
-function onMenuMove() { showMenu.value = false; showMoveModal.value = true; }
+function onMenuCustomize() {
+  showMenu.value = false;
+  openCustomizeModal();
+}
+function onMenuArchive() {
+  showMenu.value = false;
+  if (props.folder.isArchived) folderStore.unarchive(props.folder.id);
+  else folderStore.archive(props.folder.id);
+}
+function onMenuMove() {
+  showMenu.value = false;
+  showMoveModal.value = true;
+}
 function onMenuDelete() {
   showMenu.value = false;
   dialog.confirm({
     title: translations.value?.card?.confirmPromptFolder || 'Delete folder?',
     body: translations.value?.card?.deleteAction || 'This cannot be undone',
-    icon: 'riDeleteBin6Line', okVariant: 'danger',
-    onConfirm: async () => { await folderStore.delete(props.folder.id, { deleteContents: true }); },
+    icon: 'riDeleteBin6Line',
+    okVariant: 'danger',
+    onConfirm: async () => {
+      await folderStore.delete(props.folder.id, { deleteContents: true });
+    },
   });
 }
-function onClickOutside() { showMenu.value = false; }
+function openCtxMenu(event) {
+  showMenu.value = false;
+  ctxMenu.value = { x: event.clientX, y: event.clientY };
+}
+function onCtxSelect(action) {
+  if (action === 'subfolder') {
+    customizeFolder.value = null;
+    customizeParent.value = props.folder.id;
+    showCustomizeModal.value = true;
+    return;
+  }
+  if (action === 'customize') onMenuCustomize();
+  else if (action === 'archive') onMenuArchive();
+  else if (action === 'move') onMenuMove();
+  else if (action === 'delete') onMenuDelete();
+}
+function onClickOutside() {
+  showMenu.value = false;
+  ctxMenu.value = null;
+}
 onMounted(() => window.addEventListener('click', onClickOutside));
 onBeforeUnmount(() => window.removeEventListener('click', onClickOutside));
 

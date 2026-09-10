@@ -38,9 +38,9 @@ export function isFoldablePhoneRuntime() {
   if (typeof navigator === 'undefined' || typeof window === 'undefined')
     return false;
   if (!isPhoneRuntime()) return false;
-  // ponytail: min-side >=600dp distinguishes unfolded foldables/tablets from candybar phones (~390dp)
-  const w = window.screen?.width ?? window.innerWidth;
-  const h = window.screen?.height ?? window.innerHeight;
+  // ponytail: live viewport, never window.screen (static across folds, deprecated per Apple 111461)
+  const w = window.visualViewport?.width ?? window.innerWidth;
+  const h = window.visualViewport?.height ?? window.innerHeight;
   return Math.min(w, h) >= 600;
 }
 

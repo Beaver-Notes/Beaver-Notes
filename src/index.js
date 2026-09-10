@@ -47,10 +47,20 @@ function updateRuntimeClass() {
 let isPhoneDevice = updateRuntimeClass();
 
 // React to viewport changes: only relevant on phone UA.
+// ponytail: matchMedia misses fold/unfold (resize without media-query flip); debounce ~150ms coalesces the fold animation frames
 if (isPhoneRuntime) {
+  let runtimeTimer = 0;
+  const scheduleRuntimeUpdate = () => {
+    window.clearTimeout(runtimeTimer);
+    runtimeTimer = window.setTimeout(() => {
+      isPhoneDevice = updateRuntimeClass();
+    }, 150);
+  };
   window.matchMedia('(min-width: 768px)').addEventListener('change', () => {
     isPhoneDevice = updateRuntimeClass();
   });
+  window.addEventListener('resize', scheduleRuntimeUpdate);
+  window.addEventListener('orientationchange', scheduleRuntimeUpdate);
 }
 
 if (!isMacOSRuntime()) {

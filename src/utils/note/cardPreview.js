@@ -1,6 +1,15 @@
+import { kindFor, iconFor } from '@/utils/fileKind.js';
+
 const CARD_PREVIEW_VERSION = 1;
 const MAX_BLOCKS = 5;
 const MAX_TOTAL_CHARS = 240;
+// Diagram source travels with the block so cards can render the SVG live.
+// Capped: oversized diagrams fall back to the Diagram pill, keeping the
+// synced preview payload small.
+const MAX_MERMAID_SOURCE_CHARS = 2000;
+// Same idea for math: LaTeX source travels for live KaTeX rendering.
+// Equations are short — oversized content falls back to the Math pill.
+const MAX_MATH_SOURCE_CHARS = 500;
 
 const MAX_CHARS_BY_KIND = {
   heading: 72,
@@ -26,6 +35,10 @@ function getMediaTypes() {
   return {
     audioBlock: { label: cl('audio', 'Audio'), tone: 'audio' },
     videoBlock: { label: cl('video', 'Video'), tone: 'video' },
+    // Real node names are capitalized (audio-block/video-block extensions);
+    // legacy lowercase keys kept for older snapshots.
+    Audio: { label: cl('audio', 'Audio'), tone: 'audio' },
+    Video: { label: cl('video', 'Video'), tone: 'video' },
     fileEmbed: { label: cl('attachment', 'Attachment'), tone: 'file' },
     mermaidBlock: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
     mermaidDiagram: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
@@ -88,7 +101,11 @@ function extractInlineText(node) {
   if (node.type === 'text') return node.text || '';
   if (node.type === 'hardBreak') return ' ';
   if (node.type === 'mention' || node.type === 'noteLink')
-    return node.attrs?.label || node.attrs?.id || extractInlineText(node.content || []);
+    return (
+      node.attrs?.label ||
+      node.attrs?.id ||
+      extractInlineText(node.content || [])
+    );
   return extractInlineText(node.content || []);
 }
 
@@ -104,7 +121,7 @@ function createPreview() {
 
 function visibleVisualBlocks(preview) {
   return preview.blocks.filter((block) =>
-    ['image', 'table', 'media'].includes(block.kind)
+    ['image', 'table', 'media'].includes(block.kind),
   ).length;
 }
 
@@ -125,7 +142,7 @@ function pushTextBlock(preview, kind, text, state) {
 
   const limit = Math.min(
     MAX_CHARS_BY_KIND[kind] || MAX_CHARS_BY_KIND.paragraph,
-    remainingChars
+    remainingChars,
   );
   const truncated = truncateText(normalized, limit);
   if (truncated.length < normalized.length) {
@@ -149,7 +166,7 @@ function pushImageBlock(preview, attrs = {}) {
   }
 
   const hasVisibleImage = preview.blocks.some(
-    (block) => block.kind === 'image'
+    (block) => block.kind === 'image',
   );
   if (hasVisibleImage) {
     preview.hasMore = true;
@@ -174,7 +191,7 @@ function extractTableRows(node) {
       .map((cell) => {
         const text = truncateText(
           normalizeText(extractInlineText(cell.content)),
-          18
+          18,
         );
         if (!text) return null;
 
@@ -221,7 +238,9 @@ function pushMediaBlock(preview, media) {
     return;
   }
 
-  if (preview.blocks.some((block) => block.kind === 'media')) {
+  // Up to four media blocks per card; the fixed-height
+  // preview shell clips anything beyond that.
+  if (preview.blocks.filter((block) => block.kind === 'media').length >= 4) {
     preview.hasMore = true;
     return;
   }
@@ -231,6 +250,9 @@ function pushMediaBlock(preview, media) {
     label: media.label,
     tone: media.tone,
     text: media.text ? truncateText(normalizeText(media.text), 52) : '',
+    ...(media.icon ? { icon: media.icon } : {}),
+    ...(media.source ? { source: media.source } : {}),
+    ...(media.macros ? { macros: media.macros } : {}),
   });
 }
 
@@ -261,7 +283,7 @@ function visitNode(node, preview, state) {
         preview,
         'paragraph',
         extractInlineText(node.content),
-        state
+        state,
       );
       return;
     case 'blockquote':
@@ -300,7 +322,7 @@ function visitNode(node, preview, state) {
 
         const truncated = truncateText(
           normalizeText(text),
-          Math.min(MAX_CHARS_BY_KIND.task, remainingChars)
+          Math.min(MAX_CHARS_BY_KIND.task, remainingChars),
         );
         if (truncated.length < normalizeText(text).length) {
           preview.hasMore = true;
@@ -319,10 +341,47 @@ function visitNode(node, preview, state) {
     default: {
       const MT = getMediaTypes();
       if (MT[node.type]) {
+        // File-like nodes (fileEmbed/audio/video) carry `fileName`, not
+        // content/title/name — read it so the preview shows the real name.
+        const fileName = normalizeText(node.attrs?.fileName);
+        const fallbackText =
+          node.attrs?.content || node.attrs?.title || node.attrs?.name || '';
+        const media = { ...MT[node.type] };
+        if (node.type === 'fileEmbed' && fileName) {
+          media.label = kindFor(fileName);
+          media.icon = iconFor(fileName);
+        } else if (
+          (node.type === 'audioBlock' ||
+            node.type === 'videoBlock' ||
+            node.type === 'Audio' ||
+            node.type === 'Video') &&
+          fileName
+        ) {
+          media.icon = iconFor(fileName);
+        } else if (
+          (node.type === 'mermaidBlock' || node.type === 'mermaidDiagram') &&
+          typeof node.attrs?.content === 'string' &&
+          node.attrs.content.trim() &&
+          node.attrs.content.length <= MAX_MERMAID_SOURCE_CHARS
+        ) {
+          media.source = node.attrs.content;
+        } else if (
+          node.type === 'mathBlock' &&
+          typeof node.attrs?.content === 'string' &&
+          node.attrs.content.trim() &&
+          node.attrs.content.length <= MAX_MATH_SOURCE_CHARS
+        ) {
+          media.source = node.attrs.content;
+          if (
+            typeof node.attrs?.macros === 'string' &&
+            node.attrs.macros.trim()
+          ) {
+            media.macros = node.attrs.macros;
+          }
+        }
         pushMediaBlock(preview, {
-          ...MT[node.type],
-          text:
-            node.attrs?.content || node.attrs?.title || node.attrs?.name || '',
+          ...media,
+          text: fileName || fallbackText,
         });
         return;
       }
@@ -332,7 +391,7 @@ function visitNode(node, preview, state) {
           preview,
           'callout',
           extractInlineText(node.content),
-          state
+          state,
         );
         if (block) {
           block.tone = node.type.replace(/Callout$/, '').toLowerCase();

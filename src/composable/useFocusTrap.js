@@ -12,6 +12,15 @@ export function useFocusTrap(containerRef, options = {}) {
         escapeDeactivates: true,
         returnFocusOnDeactivate: true,
         allowOutsideClick: true,
+        // Never yank focus (and the mobile keyboard with it) on touch
+        // sheets — Vaul/reka mobile sheets don't autofocus either; the
+        // viewport resize behind the keyboard is what freezes inner
+        // scrollers like the block picker grid on first open.
+        initialFocus:
+          window.matchMedia?.('(pointer: coarse)').matches === true
+            ? false
+            : undefined,
+        preventScroll: true,
         ...options,
       });
       trap.activate();

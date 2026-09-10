@@ -12,7 +12,11 @@ import { useRoute, useRouter } from 'vue-router';
 const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
 import { useTheme } from './theme';
 import { useStorage } from '@/lib/storage';
-import { getSettingSync, hydrateSettingsStore, setSetting } from '@/lib/settings';
+import {
+  getSettingSync,
+  hydrateSettingsStore,
+  setSetting,
+} from '@/lib/settings';
 import { useUiState } from '@/composable/useUiState';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
@@ -23,14 +27,23 @@ import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
-import { appReady, notify, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
+import {
+  appReady,
+  notify,
+  setMenuVisibility,
+  setZoomLevel,
+} from '@/lib/native/app';
 import {
   checkForUpdates,
   getAutoUpdateStatus,
   installUpdate,
   isUpdateManaged,
 } from '@/lib/native/updates';
-import { getStoredZoomLevel, setStoredZoomLevel, wasZoomAppliedAtBoot } from '@/utils/ui/zoom';
+import {
+  getStoredZoomLevel,
+  setStoredZoomLevel,
+  wasZoomAppliedAtBoot,
+} from '@/utils/ui/zoom';
 import {
   encryptionIsConfigured,
   isKeyLoaded,
@@ -42,6 +55,7 @@ import {
   observeWorkspace,
   writeStoresFromWorkspace,
   backfillNotePreviews,
+  repairStrandedNotes,
 } from '@/lib/yjs/workspace-doc';
 import { getSyncEngine } from '@/utils/sync/engine.js';
 import { initAppSync } from '@/utils/sync/app-sync.js';
@@ -63,8 +77,8 @@ function logStartupTiming() {
   for (let i = 1; i < entries.length; i++) {
     measures.push(
       `${entries[i].name}: ${Math.round(
-        entries[i].startTime - entries[i - 1].startTime
-      )}ms`
+        entries[i].startTime - entries[i - 1].startTime,
+      )}ms`,
     );
   }
   // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
@@ -73,22 +87,22 @@ function logStartupTiming() {
   console.log(
     '[perf] Total startup:',
     Math.round(entries[entries.length - 1].startTime - entries[0].startTime) +
-      'ms'
+      'ms',
   );
 }
 
 function applyDocumentSettings() {
   document.documentElement.style.setProperty(
     '--selected-font',
-    getSettingSync('selectedFont')
+    getSettingSync('selectedFont'),
   );
   document.documentElement.style.setProperty(
     '--selected-font-code',
-    getSettingSync('selectedCodeFont')
+    getSettingSync('selectedCodeFont'),
   );
   document.documentElement.style.setProperty(
     '--selected-dark-text',
-    getSettingSync('selectedDarkText')
+    getSettingSync('selectedDarkText'),
   );
   document.documentElement.classList.add(getSettingSync('colorScheme'));
 }
@@ -120,25 +134,27 @@ export function useAppShell(onboardingCompleted = true) {
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
   const showSidebar = computed(
-    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
+    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME,
   );
   const showMobileNavbar = computed(
     () =>
       route.name !== ONBOARDING_ROUTE_NAME &&
       route.name !== 'Note' &&
-      (!isPhoneRuntime.value || !keyboardVisible.value)
+      (!isPhoneRuntime.value || !keyboardVisible.value),
   );
   const useMobileBottomDockSpacing = computed(
-    () => isPhoneRuntime.value && showMobileNavbar.value
+    () => isPhoneRuntime.value && showMobileNavbar.value,
   );
   const mainStyle = computed(() => {
     if (!isMobileRuntime.value || route.name === ONBOARDING_ROUTE_NAME)
       return undefined;
     return {
       paddingTop: 'var(--app-safe-area-top)',
+      paddingRight: 'var(--app-safe-area-right)',
       paddingBottom: useMobileBottomDockSpacing.value
         ? 'var(--app-mobile-content-offset)'
         : 'var(--app-safe-area-bottom)',
+      paddingLeft: 'var(--app-safe-area-left)',
     };
   });
   const bottomBannerStyle = computed(() => {
@@ -187,10 +203,10 @@ export function useAppShell(onboardingCompleted = true) {
         buildMenuContext({
           routeName: route.name,
           inReaderMode: uiState.inReaderMode,
-        })
+        }),
       );
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   let maxVisualViewportHeight = 0;
@@ -231,10 +247,10 @@ export function useAppShell(onboardingCompleted = true) {
       if (typeof document === 'undefined' || !isPhoneRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-mobile-dock-height-active',
-        visible ? 'var(--app-mobile-dock-height)' : '0px'
+        visible ? 'var(--app-mobile-dock-height)' : '0px',
       );
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   watch(
@@ -243,14 +259,14 @@ export function useAppShell(onboardingCompleted = true) {
       if (typeof document === 'undefined' || !isMobileRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-keyboard-inset-bottom',
-        visible ? '8px' : 'var(--app-safe-area-bottom)'
+        visible ? '8px' : 'var(--app-safe-area-bottom)',
       );
       document.documentElement.style.setProperty(
         '--app-note-page-padding',
-        `calc(56px + var(--app-keyboard-inset-bottom) + 0.75rem)`
+        `calc(56px + var(--app-keyboard-inset-bottom) + 0.75rem)`,
       );
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   // ponytail: 1.5s ceiling, real safe-area plugin can hang on cold iOS launch, never block first paint
@@ -258,7 +274,7 @@ export function useAppShell(onboardingCompleted = true) {
     Promise.race([
       p,
       new Promise((_, rej) =>
-        setTimeout(() => rej(new Error(`${label} timeout after ${ms}ms`)), ms)
+        setTimeout(() => rej(new Error(`${label} timeout after ${ms}ms`)), ms),
       ),
     ]);
 
@@ -268,18 +284,18 @@ export function useAppShell(onboardingCompleted = true) {
       const { getTopInset, getBottomInset } = await withTimeout(
         import('@saurl/tauri-plugin-safe-area-insets-css-api'),
         1500,
-        'safe-area import'
+        'safe-area import',
       );
       const [topInset, bottomInset] = await withTimeout(
         Promise.all([getTopInset(), getBottomInset()]),
         1500,
-        'safe-area insets'
+        'safe-area insets',
       );
       const bottomInsetValue = `${bottomInset?.inset ?? 0}px`;
       const rootStyle = document.documentElement.style;
       rootStyle.setProperty(
         '--safe-area-inset-top',
-        `${topInset?.inset ?? 0}px`
+        `${topInset?.inset ?? 0}px`,
       );
       rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-keyboard-inset-bottom', bottomInsetValue);
@@ -288,6 +304,17 @@ export function useAppShell(onboardingCompleted = true) {
       console.warn('Safe area inset CSS plugin failed to initialize:', error);
     }
   };
+
+  // ponytail: asymmetric insets change on fold; plugin has top/bottom only, left/right ride the env() fallback in CSS
+  let safeAreaTimer = 0;
+  const handleSafeAreaResize = () => {
+    if (!isMobileRuntime.value) return;
+    window.clearTimeout(safeAreaTimer);
+    safeAreaTimer = window.setTimeout(() => {
+      initializeSafeAreaInsets();
+    }, 150);
+  };
+  window.addEventListener('resize', handleSafeAreaResize);
 
   const initializeMobileKeyboardTracking = (unlistenFns) => {
     if (!isMobileRuntime.value) return;
@@ -299,7 +326,7 @@ export function useAppShell(onboardingCompleted = true) {
       backend.listen('keyboard_hidden', () => {
         pluginKeyboardVisible.value = false;
         keyboardVisible.value = false;
-      })
+      }),
     );
     maxVisualViewportHeight =
       window.visualViewport?.height ?? window.innerHeight ?? 0;
@@ -328,11 +355,11 @@ export function useAppShell(onboardingCompleted = true) {
       document.removeEventListener('focusout', handleFocusOut);
       window.visualViewport?.removeEventListener(
         'resize',
-        handleViewportChange
+        handleViewportChange,
       );
       window.visualViewport?.removeEventListener(
         'scroll',
-        handleViewportChange
+        handleViewportChange,
       );
       if (pendingBlurTimeout) {
         clearTimeout(pendingBlurTimeout);
@@ -343,6 +370,8 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   onUnmounted(() => {
+    window.removeEventListener('resize', handleSafeAreaResize);
+    window.clearTimeout(safeAreaTimer);
     removeMobileKeyboardListeners();
   });
 
@@ -426,7 +455,10 @@ export function useAppShell(onboardingCompleted = true) {
   const hasExistingWorkspaceData = async () => {
     const isLocked = (e) => {
       const msg = String(e?.message || e || '');
-      return msg.includes('EncryptionLocked') || msg.includes('App encryption is locked');
+      return (
+        msg.includes('EncryptionLocked') ||
+        msg.includes('App encryption is locked')
+      );
     };
     // Yjs workspace doc is the source for notes/folders (KV `notes`/`folders`
     // are legacy, never written post-migration); KV is only a fallback for
@@ -435,7 +467,7 @@ export function useAppShell(onboardingCompleted = true) {
       const snap = await withTimeout(
         backend.invoke('yjs:getSnapshot', { noteId: 'meta' }),
         2000,
-        'yjs:getSnapshot'
+        'yjs:getSnapshot',
       );
       if (snap?.data?.length) return true;
     } catch (e) {
@@ -445,12 +477,9 @@ export function useAppShell(onboardingCompleted = true) {
       const { useStorage: _useStorage } = await import('@/lib/storage');
       const legacy = _useStorage('data');
       const [notesData, foldersData] = await withTimeout(
-        Promise.all([
-          legacy.get('notes', {}),
-          legacy.get('folders', {}),
-        ]),
+        Promise.all([legacy.get('notes', {}), legacy.get('folders', {})]),
         2000,
-        'legacy storage'
+        'legacy storage',
       );
       return (
         Object.keys(notesData || {}).length > 0 ||
@@ -509,7 +538,7 @@ export function useAppShell(onboardingCompleted = true) {
   const finishWorkspaceInit = async () => {
     const migrationStatus = await settingsStorage.get(
       'app_encryption_migration',
-      null
+      null,
     );
     if (migrationStatus) {
       checkAppEncryptionMigration(migrationStatus);
@@ -518,6 +547,21 @@ export function useAppShell(onboardingCompleted = true) {
     // Load unified workspace Y.Doc: single truth for note/folder/label metadata, seeded during onboarding.
     await loadWorkspaceDoc();
     performance.mark('init:workspace-doc');
+
+    // One-time repair for legacy imports that seeded meta without a Yjs doc
+    // (unopenable, undeletable cards): titled notes get empty docs, untitled
+    // and id-less notes are dropped. Awaited so drops land before hydration.
+    if (!(await settingsStorage.get('stranded_repair_done', false))) {
+      try {
+        const result = await repairStrandedNotes();
+        if (!result.failed) {
+          await settingsStorage.set('stranded_repair_done', true);
+        }
+      } catch (err) {
+        console.warn('[app] stranded repair failed:', err?.message || err);
+      }
+    }
+
     observeWorkspace(writeStoresFromWorkspace);
     await writeStoresFromWorkspace();
     performance.mark('init:workspace-write');
@@ -529,7 +573,10 @@ export function useAppShell(onboardingCompleted = true) {
     // One-time idempotent re-encryption of legacy migration rows (plaintext
     // titles/folder metadata on disk).
     backend.invoke('storage:reencryptLegacyRows').catch((err) => {
-      console.warn('[app] legacy row re-encryption failed:', err?.message || err);
+      console.warn(
+        '[app] legacy row re-encryption failed:',
+        err?.message || err,
+      );
     });
     // One-time repair: rows sealed while settings were incorrectly encrypted
     // become plaintext after the fix; decrypt with the now-loaded key.
@@ -605,12 +652,19 @@ export function useAppShell(onboardingCompleted = true) {
       retrieved.value = true;
     },
   });
-  const { appEncryptionGate, restoreEncryptionKeys, refreshEncryptionGate, handleEncryptionUnlocked } =
-    encryptionGate;
+  const {
+    appEncryptionGate,
+    restoreEncryptionKeys,
+    refreshEncryptionGate,
+    handleEncryptionUnlocked,
+  } = encryptionGate;
 
   const handleDeepLink = async (payload) => {
     try {
-      const raw = typeof payload === 'string' ? payload : payload?.url || payload?.path || '';
+      const raw =
+        typeof payload === 'string'
+          ? payload
+          : payload?.url || payload?.path || '';
       const path = raw.replace(/^beaver-notes:\/\//, '');
       if (path.startsWith('join/')) {
         const token = path.slice('join/'.length);
@@ -621,7 +675,9 @@ export function useAppShell(onboardingCompleted = true) {
           return;
         }
         const { joinViaInviteLink } = await import('@/lib/api/collaboration');
-        const result = await joinViaInviteLink(token, { baseUrl: accountStore.serverUrl });
+        const result = await joinViaInviteLink(token, {
+          baseUrl: accountStore.serverUrl,
+        });
         if (result?.noteId) {
           router.push(`/note/${result.noteId}`);
         }
@@ -681,25 +737,33 @@ export function useAppShell(onboardingCompleted = true) {
       backend.listen('spellcheck-changed', () => {}),
       backend.listen('deep-link://received', (_, payload) => {
         handleDeepLink(payload);
-      })
+      }),
     );
 
     // ponytail: native ready plus safe-area must never block first paint on iOS, run in background with timeouts
     const nativeReady = Promise.allSettled([
       withTimeout(appReady(), 2000, 'appReady').catch((e) =>
-        console.warn('[app] appReady failed:', e?.message || e)
+        console.warn('[app] appReady failed:', e?.message || e),
       ),
       withTimeout(initializeSafeAreaInsets(), 2000, 'safeArea').catch((e) =>
-        console.warn('[app] safeArea failed:', e?.message || e)
+        console.warn('[app] safeArea failed:', e?.message || e),
       ),
     ]);
 
     initializeMobileKeyboardTracking(unlistenFns);
 
     try {
-      const managed = await withTimeout(isUpdateManaged(), 1500, 'isUpdateManaged');
+      const managed = await withTimeout(
+        isUpdateManaged(),
+        1500,
+        'isUpdateManaged',
+      );
       if (!managed) {
-        const autoUpdateEnabled = await withTimeout(getAutoUpdateStatus(), 1500, 'getAutoUpdateStatus').catch(() => false);
+        const autoUpdateEnabled = await withTimeout(
+          getAutoUpdateStatus(),
+          1500,
+          'getAutoUpdateStatus',
+        ).catch(() => false);
         if (autoUpdateEnabled) {
           setTimeout(async () => {
             try {
@@ -711,7 +775,10 @@ export function useAppShell(onboardingCompleted = true) {
         }
       }
     } catch (error) {
-      console.warn('Error checking auto-update status:', error?.message || error);
+      console.warn(
+        'Error checking auto-update status:',
+        error?.message || error,
+      );
     }
 
     // Always run workspace init even if nativeReady pending: retrieved set sync so UI paints.
@@ -721,8 +788,16 @@ export function useAppShell(onboardingCompleted = true) {
       console.error('Error initializing workspace:', error?.message || error);
       try {
         const [hasData, onboardingCompleted] = await Promise.all([
-          withTimeout(hasExistingWorkspaceData(), 2000, 'hasExistingWorkspaceData').catch(() => false),
-          withTimeout(settingsStorage.get('onboardingCompleted', false), 1500, 'onboardingCompleted').catch(() => false),
+          withTimeout(
+            hasExistingWorkspaceData(),
+            2000,
+            'hasExistingWorkspaceData',
+          ).catch(() => false),
+          withTimeout(
+            settingsStorage.get('onboardingCompleted', false),
+            1500,
+            'onboardingCompleted',
+          ).catch(() => false),
         ]);
         if (!hasData && !onboardingCompleted) {
           retrieved.value = true;
@@ -788,14 +863,14 @@ export function useAppShell(onboardingCompleted = true) {
               resolve();
             }
           },
-          { immediate: true }
+          { immediate: true },
         );
       });
     }
 
     const ext = path.split('.').pop().toLowerCase();
 
-    const SUPPORTED = ['bea', 'md', 'mdx', 'txt', 'html'];
+    const SUPPORTED = ['bea', 'md', 'mdx', 'markdown', 'txt', 'html'];
     if (!SUPPORTED.includes(ext)) {
       console.warn('Unsupported file format for import:', ext, path);
       return;
@@ -808,7 +883,7 @@ export function useAppShell(onboardingCompleted = true) {
 
       if (ext === 'bea') {
         const fileContent = await import('@/lib/native/exports').then((m) =>
-          m.readImportJson(path)
+          m.readImportJson(path),
         );
         title =
           fileContent?.data?.title ||
@@ -820,9 +895,8 @@ export function useAppShell(onboardingCompleted = true) {
       } else {
         // Read once; raw content is reused for title extraction and import.
         const { readFile } = await import('@/lib/native/fs');
-        const { extractImportTitle } = await import(
-          '@/utils/import/fileImport'
-        );
+        const { extractImportTitle } =
+          await import('@/utils/import/fileImport');
         const raw = await readFile(path);
         importFileContent.value = raw;
         title = await extractImportTitle(path, raw);

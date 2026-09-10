@@ -19,6 +19,7 @@
     <div
       v-else
       class="note-masonry__stage"
+      :class="{ 'is-scrolling': isScrolling }"
       :style="{ height: `${stageHeight}px` }"
     >
       <div
@@ -128,8 +129,10 @@ defineEmits([
 const containerRef = ref(null);
 const containerWidth = ref(0);
 const scrollTop = ref(0);
+const isScrolling = ref(false);
+let scrollIdleTimer = null;
 const viewportHeight = ref(
-  typeof window !== 'undefined' ? window.innerHeight : 600
+  typeof window !== 'undefined' ? window.innerHeight : 600,
 );
 const containerOffset = ref(0);
 const measuredVersion = ref(0);
@@ -153,19 +156,21 @@ const isItemLeaving = (id) => leavingItems.has(id);
 const isItemEntering = (id) => enteringItems.has(id);
 
 function estimateNoteHeight(note) {
+  // Pre-measure guess so cards land close to their real size before the
+  // ResizeObserver corrects them. Chrome: pt-4 (16) + shell mt-1.5 (6) +
+  // preview shell (140) + action bar (44) + card border (2) = 208.
   const tLines = Math.min(
     2,
-    Math.max(1, Math.ceil(String(note.title ?? '').trim().length / 28))
+    Math.max(1, Math.ceil(String(note.title ?? '').trim().length / 28)),
   );
   const lLines = note.labels?.length
     ? Math.min(2, Math.ceil(note.labels.join(' ').length / 26))
     : 0;
   return (
-    104 +
-    (note.isLocked ? 70 : 148) +
-    (note.isConflict ? 38 : 0) +
-    tLines * 22 +
-    lLines * 24
+    208 +
+    (note.isConflict ? 48 : 0) +
+    tLines * 23 +
+    (lLines ? 12 + lLines * 26 : 0)
   );
 }
 
@@ -184,7 +189,7 @@ const columnCount = computed(() => {
 const resolvedGap = computed(() =>
   containerWidth.value > 0 && containerWidth.value < 640
     ? Math.round(props.gapPx / 2)
-    : props.gapPx
+    : props.gapPx,
 );
 
 const columnWidth = computed(() => {
@@ -269,11 +274,19 @@ const visibleItems = computed(() => {
 const skeletonCount = computed(() => columnCount.value * 3);
 
 const onScroll = () => {
+  // While the user is actively scrolling, height corrections must apply
+  // instantly — the card transform transition would otherwise turn every
+  // late measurement into a visible glide.
+  isScrolling.value = true;
+  clearTimeout(scrollIdleTimer);
+  scrollIdleTimer = setTimeout(() => {
+    isScrolling.value = false;
+  }, 150);
   if (scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
     scrollRaf = null;
     scrollTop.value =
-      scrollEl === window ? window.scrollY : scrollEl?.scrollTop ?? 0;
+      scrollEl === window ? window.scrollY : (scrollEl?.scrollTop ?? 0);
     updateOffset();
   });
 };
@@ -299,7 +312,7 @@ function updateWidth() {
 
 function updateViewport() {
   const h =
-    scrollEl === window ? window.innerHeight : scrollEl?.clientHeight ?? 0;
+    scrollEl === window ? window.innerHeight : (scrollEl?.clientHeight ?? 0);
   if (h !== viewportHeight.value) viewportHeight.value = h;
 }
 
@@ -352,7 +365,7 @@ function onCardObserved(entries) {
       const id = cardElementIds.get(el);
       if (!id) continue;
       const h = Math.round(
-        entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height
+        entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height,
       );
       const prev = cardHeights.get(id);
       if (h > 0 && (prev === undefined || Math.abs(prev - h) >= 2)) {
@@ -406,7 +419,7 @@ watch(
 
     _prevNoteIds = newIds;
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 onMounted(async () => {
@@ -424,7 +437,7 @@ onMounted(async () => {
   updateViewport();
   updateOffset();
   scrollTop.value =
-    scrollEl === window ? window.scrollY : scrollEl?.scrollTop ?? 0;
+    scrollEl === window ? window.scrollY : (scrollEl?.scrollTop ?? 0);
   scrollEl.addEventListener('scroll', onScroll, { passive: true });
 
   if (typeof ResizeObserver === 'function') {
@@ -454,6 +467,7 @@ onBeforeUnmount(() => {
   cardRO?.disconnect();
   if (scrollRaf) cancelAnimationFrame(scrollRaf);
   if (cardResizeRaf) cancelAnimationFrame(cardResizeRaf);
+  clearTimeout(scrollIdleTimer);
   cardRefCbs.clear();
   scrollEl = containerRO = cardRO = null;
 });
@@ -500,6 +514,11 @@ onBeforeUnmount(() => {
   left: 0;
   contain: layout style;
   transition: transform 200ms ease;
+}
+
+/* Corrections landing mid-scroll snap instead of gliding. */
+.note-masonry__stage.is-scrolling .note-masonry__card {
+  transition: none;
 }
 
 .filter-pulse {
