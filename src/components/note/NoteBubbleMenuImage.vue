@@ -52,6 +52,16 @@
     >
       <v-remixicon name="riDownload2Line" class="size-5" />
     </button>
+    <button
+      v-if="ocrAvailable"
+      v-keep-focus
+      class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
+      :disabled="ocrBusy"
+      :title="translations.editor.copyTextFromImage || 'Copy text from image'"
+      @click="runOcr"
+    >
+      <v-remixicon name="riCharacterRecognitionLine" class="size-5" />
+    </button>
     <span class="border-r mx-1 h-6" />
     <button
       v-keep-focus
@@ -69,7 +79,15 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { saveDialog } from '@/lib/native/dialog';
 import { readData, writeFile } from '@/lib/native/fs';
-import { base64ToUint8Array } from '@/utils/helpers/index.js';
+import { clipboard } from '@/lib/tauri-bridge.js';
+import {
+  base64ToUint8Array,
+  uint8ArrayToBase64,
+} from '@/utils/helpers/index.js';
+import {
+  getCapabilities,
+  vision,
+} from '@hypothesi/tauri-plugin-device-ai-apis';
 
 function normalizeSrc(src) {
   return String(src || '').split('?')[0];
@@ -78,8 +96,6 @@ function normalizeSrc(src) {
 function isLocalAsset(src) {
   return src.startsWith('assets://') || src.startsWith('file-assets://');
 }
-
-
 
 function getFileName(src) {
   const normalizedSrc = normalizeSrc(src);
@@ -149,6 +165,8 @@ export default {
   setup(props) {
     const { translations } = useTranslations();
     const currentLayout = ref('block');
+    const ocrAvailable = ref(false);
+    const ocrBusy = ref(false);
     const deleteTitle =
       translations.value?.card?.delete ||
       translations.value?.menu?.delete ||
@@ -225,8 +243,46 @@ export default {
       props.editor.chain().focus().deleteSelection().run();
     }
 
+    async function probeOcr() {
+      try {
+        const capabilities = await getCapabilities();
+        ocrAvailable.value = Boolean(capabilities?.textRecognition?.available);
+      } catch {
+        ocrAvailable.value = false;
+      }
+    }
+
+    async function runOcr() {
+      if (ocrBusy.value) return;
+      const rawSrc = props.editor.getAttributes('image').src;
+      if (!rawSrc) return;
+      const src = normalizeSrc(rawSrc);
+      if (!src) return;
+      ocrBusy.value = true;
+      try {
+        let base64;
+        if (isLocalAsset(src)) {
+          base64 = await readData(encodeURI(src));
+        } else {
+          const response = await fetch(src);
+          base64 = uint8ArrayToBase64(
+            new Uint8Array(await response.arrayBuffer()),
+          );
+        }
+        if (!base64) return;
+        const result = await vision.recognizeText({ base64 });
+        const text = String(result?.text || '').trim();
+        if (text) await clipboard.writeText(text);
+      } catch (error) {
+        console.warn('[OCR] recognition failed:', error);
+      } finally {
+        ocrBusy.value = false;
+      }
+    }
+
     onMounted(() => {
       syncLayout();
+      probeOcr();
       props.editor.on('selectionUpdate', syncLayout);
       props.editor.on('transaction', syncLayout);
     });
@@ -241,6 +297,9 @@ export default {
       currentLayout,
       deleteTitle,
       downloadImage,
+      ocrAvailable,
+      ocrBusy,
+      runOcr,
       setLayout,
       removeImage,
       translations,

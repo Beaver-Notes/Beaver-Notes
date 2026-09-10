@@ -50,6 +50,19 @@ export function createFileBlock({
           getAttrs: (el) => ({
             src: el.getAttribute('data-src'),
             fileName: el.getAttribute('data-file-name'),
+            width: (() => {
+              const raw =
+                el.getAttribute('data-width') ?? el.getAttribute('width');
+              const w = parseInt(raw, 10);
+              return Number.isFinite(w) ? w : null;
+            })(),
+            layout: (() => {
+              const raw =
+                el.getAttribute('data-layout') ?? el.getAttribute('layout');
+              return ['block', 'wrap-left', 'wrap-right'].includes(raw)
+                ? raw
+                : null;
+            })(),
           }),
         },
       ];

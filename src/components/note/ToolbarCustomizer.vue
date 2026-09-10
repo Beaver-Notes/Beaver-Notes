@@ -12,7 +12,10 @@
         <div
           class="w-9 h-9 rounded-xl bg-neutral-100 dark:bg-white/10 flex items-center justify-center shrink-0"
         >
-          <v-remixicon name="riSettings3Line" class="w-5 h-5 text-neutral-600 dark:text-neutral-300" />
+          <v-remixicon
+            name="riSettings3Line"
+            class="w-5 h-5 text-neutral-600 dark:text-neutral-300"
+          />
         </div>
         <div class="flex-1 min-w-0">
           <h2
@@ -24,14 +27,20 @@
             <span class="hidden sm:inline">{{
               translations.toolbarCustomizer?.subtitle ||
               'Drag to reorder · toggle visibility'
-            }}</span><span class="sm:hidden">Tap to reorder · toggle visibility</span>
+            }}</span
+            ><span class="sm:hidden">Hold to reorder · toggle visibility</span>
           </p>
         </div>
       </div>
     </template>
 
     <div class="flex flex-col max-h-[72dvh] sm:max-h-[70vh]">
-      <div class="overflow-y-auto flex-1 px-3 py-3 overscroll-contain" style="-webkit-overflow-scrolling: touch" @dragover.prevent>
+      <div
+        ref="listRef"
+        class="overflow-y-auto flex-1 px-3 py-3 overscroll-contain"
+        style="-webkit-overflow-scrolling: touch"
+        @dragover.prevent
+      >
         <template
           v-for="(item, index) in toolbar.allItems.value"
           :key="item.id"
@@ -57,12 +66,13 @@
               !item.visible && !item.meta?.isDivider ? 'opacity-60' : '',
             ]"
             @dragstart="onDragStart(index, $event)"
-            @dragover.prevent="onDragOver(index)"
+            @dragover.prevent="onDragOver(index, $event)"
             @drop.prevent="onDrop(index)"
             @dragend="onDragEnd"
             @touchstart="onTouchStart(index, $event)"
             @touchmove="onTouchMove($event)"
             @touchend="onTouchEnd"
+            @touchcancel="onTouchCancel"
           >
             <span class="flex w-6 h-6 items-center justify-center shrink-0">
               <v-remixicon
@@ -74,12 +84,9 @@
             <template v-if="item.meta?.isDivider">
               <div class="flex-1 flex items-center gap-1.5">
                 <div class="flex-1 border-t border-dashed" />
-                <span
-                  class="text-xs text-neutral-300 dark:text-neutral-700"
-                  >{{
-                    translations.toolbarCustomizer?.divider || 'divider'
-                  }}</span
-                >
+                <span class="text-xs text-neutral-300 dark:text-neutral-700">{{
+                  translations.toolbarCustomizer?.divider || 'divider'
+                }}</span>
                 <div class="flex-1 border-t border-dashed" />
               </div>
             </template>
@@ -138,7 +145,12 @@
           / {{ toolbar.totalCount.value }}
           {{ translations.toolbarCustomizer?.visible || 'visible' }}
         </span>
-        <ui-button variant="primary" size="lg" class="rounded-full px-6" @click="$emit('close')">
+        <ui-button
+          variant="primary"
+          size="lg"
+          class="rounded-full px-6"
+          @click="$emit('close')"
+        >
           {{ translations.toolbarCustomizer?.done || 'Done' }}
         </ui-button>
       </div>
@@ -177,17 +189,85 @@ export default {
   emits: ['close', 'update:modelValue'],
   setup() {
     const { translations } = useTranslations();
+    // Edge auto-scroll zone + speed for held reorder drags (dnd-kit
+    // AutoScroll equivalent: native scroll is preventDefaulted once the
+    // long-press arms, so the list is driven explicitly near its edges).
+    const EDGE_PX = 56;
+    const SCROLL_PX_PER_FRAME = 12;
+    let autoScrollRaf = null;
+    let autoScrollDir = 0;
+    let lastPointerY = null;
+
+    function stopAutoScroll() {
+      if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf);
+      autoScrollRaf = null;
+      autoScrollDir = 0;
+      lastPointerY = null;
+    }
+
+    // Drop index from pointer Y vs row midpoints — robust while the list
+    // scrolls under a held finger, unlike elementFromPoint which goes stale.
+    function updateDragOverFromY(clientY) {
+      const el = listRef.value;
+      if (!el) return;
+      const rows = el.querySelectorAll('[data-row-index]');
+      let candidate = null;
+      for (const row of rows) {
+        const rect = row.getBoundingClientRect();
+        const idx = Number(row.dataset.rowIndex);
+        if (Number.isNaN(idx)) continue;
+        if (clientY < rect.top + rect.height / 2) {
+          candidate = idx;
+          break;
+        }
+        candidate = idx;
+      }
+      if (candidate !== null && candidate !== dragOverIndex.value)
+        dragOverIndex.value = candidate;
+    }
+
+    function updateAutoScroll(clientY) {
+      const el = listRef.value;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (clientY < rect.top + EDGE_PX) autoScrollDir = -1;
+      else if (clientY > rect.bottom - EDGE_PX) autoScrollDir = 1;
+      else autoScrollDir = 0;
+      if (autoScrollDir !== 0 && autoScrollRaf === null) {
+        const step = () => {
+          const list = listRef.value;
+          if (!list || autoScrollDir === 0) {
+            autoScrollRaf = null;
+            return;
+          }
+          list.scrollTop += autoScrollDir * SCROLL_PX_PER_FRAME;
+          if (lastPointerY !== null) updateDragOverFromY(lastPointerY);
+          autoScrollRaf = requestAnimationFrame(step);
+        };
+        autoScrollRaf = requestAnimationFrame(step);
+      }
+    }
+
     const toolbar = useToolbarConfig();
     const dragIndex = ref(null);
     const dragOverIndex = ref(null);
+    const listRef = ref(null);
 
     function onDragStart(index, event) {
       dragIndex.value = index;
       event.dataTransfer.effectAllowed = 'move';
     }
-    function onDragOver(index) {
+    function onDragOver(index, event) {
       if (dragIndex.value !== null && dragIndex.value !== index)
         dragOverIndex.value = index;
+      // HTML5 DnD edge auto-scroll: Chrome does some natively, Safari/Firefox
+      // barely — drive it explicitly so bottom-to-top drags stay tracked.
+      if (event?.clientY !== undefined && listRef.value) {
+        const rect = listRef.value.getBoundingClientRect();
+        if (event.clientY < rect.top + EDGE_PX) listRef.value.scrollTop -= 8;
+        else if (event.clientY > rect.bottom - EDGE_PX)
+          listRef.value.scrollTop += 8;
+      }
     }
     function onDrop(toIndex) {
       if (dragIndex.value === null) return;
@@ -204,35 +284,75 @@ export default {
       if (to < 0 || to >= toolbar.allItems.value.length) return;
       toolbar.reorder(idx, to);
     }
-    // whole-row touch reorder (press anywhere except eye)
+    // whole-row touch reorder: long-press grabs the row, plain drags scroll.
+    // touch-action is snapshotted at touchstart, so flipping the row to
+    // `touch-none` mid-gesture can't retroactively stop a scroll that the
+    // browser already owns. Instead reorder is only armed after a hold-still,
+    // and we never preventDefault before that point.
+    const LONG_PRESS_MS = 400;
+    const MOVE_TOLERANCE_PX = 10;
     let touchStartIndex = null;
-    let touchStartY = 0;
+    let pressTimer = null;
+    let pressCandidate = null;
+    function cancelPress() {
+      if (pressTimer) clearTimeout(pressTimer);
+      pressTimer = null;
+      pressCandidate = null;
+    }
     function onTouchStart(index, e) {
       const t = e.touches?.[0];
       if (!t) return;
       if (e.target.closest('button')) return;
-      touchStartIndex = index;
-      touchStartY = t.clientY;
-      dragIndex.value = index;
+      cancelPress();
+      pressCandidate = { index, x: t.clientX, y: t.clientY };
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        if (!pressCandidate) return;
+        touchStartIndex = pressCandidate.index;
+        dragIndex.value = pressCandidate.index;
+        pressCandidate = null;
+      }, LONG_PRESS_MS);
     }
     function onTouchMove(e) {
-      if (touchStartIndex === null) return;
       const t = e.touches?.[0];
       if (!t) return;
-      const dy = t.clientY - touchStartY;
-      if (Math.abs(dy) < 10) return;
-      const el = document.elementFromPoint(t.clientX, t.clientY);
-      const row = el?.closest('[data-row-index]');
-      if (row) {
-        const idx = Number(row.dataset.rowIndex);
-        if (!Number.isNaN(idx) && idx !== dragOverIndex.value) dragOverIndex.value = idx;
+      if (touchStartIndex === null) {
+        // reorder not armed: finger moved = scroll intent. Abandon the press
+        // and return WITHOUT preventDefault so the browser scrolls natively.
+        if (
+          pressCandidate &&
+          (Math.abs(t.clientX - pressCandidate.x) > MOVE_TOLERANCE_PX ||
+            Math.abs(t.clientY - pressCandidate.y) > MOVE_TOLERANCE_PX)
+        ) {
+          cancelPress();
+        }
+        return;
       }
+      // Armed: drive highlight + auto-scroll explicitly; native scroll stays
+      // off so the two never fight over the gesture.
+      lastPointerY = t.clientY;
+      updateDragOverFromY(t.clientY);
+      updateAutoScroll(t.clientY);
       e.preventDefault();
     }
     function onTouchEnd() {
-      if (touchStartIndex !== null && dragOverIndex.value !== null && dragOverIndex.value !== touchStartIndex) {
+      cancelPress();
+      stopAutoScroll();
+      if (
+        touchStartIndex !== null &&
+        dragOverIndex.value !== null &&
+        dragOverIndex.value !== touchStartIndex
+      ) {
         toolbar.reorder(touchStartIndex, dragOverIndex.value);
       }
+      touchStartIndex = null;
+      dragIndex.value = null;
+      dragOverIndex.value = null;
+    }
+    function onTouchCancel() {
+      // system took the gesture (call, scroll takeover) — abort, don't apply
+      cancelPress();
+      stopAutoScroll();
       touchStartIndex = null;
       dragIndex.value = null;
       dragOverIndex.value = null;
@@ -249,6 +369,7 @@ export default {
 
     return {
       toolbar,
+      listRef,
       dragIndex,
       dragOverIndex,
       onDragStart,
@@ -259,6 +380,7 @@ export default {
       onTouchStart,
       onTouchMove,
       onTouchEnd,
+      onTouchCancel,
       shouldShowGroupLabel,
       GROUP_STYLES,
       translations,

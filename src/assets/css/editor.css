@@ -106,7 +106,9 @@ img.ProseMirror-selectednode {
   padding-inline-start: var(--drag-handle-gutter);
   padding-inline-end: var(--drag-handle-gutter);
   & > :first-child {
-    margin-top: 0;
+    /* !important beats the !important top-margins above (p/h1) and the
+       typography pre margin, so the first block sits flush under the title. */
+    margin-top: 0 !important;
   }
   &:focus {
     outline: none;
@@ -243,7 +245,7 @@ img.ProseMirror-selectednode {
     pointer-events: none;
     height: 0;
   }
-  & > :not(p):not(.bn-image-node) {
+  & > :not(p):not(.bn-image-node):not(.bn-video-node) {
     clear: both;
   }
   .bn-image-node {
@@ -272,6 +274,31 @@ img.ProseMirror-selectednode {
     margin-right: 1rem !important;
   }
   .bn-image-node[data-layout='wrap-right'] {
+    float: right;
+    margin-left: 1rem !important;
+  }
+  .bn-video-node {
+    display: block;
+    clear: both;
+    max-width: 100%;
+    margin-top: 1em !important;
+    margin-bottom: 1em !important;
+    text-align: center;
+  }
+  .bn-video-node[data-layout='wrap-left'],
+  .bn-video-node[data-layout='wrap-right'] {
+    clear: none;
+    width: auto;
+    max-width: calc(100% - 1rem);
+    text-align: left;
+    margin-top: 0.35em !important;
+    margin-bottom: 0.75em !important;
+  }
+  .bn-video-node[data-layout='wrap-left'] {
+    float: left;
+    margin-right: 1rem !important;
+  }
+  .bn-video-node[data-layout='wrap-right'] {
     float: right;
     margin-left: 1rem !important;
   }
@@ -337,10 +364,20 @@ img.ProseMirror-selectednode {
     right: 0.5rem;
   }
   .bn-image-node.is-selected .bn-image-resize-handle,
-  .bn-image-node.is-resizing .bn-image-resize-handle {
+  .bn-image-node.is-resizing .bn-image-resize-handle,
+  .bn-video-node.is-selected .bn-image-resize-handle,
+  .bn-video-node.is-resizing .bn-image-resize-handle {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(-50%) scale(1);
+  }
+  .bn-video-card {
+    container-type: inline-size;
+  }
+  @container (max-width: 21rem) {
+    .bn-video-card .video-time {
+      display: none;
+    }
   }
   .ProseMirror-selectednode {
     margin-top: 1em;
@@ -382,6 +419,17 @@ img.ProseMirror-selectednode {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 auto 0.75rem !important;
+  }
+
+  .ProseMirror .bn-video-node[data-layout='wrap-left'],
+  .ProseMirror .bn-video-node[data-layout='wrap-right'] {
+    display: block !important;
+    float: none !important;
+    clear: both !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
   }
 }
 

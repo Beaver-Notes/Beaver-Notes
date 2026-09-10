@@ -1,97 +1,15 @@
 <template>
-  <ui-popover
+  <button
     v-if="isItemVisible('link')"
-    :model-value="linkPopoverOpen"
-    @update:model-value="$emit('update:linkPopoverOpen', $event)"
-    @show="onLinkPopoverShow"
+    v-keep-focus
+    v-tooltip.group="translations.menu.link"
+    :aria-label="translations.menu.link"
+    :class="tbBtn(editor.isActive('link'))"
+    @click="openLinkPanel"
   >
-    <template #trigger>
-      <button
-        v-keep-focus
-        v-tooltip.group="translations.menu.link"
-        :aria-label="translations.menu.link"
-        :class="tbBtn(editor.isActive('link') || linkPopoverOpen)"
-      >
-        <v-remixicon name="riLink" />
-      </button>
-    </template>
+    <v-remixicon name="riLink" />
+  </button>
 
-    <div class="min-w-[260px]">
-      <div class="flex items-center gap-2">
-        <input
-          ref="linkInputRef"
-          :value="linkInputValue"
-          type="text"
-          @input="$emit('update:linkInputValue', $event.target.value)"
-          :placeholder="
-            translations.editor?.linkPlaceholder ||
-            'Enter URL or @note'
-          "
-          class="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 text-sm outline-none border border-transparent focus:border-primary transition-colors"
-          @keydown="onLinkInputKeydown"
-          @keydown.esc="closeLinkInput"
-          @keyup.enter="saveLinkInput"
-        />
-        <button
-          v-keep-focus
-          class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
-          :title="translations.common?.cancel || 'Cancel'"
-          :aria-label="translations.common?.cancel || 'Cancel'"
-          @click="closeLinkInput"
-        >
-          <v-remixicon name="riCloseLine" class="size-4" />
-        </button>
-        <button
-          v-keep-focus
-          class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
-          :title="translations.common?.save || 'Save'"
-          :aria-label="translations.common?.save || 'Save'"
-          :disabled="!linkInputValue.trim()"
-          @click="saveLinkInput"
-        >
-          <v-remixicon name="riCheckLine" class="size-4" />
-        </button>
-      </div>
-
-      <div
-        v-if="
-          linkInputValue.startsWith('@') && linkSuggestions.length > 0
-        "
-        class="mt-1 max-h-40 overflow-y-auto"
-      >
-        <button
-          v-for="(suggestion, index) in linkSuggestions"
-          :key="suggestion.id"
-          v-keep-focus
-          :class="
-            index === selectedLinkIndex
-              ? 'bg-neutral-100 dark:bg-neutral-700'
-              : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
-          "
-          class="w-full text-left px-2 py-1.5 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 transition-colors"
-          @click="selectLinkNote(suggestion.id)"
-        >
-          {{
-            suggestion.title ||
-            translations.editor?.untitledNote ||
-            'Untitled Note'
-          }}
-        </button>
-      </div>
-      <div
-        v-else-if="
-          linkInputValue.startsWith('@') &&
-          linkSuggestions.length === 0
-        "
-        class="mt-1 p-1.5 text-sm text-neutral-500 dark:text-neutral-400 italic"
-      >
-        {{
-          translations.editor?.noMatchingNotes ||
-          'No matching notes found'
-        }}
-      </div>
-    </div>
-  </ui-popover>
   <button
     v-if="isItemVisible('image')"
     v-keep-focus
@@ -165,11 +83,7 @@
 </template>
 
 <script>
-import { ref } from 'vue';
-
 export default {
-  expose: ['linkInputRef'],
-  emits: ['update:linkInputValue', 'update:linkPopoverOpen'],
   props: {
     editor: { type: Object, default: () => ({}) },
     translations: { type: Object, required: true },
@@ -181,23 +95,10 @@ export default {
     isMobile: { type: Boolean, default: false },
     tbBtn: { type: Function, required: true },
     openSub: { type: Function, required: true },
-    // Link input
-    linkInputValue: { type: String, default: '' },
-    selectedLinkIndex: { type: Number, default: 0 },
-    linkSuggestions: { type: Array, default: () => [] },
-    linkPopoverOpen: { type: Boolean, default: false },
-    onLinkPopoverShow: { type: Function, required: true },
-    onLinkInputKeydown: { type: Function, required: true },
-    closeLinkInput: { type: Function, required: true },
-    saveLinkInput: { type: Function, required: true },
-    selectLinkNote: { type: Function, required: true },
+    openLinkPanel: { type: Function, required: true },
     triggerImageInput: { type: Function, required: true },
     triggerFileInput: { type: Function, required: true },
     triggerVideoInput: { type: Function, required: true },
-  },
-  setup() {
-    const linkInputRef = ref(null);
-    return { linkInputRef };
   },
 };
 </script>

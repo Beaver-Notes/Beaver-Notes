@@ -9,6 +9,11 @@
         `is-${block.kind}`,
         block.tone ? `tone-${block.tone}` : '',
         block.checked ? 'is-checked' : '',
+        block.kind === 'media' &&
+        (block.tone === 'diagram' || block.tone === 'math') &&
+        block.source
+          ? 'has-art'
+          : '',
       ]"
     >
       <template v-if="block.kind === 'image'">
@@ -17,6 +22,7 @@
           :src="block.src"
           :alt="block.alt || 'Note preview image'"
           decoding="async"
+          draggable="false"
         />
       </template>
 
@@ -44,17 +50,48 @@
       </template>
 
       <template v-else-if="block.kind === 'media'">
-        <span class="note-card-preview-media-icon" aria-hidden="true">
-          <v-remixicon :name="mediaIconForTone(block.tone)" size="16" />
-        </span>
-        <span class="note-card-preview-media-copy">
-          <span class="note-card-preview-media-label">
-            {{ block.label }}
+        <template v-if="block.tone === 'diagram' && block.source">
+          <div class="note-card-preview-diagram">
+            <MermaidRenderer :content="block.source" />
+          </div>
+        </template>
+        <template v-else-if="block.tone === 'math' && block.source">
+          <div class="note-card-preview-math">
+            <MathRenderer
+              :content="block.source"
+              :macros="block.macros || '{}'"
+            />
+          </div>
+        </template>
+        <template v-else-if="isFileLikeTone(block.tone)">
+          <span class="note-card-preview-file-icon" aria-hidden="true">
+            <v-remixicon
+              :name="block.icon || mediaIconForTone(block.tone)"
+              size="20"
+            />
           </span>
-          <span v-if="block.text" class="note-card-preview-media-text">
-            {{ block.text }}
+          <span class="note-card-preview-media-copy">
+            <span class="note-card-preview-file-name">
+              {{ block.text || block.label }}
+            </span>
+            <span v-if="block.text" class="note-card-preview-file-kind">
+              {{ block.label }}
+            </span>
           </span>
-        </span>
+        </template>
+        <template v-else>
+          <span class="note-card-preview-media-icon" aria-hidden="true">
+            <v-remixicon :name="mediaIconForTone(block.tone)" size="16" />
+          </span>
+          <span class="note-card-preview-media-copy">
+            <span class="note-card-preview-media-label">
+              {{ block.label }}
+            </span>
+            <span v-if="block.text" class="note-card-preview-media-text">
+              {{ block.text }}
+            </span>
+          </span>
+        </template>
       </template>
 
       <template v-else-if="block.kind === 'task'">
@@ -91,7 +128,14 @@
 
 <script setup>
 import { mediaIconForTone } from '@/utils/note/cardPreview.js';
+import MermaidRenderer from '@/lib/tiptap/exts/mermaid-block/mermaid-renderer.vue';
+import MathRenderer from '@/lib/tiptap/exts/math-block/math-renderer.vue';
 
+const FILE_LIKE_TONES = new Set(['file', 'audio', 'video']);
+
+function isFileLikeTone(tone) {
+  return FILE_LIKE_TONES.has(tone);
+}
 defineProps({
   blocks: {
     type: Array,

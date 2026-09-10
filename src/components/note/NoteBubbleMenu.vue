@@ -50,6 +50,7 @@ import { CellSelection } from '@tiptap/pm/tables';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
+import NoteBubbleMenuVideo from './NoteBubbleMenuVideo.vue';
 import NoteBubbleMenuEditor from './NoteBubbleMenuEditor.vue';
 
 export default {
@@ -57,6 +58,7 @@ export default {
     BubbleMenu,
     NoteBubbleMenuLink,
     NoteBubbleMenuImage,
+    NoteBubbleMenuVideo,
     NoteBubbleMenuEditor,
   },
   props: {
@@ -182,6 +184,25 @@ export default {
       }
     }
 
+    // Node types where the text-formatting bubble is irrelevant (media/atomic
+    // blocks). image/Video have their own dedicated menus above; the entries
+    // below show nothing. Legacy lowercase aliases included for old snapshots.
+    // Single list shared by shouldShowMenuFn + currentMenuComponent so they
+    // can't drift apart (mermaidBlock vs mermaidDiagram did exactly that).
+    const NO_EDITOR_MENU_NODES = [
+      'codeBlock',
+      'mathBlock',
+      'mermaidBlock',
+      'mermaidDiagram',
+      'paper',
+      'Audio',
+      'audioBlock',
+      'videoBlock',
+      'fileEmbed',
+    ];
+    const isNoEditorMenuNode = (editor) =>
+      NO_EDITOR_MENU_NODES.some((name) => editor.isActive(name));
+
     const shouldShowMenuFn = ({ editor, state }) => {
       if (!editor) return false;
 
@@ -193,15 +214,11 @@ export default {
       // Always show for images
       if (editor.isActive('image')) return true;
 
+      // Always show for videos
+      if (editor.isActive('Video')) return true;
+
       // Don't show for atomic / drawing blocks
-      if (
-        !empty &&
-        (editor.isActive('codeBlock') ||
-          editor.isActive('mathBlock') ||
-          editor.isActive('mermaidBlock') ||
-          editor.isActive('paper'))
-      )
-        return false;
+      if (!empty && isNoEditorMenuNode(editor)) return false;
 
       return !empty;
     };
@@ -209,17 +226,12 @@ export default {
     const currentMenuComponent = computed(() => {
       if (!props.editor) return null;
       if (props.editor.isActive('image')) return 'note-bubble-menu-image';
+      if (props.editor.isActive('Video')) return 'note-bubble-menu-video';
 
       if (props.editor.state.selection instanceof CellSelection) return null;
       if (props.editor.state.selection.empty) return null;
 
-      if (
-        props.editor.isActive('codeBlock') ||
-        props.editor.isActive('mathBlock') ||
-        props.editor.isActive('mermaidBlock') ||
-        props.editor.isActive('paper')
-      )
-        return null;
+      if (isNoEditorMenuNode(props.editor)) return null;
 
       return 'note-bubble-menu-editor';
     });

@@ -6,40 +6,44 @@
         :content="mermaidContent"
         :class="[
           'w-full max-w-full overflow-x-auto bg-neutral-50 dark:bg-neutral-900 pointer-events-none p-2 border min-h-20',
-          showTextarea ? 'rounded-t-lg border-b-0' : 'rounded-lg',
+          isEditing ? 'rounded-t-xl border-b-0' : 'rounded-xl',
         ]"
       />
     </div>
 
-    <div
-      v-if="isEditing"
-      :class="[
-        'bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col mt-0 p-0',
-        isEditing ? 'rounded-b-lg' : ' rounded-lg',
-      ]"
-    >
-      <div class="flex mb-2 p-2 flex-grow">
-        <textarea
-          ref="inputRef"
-          :value="mermaidContent"
-          type="textarea"
-          :placeholder="translations.editor.mermaidPlaceholder || '-'"
-          class="bg-transparent ml-2 pl-2 flex-1 resize-y min-h-32"
-          @input="updateContent($event)"
-          @keydown.ctrl.enter="closeTextarea"
-          @keydown.exact="handleKeydown"
-          @scroll="syncScroll"
-        ></textarea>
-      </div>
+    <ExpandCollapse :open="isEditing">
       <div
-        class="flex p-2 border-t rounded-b-lg items-center justify-between bg-neutral-100 dark:bg-neutral-900/70"
+        class="bg-neutral-50 dark:bg-neutral-900 border flex flex-col mt-0 p-0 rounded-b-xl"
       >
-        <p class="text-sm m-0">
-          <strong>{{ translations.editor.exit }}</strong>
-        </p>
-        <v-remixicon name="riCloseLine" @click="closeTextarea" />
+        <div class="flex mb-2 p-2 flex-grow">
+          <textarea
+            ref="inputRef"
+            :value="mermaidContent"
+            type="textarea"
+            :placeholder="translations.editor.mermaidPlaceholder || '-'"
+            class="bg-transparent ml-2 pl-2 flex-1 resize-y min-h-32"
+            @input="updateContent($event)"
+            @keydown.ctrl.enter="closeTextarea"
+          @keydown.exact="handleKeydown"
+          ></textarea>
+        </div>
+        <div
+          class="flex p-2 border-t rounded-b-xl items-center justify-between bg-neutral-100 dark:bg-neutral-900/70"
+        >
+          <p class="text-sm m-0">
+            <strong>{{ translations.editor.exit }}</strong>
+          </p>
+          <button
+            type="button"
+            aria-label="Close"
+            class="flex items-center justify-center rounded-full size-8 text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10 transition-colors"
+            @click="closeTextarea"
+          >
+            <v-remixicon name="riCloseLine" />
+          </button>
+        </div>
       </div>
-    </div>
+    </ExpandCollapse>
   </NodeViewWrapper>
 </template>
 
@@ -47,19 +51,20 @@
 import { ref, watch, onMounted } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useTranslations } from '@/composable/useTranslations';
+import ExpandCollapse from '@/components/ui/ExpandCollapse.vue';
 import MermaidComponent from './mermaid-renderer.vue';
 
 export default {
   components: {
     MermaidComponent,
     NodeViewWrapper,
+    ExpandCollapse,
   },
   props: nodeViewProps,
   setup(props) {
     const isEditing = ref(false);
     const mermaidContent = ref('');
     const inputRef = ref(null);
-    const showTextarea = ref(false);
 
     function renderContent() {
       mermaidContent.value = props.node.attrs.content || '';
@@ -73,7 +78,6 @@ export default {
 
     function openTextarea() {
       isEditing.value = true;
-      showTextarea.value = true;
       setTimeout(() => {
         if (inputRef.value) {
           inputRef.value.focus();
@@ -83,7 +87,6 @@ export default {
 
     function closeTextarea() {
       isEditing.value = false;
-      showTextarea.value = false;
     }
 
     function handleKeydown(event) {
@@ -101,7 +104,7 @@ export default {
       // Insert a tab character at the cursor's current position
       const newValue = `${mermaidContent.value.substring(
         0,
-        start
+        start,
       )}\t${mermaidContent.value.substring(end)}`;
       mermaidContent.value = newValue;
 
@@ -122,7 +125,7 @@ export default {
       () => props.node.attrs.content,
       (newContent) => {
         mermaidContent.value = newContent;
-      }
+      },
     );
 
     const { translations } = useTranslations();
@@ -132,7 +135,6 @@ export default {
       mermaidContent,
       inputRef,
       isEditing,
-      showTextarea,
       translations,
       openTextarea,
       closeTextarea,

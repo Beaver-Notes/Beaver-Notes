@@ -47,7 +47,11 @@
 
     <div
       class="editor note-editor-page self-center w-full px-4 pt-10"
-      :class="{ 'mobile-search-open': showSearch, 'mobile:pt-0': !uiState.inReaderMode, 'mobile:pt-6': uiState.inReaderMode }"
+      :class="{
+        'mobile-search-open': showSearch,
+        'mobile:pt-0': !uiState.inReaderMode,
+        'mobile:pt-6': uiState.inReaderMode,
+      }"
       :data-reader-theme="uiState.inReaderMode ? prefs.theme : null"
       :data-reader-family="prefs.family"
       :data-full-width="note?.isFullWidth ? 'true' : null"
@@ -60,14 +64,23 @@
               '--reader-line': prefs.line,
             }
           : {
-              '--selected-width': note?.isFullWidth ? '100%' : '54rem',
+              '--selected-width': note?.isFullWidth
+                ? '100%'
+                : hingeSegmentWidth
+                  ? `min(54rem, ${hingeSegmentWidth}px)`
+                  : '54rem',
               'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
             }
       "
       @mousedown.self="uiState.inReaderMode && exitReader()"
     >
       <template v-if="editor && !isLocked">
-        <div :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)', paddingInlineEnd: 'var(--drag-handle-gutter, 0px)' }">
+        <div
+          :style="{
+            paddingInlineStart: 'var(--drag-handle-gutter, 0px)',
+            paddingInlineEnd: 'var(--drag-handle-gutter, 0px)',
+          }"
+        >
           <transition
             v-if="showSearch"
             enter-active-class="transition duration-200 ease-out"
@@ -113,7 +126,7 @@
       </div>
       <div
         v-if="!isLocked"
-        class="editor prose dark:prose-invert max-w-none w-full mb-12 mobile:mb-6"
+        class="editor prose dark:prose-invert max-w-none w-full mb-6 mobile:mb-6"
       >
         <h1
           ref="titleDiv"
@@ -122,7 +135,10 @@
           class="outline-none bg-transparent cursor-text title-placeholder"
           :class="editor ? '' : 'invisible'"
           :data-placeholder="translations.editor.untitledNote"
-          :style="{ paddingInlineStart: 'var(--drag-handle-gutter, 0px)', paddingInlineEnd: 'var(--drag-handle-gutter, 0px)' }"
+          :style="{
+            paddingInlineStart: 'var(--drag-handle-gutter, 0px)',
+            paddingInlineEnd: 'var(--drag-handle-gutter, 0px)',
+          }"
           @input="handleTitleInput"
           @keydown="disallowedEnter"
         ></h1>
@@ -353,6 +369,20 @@ export default {
     }
     onMounted(() => window.addEventListener('resize', onResize));
     onUnmounted(() => window.removeEventListener('resize', onResize));
+    // ponytail: hinge = division region (Apple 111463) — cap readable content to one segment, never span the crease
+    const hingeSegmentWidth = ref(null);
+    const updateHingeSegments = () => {
+      const segments = window.getViewportSegments?.();
+      hingeSegmentWidth.value =
+        segments?.length === 2 ? Math.min(segments[0].width, segments[1].width) : null;
+    };
+    onMounted(() => {
+      updateHingeSegments();
+      window.addEventListener('resize', updateHingeSegments);
+    });
+    onUnmounted(() => {
+      window.removeEventListener('resize', updateHingeSegments);
+    });
     const titleDiv = ref(null);
     const noteHistory = useNoteHistory();
     const sharing = useNoteSharing();
@@ -488,7 +518,11 @@ export default {
     // Re-advertise when identity resolves late (profile loads async): the id
     // getter is fresh, so re-setting pushes the real account id to peers.
     watch(
-      () => [accountStore.profile?.id, accountStore.profile?.username, accountStore.profile?.email],
+      () => [
+        accountStore.profile?.id,
+        accountStore.profile?.username,
+        accountStore.profile?.email,
+      ],
       () => {
         if (awareness.value) {
           presence.setLocalState({ name: displayNameForPresence() });
@@ -792,7 +826,7 @@ export default {
     );
 
     function handleContentUpdate(content) {
-      if (ydoc.value) return; // Yjs manages content persistence
+      if (!content) return;
       return updateNote(id.value, { content });
     }
 
@@ -804,7 +838,9 @@ export default {
     watch(
       () => route.params.id,
       (noteId, oldNoteId) => {
-        if (oldNoteId && noteId && noteStore.getById(oldNoteId)) {
+        // Flush on ANY leave (note-to-note AND note-to-home) so home never
+        // renders a pre-edit preview while the debounced persist is pending.
+        if (oldNoteId && noteStore.getById(oldNoteId)) {
           noteStore.patchLocal(oldNoteId, {
             lastCursorPosition: editor.value?.state.selection.to,
           });
@@ -1055,6 +1091,7 @@ export default {
       showComments,
       isDocked,
       isLargeScreen,
+      hingeSegmentWidth,
       toggleComments,
       commentStore,
       onCommentActivated,

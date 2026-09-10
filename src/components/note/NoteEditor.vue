@@ -19,11 +19,7 @@
       :class="{ 'opacity-0 pointer-events-none': isDragging }"
     >
       <div class="drag-handle-inner">
-        <button
-          class="dh-button"
-          title="Add block"
-          @click.prevent="addBlock"
-        >
+        <button class="dh-button" title="Add block" @click.prevent="addBlock">
           <v-remixicon name="riAddLine" class="dh-icon" />
         </button>
         <div class="dh-grip">
@@ -109,7 +105,7 @@ export default {
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
 
     const showDragHandle = ref(
-      typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+      typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
     );
     const isDragging = ref(false);
     const currentNodePos = ref(-1);
@@ -270,13 +266,14 @@ export default {
     });
 
     const exts = [
-      ...(isYjs.value && props.ydoc ? createBaseExtensions({ yjs: true }) : extensions),
+      ...(isYjs.value && props.ydoc
+        ? createBaseExtensions({ yjs: true })
+        : extensions),
       dropFile.configure({ id: props.id }),
       NodeRangeSelection,
     ];
-    if (typeof window === 'undefined' || window.innerWidth >= 768) {
-      exts.push(Commands.configure({ id: props.id }));
-    }
+    // Always registered (mobile keeps its block picker as an extra affordance).
+    exts.push(Commands.configure({ id: props.id }));
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
     if (isYjs.value && props.ydoc) {
@@ -284,7 +281,7 @@ export default {
         Collaboration.configure({
           document: props.ydoc,
           field: 'content',
-        })
+        }),
       );
       if (props.awareness && canEdit(props.role)) {
         try {
@@ -295,7 +292,7 @@ export default {
                 name: props.userName || 'Anonymous',
                 color: getColorFromId(props.userName || props.id || 'anon'),
               },
-            })
+            }),
           );
         } catch (e) {
           console.warn('[editor] cursor init skipped:', e?.message);
@@ -309,7 +306,7 @@ export default {
           onCommentActivated: (commentId) => {
             emit('comment-activated', commentId);
           },
-        })
+        }),
       );
     }
 
@@ -404,14 +401,16 @@ export default {
         const { state, view } = editor.value;
         const pos = Math.min(props.cursorPosition, state.doc.content.size);
         const tr = state.tr.setSelection(
-          state.selection.constructor.near(state.doc.resolve(pos))
+          state.selection.constructor.near(state.doc.resolve(pos)),
         );
         view.dispatch(tr);
       }
 
       editor.value.on('update', () => {
         if (isYjs.value) {
-          emit('update', null);
+          // Yjs owns persistence, but downstream (previews, search index)
+          // still needs the JSON — emit it instead of discarding.
+          emit('update', editor.value.getJSON());
           return;
         }
         if (pendingProgrammaticUpdates > 0) {
@@ -470,7 +469,7 @@ export default {
       () => props.id,
       () => {
         destroyEditor();
-      }
+      },
     );
 
     watch(
@@ -547,7 +546,9 @@ export default {
   background-size: 9px 9px;
   background-repeat: no-repeat;
   background-position: center;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.08);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.08);
   transform: translateY(1px);
 }
 :root.dark .comment-highlight {

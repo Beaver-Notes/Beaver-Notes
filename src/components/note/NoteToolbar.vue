@@ -3,7 +3,9 @@
     <div
       class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex"
       :class="
-        store.inReaderMode ? 'opacity-0 hover:opacity-100 mobile:hidden' : 'opacity-100'
+        store.inReaderMode
+          ? 'opacity-0 hover:opacity-100 mobile:hidden'
+          : 'opacity-100'
       "
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
@@ -113,20 +115,10 @@
               :is-mobile="isMobile"
               :tb-btn="tbBtn"
               :open-sub="openSub"
-              :link-input-value="linkInputValue"
-              :selected-link-index="selectedLinkIndex"
-              :link-suggestions="linkSuggestions"
-              :link-popover-open="linkPopoverOpen"
-              :on-link-popover-show="onLinkPopoverShow"
-              :on-link-input-keydown="onLinkInputKeydown"
-              :close-link-input="closeLinkInput"
-              :save-link-input="saveLinkInput"
-              :select-link-note="selectLinkNote"
+              :open-link-panel="openLinkInput"
               :trigger-image-input="triggerImageInput"
               :trigger-file-input="triggerFileInput"
               :trigger-video-input="triggerVideoInput"
-              @update:link-input-value="linkInputValue = $event"
-              @update:link-popover-open="linkPopoverOpen = $event"
             />
             <span
               v-if="
@@ -567,7 +559,11 @@
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
-            <span class="sub-label">{{ translations.toolbar?.align || translations.menu?.paragraph || 'Align' }}</span>
+            <span class="sub-label">{{
+              translations.toolbar?.align ||
+              translations.menu?.paragraph ||
+              'Align'
+            }}</span>
             <button
               v-keep-focus
               :class="tbBtn()"
@@ -613,6 +609,58 @@
               <v-remixicon name="riAlignJustify" />
             </button>
           </div>
+
+          <div
+            :class="[
+              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
+              panelClass('input'),
+            ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
+          >
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeLinkInput"
+            >
+              <v-remixicon name="riArrowLeftLine" />
+            </button>
+            <span class="tb-divider" />
+            <input
+              ref="linkPanelInputRef"
+              v-model="linkInputValue"
+              type="text"
+              :placeholder="
+                translations.editor?.linkPlaceholder || 'Enter URL or @note'
+              "
+              class="tb-input"
+              @keydown="onLinkInputKeydown"
+              @keydown.esc="closeLinkInput"
+              @keyup.enter="saveLinkInput"
+            />
+            <button
+              v-keep-focus
+              class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
+              :title="translations.common?.cancel || 'Cancel'"
+              :aria-label="translations.common?.cancel || 'Cancel'"
+              @click="closeLinkInput"
+            >
+              <v-remixicon name="riCloseLine" class="size-4" />
+            </button>
+            <button
+              v-keep-focus
+              class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
+              :title="translations.common?.save || 'Save'"
+              :aria-label="translations.common?.save || 'Save'"
+              :disabled="!linkInputValue.trim()"
+              @click="saveLinkInput"
+            >
+              <v-remixicon name="riCheckLine" class="size-4" />
+            </button>
+          </div>
         </div>
         <!-- /scroll track -->
 
@@ -636,6 +684,50 @@
         v-model="showMobileBlockPicker"
         :editor="editor"
       />
+
+      <div
+        v-if="
+          activePanel === 'input' &&
+          linkInputValue.startsWith('@') &&
+          linkSuggestions.length > 0
+        "
+        class="pointer-events-auto absolute bottom-full left-1/2 mb-2 max-h-40 w-64 -translate-x-1/2 overflow-y-auto rounded-xl border bg-white p-1 shadow-lg dark:bg-neutral-900"
+      >
+        <button
+          v-for="(suggestion, index) in linkSuggestions"
+          :key="suggestion.id"
+          v-keep-focus
+          :class="
+            index === selectedLinkIndex
+              ? 'bg-neutral-100 dark:bg-neutral-700'
+              : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+          "
+          class="w-full text-left px-2 py-1.5 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 transition-colors"
+          @click="selectLinkNote(suggestion.id)"
+        >
+          {{
+            suggestion.title ||
+            translations.editor?.untitledNote ||
+            'Untitled Note'
+          }}
+        </button>
+      </div>
+      <div
+        v-else-if="
+          activePanel === 'input' &&
+          linkInputValue.startsWith('@') &&
+          linkSuggestions.length === 0
+        "
+        class="pointer-events-auto absolute bottom-full left-1/2 mb-2 w-64 -translate-x-1/2 rounded-xl border bg-white p-1 shadow-lg dark:bg-neutral-900"
+      >
+        <div
+          class="p-1.5 text-sm text-neutral-500 dark:text-neutral-400 italic"
+        >
+          {{
+            translations.editor?.noMatchingNotes || 'No matching notes found'
+          }}
+        </div>
+      </div>
     </div>
   </teleport>
 </template>
@@ -688,8 +780,8 @@ export default {
     const toolbarInsertRef = ref(null);
 
     const linkInputValue = ref('');
+    const linkPanelInputRef = ref(null);
     const selectedLinkIndex = ref(0);
-    const linkPopoverOpen = ref(false);
     const noteStore = useNoteStore();
 
     // Recompute pool only when notes list changes, not each keystroke: filtering is cheap.
@@ -744,12 +836,12 @@ export default {
       }
 
       linkInputValue.value = '';
-      linkPopoverOpen.value = false;
+      closeSub();
     }
 
     function closeLinkInput() {
       linkInputValue.value = '';
-      linkPopoverOpen.value = false;
+      closeSub();
       props.editor?.commands?.focus();
     }
 
@@ -757,13 +849,14 @@ export default {
       if (!props.editor) return;
       props.editor.chain().focus().insertLinkNote(id).run();
       linkInputValue.value = '';
-      linkPopoverOpen.value = false;
+      closeSub();
     }
 
-    function onLinkPopoverShow() {
+    function openLinkInput() {
       linkInputValue.value = '';
       selectedLinkIndex.value = 0;
-      nextTick(() => toolbarInsertRef.value?.linkInputRef?.focus());
+      openSub('input');
+      nextTick(() => linkPanelInputRef.value?.focus());
     }
 
     function onLinkInputKeydown(event) {
@@ -1045,11 +1138,11 @@ export default {
       isMobile,
       // Link input
       linkInputValue,
+      linkPanelInputRef,
       toolbarInsertRef,
       selectedLinkIndex,
       linkSuggestions,
-      linkPopoverOpen,
-      onLinkPopoverShow,
+      openLinkInput,
       onLinkInputKeydown,
       closeLinkInput,
       saveLinkInput,

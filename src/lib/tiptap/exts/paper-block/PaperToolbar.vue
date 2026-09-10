@@ -38,7 +38,7 @@
         >
           <span
             class="paper-tool-icon flex items-start justify-center w-full transform translate-y-6"
-            v-html="toolIcon(tool)"
+            v-html="toolIconSvg(tool)"
           />
         </button>
       </div>
@@ -120,11 +120,7 @@ import pencilSvgRaw from './icons/Pencil.svg?raw';
 import fountainSvgRaw from './icons/Funtain pen.svg?raw';
 import highlighterSvgRaw from './icons/Highlighter.svg?raw';
 import eraserSvgRaw from './icons/Eraser.svg?raw';
-
-const lassoSvg = `<svg viewBox="0 0 24 24" class="size-6" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M12 5c-3.9 0-7 2.4-7 5.5 0 2 1.4 3.8 3.5 4.7L7 19h10l-1.5-3.8C17.6 14.3 19 12.5 19 10.5 19 7.4 15.9 5 12 5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-  <path d="M9 10.5 11.5 13 15 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
+import lassoSvgRaw from './icons/Lasso.svg?raw';
 
 function recolorTip(svg, color) {
   return svg
@@ -152,6 +148,9 @@ function toolIconSvg(tool) {
       break;
     case 'eraser':
       raw = eraserSvgRaw;
+      break;
+    case 'lasso':
+      raw = lassoSvgRaw;
       break;
     default:
       return '';
@@ -215,9 +214,6 @@ export default {
         max = sizePresets.value[sizePresets.value.length - 1];
       return Math.round(6 + ((s - min) / Math.max(1, max - min)) * 14) + 'px';
     }
-    function toolIcon(tool) {
-      return tool.id === 'lasso' ? lassoSvg : toolIconSvg(tool);
-    }
     function onTool(id) {
       emit('tool', id);
     }
@@ -248,7 +244,7 @@ export default {
       showColors,
       showSizes,
       dotSize,
-      toolIcon,
+      toolIconSvg,
       bgClass,
       onTool,
       onColor,

@@ -74,7 +74,7 @@ function applyImageAttributes(nodeAttrs, imgElement) {
   });
 }
 
-class ImageNodeView {
+export class ImageNodeView {
   constructor({ node, editor, getPos, resizeLimits }) {
     this.node = node;
     this.editor = editor;
@@ -173,7 +173,7 @@ class ImageNodeView {
           event.preventDefault();
           event.stopPropagation();
         },
-        { passive: false }
+        { passive: false },
       );
 
       handle.addEventListener('click', (event) => {
@@ -284,7 +284,7 @@ class ImageNodeView {
               const colPos = $pos.before(d);
               const parentColumn = this.wrapper.closest('[data-type="column"]');
               const columnContainer = parentColumn?.closest(
-                '[data-type="column-container"]'
+                '[data-type="column-container"]',
               );
 
               if (parentColumn && columnContainer) {
@@ -295,7 +295,7 @@ class ImageNodeView {
                 const padding = 24;
                 const targetColWidth = Math.min(
                   newWidth + padding,
-                  containerWidth * 0.9
+                  containerWidth * 0.9,
                 );
 
                 if (currentColWidth > 0 && containerWidth > 0) {
@@ -396,7 +396,7 @@ const handleImagePaste = new Plugin({
         }
 
         const urls = items.filter(
-          (item) => item.kind === 'string' && item.type === 'text/plain'
+          (item) => item.kind === 'string' && item.type === 'text/plain',
         );
 
         if (files.length > 0) {
@@ -450,7 +450,7 @@ export default Image.extend({
             ? layout
             : getLayoutModeFromWrapperStyle(
                 element.getAttribute('wrapperstyle') || '',
-                'block'
+                'block',
               );
         },
       },
@@ -486,6 +486,19 @@ export default Image.extend({
           maxWidth: this.options.maxWidth,
         },
       });
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'img[src]',
+        getAttrs: (el) => ({
+          src: el.getAttribute('src'),
+          alt: el.getAttribute('alt') || el.getAttribute('title') || 'image',
+          title: el.getAttribute('title'),
+        }),
+      },
+    ];
   },
 
   addProseMirrorPlugins() {
