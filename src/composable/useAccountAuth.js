@@ -412,7 +412,7 @@ export function useAccountAuth() {
     return true;
   }
 
-  async function triggerSeed(_onProgress) {
+  async function triggerSeed(onProgress) {
     if (!accountStore.isAuthenticated) return false;
     if (!accountStore.isPaidPlan) return false;
 
@@ -443,10 +443,32 @@ export function useAccountAuth() {
         return false;
       }
 
+      const cloud = engine.transports?.cloud;
+      if (!cloud?.seedCloudOnce) {
+        throw new Error('Cloud sync transport is unavailable.');
+      }
+
       accountStore.setSeedStatus('seeding');
+      accountStore.setSeedError('');
       accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
-      // Force sync: seeding runs via serialized seedCloudOnce in normal cycle.
+
+      // Seed directly instead of inferring its result from a general sync cycle.
+      // The transport still serializes concurrent seed attempts internally.
+      const { getSyncReadiness } = await import('@/utils/sync/readiness.js');
+      cloud.setReadiness?.(await getSyncReadiness());
+      await cloud.seedCloudOnce((progress) => {
+        accountStore.setSeedProgress(progress);
+        onProgress?.(progress);
+      });
+
+      // Flush writes created while snapshots were being uploaded.
       await engine.forceSyncNow();
+      const seedFailure = cloud._lastSeedFailure;
+      if (seedFailure) {
+        accountStore.setSeedStatus('error');
+        accountStore.setSeedError(seedFailure.message || 'Sync setup failed.');
+        return false;
+      }
       if (accountStore.seedStatus === 'seeding') {
         accountStore.setSeedStatus('done');
       }
@@ -454,6 +476,7 @@ export function useAccountAuth() {
     } catch (err) {
       console.error('[auth] seed failed:', err);
       accountStore.setSeedStatus('error');
+      accountStore.setSeedError(err?.message || 'Sync setup failed.');
       return false;
     }
   }

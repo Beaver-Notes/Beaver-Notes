@@ -18,7 +18,13 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 1
 fi
 
-cd "$(dirname "$0")/../src-tauri"
+cd "$(dirname "$0")/../src-tauri/gen/apple"
+
+# Pin the Tauri dir explicitly: `tauri ios xcode-script` assumes it is launched
+# from gen/apple and walks up two levels to find src-tauri. If that assumption
+# ever breaks it can silently resolve a NEIGHBOUR project's tauri.conf.json
+# (deep search, depth 3) and fail on a wrong-identifier `-server-addr` file.
+export TAURI_APP_PATH="$(pwd)/../.."
 
 set -- tauri ios xcode-script -v \
   --platform "${PLATFORM_DISPLAY_NAME:?}" \

@@ -25,13 +25,17 @@ function normalizeAssetPaths(node, noteId) {
     let fileName = src;
 
     // Full path like /Users/.../notes-assets/{noteId}/{file} or /Users/.../file-assets/{noteId}/{file}
-    const fsMatch = src.match(/(?:notes-assets|file-assets)\/([^/]+\/)?([^/]+)$/);
+    const fsMatch = src.match(
+      /(?:notes-assets|file-assets)\/([^/]+\/)?([^/]+)$/,
+    );
     if (fsMatch) {
       // fsMatch[1] = "noteId/" (if present), fsMatch[2] = filename
       fileName = fsMatch[2];
     } else {
       // Relative path like file-assets/noteId/file: strip prefix to filename.
-      const relMatch = src.match(/^(?:notes-assets|file-assets)(?:\/[^/]+)*\/([^/]+)$/);
+      const relMatch = src.match(
+        /^(?:notes-assets|file-assets)(?:\/[^/]+)*\/([^/]+)$/,
+      );
       if (relMatch) {
         fileName = relMatch[1];
       }
@@ -72,11 +76,14 @@ export async function convertLegacyNoteToUpdate(schema, content) {
  */
 export async function convertLegacyNotesToYjs(
   notes = [],
-  { onProgress, legacyPassword, alreadyConvertedIds } = {}
+  { onProgress, legacyPassword, alreadyConvertedIds } = {},
 ) {
   const schema = await ensureSchema();
   const device = getDeviceId();
   const failures = [];
+  // {id, title, reason} for every non-converted note (surfaced in import
+  // issues + excluded from meta seeding so no stranded cards are created).
+  const skippedNotes = [];
   let converted = 0;
   let skipped = 0;
   const alreadyConverted =
@@ -92,6 +99,11 @@ export async function convertLegacyNotesToYjs(
       }
       if (!note?.id || !note.content || typeof note.content !== 'object') {
         skipped++;
+        skippedNotes.push({
+          id: note?.id || '',
+          title: note?.title || '',
+          reason: !note?.id ? 'missing id' : 'missing content',
+        });
         continue;
       }
       try {
@@ -103,9 +115,8 @@ export async function convertLegacyNotesToYjs(
               note.content.content[0].startsWith('{')));
 
         if (isLocked) {
-          const { isAppEncryptedEnvelope, decryptContent } = await import(
-            '@/utils/crypto/encryption.js'
-          );
+          const { isAppEncryptedEnvelope, decryptContent } =
+            await import('@/utils/crypto/encryption.js');
           // App-encrypted (ae:3/ae:6): workspace key always available here, runs regardless of legacyPassword.
           if (isAppEncryptedEnvelope(note.content)) {
             content = await decryptContent(note.content);
@@ -113,18 +124,22 @@ export async function convertLegacyNotesToYjs(
             // Legacy CryptoJS/JSON: decrypt with onboarding legacy password.
             if (!legacyPassword) {
               skipped++;
+              skippedNotes.push({
+                id: note.id,
+                title: note.title || '',
+                reason: 'locked, no password provided',
+              });
               continue;
             }
-            const { decryptNoteWithPassword } = await import(
-              '@/utils/migration/legacyElectron.js'
-            );
+            const { decryptNoteWithPassword } =
+              await import('@/utils/migration/legacyElectron.js');
             const ciphertext = note.content.content?.[0];
             if (typeof ciphertext !== 'string') {
               throw new Error('Locked note has no decryptable ciphertext');
             }
             const { plaintext } = await decryptNoteWithPassword(
               ciphertext,
-              legacyPassword
+              legacyPassword,
             );
             content = JSON.parse(plaintext);
           }
@@ -136,26 +151,61 @@ export async function convertLegacyNotesToYjs(
         if (update) {
           entries.push({ noteId: note.id, update });
           converted++;
+        } else if (note.title?.trim()) {
+          // Empty content but titled: import as an empty note so it opens
+          // and deletes normally instead of stranding a doc-less card.
+          const emptyUpdate = await convertLegacyNoteToUpdate(schema, {
+            type: 'doc',
+            content: [{ type: 'paragraph' }],
+          });
+          if (emptyUpdate) {
+            entries.push({ noteId: note.id, update: emptyUpdate });
+            converted++;
+          } else {
+            skipped++;
+            skippedNotes.push({
+              id: note.id,
+              title: note.title,
+              reason: 'empty content',
+            });
+          }
         } else {
           skipped++;
+          skippedNotes.push({
+            id: note.id,
+            title: note.title || '',
+            reason: 'empty content',
+          });
         }
       } catch (err) {
-        console.warn(`[legacy-content] failed to convert note ${note.id}:`, err?.message || err);
+        console.warn(
+          `[legacy-content] failed to convert note ${note.id}:`,
+          err?.message || err,
+        );
         failures.push(note.id);
+        skippedNotes.push({
+          id: note.id,
+          title: note?.title || '',
+          reason: err?.message || 'conversion failed',
+        });
       }
     }
     if (entries.length > 0) {
       await appendBatch(
         entries.map((e) => e.noteId),
         entries.map((e) => e.update),
-        entries.map(() => device)
+        entries.map(() => device),
       );
     }
-    onProgress?.(Math.min(i + CHUNK_SIZE, notes.length), notes.length, entries[0]?.noteId || '');
+    onProgress?.(
+      Math.min(i + CHUNK_SIZE, notes.length),
+      notes.length,
+      entries[0]?.noteId || '',
+    );
     await yieldToUi();
   }
 
-  return { converted, skipped, failures };
+  return { converted, skipped, failures, skippedNotes };
 }
 
 /**
@@ -173,18 +223,26 @@ export function ensureLegacyNotesPreview(notesMap) {
     // isLocked is unset or the prefix heuristic misses them.
     let isAeEnvelope = false;
     try {
-      isAeEnvelope = isAppEncryptedEnvelope(content) || content?.ae === 3 || content?.ae === 6;
+      isAeEnvelope =
+        isAppEncryptedEnvelope(content) ||
+        content?.ae === 3 ||
+        content?.ae === 6;
     } catch {
       isAeEnvelope = content?.ae === 3 || content?.ae === 6;
     }
     const hasLegacyCipher =
       typeof content?.content?.[0] === 'string' &&
-      (content.content[0].startsWith('U2FsdGVk') || content.content[0].startsWith('{'));
+      (content.content[0].startsWith('U2FsdGVk') ||
+        content.content[0].startsWith('{'));
     const isLocked = note.isLocked === true || isAeEnvelope || hasLegacyCipher;
     // Encrypted envelopes not structured content: hidden preview only.
     let contentForPreview = note.content;
     if (isLocked) contentForPreview = null;
-    else if (contentForPreview && typeof contentForPreview === 'object' && contentForPreview.type !== 'doc') {
+    else if (
+      contentForPreview &&
+      typeof contentForPreview === 'object' &&
+      contentForPreview.type !== 'doc'
+    ) {
       contentForPreview = null;
     }
     const { cardPreview, preview } = buildNotePreview({
@@ -196,7 +254,11 @@ export function ensureLegacyNotesPreview(notesMap) {
     note.cardPreview = cardPreview;
     if (preview !== undefined) note.preview = preview;
     if (!isLocked) {
-      const searchText = extractTextFromContent(contentForPreview) || note.searchText || preview || '';
+      const searchText =
+        extractTextFromContent(contentForPreview) ||
+        note.searchText ||
+        preview ||
+        '';
       if (searchText) note.searchText = searchText;
     } else {
       note.preview = '';

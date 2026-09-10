@@ -9,12 +9,12 @@ import { encryptJSON } from '@/utils/sync/crypto.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import { YJS_UPDATE_EXT } from '@/utils/sync/constants.js';
 import { registerActiveDoc } from './shared.js';
+import { getDeviceId, objToYMap, toUint8Array } from '@/lib/yjs/helpers.js';
 import {
-  getDeviceId,
-  objToYMap,
-  toUint8Array,
-} from '@/lib/yjs/helpers.js';
-import { getWorkspaceDoc, META_DOC_ID, onWorkspaceDocDestroy } from './meta-doc.js';
+  getWorkspaceDoc,
+  META_DOC_ID,
+  onWorkspaceDocDestroy,
+} from './meta-doc.js';
 import { getWsSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/ws-sync';
 import { useWorkspaceStore } from '@/store/workspace';
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
@@ -22,7 +22,11 @@ import { loadOrCreateIdentity } from '@/utils/crypto/identity';
 import { unwrapNoteKey } from '@/utils/crypto/note-key';
 
 // Re-export store hydration so consumers keep a single import path
-export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-store.js';
+export {
+  writeStoresFromWorkspace,
+  backfillNotePreviews,
+  repairStrandedNotes,
+} from './meta-store.js';
 
 const NOTE_META_FIELDS = [
   'id',
@@ -85,10 +89,16 @@ async function retryWrite(fn, label) {
       return;
     } catch (err) {
       if (attempt === MAX_WRITE_RETRIES) {
-        console.error(`[meta-yjs] ${label} failed after ${MAX_WRITE_RETRIES} attempts:`, err);
+        console.error(
+          `[meta-yjs] ${label} failed after ${MAX_WRITE_RETRIES} attempts:`,
+          err,
+        );
         throw err;
       }
-      console.warn(`[meta-yjs] ${label} attempt ${attempt} failed, retrying...`, err);
+      console.warn(
+        `[meta-yjs] ${label} attempt ${attempt} failed, retrying...`,
+        err,
+      );
       await new Promise((r) => setTimeout(r, WRITE_RETRY_DELAY_MS));
     }
   }
@@ -99,7 +109,7 @@ async function persistWorkspace(update) {
   try {
     await retryWrite(
       () => appendUpdate(META_DOC_ID, update, getDeviceId()),
-      `SQLite appendUpdate for meta`
+      `SQLite appendUpdate for meta`,
     );
   } catch {
     // Update lost despite retries: documented in retryWrite.
@@ -107,15 +117,19 @@ async function persistWorkspace(update) {
   try {
     const commitsDir = await getCommitsDir();
     if (commitsDir) {
-
       if (!snapshotWritten) {
         const files = await readSyncDir(commitsDir).catch(() => []);
         const hasWorkspaceFiles = files.some(
-          (f) => f.endsWith(YJS_UPDATE_EXT) && f.startsWith('meta')
+          (f) => f.endsWith(YJS_UPDATE_EXT) && f.startsWith('meta'),
         );
         if (!hasWorkspaceFiles) {
           const fullState = Y.encodeStateAsUpdate(getWorkspaceDoc());
-          await writeYjsSnapshot(commitsDir, META_DOC_ID, fullState, encryptJSON);
+          await writeYjsSnapshot(
+            commitsDir,
+            META_DOC_ID,
+            fullState,
+            encryptJSON,
+          );
         }
         snapshotWritten = true;
       }
@@ -127,7 +141,6 @@ async function persistWorkspace(update) {
   }
 }
 
-
 export async function loadWorkspaceDoc() {
   // Flush buffered meta updates BEFORE reading SQLite so freshly seeded
   // state is persisted and can't be lost on reload.
@@ -137,7 +150,8 @@ export async function loadWorkspaceDoc() {
 
   if (!persistHandlerAttached) {
     doc.on('update', (update, origin) => {
-      if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
+      if (origin === 'load' || origin === 'sync' || origin === 'ws-relay')
+        return;
       pendingMetaUpdates.push(update);
       scheduleMetaFlush();
     });
@@ -157,7 +171,10 @@ export async function loadWorkspaceDoc() {
       snapshotLoaded = true;
     }
   } catch (err) {
-    console.error('[meta-yjs] snapshot corrupted: attempting recovery from updates:', err?.message);
+    console.error(
+      '[meta-yjs] snapshot corrupted: attempting recovery from updates:',
+      err?.message,
+    );
   }
 
   // Recovery: replay individual updates, skip corrupted: snapshot invalid but history may be intact.
@@ -182,9 +199,13 @@ export async function loadWorkspaceDoc() {
           }
         }
         if (applied > 0) {
-          console.warn(`[meta-yjs] recovered ${applied}/${updates.length} updates from history`);
+          console.warn(
+            `[meta-yjs] recovered ${applied}/${updates.length} updates from history`,
+          );
         } else {
-          console.warn('[meta-yjs] all updates corrupted: starting with empty workspace doc');
+          console.warn(
+            '[meta-yjs] all updates corrupted: starting with empty workspace doc',
+          );
         }
       }
     } catch (updateErr) {
@@ -200,7 +221,10 @@ export async function loadWorkspaceDoc() {
   if (wsId) {
     // Supply WORKSPACE key to Hocuspocus meta room before join, else inbound meta corrupts and grid goes blank.
     await ensureMetaRoomKey(wsId).catch((err) => {
-      console.warn('[meta-yjs] could not derive workspace meta key:', err?.message || err);
+      console.warn(
+        '[meta-yjs] could not derive workspace meta key:',
+        err?.message || err,
+      );
     });
     wsSync.joinMetaRoom(wsId);
   }
@@ -375,7 +399,7 @@ export function syncNoteMeta(note) {
       if (field === 'preview') {
         // Short snippet only: full text bloats meta doc, search lives in index.
         meta.preview = String(
-          note.preview || note.searchText || note.cardPreview?.text || ''
+          note.preview || note.searchText || note.cardPreview?.text || '',
         ).slice(0, 400);
       } else if (field === 'cardPreview') {
         if (note.cardPreview && typeof note.cardPreview === 'object') {
@@ -405,7 +429,7 @@ export function reconcileUnknownNotePlaceholders(noteIds) {
   const doc = getWorkspaceDoc();
   const yNotes = doc.getMap('notes');
   const pending = [...new Set(noteIds)].filter(
-    (id) => id && id !== META_DOC_ID && !yNotes.has(id)
+    (id) => id && id !== META_DOC_ID && !yNotes.has(id),
   );
   for (const id of pending) {
     syncNoteMeta({

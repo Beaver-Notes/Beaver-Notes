@@ -1,7 +1,7 @@
 /** Meta Yjs hydration: pushes workspace-doc changes into Pinia, backfills previews. */
 
 import * as Y from 'yjs';
-import { getSnapshots } from '@/lib/native/yjs.js';
+import { getSnapshots, appendBatch } from '@/lib/native/yjs.js';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
@@ -9,12 +9,9 @@ import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { saveNote } from '@/store/note/index';
-import { yMapToObj, toUint8Array } from '@/lib/yjs/helpers.js';
+import { yMapToObj, toUint8Array, getDeviceId } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from './meta-doc.js';
-import {
-  mergeNoteEntry,
-  diffRemovedNoteIds,
-} from './meta-merge.js';
+import { mergeNoteEntry, diffRemovedNoteIds } from './meta-merge.js';
 
 function buildNotePreviewFromContent(merged, content) {
   return buildNotePreview({
@@ -53,7 +50,7 @@ export async function readNoteContents(noteIds) {
     try {
       Y.applyUpdate(tmp, toUint8Array(snapshot));
       contents[id] = await yXmlFragmentToProsemirrorJSON(
-        tmp.getXmlFragment('content')
+        tmp.getXmlFragment('content'),
       );
     } catch (err) {
       console.warn('[meta-yjs] content load failed for', id, err);
@@ -80,7 +77,8 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
 
   const isInitialHydration = !metaChanges;
   let foldersNeedRebuild = isInitialHydration || metaChanges.folders;
-  let labelsNeedRebuild = isInitialHydration || metaChanges.labels || metaChanges.labelColors;
+  let labelsNeedRebuild =
+    isInitialHydration || metaChanges.labels || metaChanges.labelColors;
 
   // Incremental batches rebuild only when flagged: avoids app-wide re-renders at scale. Initial rebuilds all.
   if (foldersNeedRebuild) {
@@ -114,7 +112,7 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
 
     const removed = diffRemovedNoteIds(
       Object.keys(noteStore.data),
-      new Set(yNotes.keys())
+      new Set(yNotes.keys()),
     );
     for (const id of removed) {
       delete noteStore.data[id];
@@ -130,7 +128,7 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
 
     const removed = diffRemovedNoteIds(
       Object.keys(noteStore.data),
-      new Set(yNotes.keys())
+      new Set(yNotes.keys()),
     );
     for (const id of removed) {
       delete noteStore.data[id];
@@ -160,11 +158,14 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
           try {
             Y.applyUpdate(tmp, toUint8Array(snapshot));
             const content = await yXmlFragmentToProsemirrorJSON(
-              tmp.getXmlFragment('content')
+              tmp.getXmlFragment('content'),
             );
             const merged = noteStore.data[id];
             if (!merged) continue;
-            const { cardPreview, preview } = buildNotePreviewFromContent(merged, content);
+            const { cardPreview, preview } = buildNotePreviewFromContent(
+              merged,
+              content,
+            );
             merged.cardPreview = cardPreview;
             if (!merged.preview) merged.preview = preview;
             // Persist the built preview so next launch skips content conversion.
@@ -187,7 +188,8 @@ export async function seedWorkspaceDocFromData(
   labels,
   labelColors,
   deletedIds,
-  deletedFolderIds
+  deletedFolderIds,
+  excludeIds,
 ) {
   const doc = getWorkspaceDoc();
   const yNotes = doc.getMap('notes');
@@ -217,6 +219,9 @@ export async function seedWorkspaceDocFromData(
 
   doc.transact(() => {
     for (const [id, note] of Object.entries(notes || {})) {
+      // Notes skipped during conversion (empty/corrupt/no-id) get no meta,
+      // so they can never strand as doc-less cards.
+      if (excludeIds?.has(id)) continue;
       const yNote = new Y.Map();
       for (const field of SEED_META_FIELDS) {
         if (note[field] !== undefined) yNote.set(field, note[field]);
@@ -281,7 +286,7 @@ export async function backfillNotePreviews() {
     try {
       Y.applyUpdate(tmp, toUint8Array(snapshot));
       const content = await yXmlFragmentToProsemirrorJSON(
-        tmp.getXmlFragment('content')
+        tmp.getXmlFragment('content'),
       );
       if (!content || !content.content?.length) continue;
 
@@ -300,4 +305,88 @@ export async function backfillNotePreviews() {
       tmp.destroy();
     }
   }
+}
+
+/** One-time repair: legacy imports once seeded meta without a Yjs doc, stranding
+ * unopenable, undeletable cards. Notes with a title get a valid empty doc;
+ * untitled and id-less notes are dropped. Locked notes are left alone. */
+export async function repairStrandedNotes() {
+  let removeNoteMeta;
+  try {
+    ({ removeNoteMeta } = await import('./workspace-doc.js'));
+  } catch (e) {
+    console.warn('[meta-yjs] stranded repair: workspace-doc import failed', e);
+    return { repaired: 0, dropped: 0, failed: 1 };
+  }
+  const yNotes = getWorkspaceDoc().getMap('notes');
+  const dropIds = [];
+  const checkIds = [];
+  const titles = {};
+  for (const [id, yNote] of yNotes.entries()) {
+    if (!id) {
+      // Id-less meta can never own a doc (the converter skips no-id notes
+      // before converting): drop without a snapshot round-trip.
+      dropIds.push(id);
+      continue;
+    }
+    if (!yNote || typeof yNote.get !== 'function') continue;
+    if (yNote.get('isLocked')) continue;
+    const title = yNote.get('title');
+    titles[id] = typeof title === 'string' ? title : '';
+    checkIds.push(id);
+  }
+  let snapshots = {};
+  if (checkIds.length > 0) {
+    try {
+      snapshots = await getSnapshots(checkIds);
+    } catch (err) {
+      console.warn('[meta-yjs] stranded repair snapshot batch failed', err);
+      return { repaired: 0, dropped: 0, failed: 1 };
+    }
+  }
+  const repairIds = [];
+  for (const id of checkIds) {
+    const snapshot = snapshots?.[id];
+    if (snapshot && snapshot.length > 0) continue;
+    if (titles[id]?.trim()) repairIds.push(id);
+    else dropIds.push(id);
+  }
+  let repaired = 0;
+  let failed = 0;
+  if (repairIds.length > 0) {
+    try {
+      // Empty paragraph, no schema/editor needed. Structurally identical to
+      // what the converter writes for titled empty notes.
+      const tmp = new Y.Doc();
+      tmp.getXmlFragment('content').push([new Y.XmlElement('paragraph')]);
+      const update = Y.encodeStateAsUpdate(tmp);
+      tmp.destroy();
+      const device = getDeviceId();
+      await appendBatch(
+        repairIds,
+        repairIds.map(() => update),
+        repairIds.map(() => device),
+      );
+      repaired = repairIds.length;
+    } catch (err) {
+      console.warn('[meta-yjs] stranded repair doc write failed', err);
+      failed += repairIds.length;
+    }
+  }
+  let dropped = 0;
+  for (const id of dropIds) {
+    try {
+      removeNoteMeta(id);
+      dropped++;
+    } catch (err) {
+      console.warn('[meta-yjs] stranded repair drop failed for', id, err);
+      failed++;
+    }
+  }
+  if (repaired > 0 || dropped > 0) {
+    console.warn(
+      `[meta-yjs] stranded repair: ${repaired} emptied, ${dropped} dropped`,
+    );
+  }
+  return { repaired, dropped, failed };
 }

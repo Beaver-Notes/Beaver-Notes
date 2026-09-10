@@ -3,21 +3,42 @@ import { listen } from '@tauri-apps/api/event';
 import { notify } from '@/lib/native/app';
 
 const PHASE_MESSAGES = {
-  bootstrap: (p) => p.total > 0 ? `Downloading notes (${p.processed}/${p.total})` : 'Downloading notes...',
-  pull: (p) => p.total > 0 ? `Pulling updates (${p.processed}/${p.total})` : 'Pulling updates...',
+  bootstrap: (p) =>
+    p.total > 0
+      ? `Downloading notes (${p.processed}/${p.total})`
+      : 'Downloading notes...',
+  pull: (p) =>
+    p.total > 0
+      ? `Pulling updates (${p.processed}/${p.total})`
+      : 'Pulling updates...',
   push: () => 'Pushing updates...',
   presign: () => 'Preparing upload...',
-  snapshots: (p) => p.total > 0 ? `Uploading notes (${p.processed}/${p.total})` : 'Uploading notes...',
-  assets: (p) => p.total > 0 ? `Syncing assets (${p.processed}/${p.total})` : 'Syncing assets...',
+  snapshots: (p) =>
+    p.total > 0
+      ? `Uploading notes (${p.processed}/${p.total})`
+      : 'Uploading notes...',
+  assets: (p) =>
+    p.total > 0
+      ? `Syncing assets (${p.processed}/${p.total})`
+      : 'Syncing assets...',
   finalizing: () => 'Finalizing...',
   done: () => 'Sync complete',
 };
 
 const STATUS_TAXONOMY = {
-  'unlock-required': { tone: 'action', text: 'Notes are locked. Unlock to sync.' },
+  'unlock-required': {
+    tone: 'action',
+    text: 'Notes are locked. Unlock to sync.',
+  },
   'decrypt-failed': { tone: 'action', text: 'Couldn’t decrypt an update' },
-  'authorization-failed': { tone: 'action', text: 'Session expired. Sign in again.' },
-  'workspace-reset': { tone: 'action', text: 'Workspace was reset on the server' },
+  'authorization-failed': {
+    tone: 'action',
+    text: 'Session expired. Sign in again.',
+  },
+  'workspace-reset': {
+    tone: 'action',
+    text: 'Workspace was reset on the server',
+  },
   retrying: { tone: 'transient', text: 'Retrying…' },
   offline: { tone: 'transient', text: 'Offline. Will retry automatically.' },
 };
@@ -39,7 +60,8 @@ const lastNotifiedAt = new Map();
 
 function notifyOnce(status, text) {
   const now = Date.now();
-  if (now - (lastNotifiedAt.get(status) || 0) < NOTIFICATION_THROTTLE_MS) return;
+  if (now - (lastNotifiedAt.get(status) || 0) < NOTIFICATION_THROTTLE_MS)
+    return;
   lastNotifiedAt.set(status, now);
   notify({ title: 'Sync needs attention', body: text }).catch(() => {});
 }
@@ -65,11 +87,19 @@ export const useSyncProgressStore = defineStore('syncProgress', {
     },
     attention: (state) => {
       if (state.lastAction) {
-        return { tone: state.lastAction.tone ?? 'action', text: state.lastAction.text, status: state.lastAction.status };
+        return {
+          tone: state.lastAction.tone ?? 'action',
+          text: state.lastAction.text,
+          status: state.lastAction.status,
+        };
       }
       const described = describeStatus(state.status, state.message);
       if (described.tone) {
-        return { tone: described.tone, text: described.text, status: state.status };
+        return {
+          tone: described.tone,
+          text: described.text,
+          status: state.status,
+        };
       }
       return null;
     },
@@ -91,7 +121,7 @@ export const useSyncProgressStore = defineStore('syncProgress', {
           this.lastAction = { status, text: described.text, at: Date.now() };
           notifyOnce(status, described.text);
         }
-        if (status === 'complete') {
+        if (status !== 'syncing') {
           this.phase = '';
           this.progress = 0;
           this.total = 0;

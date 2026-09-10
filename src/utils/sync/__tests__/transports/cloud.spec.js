@@ -52,6 +52,7 @@ vi.mock('../../constants.js', () => ({
 }));
 
 vi.mock('../../crypto.js', () => ({
+  ensureSyncKeyReadyForWrite: vi.fn(async () => true),
   encryptJSON: vi.fn(() => 'encrypted'),
   decryptJSON: vi.fn((raw, _aad) => JSON.parse(atob(raw))),
   decryptBatch: vi.fn(async (encryptions, _aads) => {
@@ -82,6 +83,12 @@ vi.mock('../state-vector.js', () => ({
   mergeStateVectors: vi.fn(() => ({})),
   loadServerCheckpoint: vi.fn(() => null),
   saveServerCheckpoint: vi.fn(),
+}));
+
+vi.mock('../../vault-key-params.js', () => ({
+  publishCloudKeyParams: vi.fn(async () => true),
+  fetchCloudKeyParams: vi.fn(async () => ({ keyParams: 'test-params' })),
+  getFetchedCloudKeyParams: vi.fn(() => null),
 }));
 
 describe('CloudTransport', () => {
@@ -579,7 +586,9 @@ describe('CloudTransport', () => {
       const { getRemoteState, getSnapshotUrls, completeInitialization } = await import('../../remote-yjs.js');
       const fetchMock = vi.fn(async () => ({ ok: true }));
       vi.stubGlobal('fetch', fetchMock);
-      getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
+      getRemoteState.mockReset();
+      getRemoteState.mockResolvedValueOnce({ status: 'empty', documents: [] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'meta' }] });
       getSnapshotUrls.mockResolvedValue({
         urls: { meta: { url: 'https://seed.example/upload', key: 'yjs/workspace-1/meta/1.yjs' } },
         generation: 1,
@@ -591,6 +600,10 @@ describe('CloudTransport', () => {
       expect(getSnapshotUrls).toHaveBeenCalledWith('workspace-1', 'claim-token', ['meta']);
       expect(fetchMock).toHaveBeenCalledWith('https://seed.example/upload', expect.objectContaining({ method: 'PUT' }));
       expect(completeInitialization).toHaveBeenCalledTimes(1);
+
+      const { publishCloudKeyParams } = await import('../../vault-key-params.js');
+      expect(publishCloudKeyParams.mock.invocationCallOrder[0])
+        .toBeLessThan(completeInitialization.mock.invocationCallOrder[0]);
     });
 
     it('serializes concurrent seed attempts through one initialization claim', async () => {
@@ -600,7 +613,9 @@ describe('CloudTransport', () => {
       completeInitialization.mockReset();
       getSnapshotUrls.mockReset();
       vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
-      getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
+      getRemoteState.mockReset();
+      getRemoteState.mockResolvedValueOnce({ status: 'empty', documents: [] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'meta' }] });
       getSnapshotUrls.mockResolvedValue({
         urls: { meta: { url: 'https://seed.example/upload', key: 'yjs/workspace-1/meta/1.yjs' } },
         generation: 1,
@@ -622,7 +637,7 @@ describe('CloudTransport', () => {
       expect(completeInitialization).toHaveBeenCalledTimes(1);
     });
 
-    it('does not complete initialization after a failed snapshot upload', async () => {
+    it('rejects loudly instead of failing silent after a failed snapshot upload', async () => {
       const { getRemoteState, claimInitialization, completeInitialization, getSnapshotUrls } = await import('../../remote-yjs.js');
       getRemoteState.mockReset();
       claimInitialization.mockReset();
@@ -636,8 +651,9 @@ describe('CloudTransport', () => {
         generation: 1,
       });
 
-      await expect(transport.seedCloudOnce()).resolves.toBe(false);
+      await expect(transport.seedCloudOnce()).rejects.toThrow('snapshot upload failed: 500');
       expect(completeInitialization).not.toHaveBeenCalled();
+      expect(transport._lastSeedFailure).toMatchObject({ phase: 'upload' });
     });
 
     it.each(['initialized', 'recovering'])('does not seed a server in %s state', async (status) => {
@@ -656,7 +672,8 @@ describe('CloudTransport', () => {
       completeInitialization.mockReset();
       getSnapshotUrls.mockReset();
       vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
-      getRemoteState.mockResolvedValue({ status: 'initializing', documents: [] });
+      getRemoteState.mockResolvedValueOnce({ status: 'initializing', documents: [] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'meta' }] });
       claimInitialization.mockResolvedValue({ token: 'claim-token' });
       getSnapshotUrls.mockResolvedValue({
         urls: { meta: { url: 'https://seed.example/upload', key: 'yjs/workspace-1/meta/1.yjs' } },
@@ -668,6 +685,76 @@ describe('CloudTransport', () => {
 
       expect(claimInitialization).toHaveBeenCalledTimes(1);
       expect(completeInitialization).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses to claim when the encryption key is locked (phase=key)', async () => {
+      const { getRemoteState, claimInitialization } = await import('../../remote-yjs.js');
+      const { ensureSyncKeyReadyForWrite } = await import('../../crypto.js');
+      getRemoteState.mockReset();
+      getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
+      claimInitialization.mockClear();
+      ensureSyncKeyReadyForWrite.mockRejectedValueOnce(
+        new Error('Encryption key is locked. Unlock encryption before syncing.')
+      );
+
+      await expect(transport.seedCloudOnce()).rejects.toThrow('Encryption key is locked');
+      expect(claimInitialization).not.toHaveBeenCalled();
+      expect(transport._lastSeedFailure).toMatchObject({ phase: 'key' });
+    });
+
+    it('fails loud when key params are not published (phase=publish)', async () => {
+      const { getRemoteState, completeInitialization } = await import('../../remote-yjs.js');
+      const { publishCloudKeyParams } = await import('../../vault-key-params.js');
+      getRemoteState.mockReset();
+      getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
+      publishCloudKeyParams.mockResolvedValueOnce(false);
+
+      await expect(transport.seedCloudOnce()).rejects.toThrow('were not published');
+      expect(transport._lastSeedFailure).toMatchObject({ phase: 'publish' });
+      expect(completeInitialization).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed state probe instead of treating it as a successful no-op', async () => {
+      const { getRemoteState, claimInitialization } = await import('../../remote-yjs.js');
+      getRemoteState.mockRejectedValueOnce(new Error('network unavailable'));
+
+      await expect(transport.seedCloudOnce()).rejects.toThrow('network unavailable');
+      expect(transport._lastSeedFailure).toMatchObject({ phase: 'probe' });
+      expect(claimInitialization).not.toHaveBeenCalled();
+    });
+
+    it('does not reset or steal another device active initialization claim', async () => {
+      const { getRemoteState, claimInitialization, completeInitialization } = await import('../../remote-yjs.js');
+      getRemoteState.mockReset();
+      getRemoteState.mockResolvedValue({ status: 'initializing', documents: [] });
+      claimInitialization.mockRejectedValueOnce(Object.assign(new Error('conflict'), { status: 409 }));
+
+      await expect(transport.seedCloudOnce()).rejects.toThrow('already in progress');
+      expect(claimInitialization).toHaveBeenCalledTimes(1);
+      expect(completeInitialization).not.toHaveBeenCalled();
+      expect(transport._lastSeedFailure).toMatchObject({ phase: 'claim' });
+    });
+
+    it('reports initialized cloud state with missing vault params', async () => {
+      const { getRemoteState, claimInitialization } = await import('../../remote-yjs.js');
+      getRemoteState.mockResolvedValueOnce({
+        status: 'initialized',
+        documents: [{ noteId: 'meta' }],
+        vault: null,
+      });
+
+      await expect(transport.seedCloudOnce()).rejects.toThrow('encryption parameters are missing');
+      expect(claimInitialization).not.toHaveBeenCalled();
+      expect(transport._lastSeedFailure).toMatchObject({ phase: 'verify' });
+    });
+
+    it('fails loud when the server never confirms init (phase=verify)', async () => {
+      const { getRemoteState } = await import('../../remote-yjs.js');
+      getRemoteState.mockReset();
+      getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
+
+      await expect(transport.seedCloudOnce()).rejects.toThrow('did not confirm initialization');
+      expect(transport._lastSeedFailure).toMatchObject({ phase: 'verify' });
     });
 
     it.each([

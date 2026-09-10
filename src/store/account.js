@@ -21,6 +21,7 @@ export const useAccountStore = defineStore('account', {
     busy: false,
     seedStatus: 'idle',
     seedProgress: { total: 0, uploaded: 0, phase: '' },
+    seedError: '',
   }),
 
   getters: {
@@ -127,6 +128,10 @@ export const useAccountStore = defineStore('account', {
 
     setSeedProgress(progress) {
       this.seedProgress = progress;
+    },
+
+    setSeedError(message) {
+      this.seedError = message || '';
     },
   },
 });

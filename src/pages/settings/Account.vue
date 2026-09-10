@@ -469,8 +469,14 @@
                 size="18"
               />
               <p class="text-sm font-medium text-red-700 dark:text-red-300">
-                {{ tr.syncSetupFailed || 'Sync setup failed' }}
+                {{ accountStore.seedError || tr.syncSetupFailed || 'Sync setup failed' }}
               </p>
+              <ui-button size="sm" :loading="seedRetrying" :disabled="seedRetrying" @click="retrySeed">
+                {{ tr.retrySyncSetup || 'Retry' }}
+              </ui-button>
+              <ui-button size="sm" @click="copyLogPath">
+                {{ logCopied ? (tr.logPathCopied || 'Log path copied') : (tr.copyLogPath || 'Copy log path') }}
+              </ui-button>
             </div>
           </div>
         </div>
@@ -1112,6 +1118,27 @@ export default {
     const accountStore = useAccountStore();
     const account = useSettingsAccount({ dialog, translations });
 
+    const logCopied = ref(false);
+    const seedRetrying = ref(false);
+    async function retrySeed() {
+      seedRetrying.value = true;
+      try {
+        await account.triggerSeed();
+      } catch {}
+      seedRetrying.value = false;
+    }
+    async function copyLogPath() {
+      try {
+        const { backend } = await import('@/lib/tauri-bridge');
+        const path = await backend.invoke('log_file_path');
+        await navigator.clipboard.writeText(path || 'Log file not initialized yet');
+        logCopied.value = true;
+        setTimeout(() => { logCopied.value = false; }, 2000);
+      } catch {
+        logCopied.value = false;
+      }
+    }
+
     const showVaultImportPrompt = ref(false);
     const showForgot = ref(false);
     const forgotEmail = ref('');
@@ -1649,6 +1676,10 @@ export default {
       iapBusy,
       handleIapSelect,
       handleIapRestore,
+      copyLogPath,
+      logCopied,
+      retrySeed,
+      seedRetrying,
       ...account,
     };
   },

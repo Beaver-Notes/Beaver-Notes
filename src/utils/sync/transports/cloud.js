@@ -111,6 +111,16 @@ function malformedRemoteState() {
   return error;
 }
 
+// Phase-tagged seed failure. The seed throws these instead of returning a
+// bare `false` so the phase (probe/key/claim/upload/publish/complete/verify)
+// is visible in logs and UI instead of dying silently.
+function seedError(phase, message) {
+  const error = new Error(message);
+  error.code = 'seed-failed';
+  error.phase = phase;
+  return error;
+}
+
 export class CloudTransport extends Transport {
   constructor() {
     super();
@@ -119,6 +129,9 @@ export class CloudTransport extends Transport {
     this._serverProbeComplete = false;
     this._failedDownloads = new Map();
     this._seedPromise = null;
+    // Last genuine seed failure ({ phase, message, at }) or null. Read by
+    // triggerSeed to report real status instead of assuming success.
+    this._lastSeedFailure = null;
     /** @type {{ syncAllowed: boolean, workspaceId: string|null }|null} */
     this._readiness = null;
   }
@@ -635,7 +648,7 @@ export class CloudTransport extends Transport {
           logger.info('[sync] cloud push: server seeded from local state');
         }
       } catch (err) {
-        console.warn('[sync] cloud push: seedCloudOnce failed:', err?.message);
+        console.warn('[sync] cloud push: seedCloudOnce failed:', err?.phase ? `[${err.phase}] ` : '', err?.message);
         if (err?.code === 'sync-state-invalid') throw err;
       }
     }
@@ -808,9 +821,16 @@ export class CloudTransport extends Transport {
   }
 
   /** Seed the cloud with initial Yjs state (workspace doc + all notes) on first sync. */
-  async seedCloudOnce() {
+  async seedCloudOnce(onProgress) {
     if (this._seedPromise) return this._seedPromise;
-    this._seedPromise = this._seedCloudOptimized();
+    this._seedPromise = this._seedCloudOptimized(onProgress).catch((err) => {
+      // Backstop: throws raised before the main seed try-block (key gate,
+      // claim) still record a failure for triggerSeed to report.
+      if (!this._lastSeedFailure) {
+        this._lastSeedFailure = { phase: err?.phase ?? 'unknown', message: err?.message || String(err), at: Date.now() };
+      }
+      throw err;
+    });
     try {
       return await this._seedPromise;
     } finally {
@@ -825,53 +845,84 @@ export class CloudTransport extends Transport {
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) return false;
 
+    this._lastSeedFailure = null;
     try {
       const state = await getRemoteState(workspaceId);
       if (!isValidRemoteState(state)) throw malformedRemoteState();
+      if (state.status === 'initialized' && Object.hasOwn(state, 'vault') && !state.vault) {
+        throw seedError(
+          'verify',
+          'Cloud sync is initialized but its encryption parameters are missing. Reset cloud sync and seed again from the device that owns these notes.'
+        );
+      }
       if (!isAuthoritativelyEmpty(state) && !isStalledInit(state)) {
         this._serverProbeComplete = true;
         return false;
       }
     } catch (err) {
-      if (err?.code === 'sync-state-invalid') throw err;
-      // 403 = workspace not accessible, try to create a new one
+      if (err?.code === 'sync-state-invalid' || err?.code === 'seed-failed') throw err;
+      // 403 = workspace not accessible, try to create a new one.
       if (err?.status === 403 || err?.statusCode === 403) {
         logger.info('[sync] cloud seed: workspace not accessible, resetting');
         const workspaceStore = useWorkspaceStore();
         workspaceStore.activeId = null;
         this._cachedWorkspaceId = null;
         const newWorkspaceId = await this._ensureWorkspace();
-        if (!newWorkspaceId || newWorkspaceId === workspaceId) return false;
+        if (!newWorkspaceId || newWorkspaceId === workspaceId) {
+          throw seedError('probe', 'cloud seed: no accessible workspace is available.');
+        }
         return this._seedCloudOptimized(onProgress);
       }
-      return false;
+      throw seedError('probe', err?.message || 'cloud seed: could not read server initialization state.');
+    }
+    // Gate: never claim a server init without the encryption key. encryptJSON
+    // would throw mid-seed, leaving a dangling claim and a silent failure.
+    try {
+      const { ensureSyncKeyReadyForWrite } = await import('../crypto.js');
+      await ensureSyncKeyReadyForWrite();
+    } catch (err) {
+      throw seedError('key', err?.message || 'Encryption key is not ready. Unlock encryption before syncing.');
     }
 
     let claim;
     try {
       claim = await claimInitialization(workspaceId);
     } catch (err) {
-      if (err?.status === 409) {
+      if (err?.status === 409 || err?.statusCode === 409) {
+        // Never reset here: the backend reset is unconditional and would erase
+        // another device's active initialization. Expired claims are already
+        // reclaimable atomically by claimInitialization.
+        let latest = null;
         try {
-          const { resetInitialization } = await import('../remote-yjs.js');
-          await resetInitialization(workspaceId);
-          logger.info('[sync] cloud seed: reset stuck initialization, retrying claim');
-          claim = await claimInitialization(workspaceId);
-        } catch (resetErr) {
-          if (resetErr?.status === 409) {
-            this._serverProbeComplete = true;
-            return false;
-          }
-          throw resetErr;
+          latest = await getRemoteState(workspaceId);
+        } catch {}
+        if (isValidRemoteState(latest) && latest.status === 'initialized') {
+          this._serverProbeComplete = true;
+          return false;
         }
-      } else {
-        throw err;
+        throw seedError('claim', 'cloud seed: initialization is already in progress on another device. Retry shortly.');
       }
+      throw seedError('claim', err?.message || 'cloud seed: initialization claim failed.');
     }
-    if (!claim?.token) throw new Error('cloud seed: initialization claim missing token');
+    if (!claim?.token) throw seedError('claim', 'cloud seed: initialization claim missing token');
 
     try {
     logger.info('[sync] cloud seed: claimed server initialization');
+
+    // Key params must exist before initialization becomes authoritative. If
+    // this fails, the claim can expire and be retried without leaving an
+    // initialized workspace whose snapshots no other device can decrypt.
+    const { publishCloudKeyParams } = await import('../vault-key-params.js');
+    let published = false;
+    try {
+      published = await publishCloudKeyParams();
+    } catch (err) {
+      throw seedError('publish', err?.message || 'cloud seed: vault key params could not be published.');
+    }
+    if (!published) {
+      throw seedError('publish', 'cloud seed: vault key params were not published — check the encryption password.');
+    }
+    logger.info('[sync] cloud seed: vault key params published');
     const { encryptJSON } = await import('../crypto.js');
     const ownDeviceId = getSyncDeviceId();
     const ts = Date.now();
@@ -937,7 +988,7 @@ export class CloudTransport extends Transport {
     }
 
     if (snapshots.length === 0) {
-      throw new Error('cloud seed: nothing to push');
+      throw seedError('snapshot', 'cloud seed: nothing to push');
     }
 
     logger.info(`[sync] cloud seed: uploading ${snapshots.length} snapshots via presigned URLs`);
@@ -946,7 +997,7 @@ export class CloudTransport extends Transport {
 
     const { urls, generation } = await getSnapshotUrls(workspaceId, claim.token, noteIds);
     if (!urls || Object.keys(urls).length !== snapshots.length) {
-      throw new Error('cloud seed: presign incomplete');
+      throw seedError('upload', 'cloud seed: presign incomplete');
     }
 
     const CONCURRENT = 4;
@@ -962,7 +1013,7 @@ export class CloudTransport extends Transport {
           body: bytes,
           headers: { 'Content-Type': 'application/octet-stream' },
         });
-        if (!response.ok) throw new Error(`snapshot upload failed: ${response.status}`);
+        if (!response.ok) throw seedError('upload', `snapshot upload failed: ${response.status}`);
         documents.push({
           noteId,
           snapshotGeneration: generation,
@@ -1057,17 +1108,31 @@ export class CloudTransport extends Transport {
     if (onProgress) onProgress({ phase: 'finalizing', uploaded: snapshots.length, total: snapshots.length });
     try { emit('sync:progress', { phase: 'finalizing', processed: snapshots.length, total: snapshots.length }); } catch {}
 
-    await completeInitialization(workspaceId, claim.token, generation, documents, requiredAssetKeys);
+    try {
+      await completeInitialization(workspaceId, claim.token, generation, documents, requiredAssetKeys);
+    } catch (err) {
+      throw seedError('complete', err?.message || 'cloud seed: completing initialization failed.');
+    }
     this._serverProbeComplete = true;
     this._lastPushedAt = Date.now();
 
-    // Publish vault key params so other devices can join the vault
+    // Verify before reporting success: read back the server state and confirm
+    // the init landed and our key params are readable. Never report green on
+    // assumption.
+    let verifyState = null;
     try {
-      const { publishCloudKeyParams } = await import('../vault-key-params.js');
-      await publishCloudKeyParams();
-      logger.info('[sync] cloud seed: vault key params published');
+      verifyState = await getRemoteState(workspaceId);
+    } catch {}
+    if (!isValidRemoteState(verifyState) || verifyState.status !== 'initialized') {
+      throw seedError('verify', `cloud seed: server did not confirm initialization (status: ${verifyState?.status ?? 'unreachable'}).`);
+    }
+    try {
+      const { fetchCloudKeyParams } = await import('../vault-key-params.js');
+      const params = await fetchCloudKeyParams({ force: true });
+      if (!params) throw seedError('verify', 'cloud seed: vault key params not readable after publish.');
     } catch (err) {
-      console.warn('[sync] cloud seed: vault key params publish failed:', err?.message);
+      if (err?.code === 'seed-failed') throw err;
+      throw seedError('verify', `cloud seed: could not verify vault key params (${err?.message || 'unreachable'}).`);
     }
 
     logger.info('[sync] cloud seed: completed successfully');
@@ -1076,8 +1141,12 @@ export class CloudTransport extends Transport {
 
     return snapshots.length > 0;
   } catch (err) {
-    console.error('[sync] cloud seed: optimized seed failed:', err?.status, err?.message);
-    return false;
+    const phase = err?.phase ?? 'unknown';
+    const message = err?.message || String(err);
+    this._lastSeedFailure = { phase, message, at: Date.now() };
+    console.error(`[sync] cloud seed failed [${phase}]:`, err?.status, message);
+    if (err?.code === 'seed-failed') throw err;
+    throw seedError('unknown', message);
   }
   }
 

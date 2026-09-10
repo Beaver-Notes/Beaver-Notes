@@ -190,6 +190,40 @@ export function useWsSync() {
   const docToRoom = new Map() // Y.Doc -> roomName
   const pendingRooms = new Set() // joins awaiting ticket fetch
   const leaveWhilePending = new Set() // rooms left while their join was in flight
+  const reconnectTimers = new Map() // roomName -> timeout id
+  const reconnectAttempts = new Map() // roomName -> count
+
+  // Server ws-tickets are single-use: any failed connection poisons that
+  // provider's ticket, and y-websocket would retry with it forever (401s).
+  // Rejoin with a fresh ticket instead, backing off to 15s.
+  function clearRejoin(roomName) {
+    clearTimeout(reconnectTimers.get(roomName))
+    reconnectTimers.delete(roomName)
+    reconnectAttempts.delete(roomName)
+  }
+
+  function scheduleRejoin(roomName, rejoin) {
+    if (!activeProviders.has(roomName)) return // left meanwhile
+    const attempts = (reconnectAttempts.get(roomName) || 0) + 1
+    reconnectAttempts.set(roomName, attempts)
+    clearTimeout(reconnectTimers.get(roomName))
+    reconnectTimers.set(
+      roomName,
+      setTimeout(async () => {
+        const cur = activeProviders.get(roomName)
+        if (cur) {
+          detachNotificationListener(cur)
+          cur.destroy()
+          activeProviders.delete(roomName)
+        }
+        try {
+          await rejoin()
+        } catch {
+          // rejoin failure schedules its own retry via the status handler
+        }
+      }, Math.min(1000 * attempts, 15000)),
+    )
+  }
 
   function getActiveWorkspaceId() {
     return workspaceStore.activeId
@@ -220,8 +254,11 @@ export function useWsSync() {
       // trigger a pull to catch up on anything missed while disconnected.
       provider.on('status', ({ status }) => {
         if (status === 'connected') {
+          reconnectAttempts.delete(roomName)
           attachNotificationListener(provider)
           forceSyncNow().catch(() => {})
+        } else if (status === 'disconnected') {
+          scheduleRejoin(roomName, () => joinNoteRoom(noteId, doc, awareness))
         }
       })
       // Attach immediately if already connecting
@@ -237,6 +274,7 @@ export function useWsSync() {
   function leaveNoteRoom(noteId) {
     const workspaceId = getActiveWorkspaceId() || ''
     const roomName = buildRoomName(workspaceId, noteId)
+    clearRejoin(roomName)
     const provider = activeProviders.get(roomName)
     if (provider) {
       detachNotificationListener(provider)
@@ -276,8 +314,11 @@ export function useWsSync() {
       // trigger a pull to catch up on anything missed while disconnected.
       provider.on('status', ({ status }) => {
         if (status === 'connected') {
+          reconnectAttempts.delete(roomName)
           attachNotificationListener(provider)
           forceSyncNow().catch(() => {})
+        } else if (status === 'disconnected') {
+          scheduleRejoin(roomName, () => joinMetaRoom(workspaceId))
         }
       })
       attachNotificationListener(provider)
@@ -304,6 +345,7 @@ export function useWsSync() {
       detachNotificationListener(provider)
       provider.disconnect()
     }
+    for (const room of reconnectTimers.keys()) clearRejoin(room)
     for (const room of pendingRooms) leaveWhilePending.add(room)
     activeProviders.clear()
     docToRoom.clear()
@@ -322,6 +364,7 @@ export function useWsSync() {
         detachNotificationListener(provider)
         provider.destroy()
         activeProviders.delete(roomName)
+        clearRejoin(roomName)
       }
     }
     for (const room of pendingRooms) leaveWhilePending.add(room)

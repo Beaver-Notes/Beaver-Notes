@@ -488,23 +488,21 @@
                           {{ migrationSourceCopy }}
                         </p>
 
-                        <ui-card
+                        <div
                           v-if="migrationPlatform === 'evernote'"
-                          class="bg-input"
+                          class="flex flex-col gap-2"
                         >
-                          <div class="flex flex-col gap-2 p-4">
-                            <p
-                              class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
-                            >
-                              Evernote notebook
-                            </p>
-                            <ui-input
-                              v-model="state.evernoteNotebookName"
-                              placeholder="Notebook name (optional)"
-                              class="w-full"
-                            />
-                          </div>
-                        </ui-card>
+                          <p
+                            class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                          >
+                            Evernote notebook
+                          </p>
+                          <ui-input
+                            v-model="state.evernoteNotebookName"
+                            placeholder="Notebook name (optional)"
+                            class="w-full"
+                          />
+                        </div>
 
                         <div class="flex flex-col gap-1">
                           <p
@@ -519,92 +517,86 @@
                           </p>
                         </div>
 
-                        <ui-card
+                        <div
                           v-if="
                             migrationPlatform === 'electron' &&
                             (state.status?.legacyDir ||
                               state.status?.appDir ||
                               customLegacyPath)
                           "
-                          class="bg-input"
+                          class="flex flex-col gap-3"
                         >
-                          <div class="flex flex-col gap-4 p-4">
-                            <div
-                              v-if="customLegacyPath"
-                              class="flex flex-col gap-1"
+                          <div
+                            v-if="customLegacyPath"
+                            class="flex flex-col gap-1"
+                          >
+                            <span
+                              class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
                             >
-                              <span
-                                class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
-                              >
-                                Portable data folder
-                              </span>
-                              <code
-                                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
-                              >
-                                {{ customLegacyPath }}
-                              </code>
-                            </div>
-                            <div
-                              v-else-if="state.status?.legacyDir"
-                              class="flex flex-col gap-1"
+                              Portable data folder
+                            </span>
+                            <code
+                              class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
                             >
-                              <span
-                                class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
-                              >
-                                Beaver Notes (Legacy)
-                              </span>
-                              <code
-                                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
-                              >
-                                {{ state.status.legacyDir }}
-                              </code>
-                            </div>
-                            <div
-                              v-if="state.status?.appDir"
-                              class="flex flex-col gap-1"
-                            >
-                              <span
-                                class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
-                              >
-                                New Beaver Notes
-                              </span>
-                              <code
-                                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
-                              >
-                                {{ state.status.appDir }}
-                              </code>
-                            </div>
+                              {{ customLegacyPath }}
+                            </code>
                           </div>
-                        </ui-card>
+                          <div
+                            v-else-if="state.status?.legacyDir"
+                            class="flex flex-col gap-1"
+                          >
+                            <span
+                              class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
+                            >
+                              Beaver Notes (Legacy)
+                            </span>
+                            <code
+                              class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
+                            >
+                              {{ state.status.legacyDir }}
+                            </code>
+                          </div>
+                          <div
+                            v-if="state.status?.appDir"
+                            class="flex flex-col gap-1"
+                          >
+                            <span
+                              class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
+                            >
+                              New Beaver Notes
+                            </span>
+                            <code
+                              class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
+                            >
+                              {{ state.status.appDir }}
+                            </code>
+                          </div>
+                        </div>
 
-                        <ui-card
+                        <div
                           v-if="
                             migrationPlatform === 'electron' &&
                             !state.status?.hasLegacyData
                           "
-                          class="bg-input"
+                          class="flex items-center justify-between gap-4"
                         >
-                          <div
-                            class="flex items-center justify-between gap-4 p-4"
-                          >
-                            <div>
-                              <p
-                                class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500 mb-1"
-                              >
-                                Windows Portable
-                              </p>
-                              <p
-                                class="text-sm text-neutral-600 dark:text-neutral-400"
-                              >
-                                Using the portable version? Locate your data
-                                folder manually.
-                              </p>
-                            </div>
-                            <ui-button @click="browseForPortableData">{{
-                              tr.browseForData || 'Browse…'
-                            }}</ui-button>
+                          <div>
+                            <p
+                              class="text-sm font-medium text-neutral-800 dark:text-neutral-200 mb-1"
+                            >
+                              Windows Portable
+                            </p>
+                            <p
+                              class="text-sm text-neutral-600 dark:text-neutral-400"
+                            >
+                              Using the portable version? Locate your data
+                              folder manually.
+                            </p>
                           </div>
-                        </ui-card>
+                          <ui-button @click="browseForPortableData">{{
+                            tr.browseForData || 'Browse…'
+                          }}</ui-button>
+                        </div>
                       </div>
                     </template>
                   </template>
@@ -619,39 +611,37 @@
                         Importing from {{ migrationPlatformLabel }}
                       </h2>
                     </div>
-                    <ui-card class="bg-input">
-                      <div class="flex flex-col gap-3 p-4">
-                        <div class="flex items-center justify-between">
-                          <p
-                            class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
-                          >
-                            Importing…
-                          </p>
-                          <span class="text-xs font-bold text-primary"
-                            >{{ state.migrationProgress }}%</span
-                          >
-                        </div>
-                        <div
-                          class="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
-                        >
-                          <div
-                            class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
-                            :style="{ width: state.migrationProgress + '%' }"
-                          ></div>
-                        </div>
+                    <div class="flex flex-col gap-3">
+                      <div class="flex items-center justify-between">
                         <p
-                          class="text-xs text-neutral-600 dark:text-neutral-400"
+                          class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
                         >
-                          {{ state.migrationStatus }}
+                          Importing…
                         </p>
-                        <p
-                          v-if="state.migrationCurrent"
-                          class="text-xs text-neutral-600 dark:text-neutral-400 opacity-80"
+                        <span class="text-xs font-bold text-primary"
+                          >{{ state.migrationProgress }}%</span
                         >
-                          {{ state.migrationCurrent }}
-                        </p>
                       </div>
-                    </ui-card>
+                      <div
+                        class="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
+                      >
+                        <div
+                          class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                          :style="{ width: state.migrationProgress + '%' }"
+                        ></div>
+                      </div>
+                      <p
+                        class="text-xs text-neutral-600 dark:text-neutral-400"
+                      >
+                        {{ state.migrationStatus }}
+                      </p>
+                      <p
+                        v-if="state.migrationCurrent"
+                        class="text-xs text-neutral-600 dark:text-neutral-400 opacity-80"
+                      >
+                        {{ state.migrationCurrent }}
+                      </p>
+                    </div>
                   </template>
 
                   <template v-else-if="importPhase === 'done'">
@@ -670,74 +660,68 @@
                       </p>
                     </div>
 
-                    <ui-card class="bg-input">
-                      <div class="flex flex-col gap-3 p-4">
-                        <div class="flex items-center justify-between">
-                          <p
-                            class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
-                          >
-                            Import complete
-                          </p>
-                          <span class="text-xs font-bold text-primary"
-                            >{{ state.migrationProgress }}%</span
-                          >
-                        </div>
+                    <div class="flex flex-col gap-3">
+                      <div class="flex items-center justify-between">
+                        <p
+                          class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
+                        >
+                          Import complete
+                        </p>
+                        <span class="text-xs font-bold text-primary"
+                          >{{ state.migrationProgress }}%</span
+                        >
+                      </div>
+                      <div
+                        class="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
+                      >
                         <div
-                          class="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
-                        >
-                          <div
-                            class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
-                            :style="{ width: state.migrationProgress + '%' }"
-                          ></div>
-                        </div>
-                        <p
-                          class="text-xs text-neutral-600 dark:text-neutral-400"
-                        >
-                          {{ state.migrationStatus }}
-                        </p>
+                          class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                          :style="{ width: state.migrationProgress + '%' }"
+                        ></div>
                       </div>
-                    </ui-card>
+                      <p
+                        class="text-xs text-neutral-600 dark:text-neutral-400"
+                      >
+                        {{ state.migrationStatus }}
+                      </p>
+                    </div>
 
-                    <ui-card v-if="state.migrationResult" class="bg-input">
-                      <div class="flex flex-col gap-1 p-4">
-                        <p
-                          class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500 mb-1"
-                        >
-                          Import summary
-                        </p>
-                        <p
-                          class="text-sm text-neutral-600 dark:text-neutral-400"
-                        >
-                          Imported
-                          {{ state.migrationResult.imported || 0 }} notes across
-                          {{ state.migrationResult.folders || 0 }} folders.
-                        </p>
-                      </div>
-                    </ui-card>
+                    <div v-if="state.migrationResult" class="flex flex-col gap-1">
+                      <p
+                        class="text-xs font-semibold text-neutral-500 dark:text-neutral-500 mb-1"
+                      >
+                        Import summary
+                      </p>
+                      <p
+                        class="text-sm text-neutral-600 dark:text-neutral-400"
+                      >
+                        Imported
+                        {{ state.migrationResult.imported || 0 }} notes across
+                        {{ state.migrationResult.folders || 0 }} folders.
+                      </p>
+                    </div>
 
-                    <ui-card v-if="state.migrationIssuesText" class="bg-input">
-                      <div class="flex flex-col gap-3 p-4">
-                        <div class="flex items-center justify-between gap-3">
-                          <p
-                            class="text-xs font-bold font-bold text-neutral-500 dark:text-neutral-500"
-                          >
-                            Issues
-                          </p>
-                          <ui-button
-                            variant="secondary"
-                            @click="copyMigrationIssues"
-                            >{{
-                              tr.copyToClipboard || 'Copy to clipboard'
-                            }}</ui-button
-                          >
-                        </div>
-                        <div
-                          class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-xs whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                    <div v-if="state.migrationIssuesText" class="flex flex-col gap-2">
+                      <div class="flex items-center justify-between gap-3">
+                        <p
+                          class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
                         >
-                          {{ state.migrationIssuesText }}
-                        </div>
+                          Issues
+                        </p>
+                        <ui-button
+                          variant="secondary"
+                          @click="copyMigrationIssues"
+                          >{{
+                            tr.copyToClipboard || 'Copy to clipboard'
+                          }}</ui-button
+                        >
                       </div>
-                    </ui-card>
+                      <div
+                        class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-xs whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                      >
+                        {{ state.migrationIssuesText }}
+                      </div>
+                    </div>
                   </template>
                 </template>
 
@@ -1888,11 +1872,6 @@ export default {
       if (result.success) legacyPasswordValue.value = '';
     }
 
-    function skipLegacyPassword() {
-      legacyPasswordValue.value = '';
-      flow.handleLegacyPasswordSkip();
-    }
-
     // Coarse key stays wizard so frame never remounts, only Transition slides.
     const topLevelKey = computed(() =>
       flow.isCardStep.value ? 'wizard' : flow.step.value,
@@ -1945,12 +1924,6 @@ export default {
         if (phase === 'confirm') {
           if (flow.showLegacyLockedPrompt.value) {
             return [
-              {
-                key: 'skip-pw',
-                label: 'Skip for now',
-                variant: 'secondary',
-                onClick: skipLegacyPassword,
-              },
               {
                 key: 'decrypt',
                 label: 'Decrypt notes',
@@ -2177,7 +2150,6 @@ export default {
       curtainOpen,
       legacyPasswordValue,
       submitLegacyPassword,
-      skipLegacyPassword,
       strengthPercent,
       strengthLabel,
       strengthBarClass,
