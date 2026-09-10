@@ -48,6 +48,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::fs::fs_read_file_binary)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_readdir)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_stat)(&mut types),
+                specta::_fn_datatype!(crate::commands::fs::fs_file_icon)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_unlink)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_read_data)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_is_file)(&mut types),

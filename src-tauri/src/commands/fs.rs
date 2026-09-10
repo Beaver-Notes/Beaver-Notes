@@ -1,8 +1,10 @@
 use std::{
+    collections::HashMap,
     fs,
     io::Write,
     net::IpAddr,
     path::{Path, PathBuf},
+    sync::{Mutex, OnceLock},
 };
 use reqwest::Url;
 
@@ -246,6 +248,102 @@ pub(crate) fn fs_stat(
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "stat")?;
     Ok(to_file_stat(fs::metadata(path)?))
+}
+
+static FILE_ICON_CACHE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+// Linux resolves icons via GTK and must run on the main thread.
+#[cfg(target_os = "linux")]
+fn fetch_file_icon(
+    app: &AppHandle,
+    path: &Path,
+    size: u16,
+) -> Option<file_icon_provider::Icon> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let path = path.to_path_buf();
+    if app
+        .run_on_main_thread(move || {
+            let _ = tx.send(file_icon_provider::get_file_icon(path, size).ok());
+        })
+        .is_err()
+    {
+        return None;
+    }
+    rx.recv().ok().flatten()
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn fetch_file_icon(
+    _app: &AppHandle,
+    path: &Path,
+    size: u16,
+) -> Option<file_icon_provider::Icon> {
+    file_icon_provider::get_file_icon(path, size).ok()
+}
+
+/// System icon for a file, as base64 PNG. Cached by extension; the frontend
+/// falls back to a generic icon when this errors (mobile, missing file).
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn fs_file_icon(
+    app: AppHandle,
+    state: State<AppState>,
+    path: String,
+    size: Option<u16>,
+) -> Result<String, AppError> {
+    let actual_path = resolve_asset_path_from_uri(&app, &path)?;
+    assert_path_access(&app, &state, &actual_path, "read file icon")?;
+    if !actual_path.is_file() {
+        return Err(AppError::Other("File not found".into()));
+    }
+    let size = size.unwrap_or(96).clamp(16, 256);
+    let ext = actual_path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+    // Windows embeds a per-file icon in .exe: key those by path, the rest by extension.
+    let key = if ext == "exe" {
+        format!("exe:{}", actual_path.display())
+    } else {
+        format!("{ext}:{size}")
+    };
+    if let Some(hit) = FILE_ICON_CACHE
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .ok()
+        .and_then(|cache| cache.get(&key).cloned())
+    {
+        return Ok(hit);
+    }
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    {
+        let icon = fetch_file_icon(&app, &actual_path, size)
+            .ok_or_else(|| AppError::Other("No system icon available".into()))?;
+        let image = image::RgbaImage::from_raw(icon.width, icon.height, icon.pixels)
+            .ok_or_else(|| AppError::Other("Invalid icon pixels".into()))?;
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgba8(image)
+            .write_to(
+                &mut std::io::Cursor::new(&mut png),
+                image::ImageFormat::Png,
+            )
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let encoded = BASE64.encode(png);
+        if let Ok(mut cache) = FILE_ICON_CACHE
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+        {
+            cache.insert(key, encoded.clone());
+        }
+        return Ok(encoded);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        Err(AppError::Other(
+            "File icons are not supported on this platform".into(),
+        ))
+    }
 }
 
 #[tauri::command]

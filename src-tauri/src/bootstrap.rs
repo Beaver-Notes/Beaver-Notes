@@ -202,7 +202,7 @@ pub(crate) fn legacy_store_dir(app: &AppHandle) -> Option<PathBuf> {
 #[cfg(desktop)]
 fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<bool, AppError> {
     if !path.exists() {
-        eprintln!(
+        crate::rs_log!(
             "[migration] import_json_file_into_pool: source missing: {}",
             path.display()
         );
@@ -211,13 +211,13 @@ fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<b
     let text = fs::read_to_string(path)?;
     let json: serde_json::Value = serde_json::from_str(&text)?;
     let Some(map) = json.as_object() else {
-        eprintln!(
+        crate::rs_log!(
             "[migration] import_json_file_into_pool: not a JSON object: {}",
             path.display()
         );
         return Ok(false);
     };
-    eprintln!(
+    crate::rs_log!(
         "[migration] import_json_file_into_pool: {} top-level keys: {:?}",
         path.display(),
         map.keys().collect::<Vec<_>>()
@@ -234,7 +234,7 @@ fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<b
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
             let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
-            eprintln!(
+            crate::rs_log!(
                 "[migration] import_json_file_into_pool: {} done — KV now has {} notes, {} folders (both expected to be 0), {} total rows",
                 path.display(),
                 notes,
@@ -243,7 +243,7 @@ fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<b
             );
         }
         Err(e) => {
-            eprintln!("[migration] import_json_file_into_pool: post-import summary failed: {e}")
+            crate::rs_log!("[migration] import_json_file_into_pool: post-import summary failed: {e}")
         }
     }
     Ok(true)
@@ -334,11 +334,11 @@ fn run_migration_core(
     let new_dir = crate::shared::app_storage_dir(app, state)?;
     let marker = new_dir.join(".legacy-store-migrated");
 
-    eprintln!("[migration] run_migration_core: start");
-    eprintln!("[migration]   legacy dir: {}", old_dir.display());
-    eprintln!("[migration]   target dir: {}", new_dir.display());
-    eprintln!("[migration]   legacy exists: {}", old_dir.exists());
-    eprintln!(
+    crate::rs_log!("[migration] run_migration_core: start");
+    crate::rs_log!("[migration]   legacy dir: {}", old_dir.display());
+    crate::rs_log!("[migration]   target dir: {}", new_dir.display());
+    crate::rs_log!("[migration]   legacy exists: {}", old_dir.exists());
+    crate::rs_log!(
         "[migration]   legacy files: config.json={}, data.json={}",
         old_dir.join("config.json").exists(),
         old_dir.join("data.json").exists()
@@ -350,7 +350,7 @@ fn run_migration_core(
     let data_pool = data_pool(app, state)?;
 
     // Count files for progress total. Legacy config/data notes/folders convert straight to Yjs in frontend.
-    eprintln!(
+    crate::rs_log!(
         "[migration]   skipping legacy notes/folders import (config.json/data.json) — the data KV store stays empty of note rows"
     );
     let mut copy_total = 1; // SETTINGS_STORE
@@ -426,16 +426,16 @@ fn run_migration_core(
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
             let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
-            eprintln!(
+            crate::rs_log!(
                 "[migration] run_migration_core: DONE — data store has {} notes, {} folders (both expected to be 0), {} total rows",
                 notes,
                 folders,
                 rows.len()
             );
         }
-        Err(e) => eprintln!("[migration] run_migration_core: post-import summary failed: {e}"),
+        Err(e) => crate::rs_log!("[migration] run_migration_core: post-import summary failed: {e}"),
     }
-    eprintln!(
+    crate::rs_log!(
         "[migration] run_migration_core: writing marker {} — files merged: {:?}, asset dirs: {:?}",
         marker.display(),
         merged_store_files,

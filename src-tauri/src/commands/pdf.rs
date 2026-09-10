@@ -77,7 +77,7 @@ async fn render_pdf_native(
 ) -> Result<(), AppError> {
     let html_path = write_html_to_temp(&html)?;
     let url = format!("file://{}", html_path.display());
-    eprintln!(
+    crate::rs_log!(
         "[pdf] macOS render: html={} output={} html_len={}",
         html_path.display(),
         output_path,
@@ -139,7 +139,7 @@ async fn render_pdf_native(
     window
         .with_webview(move |webview| {
             if let Err(e) = run_print_page_pdf(webview.inner(), &output_path_clone, raw_tx) {
-                eprintln!("Failed to start PDF print: {e}");
+                crate::rs_log!("Failed to start PDF print: {e}");
             }
         })
         .map_err(|e| AppError::Other(e.to_string()))?;
@@ -149,7 +149,7 @@ async fn render_pdf_native(
     let _ = window.destroy();
     let _ = std::fs::remove_file(&html_path);
 
-    eprintln!("[pdf] macOS: done");
+    crate::rs_log!("[pdf] macOS: done");
     Ok(())
 }
 
@@ -398,7 +398,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
         html_path.display().to_string().replace('\\', "/")
     );
 
-    eprintln!(
+    crate::rs_log!(
         "[pdf] Windows render: html at {} output={}",
         html_path.display(),
         output_path
@@ -462,7 +462,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
             }
             .map_err(|e| format!("CreateWindowExW: {e}"))?;
 
-            eprintln!("[pdf] Window created, creating WebView2 env");
+            crate::rs_log!("[pdf] Window created, creating WebView2 env");
 
             let (env_tx, env_rx) = smpsc::channel::<Result<ICoreWebView2Environment, String>>();
             let (ctrl_tx, ctrl_rx) = smpsc::channel::<Result<ICoreWebView2Controller, String>>();
@@ -488,7 +488,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                 .map_err(|e| format!("CreateCoreWebView2EnvironmentWithOptions: {e}"))?;
             }
             let env = recv_with_pump(&env_rx).map_err(|e| format!("env: {e}"))??;
-            eprintln!("[pdf] WebView2 env created");
+            crate::rs_log!("[pdf] WebView2 env created");
 
             let ctrl_handler = CreateCoreWebView2ControllerCompletedHandler::create(Box::new(
                 move |_result, controller| {
@@ -505,7 +505,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
             }
             let controller: ICoreWebView2Controller =
                 recv_with_pump(&ctrl_rx).map_err(|e| format!("ctrl: {e}"))??;
-            eprintln!("[pdf] WebView2 controller created");
+            crate::rs_log!("[pdf] WebView2 controller created");
 
             let webview: ICoreWebView2 = unsafe {
                 controller
@@ -545,9 +545,9 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                     .Navigate(&HSTRING::from(&url_string))
                     .map_err(|e| format!("Navigate: {e}"))?;
             }
-            eprintln!("[pdf] Navigated, waiting for page load");
+            crate::rs_log!("[pdf] Navigated, waiting for page load");
             recv_with_pump(&nav_rx).map_err(|e| format!("nav: {e}"))??;
-            eprintln!("[pdf] Page loaded");
+            crate::rs_log!("[pdf] Page loaded");
 
             std::thread::sleep(std::time::Duration::from_millis(150));
             let noop_handler =
@@ -587,9 +587,9 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                     .PrintToPdf(PCWSTR(pdf_path_hstring.as_ptr()), None, &pdf_handler)
                     .map_err(|e| format!("PrintToPdf: {e}"))?;
             }
-            eprintln!("[pdf] PrintToPdf called, waiting for result");
+            crate::rs_log!("[pdf] PrintToPdf called, waiting for result");
             let pdf_bytes = recv_with_pump(&pdf_rx).map_err(|e| format!("pdf: {e}"))??;
-            eprintln!("[pdf] Got PDF ({} bytes)", pdf_bytes.len());
+            crate::rs_log!("[pdf] Got PDF ({} bytes)", pdf_bytes.len());
 
             let _ = std::fs::remove_file(&pdf_path);
             unsafe {
@@ -609,7 +609,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
         .map_err(|e| AppError::Other(format!("Windows render channel closed: {e}")))??;
 
     let _ = std::fs::remove_file(&html_path);
-    eprintln!("[pdf] Writing PDF to {}", output_path);
+    crate::rs_log!("[pdf] Writing PDF to {}", output_path);
     std::fs::write(&output_path, &pdf_bytes)?;
     Ok(())
 }

@@ -39,7 +39,7 @@ pub(crate) fn scope(label: &'static str) -> Option<ScopeTimer> {
 /// Emit one-off duration entry (caller already timed it).
 pub(crate) fn log_duration(label: &str, elapsed: Duration) {
     if enabled() && elapsed.as_millis() >= MIN_LOG_MS {
-        eprintln!("[speed] {label} {}ms", elapsed.as_millis());
+        crate::rs_log!("[speed] {label} {}ms", elapsed.as_millis());
     }
 }
 
@@ -63,7 +63,7 @@ impl ScopeTimer {
     fn log(&self) {
         let ms = self.elapsed().as_millis();
         if ms >= MIN_LOG_MS {
-            eprintln!("[speed] {} took {}ms", self.label, ms);
+            crate::rs_log!("[speed] {} took {}ms", self.label, ms);
         }
     }
 }

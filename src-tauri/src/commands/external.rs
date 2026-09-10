@@ -85,7 +85,7 @@ fn watch_external_temp_file(
 
             std::thread::sleep(std::time::Duration::from_millis(150));
             if let Err(error) = sync_external_temp_file(&app, &original_path, &temp_file) {
-                eprintln!(
+                crate::rs_log!(
                     "[external-open] failed syncing {} back to {}: {}",
                     temp_file.display(),
                     original_path.display(),

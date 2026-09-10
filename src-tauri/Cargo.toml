@@ -24,6 +24,11 @@ name = "gen-specta"
 path = "src/bin/gen-specta.rs"
 required-features = ["specta-gen"]
 
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+# System file-type icons (Craft-style file block). Desktop only: iOS/Android use the frontend fallback.
+file_icon_provider = "1"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -82,6 +87,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-biometry = "0.2"
 tauri-plugin-app-icon = "0.1.0"
+tauri-plugin-device-ai-apis = { git = "https://github.com/hypothesi/tauri-plugin-device-ai-apis" }
 specta = { version = "=2.0.0-rc.25", features = ["serde_json", "function"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta-typescript = { version = "0.0.12", features = ["serde"] }
@@ -117,7 +123,7 @@ objc2-web-kit = { version = "0.3", features = [
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = "0.3"
+objc2-foundation = { version = "0.3", features = ["NSUserDefaults", "NSString", "NSArray", "NSDictionary", "NSEnumerator"] }
 objc2-core-foundation = "0.3"
 objc2-ui-kit = { version = "0.3", features = ["UIView", "UIColor", "UIApplication", "UIInterface", "objc2-core-foundation"] }
 objc2-quartz-core = { version = "0.3", features = ["CALayer"] }

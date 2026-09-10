@@ -118,7 +118,7 @@ pub(crate) async fn asset_crypto_migrate_dir(
             match result {
                 Ok(()) => processed += 1,
                 Err(e) => {
-                    eprintln!("[asset-migration] FAILED: {} | error: {}", current, e);
+                    crate::rs_log!("[asset-migration] FAILED: {} | error: {}", current, e);
                     // Key not loaded fails every file: abort early.
                     if matches!(e, AppError::EncryptionLocked) {
                         return Err(AppError::Other(format!(
@@ -546,7 +546,7 @@ pub(crate) async fn sync_decrypt_batch(
                     Ok(v) => v,
                     Err(e) => {
                         if cfg!(debug_assertions) {
-                            eprintln!("[sync][rust][debug] [{}] json_parse failed: {}", i, e);
+                            crate::rs_log!("[sync][rust][debug] [{}] json_parse failed: {}", i, e);
                         }
                         return None;
                     }
@@ -566,7 +566,7 @@ pub(crate) async fn sync_decrypt_batch(
                         Ok(b) => b,
                         Err(e) => {
                             if cfg!(debug_assertions) {
-                                eprintln!(
+                                crate::rs_log!(
                                     "[sync][rust][debug] [{}] decrypt failed v{}: {} (aad={})",
                                     i, v, e, aad
                                 );
@@ -580,7 +580,7 @@ pub(crate) async fn sync_decrypt_batch(
                         Ok(m) => m,
                         Err(e) => {
                             if cfg!(debug_assertions) {
-                                eprintln!(
+                                crate::rs_log!(
                                     "[sync][rust][debug] [{}] meta_parse failed v{}: {}",
                                     i, v, e
                                 );
@@ -602,7 +602,7 @@ pub(crate) async fn sync_decrypt_batch(
                         Ok(v) => v,
                         Err(e) => {
                             if cfg!(debug_assertions) {
-                                eprintln!(
+                                crate::rs_log!(
                                     "[sync][rust][debug] [{}] decrypt_legacy failed v{}: {}",
                                     i, v, e
                                 );
@@ -614,7 +614,7 @@ pub(crate) async fn sync_decrypt_batch(
                         Ok(m) => m,
                         Err(e) => {
                             if cfg!(debug_assertions) {
-                                eprintln!(
+                                crate::rs_log!(
                                     "[sync][rust][debug] [{}] meta_parse_legacy failed v{}: {}",
                                     i, v, e
                                 );
@@ -637,7 +637,7 @@ pub(crate) async fn sync_decrypt_batch(
                     })
                 } else {
                     if cfg!(debug_assertions) {
-                        eprintln!(
+                        crate::rs_log!(
                             "[sync][rust][debug] [{}] unsupported envelope version: {}",
                             i, v
                         );
@@ -649,7 +649,7 @@ pub(crate) async fn sync_decrypt_batch(
 
         let null_count = results.iter().filter(|r| r.is_none()).count();
         if null_count > 0 && cfg!(debug_assertions) {
-            eprintln!(
+            crate::rs_log!(
                 "[sync][rust][debug] sync_decrypt_batch: {}/{} items failed",
                 null_count,
                 results.len()

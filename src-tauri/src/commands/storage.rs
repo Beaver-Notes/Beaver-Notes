@@ -173,7 +173,7 @@ fn load_store_root_inner(
                 }
                 Err(e) => {
                     decrypted_failed += 1;
-                    eprintln!(
+                    crate::rs_log!(
                         "[storage] load_store_root_inner: decrypt failed for {row_key}: {e} — returning raw row"
                     );
                     value.clone()
@@ -191,7 +191,7 @@ fn load_store_root_inner(
     }
 
     if app_key.is_some() && name == DATA_STORE {
-        eprintln!(
+        crate::rs_log!(
             "[storage] load_store_root_inner: store={name} rows={} decrypted_ok={} decrypted_failed={}",
             plain.len(),
             decrypted_ok,
@@ -671,7 +671,7 @@ pub(crate) fn repair_sealed_settings(
         fixed += 1;
     }
     if fixed > 0 {
-        eprintln!("[storage] repair_sealed_settings: fixed {fixed} rows");
+        crate::rs_log!("[storage] repair_sealed_settings: fixed {fixed} rows");
     }
     Ok(fixed)
 }

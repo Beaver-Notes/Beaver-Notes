@@ -174,7 +174,7 @@ fn select_key_from_backends(
     if !durable_written {
         // Durable writes all failed: session-scoped in-memory key. Blobs stay
         // encrypted but won't survive restart; password prompted on next launch.
-        eprintln!(
+        crate::rs_log!(
             "[master_key] WARNING: no durable backend accepted the key — \
              blobs are encrypted but key is session-scoped only"
         );

@@ -321,7 +321,7 @@ pub(crate) fn yjs_get_updates(
         let (id, blob) = match row {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("[yjs_get_updates] skipping corrupt row: {e}");
+                crate::rs_log!("[yjs_get_updates] skipping corrupt row: {e}");
                 continue;
             }
         };
@@ -329,7 +329,7 @@ pub(crate) fn yjs_get_updates(
             Some(k) => match decrypt_yjs_blob(&k, &blob) {
                 Ok(d) => result.push((id, d)),
                 Err(e) => {
-                    eprintln!("[yjs_get_updates] skipping undecryptable row {id}: {e}");
+                    crate::rs_log!("[yjs_get_updates] skipping undecryptable row {id}: {e}");
                 }
             },
             None if is_encrypted_yjs_blob(&blob) => {
@@ -493,7 +493,7 @@ pub(crate) fn yjs_get_snapshots(
             }
             Ok(_) => {}
             Err(AppError::EncryptionLocked) => {
-                eprintln!("[yjs_get_snapshots] skipping locked note {id}");
+                crate::rs_log!("[yjs_get_snapshots] skipping locked note {id}");
             }
             Err(e) => return Err(e),
         }
