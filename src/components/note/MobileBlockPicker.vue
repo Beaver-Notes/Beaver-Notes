@@ -13,7 +13,6 @@
         />
       </div>
 
-      <!-- Tile grid -->
       <div
         class="grid min-h-0 grid-cols-3 sm:grid-cols-4 gap-2 overflow-y-auto no-scrollbar overscroll-contain max-h-[50vh]"
         style="-webkit-overflow-scrolling: touch"

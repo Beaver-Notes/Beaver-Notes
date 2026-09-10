@@ -67,7 +67,6 @@
     <v-remixicon name="riBrushLine" />
   </button>
 
-  <!-- Audio -->
   <div class="flex items-center gap-0.5">
     <button
       v-if="isItemVisible('audio')"

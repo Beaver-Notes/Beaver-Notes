@@ -90,7 +90,6 @@ export default {
       if (el.hasAttribute('tiptap-url')) {
         const href = el.getAttribute('href') || '';
 
-        // Treat note:// URLs as internal note links
         if (href.startsWith('note://')) {
           const noteId = href.slice('note://'.length);
           return {
@@ -211,13 +210,10 @@ export default {
 
       if (selection instanceof CellSelection) return false;
 
-      // Always show for images
       if (editor.isActive('image')) return true;
 
-      // Always show for videos
       if (editor.isActive('Video')) return true;
 
-      // Don't show for atomic / drawing blocks
       if (!empty && isNoEditorMenuNode(editor)) return false;
 
       return !empty;

@@ -1,6 +1,5 @@
 <template>
   <node-view-wrapper>
-    <!-- Preview area -->
     <div
       :class="[
         'overflow-x-auto max-w-full border bg-neutral-50 dark:bg-neutral-900 cursor-text min-h-20 p-2',
@@ -11,14 +10,11 @@
       <p ref="contentRef" class="select-none pl-2"></p>
     </div>
 
-    <!-- Editor panel -->
     <ExpandCollapse :open="isEditing">
       <div
         class="bg-neutral-50 dark:bg-neutral-900 border flex flex-col mt-0 p-0 rounded-b-lg"
       >
-        <!-- Growable content area -->
         <div class="flex mb-2 p-2 flex-grow">
-          <!-- Main content textarea -->
           <textarea
             v-if="!useKatexMacros"
             ref="contentTextarea"
@@ -30,7 +26,6 @@
             @keydown="handleKeydown"
           />
 
-          <!-- KaTeX macros textarea -->
           <textarea
             v-if="useKatexMacros"
             ref="macrosTextarea"
@@ -88,7 +83,6 @@ export default {
     const useKatexMacros = ref(false);
     const { translations } = useTranslations();
 
-    // Render KaTeX
     const renderContent = () => {
       let macros = {};
       try {
@@ -109,7 +103,6 @@ export default {
 
     const debouncedRenderContent = debounce(renderContent, 300);
 
-    // Update content or macros
     const updateContent = ({ target: { value } }, key, shouldRender) => {
       props.updateAttributes({ [key]: value });
       if (shouldRender) nextTick(() => debouncedRenderContent());
@@ -126,13 +119,11 @@ export default {
       });
     };
 
-    // Stop editing
     const stopEditing = () => {
       isEditing.value = false;
       useKatexMacros.value = false;
     };
 
-    // Toggle macros textarea
     const toggleMacros = () => {
       useKatexMacros.value = !useKatexMacros.value;
       nextTick(() => {

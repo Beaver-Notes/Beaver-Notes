@@ -540,7 +540,6 @@ export default {
     }));
 
     function calculatePillPositions() {
-      // Main navigation pill calculations
       let activeNavEl = null;
       if (isAllNotesActive.value) activeNavEl = homeBtn.value;
       else if (isArchiveActive.value) activeNavEl = archiveBtn.value;
@@ -553,7 +552,6 @@ export default {
         pillHeight.value = 0;
       }
 
-      // Footer utilities pill calculations
       if (isSettingsActive.value && settingsBtn.value) {
         const el = settingsBtn.value.$el || settingsBtn.value;
         footerPillTop.value = el.offsetTop + 6;

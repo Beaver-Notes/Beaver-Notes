@@ -101,7 +101,6 @@ export default {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
 
-      // Insert a tab character at the cursor's current position
       const newValue = `${mermaidContent.value.substring(
         0,
         start,

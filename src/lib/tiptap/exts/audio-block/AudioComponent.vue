@@ -4,7 +4,6 @@
       class="bg-neutral-50 dark:bg-neutral-900 border rounded-xl w-full px-3 py-1.5"
       :title="fileName"
     >
-      <!-- Hidden Audio Element -->
       <audio
         ref="audioPlayer"
         :src="audioSrc"
@@ -18,7 +17,6 @@
         @error="audioError"
       ></audio>
 
-      <!-- Single row: play + time + progress + speed -->
       <div class="flex items-center gap-3 min-w-0">
         <button
           type="button"

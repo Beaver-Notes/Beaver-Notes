@@ -43,7 +43,6 @@ function updateRuntimeClass() {
   return isPhone;
 }
 
-// Run once at startup
 let isPhoneDevice = updateRuntimeClass();
 
 // React to viewport changes: only relevant on phone UA.

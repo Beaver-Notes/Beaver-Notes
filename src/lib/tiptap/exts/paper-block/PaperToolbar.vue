@@ -208,7 +208,6 @@ export default {
     });
     const showSizes = computed(() => props.toolbarState.tool !== 'lasso');
 
-    // Dot scaling configuration helper
     function dotSize(s) {
       const min = sizePresets.value[0],
         max = sizePresets.value[sizePresets.value.length - 1];

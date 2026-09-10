@@ -489,7 +489,6 @@ export default {
     watch(
       ydoc,
       (doc, oldDoc) => {
-        // teardown previous
         if (awareness.value) {
           try {
             awareness.value.setLocalState(null);

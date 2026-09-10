@@ -35,7 +35,6 @@ export function useFocusTrap(containerRef, options = {}) {
     try {
       trap.deactivate();
     } catch {
-      // Silently catch
     }
     isActive.value = false;
     trap = null;
