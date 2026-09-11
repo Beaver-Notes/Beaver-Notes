@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use super::local::parse_commit_filename;
+use super::merge::{covered_by_vector, load_vector, refresh_vector};
 use crate::db::{self, DbPool};
 use crate::shared::{
     SyncEnvelope, PROTOCOL_VERSION, SYNC_PAYLOAD_VERSION, aead_decrypt_bytes, aead_decrypt_json,
@@ -762,6 +763,46 @@ fn decode_append_store(
     if decoded.is_empty() {
         return Ok((Vec::new(), 0));
     }
+    // Delta pull: drop updates the stored per-note vector (`sync:vec:{note}`)
+    // already covers — replayed or duplicate-fanout deliveries skip SQLite
+    // entirely. Notes without a vector keep everything; server checkpoints
+    // stay the fallback either way.
+    let mut by_note: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (i, (n, _, _)) in decoded.iter().enumerate() {
+        by_note.entry(n.as_str()).or_default().push(i);
+    }
+    let mut skip: HashSet<usize> = HashSet::new();
+    for (note, idxs) in &by_note {
+        let Some(stored) = load_vector(pool, note) else {
+            continue;
+        };
+        let cands: Vec<Vec<u8>> = idxs.iter().map(|&i| decoded[i].1.clone()).collect();
+        if covered_by_vector(&cands, &stored) {
+            skip.extend(idxs.iter().copied());
+        }
+    }
+    if !skip.is_empty() {
+        let mut kept = Vec::with_capacity(decoded.len() - skip.len());
+        for (i, item) in decoded.into_iter().enumerate() {
+            if !skip.contains(&i) {
+                kept.push(item);
+            }
+        }
+        decoded = kept;
+    }
+    if decoded.is_empty() {
+        // Everything was already integrated: still advance the server
+        // checkpoints (data seen, nothing new) but report nothing applied.
+        for (note, cp) in &pending {
+            if decoded_count.get(note).copied().unwrap_or(0) > 0 {
+                db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
+            }
+        }
+        for note in &stale {
+            let _ = db::db_delete(pool, &ckpt_key(note));
+        }
+        return Ok((Vec::new(), 0));
+    }
     // Meta-before-note, mirroring the JS pull apply order.
     decoded.sort_by_key(|(n, _, _)| usize::from(n != META_DOC_ID));
     let pulled = decoded.len() as u64;
@@ -783,6 +824,13 @@ fn decode_append_store(
         (a, b, c)
     };
     db::yjs_append_batch(pool, &ids, &updates, &devices, Some(*key))?;
+    // Store per-note vectors after append so the next pull (and compaction)
+    // can diff instead of replaying. Best-effort: cursors stay authoritative.
+    for note in &note_ids {
+        if let Err(e) = refresh_vector(pool, note, Some(*key)) {
+            crate::rs_log!("[sync::cloud] vector refresh skipped: {e}");
+        }
+    }
     // Checkpoints only after a successful decode + append, else pulls poison.
     for (note, cp) in &pending {
         if decoded_count.get(note).copied().unwrap_or(0) > 0 {

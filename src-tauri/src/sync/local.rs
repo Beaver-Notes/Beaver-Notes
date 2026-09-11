@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
+use super::merge::{covered_by_vector, load_vector, refresh_vector};
 use crate::db::{self, DbPool};
 use crate::shared::{
     SyncEnvelope, PROTOCOL_VERSION, SYNC_PAYLOAD_VERSION, aead_decrypt_bytes, aead_decrypt_json,
@@ -245,6 +246,7 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
 
     let device = local_device_id(&pool)?;
     let mut stats = LocalStats::default();
+    let mut pulled_notes: Vec<String> = Vec::new();
 
     // Pull: single read_dir, parse ~~ names, skip own device + at/below
     // per-note checkpoint, apply oldest-first. Snapshots (seq 0) decrypt with
@@ -285,9 +287,27 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
         if (ts, seq) <= (cts, cseq) {
             continue;
         }
+        // Vector gate: content our `sync:vec:{note}` already covers (replayed
+        // file, rewritten same-ts commit) skips the append; the cursor still
+        // advances so the file is never re-read. No vector → append as usual.
+        if let Some(stored) = load_vector(&pool, &note_id) {
+            if covered_by_vector(std::slice::from_ref(&update), &stored) {
+                store_cursor(&pool, &note_id, ts, seq)?;
+                continue;
+            }
+        }
         db::yjs_append(&pool, &note_id, &update, &from_device, Some(key))?;
         store_cursor(&pool, &note_id, ts, seq)?;
         stats.pulled += 1;
+        pulled_notes.push(note_id);
+    }
+    // Vectors refresh once per touched note (not per file) after append.
+    pulled_notes.sort();
+    pulled_notes.dedup();
+    for note in &pulled_notes {
+        if let Err(e) = refresh_vector(&pool, note, Some(key)) {
+            crate::rs_log!("[sync::local] vector refresh skipped: {e}");
+        }
     }
 
     // Push: rows newer than the per-note pushed cursor, one ~~ file each.
