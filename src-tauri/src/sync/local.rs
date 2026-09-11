@@ -13,7 +13,8 @@ use crate::shared::{
 };
 
 /// Wire format (mirrors JS `YJS_UPDATE_EXT` + `FILENAME_SEP` in `sync-yjs.js`):
-/// `{noteId}~~{device}~~{ts}~~{seq}.yjs.json`. `BeaverNotesSync/commits` mirrors
+/// `{noteId}~~{device}~~{ts}[~~{seq}].yjs.json` + snapshots
+/// `{doc}~~snapshot~~{device}~~{ts}.yjs.json`. `BeaverNotesSync/commits` mirrors
 /// JS `SYNC_ROOT_DIR`/`COMMITS_DIR`.
 const UPDATE_EXT: &str = ".yjs.json";
 const SEP: &str = "~~";
@@ -36,24 +37,77 @@ struct ReadCursor {
     seq: u64,
 }
 
-/// Parse `{noteId}~~{device}~~{ts}~~{seq}.yjs.json`. Anything else
-/// (`notes.json`, snapshots, legacy 3-part files) → None.
-pub fn parse_commit_filename(name: &str) -> Option<(String, String, u64, u64)> {
-    let stem = name.strip_suffix(UPDATE_EXT)?;
-    let mut parts = stem.split(SEP);
-    let note_id = parts.next()?;
-    let device = parts.next()?;
-    let ts = parts.next()?;
-    let seq = parts.next()?;
-    if parts.next().is_some() || note_id.is_empty() || device.is_empty() {
+/// Parsed sync filename (mirrors JS `parseSyncFilename` in `sync-yjs.js`):
+/// update `{note}~~{device}~~{ts}[~~{seq}]`, snapshot `{doc}~~snapshot~~{device}~~{ts}`.
+/// Legacy 3-part updates default `seq` to 0.
+pub struct ParsedCommit {
+    pub note: String,
+    pub device: String,
+    pub ts: u64,
+    pub seq: u64,
+    pub is_snapshot: bool,
+}
+
+/// Parse update, legacy 3-part (seq=0), and snapshot names. Anything else
+/// (`notes.json`, wrong ext, empty segments, path separators) → None.
+pub fn parse_sync_filename(name: &str) -> Option<ParsedCommit> {
+    if name.contains('/') || name.contains('\\') {
         return None;
     }
-    Some((
-        note_id.to_string(),
-        device.to_string(),
-        ts.parse().ok()?,
-        seq.parse().ok()?,
-    ))
+    let stem = name.strip_suffix(UPDATE_EXT)?;
+    let parts: Vec<&str> = stem.split(SEP).collect();
+    match parts.len() {
+        3 => {
+            let (note, device, ts) = (parts[0], parts[1], parts[2]);
+            if note.is_empty() || device.is_empty() {
+                return None;
+            }
+            Some(ParsedCommit {
+                note: note.to_string(),
+                device: device.to_string(),
+                ts: ts.parse().ok()?,
+                seq: 0,
+                is_snapshot: false,
+            })
+        }
+        4 if parts[1] == "snapshot" => {
+            let (doc, device, ts) = (parts[0], parts[2], parts[3]);
+            if doc.is_empty() || device.is_empty() {
+                return None;
+            }
+            Some(ParsedCommit {
+                note: doc.to_string(),
+                device: device.to_string(),
+                ts: ts.parse().ok()?,
+                seq: 0,
+                is_snapshot: true,
+            })
+        }
+        4 => {
+            let (note, device, ts, seq) = (parts[0], parts[1], parts[2], parts[3]);
+            if note.is_empty() || device.is_empty() {
+                return None;
+            }
+            Some(ParsedCommit {
+                note: note.to_string(),
+                device: device.to_string(),
+                ts: ts.parse().ok()?,
+                seq: seq.parse().ok()?,
+                is_snapshot: false,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Legacy tuple wrapper (kept for `cloud.rs`): updates incl. 3-part → Some,
+/// snapshots and anything else → None (cloud skips snapshots via `~~snapshot~~`).
+pub fn parse_commit_filename(name: &str) -> Option<(String, String, u64, u64)> {
+    let p = parse_sync_filename(name)?;
+    if p.is_snapshot {
+        return None;
+    }
+    Some((p.note, p.device, p.ts, p.seq))
 }
 
 fn ckpt_key(note_id: &str) -> String {
@@ -100,17 +154,22 @@ fn local_device_id(pool: &DbPool) -> Result<String, AppError> {
 }
 
 /// Fail-closed envelope decrypt (mirrors JS `decryptJSON` + AAD
-/// `{noteId}-{ts}`). Only v4/v5 envelopes; plaintext or unknown versions → None,
-/// never appended.
+/// `{noteId}-{ts}`, snapshot variant `{docId}-snapshot-{ts}`). Only v4/v5
+/// envelopes; plaintext or unknown versions → None, never appended.
 fn decrypt_commit(
     key: &[u8; 32],
     raw: &[u8],
     file_note: &str,
     ts: u64,
+    is_snapshot: bool,
 ) -> Option<(String, String, Vec<u8>)> {
     let env: serde_json::Value = serde_json::from_slice(raw).ok()?;
     let v = env.get("v")?.as_u64()? as u8;
-    let aad = format!("{file_note}-{ts}");
+    let aad = if is_snapshot {
+        format!("{file_note}-snapshot-{ts}")
+    } else {
+        format!("{file_note}-{ts}")
+    };
     if v == SYNC_PAYLOAD_VERSION {
         let update = aead_decrypt_bytes(key, env.get("iv")?.as_str()?, env.get("enc")?.as_str()?, &aad).ok()?;
         let meta = env.get("meta")?;
@@ -188,24 +247,25 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
     let mut stats = LocalStats::default();
 
     // Pull: single read_dir, parse ~~ names, skip own device + at/below
-    // per-note checkpoint, apply oldest-first.
-    let mut incoming: Vec<(String, u64, u64, String)> = Vec::new();
+    // per-note checkpoint, apply oldest-first. Snapshots (seq 0) decrypt with
+    // the snapshot AAD variant and append via the same yjs_append path.
+    let mut incoming: Vec<(String, u64, u64, bool, String)> = Vec::new();
     for entry in fs::read_dir(&dir)? {
         let name = entry?.file_name().to_string_lossy().to_string();
-        let Some((note, dev, ts, seq)) = parse_commit_filename(&name) else {
+        let Some(p) = parse_sync_filename(&name) else {
             continue;
         };
-        if dev == device {
+        if p.device == device {
             continue;
         }
-        let (cts, cseq) = load_cursor(&pool, &note);
-        if (ts, seq) <= (cts, cseq) {
+        let (cts, cseq) = load_cursor(&pool, &p.note);
+        if (p.ts, p.seq) <= (cts, cseq) {
             continue;
         }
-        incoming.push((note, ts, seq, name));
+        incoming.push((p.note, p.ts, p.seq, p.is_snapshot, name));
     }
     incoming.sort_by_key(|e| (e.1, e.2));
-    for (note, ts, seq, name) in incoming {
+    for (note, ts, seq, is_snapshot, name) in incoming {
         let raw = match fs::read(dir.join(&name)) {
             Ok(b) => b,
             // Evicted iCloud placeholder or raced delete: skip this tick, retry next.
@@ -214,7 +274,9 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
                 continue;
             }
         };
-        let Some((note_id, from_device, update)) = decrypt_commit(&key, &raw, &note, ts) else {
+        let Some((note_id, from_device, update)) =
+            decrypt_commit(&key, &raw, &note, ts, is_snapshot)
+        else {
             continue;
         };
         // Re-check under the envelope note id (normally == filename note) so a
@@ -339,5 +401,26 @@ mod tests {
         assert_eq!(p.2, 1700000000);
         assert_eq!(p.3, 7);
         assert!(super::parse_commit_filename("notes.json").is_none());
+    }
+
+    #[test]
+    fn parse_legacy_3part_defaults_seq_0() {
+        let p = super::parse_sync_filename("abc~~dev1~~1700000000.yjs.json").unwrap();
+        assert_eq!(p.note, "abc");
+        assert_eq!(p.device, "dev1");
+        assert_eq!(p.ts, 1700000000);
+        assert_eq!(p.seq, 0);
+        assert!(!p.is_snapshot);
+    }
+
+    #[test]
+    fn parse_snapshot_flag() {
+        let p =
+            super::parse_sync_filename("abc~~snapshot~~dev1~~1700000000.yjs.json").unwrap();
+        assert_eq!(p.note, "abc");
+        assert_eq!(p.device, "dev1");
+        assert_eq!(p.ts, 1700000000);
+        assert!(p.is_snapshot);
+        assert!(super::parse_sync_filename("notes.json").is_none());
     }
 }
