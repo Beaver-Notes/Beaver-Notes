@@ -123,6 +123,12 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::security::encryption_has_remote_key_params)(
                     &mut types,
                 ),
+                specta::_fn_datatype!(crate::commands::security::encryption_local_key_params_json)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::encryption_remote_params_differ)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::security::passwd_hash)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::passwd_compare)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::passwd_record_failure)(&mut types),
@@ -173,6 +179,11 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::yjs::yjs_compact_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_delete)(&mut types),
                 specta::_fn_datatype!(crate::sync::local::sync_local_cycle)(&mut types),
+                specta::_fn_datatype!(crate::sync::scheduler::sync_tick)(&mut types),
+                specta::_fn_datatype!(crate::sync::scheduler::sync_start)(&mut types),
+                specta::_fn_datatype!(crate::sync::scheduler::sync_stop)(&mut types),
+                specta::_fn_datatype!(crate::sync::scheduler::sync_kick)(&mut types),
+                specta::_fn_datatype!(crate::sync::scheduler::sync_kick_dirty)(&mut types),
                 specta::_fn_datatype!(crate::commands::index::index_save)(&mut types),
                 specta::_fn_datatype!(crate::commands::index::index_load)(&mut types),
                 specta::_fn_datatype!(crate::commands::search::search_extract_index_data)(

@@ -8,6 +8,7 @@
 mod bootstrap;
 mod commands;
 mod db;
+mod log_bridge;
 pub mod specta_setup;
 
 #[cfg(desktop)]
@@ -65,6 +66,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_audio_recorder::init())
         .plugin(tauri_plugin_biometry::init())
+        .plugin(tauri_plugin_device_ai_apis::init())
         .manage(state);
 
     #[cfg(mobile)]
@@ -91,6 +93,7 @@ pub fn run() {
                     } else if lower.ends_with(".bea")
                         || lower.ends_with(".md")
                         || lower.ends_with(".mdx")
+                        || lower.ends_with(".markdown")
                         || lower.ends_with(".txt")
                         || lower.ends_with(".html")
                     {
@@ -144,6 +147,8 @@ pub fn run() {
             commands::app::migration_run_with_path,
             commands::app::migration_read_legacy_data,
             commands::app::migration_write_legacy_data,
+            log_bridge::push_js_logs,
+            log_bridge::log_file_path,
             commands::app::migration_read_legacy_preferences,
             commands::app::show_notification,
             commands::backup::backup_export,
@@ -175,6 +180,7 @@ pub fn run() {
             commands::fs::fs_read_file_binary,
             commands::fs::fs_readdir,
             commands::fs::fs_stat,
+            commands::fs::fs_file_icon,
             commands::fs::fs_unlink,
             commands::fs::fs_read_data,
             commands::fs::fs_is_file,
@@ -216,6 +222,8 @@ pub fn run() {
             commands::security::encryption_reconcile_key_params,
             commands::security::encryption_adopt_key_params,
             commands::security::encryption_has_remote_key_params,
+            commands::security::encryption_local_key_params_json,
+            commands::security::encryption_remote_params_differ,
             commands::security::encryption_generate_recovery_code,
             commands::security::encryption_recover_with_code,
             commands::security::passwd_hash,
@@ -255,9 +263,22 @@ pub fn run() {
             commands::yjs::yjs_compact_batch,
             commands::yjs::yjs_delete,
             sync::local::sync_local_cycle,
+            sync::scheduler::sync_tick,
+            sync::scheduler::sync_start,
+            sync::scheduler::sync_stop,
+            sync::scheduler::sync_kick,
+            sync::scheduler::sync_kick_dirty,
             commands::index::index_save,
             commands::index::index_load,
             commands::search::search_extract_index_data,
+            commands::share::fetch_page_html,
+            commands::share::get_pending_shares,
+            commands::share::clear_pending_shares,
+            commands::share::sync_folders_to_extension,
+            commands::share::sync_workspaces_to_extension,
+            commands::share::sync_notes_to_extension,
+            commands::share::sync_extension_lists_timestamp,
+            commands::share::read_shared_file,
             commands::workspace::workspace_list,
             commands::workspace::workspace_get_active,
             commands::workspace::workspace_create,
@@ -267,6 +288,7 @@ pub fn run() {
             commands::workspace::workspace_delete,
         ])
         .setup(|app| {
+            crate::log_bridge::init(app.handle());
             #[cfg(target_os = "android")]
             crate::shared::set_android_app_handle(app.handle().clone());
 
@@ -328,6 +350,7 @@ pub fn run() {
                     if lower.ends_with(".bea")
                         || lower.ends_with(".md")
                         || lower.ends_with(".mdx")
+                        || lower.ends_with(".markdown")
                         || lower.ends_with(".txt")
                         || lower.ends_with(".html")
                     {
