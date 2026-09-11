@@ -123,7 +123,6 @@ export function parseSyncFilename(file) {
     parts.pop();
   }
 
-  // 4. Everything remaining is the doc id
   const docId = unsanitizeFromFilename(parts.join(FILENAME_SEP));
   if (!docId) return null;
 

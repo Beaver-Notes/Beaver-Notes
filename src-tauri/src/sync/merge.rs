@@ -4,8 +4,6 @@
 //! as Yjs — and only after the envelope decrypt in the pull paths, so
 //! non-envelope bytes never reach the decoder (E2EE fail-closed).
 
-// Implementation lands in Step 4; tests first (TDD).
-
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use tauri::{AppHandle, Manager};
 use yrs::{

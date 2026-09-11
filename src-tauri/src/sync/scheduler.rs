@@ -480,7 +480,6 @@ pub(crate) async fn sync_start(
     })
 }
 
-/// Stop the background scheduler loop.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_stop() -> Result<(), AppError> {
