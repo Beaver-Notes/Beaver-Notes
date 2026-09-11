@@ -60,7 +60,7 @@ export async function createCommit(noteId, snapshot, opts = {}) {
   const { encryptJSON } = await import('@/utils/sync/crypto.js');
   const client = getApiClient(opts.baseUrl ? { baseUrl: opts.baseUrl } : undefined);
 
-  const deviceId = getSyncDeviceId();
+  const deviceId = await getSyncDeviceId();
   const ts = Date.now();
   const clock = ts;
 

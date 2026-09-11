@@ -11,8 +11,6 @@ import {
 } from './constants.js';
 import { getSyncDeviceId } from './sync-repository.js';
 
-const deviceId = getSyncDeviceId();
-
 // Reversible sanitization of characters illegal in filenames on macOS/Windows/Linux,
 // so the original id can be recovered when reading files back.
 function sanitizeForFilename(str) {
@@ -67,12 +65,12 @@ function unsanitizeFromFilename(str) {
 // containing dashes, which broke the old dash-delimited parser).
 const FILENAME_SEP = '~~';
 
-function yjsFileName(noteId, ts, sequence) {
+function yjsFileName(noteId, ts, sequence, deviceId) {
   const seqPart = sequence != null ? `${FILENAME_SEP}${sequence}` : '';
   return `${sanitizeForFilename(noteId)}${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${seqPart}${YJS_UPDATE_EXT}`;
 }
 
-function yjsSnapshotFileName(docId, ts) {
+function yjsSnapshotFileName(docId, ts, deviceId) {
   return `${sanitizeForFilename(docId)}${FILENAME_SEP}snapshot${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${YJS_UPDATE_EXT}`;
 }
 
@@ -145,6 +143,7 @@ function _nextWriteSeq() {
 export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, stateVector) {
   const ts = Date.now();
   const sequence = _nextWriteSeq();
+  const deviceId = await getSyncDeviceId();
   const payload = {
     device: deviceId,
     ts,
@@ -156,7 +155,7 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, st
     payload.stateVector = stateVector;
   }
   const encrypted = await encryptJSON(payload, `${noteId}-${ts}`);
-  const fileName = yjsFileName(noteId, ts, sequence);
+  const fileName = yjsFileName(noteId, ts, sequence, deviceId);
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
@@ -166,6 +165,7 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, st
  */
 export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, stateVector) {
   const ts = Date.now();
+  const deviceId = await getSyncDeviceId();
   const payload = {
     device: deviceId,
     ts,
@@ -176,7 +176,7 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, st
     payload.stateVector = stateVector;
   }
   const encrypted = await encryptJSON(payload, `${docId}-snapshot-${ts}`);
-  const fileName = yjsSnapshotFileName(docId, ts);
+  const fileName = yjsSnapshotFileName(docId, ts, deviceId);
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
@@ -189,6 +189,7 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
     return [];
   }
 
+  const deviceId = await getSyncDeviceId();
   const updates = [];
 
   for (const file of files.filter((f) => f.endsWith(YJS_UPDATE_EXT))) {

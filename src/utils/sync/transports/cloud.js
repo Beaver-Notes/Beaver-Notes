@@ -299,7 +299,7 @@ export class CloudTransport extends Transport {
           ? item.update
           : new Uint8Array(item.update);
 
-        await appendUpdate(noteId, updateBytes, getSyncDeviceId());
+        await appendUpdate(noteId, updateBytes, await getSyncDeviceId());
         // Hydrate active in-memory docs so editors show content without a reload.
         applyRemote(noteId, updateBytes);
         applied++;
@@ -400,7 +400,7 @@ export class CloudTransport extends Transport {
           try {
             if (snap.title) ydoc.getText('title').insert(0, snap.title);
             const update = Y.encodeStateAsUpdate(ydoc);
-            await appendUpdate(noteId, update, getSyncDeviceId());
+            await appendUpdate(noteId, update, await getSyncDeviceId());
             try { applyRemote(noteId, update); } catch {}
             try { await compactUpdates(noteId, update); } catch {}
             restored.push(noteId);
@@ -638,7 +638,7 @@ export class CloudTransport extends Transport {
       return { updates: [], pushed: 0, throttled: true };
     }
 
-    const ownDeviceId = getSyncDeviceId();
+    const ownDeviceId = await getSyncDeviceId();
 
     // If the push phase hasn't probed the server yet, try seeding.
     if (!this._serverProbeComplete) {
@@ -924,7 +924,7 @@ export class CloudTransport extends Transport {
     }
     logger.info('[sync] cloud seed: vault key params published');
     const { encryptJSON } = await import('../crypto.js');
-    const ownDeviceId = getSyncDeviceId();
+    const ownDeviceId = await getSyncDeviceId();
     const ts = Date.now();
     const snapshots = [];
     const noteIds = [];

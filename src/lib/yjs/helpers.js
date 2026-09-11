@@ -6,9 +6,28 @@ import { useAppStore } from '@/store/app';
 
 let cachedSchema = null;
 
+let cachedDeviceId = null;
+try {
+  cachedDeviceId = localStorage.getItem('deviceId');
+} catch {}
+// Warm the Rust-owned id in the background; kv adopts the localStorage seed
+// so the sync cached value stays the correct identity.
+Promise.resolve()
+  .then(() => getSyncDeviceId())
+  .then((id) => {
+    if (typeof id === 'string' && id) cachedDeviceId = id;
+  })
+  .catch(() => {});
+
 export function getDeviceId() {
   try {
-    return getSyncDeviceId();
+    if (cachedDeviceId) return cachedDeviceId;
+    const fresh = localStorage.getItem('deviceId');
+    if (fresh) {
+      cachedDeviceId = fresh;
+      return fresh;
+    }
+    return 'local';
   } catch {
     return 'local';
   }

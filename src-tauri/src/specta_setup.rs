@@ -179,6 +179,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::yjs::yjs_compact_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_delete)(&mut types),
                 specta::_fn_datatype!(crate::sync::local::sync_local_cycle)(&mut types),
+                specta::_fn_datatype!(crate::sync::local::sync_device_id)(&mut types),
                 specta::_fn_datatype!(crate::sync::merge::sync_compact_note)(&mut types),
                 specta::_fn_datatype!(crate::sync::scheduler::sync_tick)(&mut types),
                 specta::_fn_datatype!(crate::sync::scheduler::sync_start)(&mut types),

@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { path } from '@/lib/tauri-bridge';
 import {
   ensureDir as ensureSyncDir,
@@ -7,16 +8,42 @@ import {
   SYNC_ROOT_DIR,
 } from './constants.js';
 
-let deviceId =
-  localStorage.getItem('deviceId') ||
-  (() => {
+let cachedDeviceId = null;
+
+function readLegacyDeviceId() {
+  try {
+    return localStorage.getItem('deviceId') || null;
+  } catch {
+    return null;
+  }
+}
+
+// Rust kv `sync:local:device-id` is the single source; the legacy localStorage UUID is passed as seed and adopted only when kv is absent, so existing installs keep their identity.
+export async function getSyncDeviceId() {
+  if (cachedDeviceId) return cachedDeviceId;
+  const legacy = readLegacyDeviceId();
+  try {
+    const id = await invoke('sync_device_id', legacy ? { seed: legacy } : {});
+    if (typeof id === 'string' && id.trim()) {
+      cachedDeviceId = id;
+      try {
+        localStorage.setItem('deviceId', id);
+      } catch {}
+      return cachedDeviceId;
+    }
+  } catch {}
+  if (legacy) {
+    cachedDeviceId = legacy;
+    return cachedDeviceId;
+  }
+  try {
     const id = crypto.randomUUID();
     localStorage.setItem('deviceId', id);
-    return id;
-  })();
-
-export function getSyncDeviceId() {
-  return deviceId;
+    cachedDeviceId = id;
+  } catch {
+    cachedDeviceId = `local-${Date.now()}`;
+  }
+  return cachedDeviceId;
 }
 
 export async function ensureCommitsDir(syncPath) {

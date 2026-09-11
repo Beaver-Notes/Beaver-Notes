@@ -263,6 +263,7 @@ pub fn run() {
             commands::yjs::yjs_compact_batch,
             commands::yjs::yjs_delete,
             sync::local::sync_local_cycle,
+            sync::local::sync_device_id,
             sync::merge::sync_compact_note,
             sync::scheduler::sync_tick,
             sync::scheduler::sync_start,

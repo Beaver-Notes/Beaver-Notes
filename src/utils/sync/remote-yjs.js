@@ -61,7 +61,7 @@ export async function pushUpdates(workspaceId, notes) {
   }
 
   const client = getClient();
-  const deviceId = getSyncDeviceId();
+  const deviceId = await getSyncDeviceId();
 
   function estimateNoteSize(n) {
   // Rough estimate: noteId + per-update key/base64-data/metadata overhead

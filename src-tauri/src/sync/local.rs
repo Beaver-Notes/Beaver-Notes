@@ -159,6 +159,36 @@ pub(crate) fn get_or_create_device_id(pool: &DbPool) -> Result<String, AppError>
     Ok(id)
 }
 
+/// Thin Tauri exposure of the kv-owned sync identity for JS drivers.
+/// `seed` carries the legacy localStorage id once: adopted only when the kv
+/// key is absent so existing installs keep their filenames/`X-Device-Id`.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn sync_device_id(
+    app: AppHandle,
+    seed: Option<String>,
+) -> Result<String, AppError> {
+    let state = app.state::<AppState>();
+    let pool = data_pool(&app, state.inner())?;
+    tokio::task::spawn_blocking(move || {
+        if let Some(id) = db::db_get(&pool, DEVICE_ID_KEY, None)? {
+            if !id.trim().is_empty() {
+                return Ok(id);
+            }
+        }
+        if let Some(s) = seed {
+            let s = s.trim().to_string();
+            if !s.is_empty() {
+                db::db_set(&pool, DEVICE_ID_KEY, &s, None)?;
+                return Ok(s);
+            }
+        }
+        get_or_create_device_id(&pool)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
+}
+
 /// Fail-closed envelope decrypt (mirrors JS `decryptJSON` + AAD
 /// `{noteId}-{ts}`, snapshot variant `{docId}-snapshot-{ts}`). Only v4/v5
 /// envelopes; plaintext or unknown versions → None, never appended.
