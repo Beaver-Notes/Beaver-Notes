@@ -66,7 +66,6 @@ vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn(),
 }));
 
-// Dynamically imported modules: mocked to resolve instantly (no file I/O).
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
   loadSecureBlob: vi.fn(() => Promise.resolve(null)),
 }));
@@ -92,6 +91,15 @@ vi.mock('../readiness.js', () => ({
     keyReady: true,
     workspaceId: 'test-ws',
   })),
+}));
+
+const rustGate = { active: false, folderOwned: false };
+vi.mock('../rust-shim.js', () => ({
+  isRustSyncActive: () => rustGate.active,
+  isRustFolderOwner: () => rustGate.folderOwned,
+  kickRustDirty: vi.fn(),
+  startRustSync: vi.fn(() => Promise.resolve()),
+  stopRustSync: vi.fn(() => Promise.resolve()),
 }));
 
 describe('SyncEngine mutex', () => {
@@ -142,13 +150,11 @@ describe('SyncEngine mutex', () => {
     const promise1 = engine.enqueueSync(true);
     const promise2 = engine.enqueueSync(true);
 
-    // Yield to event loop so _runCycle and its re-run complete
     await new Promise((r) => setTimeout(r, 0));
 
     await promise1;
     await promise2;
 
-    // Re-run means both cycles call pull
     expect(mockLocalTransport.pull).toHaveBeenCalledTimes(2);
   });
 
@@ -160,15 +166,13 @@ describe('SyncEngine mutex', () => {
 
     const first = engine.enqueueSync(true);
 
-    // Yield to event loop so _runCycle reaches pull
     await new Promise((r) => setTimeout(r, 0));
     expect(pullResolves.length).toBe(1);
 
-    engine.enqueueSync(); // sets pending = true
+    engine.enqueueSync();
 
     pullResolves[0]({ updates: [] });
 
-    // Yield again so first cycle finishes & re-run calls pull
     await new Promise((r) => setTimeout(r, 0));
     expect(pullResolves.length).toBe(2);
 
@@ -229,16 +233,14 @@ pull: vi.fn(() => ({ updates: [] })),
 
   it('skips the next idle pull-only tick after a cycle with no updates', async () => {
     engine.startPullTimer();
-    // First tick: pulls, finds nothing.
+
     await vi.advanceTimersByTimeAsync(30001);
     expect(mockLocalTransport.pull).toHaveBeenCalledTimes(1);
 
-    // Second tick (idle, still nothing): the backoff should skip it.
     mockLocalTransport.pull.mockClear();
     await vi.advanceTimersByTimeAsync(30001);
     expect(mockLocalTransport.pull).not.toHaveBeenCalled();
 
-    // Third tick: pulls again.
     await vi.advanceTimersByTimeAsync(30001);
     expect(mockLocalTransport.pull).toHaveBeenCalledTimes(1);
   });
@@ -251,9 +253,9 @@ pull: vi.fn(() => ({ updates: [] })),
       .mockReturnValue({ updates: [] });
 
     engine.startPullTimer();
-    await vi.advanceTimersByTimeAsync(30001); // finds updates → no backoff armed
-    await vi.advanceTimersByTimeAsync(30001); // pulls (finds nothing → arms backoff)
-    await vi.advanceTimersByTimeAsync(30001); // skipped by backoff
+    await vi.advanceTimersByTimeAsync(30001);
+    await vi.advanceTimersByTimeAsync(30001);
+    await vi.advanceTimersByTimeAsync(30001);
     expect(mockLocalTransport.pull.mock.calls.length).toBe(2);
   });
 
@@ -394,9 +396,6 @@ describe('SyncEngine pull loop', () => {
       getActiveTransports: () => ['cloud'],
     });
 
-    // Two forced cycles; each cycle must terminate after a single pull even
-    // though pull keeps reporting hasMore:true. Regression: previously the
-    // loop re-pulled the same page forever, wedging the engine.
     await current.enqueueSync(true);
     await current.enqueueSync(true);
 
@@ -690,27 +689,120 @@ describe('SyncEngine notifications', () => {
   });
 });
 
-describe('rust-shim sync origin tagging', () => {
-  it('queues exactly the realtime update; a sync:applied for the same note does not echo', async () => {
-    // Real CRDT + real shared registry: the mocked applyRemote above cannot
-    // prove origin semantics, so bypass the mock for this contract.
+describe('rust dual-write gate with scoped folders', () => {
+  let gateEngine;
+  let localPull;
+
+  beforeEach(() => {
+    rustGate.active = false;
+    rustGate.folderOwned = false;
+    localPull = vi.fn(() => ({ updates: [] }));
+    gateEngine = new SyncEngine({
+      transports: {
+        local: {
+          pull: localPull,
+          push: vi.fn(() => ({ updates: [], pushed: 0 })),
+          seedOnce: vi.fn(() => Promise.resolve()),
+          compact: vi.fn(() => Promise.resolve()),
+        },
+        cloud: {
+          pull: vi.fn(() => ({ updates: [] })),
+          push: vi.fn(() => ({ updates: [], pushed: 0 })),
+          seedOnce: vi.fn(() => Promise.resolve()),
+          compact: vi.fn(() => Promise.resolve()),
+          syncAssets: vi.fn(() => Promise.resolve()),
+        },
+      },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['local'],
+    });
+  });
+
+  afterEach(() => {
+    rustGate.active = false;
+    rustGate.folderOwned = false;
+  });
+
+  it('skips the JS cycle when Rust owns a non-scoped folder', async () => {
+    rustGate.active = true;
+    rustGate.folderOwned = true;
+    await gateEngine.forceSyncNow();
+    expect(localPull).not.toHaveBeenCalled();
+  });
+
+  it('runs the JS cycle for scoped folders even while Rust is active', async () => {
+    rustGate.active = true;
+    rustGate.folderOwned = false;
+    const { getSyncPath } = await import('../path.js');
+    getSyncPath.mockResolvedValueOnce('scoped:folder1');
+    await gateEngine.forceSyncNow();
+    expect(localPull).toHaveBeenCalled();
+  });
+
+  it('skips cloud phases but runs local when Rust owns cloud on scoped folders', async () => {
+    rustGate.active = true;
+    rustGate.folderOwned = false;
+    const { getSyncPath } = await import('../path.js');
+    getSyncPath.mockResolvedValueOnce('scoped:folder1');
+    const cloudPull = vi.fn(() => ({ updates: [] }));
+    const cloudPush = vi.fn(() => ({ updates: [], pushed: 0 }));
+    const cloudAssets = vi.fn(() => Promise.resolve());
+    const scopedEngine = new SyncEngine({
+      transports: {
+        local: {
+          pull: localPull,
+          push: vi.fn(() => ({ updates: [], pushed: 0 })),
+          seedOnce: vi.fn(() => Promise.resolve()),
+          compact: vi.fn(() => Promise.resolve()),
+        },
+        cloud: {
+          pull: cloudPull,
+          push: cloudPush,
+          seedOnce: vi.fn(() => Promise.resolve()),
+          compact: vi.fn(() => Promise.resolve()),
+          syncAssets: cloudAssets,
+        },
+      },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['local', 'cloud'],
+    });
+    await scopedEngine.forceSyncNow();
+    expect(localPull).toHaveBeenCalled();
+    expect(cloudPull).not.toHaveBeenCalled();
+    expect(cloudPush).not.toHaveBeenCalled();
+    expect(cloudAssets).not.toHaveBeenCalled();
+  });
+
+  it('keeps the legacy queue for scoped folders while Rust runs', async () => {
+    rustGate.active = true;
+    rustGate.folderOwned = false;
+    const { queueSyncWrite, hasPendingWrites, clearPendingWrites } =
+      await import('../pending-writes.js');
+    try {
+      queueSyncWrite('/c', 'n1', new Uint8Array([1]));
+      expect(hasPendingWrites()).toBe(true);
+    } finally {
+      clearPendingWrites();
+    }
+  });
+});
+
+describe('rust-shim sync origin tagging', () => {  it('queues exactly the realtime update; a sync:applied for the same note does not echo', async () => {
+
     const shared = await vi.importActual('@/lib/yjs/shared.js');
     const Y = await import('yjs');
     const doc = new Y.Doc();
     shared.registerActiveDoc('n1', doc);
     try {
-      // Mirrors the useNoteYjs observer skip-origins.
+
       const queued = [];
       doc.on('update', (update, origin) => {
         if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
         queued.push(update);
       });
 
-      // Realtime keystroke (provider origin): queued for the dirty push.
       doc.getText('t').insert(0, 'hello');
 
-      // Rust sync:applied for the same note: the shim fetches the snapshot
-      // and merges it via applyRemote, i.e. origin 'sync'.
       const remote = new Y.Doc();
       remote.getText('t').insert(0, 'world');
       shared.applyRemote('n1', Y.encodeStateAsUpdate(remote));

@@ -1,9 +1,3 @@
-//! yrs-backed CRDT merge + per-note state vectors (Phase 2).
-//!
-//! Updates stay opaque blobs everywhere else; only this module parses them
-//! as Yjs — and only after the envelope decrypt in the pull paths, so
-//! non-envelope bytes never reach the decoder (E2EE fail-closed).
-
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use tauri::{AppHandle, Manager};
 use yrs::{
@@ -14,9 +8,6 @@ use yrs::{
 use crate::db::{self, DbPool};
 use crate::shared::{AppError, AppState, current_app_key, data_pool};
 
-/// Merge updates into one compact update. Dupes collapse; undecodable or
-/// unintegrable items are skipped, never fatal (fail-closed pull paths rely
-/// on this: one bad blob must not poison the note).
 pub fn merge_updates(updates: &[Vec<u8>]) -> Vec<u8> {
     let doc = Doc::new();
     let mut txn = doc.transact_mut();
@@ -28,7 +19,6 @@ pub fn merge_updates(updates: &[Vec<u8>]) -> Vec<u8> {
     txn.encode_state_as_update_v1(&StateVector::default())
 }
 
-/// State vector covering `updates`, v1-encoded. Empty input → empty vector.
 pub fn encode_vector(updates: &[Vec<u8>]) -> Vec<u8> {
     let doc = Doc::new();
     let mut txn = doc.transact_mut();
@@ -40,10 +30,6 @@ pub fn encode_vector(updates: &[Vec<u8>]) -> Vec<u8> {
     txn.state_vector().encode_v1()
 }
 
-/// True when `candidates` add nothing beyond `stored_vector`: every
-/// (client, clock) they cover is already integrated. Lets pull paths drop
-/// replayed/duplicated deliveries before touching SQLite; unknown vector →
-/// false (keep everything, cursors stay the fallback).
 pub(crate) fn covered_by_vector(candidates: &[Vec<u8>], stored_vector: &[u8]) -> bool {
     let stored = StateVector::decode_v1(stored_vector).unwrap_or_default();
     let doc = Doc::new();
@@ -62,6 +48,40 @@ fn vector_key(note_id: &str) -> String {
     format!("sync:vec:{note_id}")
 }
 
+pub(crate) fn snapshot_covers_rows(snapshot: &[u8], rows: &[Vec<u8>]) -> bool {
+    let rows_sv = {
+        let doc = Doc::new();
+        let mut txn = doc.transact_mut();
+        for raw in rows {
+            match Update::decode_v1(raw) {
+                Ok(u) => {
+                    if txn.apply_update(u).is_err() {
+                        return false;
+                    }
+                }
+                Err(_) => return false,
+            }
+        }
+        txn.state_vector()
+    };
+    let snap_sv = {
+        let doc = Doc::new();
+        let mut txn = doc.transact_mut();
+        match Update::decode_v1(snapshot) {
+            Ok(u) => {
+                if txn.apply_update(u).is_err() {
+                    return false;
+                }
+            }
+            Err(_) => return false,
+        }
+        txn.state_vector()
+    };
+    rows_sv
+        .iter()
+        .all(|(client, clock)| snap_sv.get(client) >= *clock)
+}
+
 pub(crate) fn load_vector(pool: &DbPool, note_id: &str) -> Option<Vec<u8>> {
     db::db_get(pool, &vector_key(note_id), None)
         .ok()
@@ -73,9 +93,6 @@ pub(crate) fn store_vector(pool: &DbPool, note_id: &str, vector: &[u8]) -> Resul
     db::db_set(pool, &vector_key(note_id), &BASE64.encode(vector), None)
 }
 
-/// Recompute the stored vector from all rows for `note_id`. Best-effort in
-/// pull paths (a stale vector only costs extra bytes next cycle; cursors
-/// stay authoritative), so callers log-and-continue on error.
 pub(crate) fn refresh_vector(
     pool: &DbPool,
     note_id: &str,
@@ -86,10 +103,6 @@ pub(crate) fn refresh_vector(
     store_vector(pool, note_id, &encode_vector(&blobs))
 }
 
-/// Compact a note's rows into one merged row via `merge_updates` — the
-/// Rust-side replacement for the JS-observe `Y.mergeUpdates` round-trip
-/// (`useNoteYjs.js` flush path). JS callers switch to this command instead
-/// of shipping rows/snapshots over IPC; no caller restructuring needed.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_compact_note(app: AppHandle, note_id: String) -> Result<(), AppError> {
@@ -124,8 +137,6 @@ mod tests {
 
     use super::{encode_vector, merge_updates};
 
-    /// Build a real update: fresh Doc, insert `text` at 0, full-state encode.
-    /// Each call is a distinct client, so two seeds merge like two devices.
     fn seed_update(text: &str) -> Vec<u8> {
         let doc = Doc::new();
         let t = doc.get_or_insert_text("t");
@@ -139,7 +150,7 @@ mod tests {
         let a = seed_update("hello");
         let merged_once = merge_updates(&[a.clone(), a.clone()]);
         let merged_twice = merge_updates(&[merged_once.clone(), a.clone()]);
-        assert_eq!(merged_once, merged_twice); // dupes collapse
+        assert_eq!(merged_once, merged_twice);
         assert!(!encode_vector(&[merged_once]).is_empty());
     }
 
@@ -148,7 +159,7 @@ mod tests {
         let a = seed_update("hello");
         let merged = merge_updates(&[b"definitely not a yjs update".to_vec(), a.clone()]);
         assert_eq!(merged, merge_updates(std::slice::from_ref(&a)));
-        // `Decode` import is load-bearing: vectors must actually parse.
+
         assert!(StateVector::decode_v1(&encode_vector(&[a])).is_ok());
     }
 }

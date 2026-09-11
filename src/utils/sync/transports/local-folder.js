@@ -6,9 +6,8 @@ import { ensureCommitsDir } from '../sync-repository.js';
 import { YJS_UPDATE_EXT } from '../constants.js';
 import { readDir } from '@/lib/native/fs';
 import { seedOnce as seedOnceCommits } from '../shared.js';
-import { prefetchSyncDir } from '@/lib/tauri/scoped-storage';
+import { kickSyncDir } from '@/lib/tauri/scoped-storage';
 
-/** Merge per-note state vectors into { device: maxClock } for pre-decrypt filtering. */
 function mergeAllStateVectors(allStateVectors) {
   const merged = {};
   for (const sv of Object.values(allStateVectors)) {
@@ -31,11 +30,10 @@ export class LocalFolderTransport extends Transport {
     if (!syncPath) return { updates: [] };
 
     const commitsDir = await ensureCommitsDir(syncPath);
-    // Gated iCloud prefetch (no-op elsewhere, never blocks UI).
-    await prefetchSyncDir(commitsDir);
+
+    kickSyncDir(commitsDir);
     const { decryptJSON } = await import('../crypto.js');
 
-    // Gather state vectors so listRemoteYjsUpdates can pre-decrypt-filter.
     const allStateVectors = {};
     try {
       const files = await readDir(commitsDir).catch(() => []);
@@ -50,7 +48,7 @@ export class LocalFolderTransport extends Transport {
         if (sv) allStateVectors[noteId] = sv;
       }
     } catch {
-      // Non-critical: proceed without state vectors.
+
     }
 
     const remoteYjsUpdates = await listRemoteYjsUpdates(
@@ -90,7 +88,7 @@ export class LocalFolderTransport extends Transport {
     try {
       await compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON);
     } catch {
-      // best-effort
+
     }
   }
 }

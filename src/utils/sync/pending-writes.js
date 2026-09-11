@@ -1,9 +1,7 @@
-/** Pending update queue: flush once per cycle, not per keystroke. Drained atomically, crash may lose 10s (still in SQLite). */
-
 import { writeYjsUpdate } from './sync-yjs.js';
 import { encryptJSON } from './crypto.js';
 import { getCurrentStateVector } from './state-vector.js';
-import { isRustSyncActive, kickRustDirty } from './rust-shim.js';
+import { isRustFolderOwner, kickRustDirty } from './rust-shim.js';
 
 const MAX_QUEUE_SIZE = 5000;
 const pendingSyncWrites = [];
@@ -15,7 +13,6 @@ export function setSyncTrigger(trigger) {
   syncTrigger = typeof trigger === 'function' ? trigger : null;
 }
 
-/** Cloud-only mode: when set, flush buffers in memory instead of writing disk. */
 export function setCloudBuffer(buffer) {
   cloudBuffer = buffer;
 }
@@ -28,7 +25,6 @@ export function hasPendingWrites() {
   return pendingSyncWrites.length > 0;
 }
 
-/** Drain pending writes to commit entries. Never touches cloudBuffer, callers handle it. */
 function drainPending() {
   return pendingSyncWrites.splice(0).map((w) => ({
     commitsDir: w.commitsDir,
@@ -47,7 +43,6 @@ function waitForFlush(callback) {
   });
 }
 
-/** Flush via writeFn; returns flushed entries for downstream consumers (e.g. remote push). */
 export async function flushPendingSyncWritesTo(writeFn) {
   if (flushing) {
     return waitForFlush(() => flushPendingSyncWritesTo(writeFn));
@@ -72,17 +67,13 @@ export async function flushPendingSyncWritesTo(writeFn) {
   return flushed;
 }
 
-/** Discard pending writes after vault adoption: encrypted with pre-adoption key. */
 export function clearPendingWrites() {
   pendingSyncWrites.length = 0;
 }
 
 export function queueSyncWrite(commitsDir, noteId, update) {
-  if (isRustSyncActive()) {
-    // Rust owns durable sync now: the SQLite `yjs_append` row is already
-    // written (that feeds its dirty queue), folder commits are its job — so
-    // skip the legacy queue and just wake its dirty push. Both the note path
-    // (`useNoteYjs` persist) and the meta path route through here.
+  if (isRustFolderOwner()) {
+
     kickRustDirty();
     return;
   }

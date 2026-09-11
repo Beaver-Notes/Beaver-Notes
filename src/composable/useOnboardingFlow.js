@@ -35,6 +35,8 @@ import {
   hasRemoteVaultKeyParams,
   adoptVaultKey,
   isKeyLoaded,
+  publishLocalKeyParamsToFolder,
+  setDeclinedVaultJoin,
 } from '@/utils/crypto/encryption.js';
 import { getOnboardingSyncTransport } from '@/utils/onboarding/sync-policy.js';
 import { setSyncPath } from '@/utils/sync/path.js';
@@ -72,7 +74,6 @@ import { getApiClient } from '@/lib/api/client';
 import { loadSessionToken } from '@/lib/account-storage';
 import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
 
-// Steps inside the persistent wizard frame; 'welcome'/'finish' are full-screen hero steps.
 const WIZARD_STEPS = [
   'account',
   'plans',
@@ -93,11 +94,8 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   const customLegacyPath = ref(null);
   const customLegacyStatus = ref(null);
 
-  // Legacy locked-notes password: never persisted to state, held only until
-  // migrateLegacyData decrypts locked notes; cleared on failure/skip.
   let legacyPassword = '';
 
-  // Forward/backward tracking drives the wizard body's slide direction.
   const navDirection = ref('forward');
 
   const getLegacyDir = () => customLegacyPath.value || state.status?.legacyDir;
@@ -148,15 +146,16 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   const encryptionPasswordError = ref('');
   const encryptionPasswordLoading = ref(false);
 
-  // Join-existing-vault mode, auto-detected from the chosen sync source.
   const vaultJoinMode = ref(false);
+
+  const declinedVaultJoin = ref(false);
 
   async function detectVaultJoin() {
     vaultJoinMode.value = false;
     try {
       let detected = false;
       if (accountStore.isAuthenticated) {
-        // fetchCloudKeyParams needs an active workspace; not loaded yet on fresh onboarding.
+
         const workspaceStore = useWorkspaceStore();
         if (!workspaceStore.activeId) {
           try {
@@ -207,7 +206,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       const workspaceId = useWorkspaceStore().activeId;
       const fetched = getFetchedCloudKeyParams();
       if (workspaceId && vaultJoinMode.value && fetched) {
-        // Wait for session token to be available (may not be saved yet after sign-in)
+
         let token = null;
         for (let i = 0; i < 20 && !token; i++) {
           token = await loadSessionToken();
@@ -239,8 +238,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
             result?.error || 'Failed to join this vault.';
           return;
         }
-        // Session AEK is now unlocked: recover the joined workspace's key from
-        // its passphrase-recoverable envelope and seed the local key cache.
+
         try {
           const cloud = useCloudWorkspaces();
           const joined = cloud.workspaces.value.find(
@@ -271,6 +269,9 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   }
 
   function startFreshVault() {
+    declinedVaultJoin.value = true;
+
+    setDeclinedVaultJoin(fresh.syncPath).catch(() => {});
     vaultJoinMode.value = false;
     encryptionPassword.value = '';
     encryptionConfirmPassword.value = '';
@@ -326,13 +327,10 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     ),
   );
 
-  // Plans step only earns its place for signed-in free users (the upgrade
-  // path): guests have nothing to upgrade, paid logins already have a plan.
   const showPlansStep = computed(
     () => accountStore.isAuthenticated && !accountStore.isPaidPlan,
   );
 
-  // Sync step is for local-only users; account holders sync via cloud.
   const activeFlow = computed(() => {
     const flow = [
       'welcome',
@@ -415,7 +413,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       state.legacyHasLockedNotes,
   );
 
-  // All nav helpers route through here so slide-direction tracking lives in one place.
   const goToStep = (s) => {
     const oldIndex = activeFlow.value.indexOf(step.value);
     const newIndex = activeFlow.value.indexOf(s);
@@ -445,9 +442,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       await setSetting('syncTransport', transport);
       if (transport === 'remote') await setSyncPath('');
       await detectVaultJoin();
-      // Seed only when a vault key is already unlocked (e.g. re-running
-      // onboarding); seeding on first run would encrypt under the throwaway
-      // auto-created key and orphan every uploaded artifact.
+
       if (isKeyLoaded()) {
         try {
           const { useAccountAuth } =
@@ -558,7 +553,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     state.migrationIssuesText = '';
     importPhase.value = 'running';
 
-    // Progress weighted by phase: Rust copy 0-60, Yjs conversion 60-90, finalize 90-100.
     const COPY_WEIGHT = 60;
     const CONVERT_WEIGHT = 30;
     let unlistenProgress = null;
@@ -589,7 +583,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         '[onboarding] legacy Electron migration (Rust copy) finished',
       );
 
-      // Read the legacy store directly (never via KV); the Rust copy already ran.
       const legacyDir = getLegacyDir();
       state.migrationStatus = 'Reading legacy data…';
       const legacyRaw = legacyDir ? await readLegacyData(legacyDir) : null;
@@ -606,9 +599,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         ([id, note]) => ({ ...note, id: note.id || id }),
       );
 
-      // Load the workspace doc before converting so a retried migration can
-      // detect notes already appended in a prior attempt (non-empty snapshot
-      // across ALL note ids, not just the seeded workspace meta).
       const { loadWorkspaceDoc } = await import('@/lib/yjs/workspace-doc.js');
       await loadWorkspaceDoc();
       const allNoteIds = noteList.map((n) => n.id).filter(Boolean);
@@ -634,8 +624,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         JSON.stringify(convertResult),
       );
 
-      // Seed the workspace doc from parsed data; ensure legacy notes carry
-      // cardPreview/preview/searchText first so hydration avoids snapshot fallback.
       try {
         const { ensureLegacyNotesPreview } =
           await import('@/utils/onboarding/legacyContentToYjs.js');
@@ -644,8 +632,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         console.warn('[onboarding] preview enrich failed:', e);
       }
       state.migrationStatus = 'Migrating workspace…';
-      // Notes the converter skipped or failed get no meta: meta without a
-      // doc strands unopenable, undeletable cards. Keep '' (no-id key).
+
       const excludeIds = new Set([
         ...(convertResult.failures || []),
         ...(convertResult.skippedNotes || [])
@@ -682,7 +669,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         .map((issue) => `${issue.title}: ${issue.reason}`)
         .join('\n');
 
-      // importLegacyPreferences routes syncPath via setSyncPath, skips for cloud users: no re-assert.
       try {
         const { importLegacyPreferences } =
           await import('@/utils/onboarding/import-preferences.js');
@@ -694,7 +680,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         console.warn('[onboarding] preference import failed:', err);
       }
 
-      // Correlated native + frontend state dump, so stranded notes are visible post-import.
       try {
         const { dumpDebugState } = await import('@/lib/debug/bridge.js');
         await dumpDebugState();
@@ -702,7 +687,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         console.warn('[onboarding] debug state dump failed:', err);
       }
 
-      // Build indexes from imported notes (carry searchText): keeps search without bloating doc.
       try {
         await buildImportedSearchIndex(legacyData?.notes || {});
       } catch (err) {
@@ -712,7 +696,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         );
       }
 
-      // Re-encrypt any assets written during import (safety net for edge cases)
       state.migrationStatus = 'Securing assets…';
       try {
         await secureImportedAssets();
@@ -732,14 +715,13 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           err,
         );
       }
-      // The legacy per-note password is only needed during conversion; clear it
-      // as soon as the import succeeds so it is never held in memory longer.
+
       legacyPassword = '';
       importPhase.value = 'done';
       state.migrationProgress = 100;
     } catch (e) {
       const raw = e?.message || String(e);
-      // Never leak backend gate internals to the UI; tell the user the fix.
+
       state.error = raw.includes('[fs-access]')
         ? 'Beaver Notes was blocked from reading that folder. Click "Browse…" and select it again from the system dialog to grant access.'
         : raw;
@@ -797,7 +779,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
 
       if (!result) return;
 
-      // Re-encrypt any assets written during import (safety net for edge cases)
       state.migrationStatus = 'Securing assets…';
       try {
         await secureImportedAssets();
@@ -845,11 +826,8 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         return { success: true, migratedCount: lockedCount };
       }
 
-      // Held for the whole-note conversion in migrateLegacyData, which runs after this step.
       legacyPassword = password;
 
-      // Read-only validation (throws on wrong password); actual decryption +
-      // conversion happens once in migrateLegacyData. Config.json never mutated.
       const validation = await validateLegacyLockedPassword(dir, password);
       lockedCount = validation?.count || 0;
       state.legacyHasLockedNotes = false;
@@ -892,6 +870,8 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       });
       if (canceled || !dir) return;
       fresh.syncPath = dir;
+      declinedVaultJoin.value = false;
+      setDeclinedVaultJoin('').catch(() => {});
     } catch (error) {
       state.error = error?.message || String(error);
     }
@@ -907,6 +887,17 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     try {
       await applyOnboardingSyncPreferences(fresh);
       await detectVaultJoin();
+      if (vaultJoinMode.value && !declinedVaultJoin.value) {
+
+        encryptionPassword.value = '';
+        encryptionConfirmPassword.value = '';
+        encryptionPasswordError.value = '';
+        goToStep('password');
+        return;
+      }
+
+      await publishLocalKeyParamsToFolder();
+      await setDeclinedVaultJoin('').catch(() => {});
       goToNextStep();
     } catch (e) {
       state.error = e?.message || String(e);
@@ -920,14 +911,22 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     state.openingWorkspace = true;
     try {
       await markOnboardingCompleted();
-      // Hydrate Pinia from workspace Y.Doc: seeding does not populate, best-effort.
+
       try {
         await writeStoresFromWorkspace();
       } catch (e) {
         console.warn('[onboarding] store hydration failed:', e);
       }
-      // First sync: engine is initialized at boot; without this it waits for
-      // a manual trigger from Settings or the next launch.
+
+      try {
+        const { startRustSync } = await import('@/utils/sync/rust-shim.js');
+        await startRustSync();
+      } catch {}
+      try {
+        const { startPullTimer } = await import('@/utils/sync');
+        startPullTimer();
+      } catch {}
+
       forceSyncNow().catch(() => {});
       await router.replace('/');
     } catch (e) {
@@ -1007,8 +1006,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   ];
 
   async function seedFreshFromSettings() {
-    // Imported settings live only in the KV pool during onboarding; drop stale
-    // mirrors so getSetting reads the pool (and re-mirrors as a side effect).
+
     invalidateSettingMirrors(SEED_SETTING_KEYS);
 
     const themeSetting = await getSetting('theme');

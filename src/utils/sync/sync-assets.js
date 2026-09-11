@@ -11,7 +11,8 @@ import {
   ASSETS_DIR,
 } from './constants.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
-import { prefetchSyncDir } from '@/lib/tauri/scoped-storage';
+import { kickSyncDir } from '@/lib/tauri/scoped-storage';
+import { withTimeout } from './sync-yjs.js';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
 
@@ -19,12 +20,10 @@ export function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// Remote listing cache: syncAssets used to re-list every local + remote asset
-// directory each cycle (O(notes × files) IO); the TTL cache lets rapid
-// successive syncs reuse the previous listing instead of re-reading disk.
-
 const REMOTE_LISTING_TTL_MS = 30000;
 const MAX_CACHE_ENTRIES = 500;
+
+const ASSET_OP_TIMEOUT_MS = 20000;
 
 const remoteListingCache = new Map();
 
@@ -52,9 +51,6 @@ function isIgnoredAssetEntry(name) {
 
 let legacyAssetMigrationDone = false;
 
-// One-time move of assets written under the old double-nested layout
-// (<sync>/assets/assets/...) to <sync>/assets/.... Best-effort per entry,
-// runs once per session; the new layout is used unconditionally below.
 async function migrateLegacyAssetLayout(syncDir) {
   if (legacyAssetMigrationDone) return;
   legacyAssetMigrationDone = true;
@@ -96,8 +92,7 @@ export async function syncAssets(
   const deletedAssets = yMapToObj(getWorkspaceDoc().getMap('deletedAssets'));
   let deletedAssetsDirty = false;
 
-  // Gated iCloud prefetch (no-op elsewhere, never blocks UI).
-  await prefetchSyncDir(syncDir);
+  kickSyncDir(syncDir);
 
   await migrateLegacyAssetLayout(syncDir);
 
@@ -145,7 +140,6 @@ export async function syncAssets(
 
       const localFileSet = new Set(localFiles);
 
-      // map remote filenames (potentially .enc legacy) to local names
       const remoteFileMap = Object.fromEntries(
         remoteFiles.map((f) => [localAssetName(f), f])
       );
@@ -207,41 +201,38 @@ export async function syncAssets(
   for (let i = 0; i < total; i++) {
     const op = ops[i];
 
-      try {
+    try {
+
+      const copy = (() => {
         switch (op.type) {
           case 'upload':
-            await copyLocalToRemote(op.src, op.dest);
-            remoteListingCache.delete(path.dirname(op.dest));
-            break;
+            return copyLocalToRemote(op.src, op.dest).then(() =>
+              remoteListingCache.delete(path.dirname(op.dest)));
           case 'download':
-            await copyRemoteToLocal(op.src, op.dest);
-            remoteListingCache.delete(path.dirname(op.src));
-            break;
+            return copyRemoteToLocal(op.src, op.dest).then(() =>
+              remoteListingCache.delete(path.dirname(op.src)));
           case 'remove-local':
-            await removeSyncPath(op.src).catch(() => {});
-            break;
+            return removeSyncPath(op.src).catch(() => {});
           case 'remove-remote':
-            await removeSyncPath(op.src).catch(() => {});
-            remoteListingCache.delete(path.dirname(op.src));
-            break;
+            return removeSyncPath(op.src).catch(() => {}).then(() =>
+              remoteListingCache.delete(path.dirname(op.src)));
         }
-      } catch (e) {
+      })();
+      if (copy) await withTimeout(copy, ASSET_OP_TIMEOUT_MS, `asset ${op.type} ${op.src}`);
+    } catch (e) {
       console.warn('[sync] asset op failed', op, e?.message);
     }
 
     processed += 1;
 
-    if (processed % 3 === 0) {
-      await yieldToUi();
-      onProgress?.({ phase: 'assets', processed, total });
-    }
+    await yieldToUi();
+    onProgress?.({ phase: 'assets', processed, total });
   }
 
   if (processed > 0) {
     onProgress?.({ phase: 'assets', processed, total });
   }
 
-  // mergeIntoMap preserves mid-cycle remote tombstones: sets keys, never removes.
   if (deletedAssetsDirty) {
     mergeIntoMap('deletedAssets', deletedAssets);
   }

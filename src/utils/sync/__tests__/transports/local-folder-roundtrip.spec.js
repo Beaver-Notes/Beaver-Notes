@@ -1,12 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import * as Y from 'yjs';
 
-// Proves desktop-to-desktop folder sync end to end at the file-contract
-// level: device A writes an encrypted commit file into the shared folder,
-// device B's LocalFolderTransport.pull() discovers, decrypts, and returns
-// it with intact bytes and metadata. Crypto here is an identity JSON codec
-// (AAD binding is covered by cross-device-decrypt.spec.js); this guards the
-// folder plumbing: filenames, device skip, state-vector filtering.
 const ctx = vi.hoisted(() => ({
   deviceId: 'device-A',
   syncPath: '/shared-folder',
@@ -72,7 +66,7 @@ vi.mock('../../state-vector.js', () => ({
 }));
 
 vi.mock('@/lib/tauri/scoped-storage', () => ({
-  prefetchSyncDir: async () => ({ complete: true }),
+  kickSyncDir: () => {},
 }));
 
 vi.mock('../../transports/seed.js', () => ({
@@ -147,7 +141,6 @@ describe('desktop-to-desktop folder sync round-trip', () => {
       );
     });
 
-    // B writes its own update for the same note.
     await asDevice('device-B', async () => {
       const { writeYjsUpdate } = await import('../../sync-yjs.js');
       const { encryptJSON } = await import('../../crypto.js');
@@ -167,17 +160,23 @@ describe('desktop-to-desktop folder sync round-trip', () => {
       return new LocalFolderTransport().pull();
     };
 
-    // B sees only A's file, not its own.
     ctx.deviceId = 'device-B';
     vi.resetModules();
     let result = await pullAs();
     expect(result.updates).toHaveLength(1);
     expect(result.updates[0].device).toBe('device-A');
 
-    // Once B records A's sequence in its state vector, pull is empty.
     ctx.svByNote[noteId] = { 'device-A': result.updates[0].sequence };
     vi.resetModules();
     result = await pullAs();
     expect(result.updates).toHaveLength(0);
+  });
+
+  it('withTimeout rejects a stalled read but passes a fast one through', async () => {
+    const { withTimeout } = await import('../../sync-yjs.js');
+    await expect(withTimeout(new Promise(() => {}), 20, 'stall')).rejects.toThrow(
+      'timed out'
+    );
+    await expect(withTimeout(Promise.resolve('ok'), 20, 'fast')).resolves.toBe('ok');
   });
 });

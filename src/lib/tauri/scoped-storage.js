@@ -10,6 +10,7 @@ import {
   stat as scopedStat,
   writeFile as scopedWriteFile,
 } from 'tauri-plugin-scoped-storage-api';
+import { invoke } from '@tauri-apps/api/core';
 import { invokeCommand } from './commands';
 import { basenameSync, buildPath, extnameSync, parseSync } from './path';
 import { isMobileRuntime } from './runtime';
@@ -145,7 +146,6 @@ async function resolveAssetVirtualPath(value) {
   );
   if (!normalized) return normalized;
 
-  // Both assets:// and file-assets:// resolve to the unified assets/ directory
   const assetMatch = normalized.match(/^(?:assets|file-assets):\/\/([^/]+)\/(.+)$/);
   if (assetMatch) {
     const appDirectory = await getAppDirectory();
@@ -163,7 +163,8 @@ async function resolveAssetVirtualPath(value) {
 }
 
 async function describeFsTarget(value) {
-  const resolvedPath = await resolveAssetVirtualPath(value);
+  const target = value?.path ?? value;
+  const resolvedPath = await resolveAssetVirtualPath(target);
   const scoped = parseScopedPath(resolvedPath);
 
   if (scoped) {
@@ -232,6 +233,21 @@ async function readdirAt(target) {
   }
 
   return invokeCommand('fs:readdir', target.resolvedPath);
+}
+
+export function kickSyncDir(value) {
+  describeFsTarget(value)
+    .then((target) => {
+      if (target.kind !== 'scoped') return;
+
+      return invoke('plugin:scoped-storage|warm_folder', {
+        req: {
+          folderId: target.folderId,
+          path: target.relativePath || undefined,
+        },
+      });
+    })
+    .catch(() => {});
 }
 
 async function readBinaryAt(target) {

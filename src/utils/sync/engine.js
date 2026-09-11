@@ -25,9 +25,6 @@ import { getActiveDoc } from '@/lib/yjs/shared.js';
 import { isRustSyncActive } from './rust-shim.js';
 import { logger } from '@/utils/logger';
 
-// Yield to the UI thread every N applied updates: a whole-vault first pull
-// applies hundreds of updates back-to-back, and without strides the base64 +
-// Yjs apply stretch holds the renderer for seconds.
 const APPLY_YIELD_STRIDE = 25;
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
@@ -86,16 +83,11 @@ export class SyncEngine {
     return this.enqueueSync(true);
   }
 
-  /** Signal the app returned from hidden state; pulls changes made while backgrounded. */
   notifyForeground() {
     this._foregroundWake = true;
     return this.enqueueSync(true);
   }
 
-  /**
-   * Pull-only timer for folder sync (cloud relies on WebSocket events for
-   * real-time pull triggers, so it never starts the timer).
-   */
   startPullTimer() {
     if (this._pullTimer !== null) return;
     const transports = this.getActiveTransports();
@@ -104,12 +96,11 @@ export class SyncEngine {
     this._pullTimer = setInterval(async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       if (this.syncing) return;
-      // Nothing to pull from with no syncPath and only the local transport.
+
       const syncPath = await getSyncPath();
       const transports = this.getActiveTransports();
       if (!syncPath && transports.length === 1 && transports[0] === 'local') return;
-      // Idle backoff: skip one tick after an idle pull-only cycle; remote
-      // changes are picked up at worst one interval later.
+
       if (this._idlePullBackoff) {
         this._idlePullBackoff = false;
         return;
@@ -161,19 +152,16 @@ export class SyncEngine {
     this.pending = false;
     this._forceFlush = _force;
 
-    // Dual-write guard: once the Rust scheduler runs it owns pull/push (the
-    // Y.Doc observer → flush → `yjs_append` path still feeds its dirty
-    // queue). The JS cycle degrades to a no-op; waiters resolve immediately.
-    if (isRustSyncActive()) {
+    const gatePath = await getSyncPath().catch(() => '');
+    if (isRustSyncActive() && !gatePath.startsWith('scoped:')) {
       logger.info('[sync] rust scheduler active → skip JS cycle');
       t?.end();
       this._resolveSkip();
       return;
     }
 
-    // Early exit before any sync work or status emit: nothing to do for
-    // unconfigured installs. `syncing` was set synchronously so concurrent
-    // enqueueSync callers still coalesce.
+    const rustOwnsCloud = isRustSyncActive();
+
     const { getSettingSync } = await import('@/lib/settings');
     const { bufToBase64 } = await import('@/utils/crypto/codec.js');
     const onboardingCompleted = getSettingSync('onboardingCompleted');
@@ -213,7 +201,6 @@ export class SyncEngine {
 
       logger.info('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
 
-      // Resolve readiness once per cycle: replaces scattered disagreeing checks.
       const { getSyncReadiness } = await import('./readiness.js');
       const readiness = await getSyncReadiness();
       logger.info('[sync] readiness', { isAuth: readiness.isAuth, plan: readiness.plan, syncAllowed: readiness.syncAllowed, keyReady: readiness.keyReady, wsId: readiness.workspaceId });
@@ -229,8 +216,6 @@ export class SyncEngine {
         return;
       }
 
-      // Declined vault join: the folder holds a vault the user refused to
-      // join. Pause folder cycles instead of churning undecryptable data.
       {
         const { getDeclinedVaultJoinPath } = await import('@/utils/crypto/encryption.js');
         if (syncPath && getDeclinedVaultJoinPath() === syncPath) {
@@ -241,7 +226,6 @@ export class SyncEngine {
         }
       }
 
-      // Reconcile every cycle so joiner adopts owner keys fast. Force-only left device on local key after failure.
       {
         let syncPassphrase = null;
         try {
@@ -260,8 +244,7 @@ export class SyncEngine {
         } catch (e) {
           logger.warn('[sync] key-params reconcile failed:', e);
         }
-        // Never auto-publish during reconcile. Published only by seed (first device) and adopt (joiner).
-        // Auto-publish on 404 race overwrites server params with local, breaking others.
+
       }
 
       if (syncPath) {
@@ -289,6 +272,7 @@ export class SyncEngine {
       if (shouldPull) {
         try { emit('sync:progress', { phase: 'pull', processed: 0, total: 0 }); } catch {}
         for (const name of activeTransportNames) {
+          if (name === 'cloud' && rustOwnsCloud) continue;
           const transport = this.transports[name];
           logger.info(`[sync] ${name} pull start`);
           let hasMore = true;
@@ -306,7 +290,7 @@ export class SyncEngine {
                 break;
               }
               if (e?.code === 'DECRYPT_FAILED') {
-                // Local key mismatch: surface so user re-adopts, not silent defer.
+
                 try { emit('sync:status', { status: 'decrypt-failed', message: e.message }); } catch {}
                 throw e;
               }
@@ -364,8 +348,6 @@ export class SyncEngine {
               try { emit('sync:progress', { phase: 'pull', processed: updates.length, total: updates.length }); } catch {}
             }
 
-            // Reconcile placeholders AFTER applying the batch: notes whose
-            // titled meta just arrived keep their titles; must never fail the cycle.
             if (updates.length > 0) {
               try {
                 reconcileUnknownNotePlaceholders(updates.map((u) => u.noteId));
@@ -374,9 +356,6 @@ export class SyncEngine {
               }
             }
 
-            // Refresh the Pinia store after every pull batch: the workspace-doc
-            // observer skips origin 'sync', so without this newly-arrived
-            // content shows as "untitled" until meta arrives next cycle.
             if (updates.length > 0) {
               try {
                 const hasMetaUpdates = updates.some((u) => u.noteId === 'meta');
@@ -406,7 +385,7 @@ export class SyncEngine {
                       saveStateVector(noteId, sv);
                     }
                   } catch {
-                    // non-critical
+
                   }
                 }
               }
@@ -418,8 +397,6 @@ export class SyncEngine {
             hasMore = pullResult.hasMore === true;
           }
 
-          // Compact affected notes' snapshot caches so the staleness check
-          // doesn't false-positive on the new rows and loop bootstrap endlessly.
           if (pullAffectedNotes.size > 0) {
             const { compactUpdates } = await import('@/lib/native/yjs.js');
             let compacted = 0;
@@ -433,7 +410,7 @@ export class SyncEngine {
                   }
                 }
               } catch {
-                // Non-critical: stale snapshot cache still syncs.
+
               }
               compacted += 1;
               if (compacted % APPLY_YIELD_STRIDE === 0) {
@@ -450,13 +427,8 @@ export class SyncEngine {
         this._idlePullBackoff = true;
       }
 
-      // Assets upload BEFORE the doc push: push fires pg_notify and the WS
-      // relay broadcasts the Yjs update instantly, so any assets:// ref in
-      // the pushed doc must already have bytes on the server or the peer
-      // pulls a valid ref with nothing behind it (broken image until some
-      // unrelated later cycle heals it).
       let assetsUploaded = 0;
-      if (activeTransportNames.includes('cloud') && !cloudBlocked) {
+      if (activeTransportNames.includes('cloud') && !cloudBlocked && !rustOwnsCloud) {
         logger.info('[sync] cloud syncAssets start');
         try {
           assetsUploaded = (await this.transports.cloud.syncAssets((progress) => {
@@ -471,6 +443,7 @@ export class SyncEngine {
       let cloudPushThrottled = false;
       if (shouldPush) {
         for (const name of activeTransportNames) {
+          if (name === 'cloud' && rustOwnsCloud) continue;
           if (cloudBlocked && name === 'cloud') {
             logger.info('[sync] cloud push skipped: pull deferred due to unlock-required');
             continue;
@@ -491,9 +464,7 @@ export class SyncEngine {
           if (name === 'cloud' && pushResult?.throttled) cloudPushThrottled = true;
           logger.info(`[sync] ${name} push done`, { pushed: pushResult.pushed });
         }
-        // New asset bytes are up but the doc push was throttle-skipped: no
-        // pg_notify fires, so an idle peer would wait forever for refs it
-        // already holds via WS. Force one push to notify it.
+
         if (assetsUploaded > 0 && cloudPushThrottled && !cloudBlocked) {
           logger.info('[sync] assets uploaded while push throttled: forcing push to notify peer');
           try {

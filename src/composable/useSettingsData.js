@@ -4,7 +4,12 @@ import { getSettingSync, setSetting } from '@/lib/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
 
 import { openDialog, showMessage } from '@/lib/native/dialog';
-import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
+import {
+  getAppDirectory,
+  getHelperPath,
+  relaunchApp,
+  setSpellcheck,
+} from '@/lib/native/app';
 import { exportBackup, importBackup } from '@/lib/native/backup';
 import { errorMessage } from '@/lib/tauri/errors';
 import { path } from '@/lib/tauri-bridge';
@@ -22,7 +27,10 @@ import {
   clearSecureBlob,
 } from '@/lib/native/security.js';
 import {
+  adoptVaultKey,
   ensureKeyReadyForWrite,
+  hasRemoteVaultKeyParams,
+  setDeclinedVaultJoin,
   verifyPassphrase,
 } from '@/utils/crypto/encryption.js';
 
@@ -52,7 +60,7 @@ export function useSettingsData({
   storage: _storage = null,
   translations,
 }) {
-  // Legacy KV path removed: data lives in Yjs/SQLite, storage kept for import test mocks.
+
   const storage = _storage;
   let _unregSettingsShortcuts;
 
@@ -169,6 +177,17 @@ export function useSettingsData({
     return typeof directory === 'string' ? directory.trim() : '';
   }
 
+  async function makeBackupStaging() {
+    return path.join(
+      await getHelperPath('temp'),
+      `beaver-backup-${Date.now()}`
+    );
+  }
+
+  function isScopedPath(value) {
+    return String(value || '').startsWith('scoped:');
+  }
+
   async function exportData() {
     try {
       const { canceled, filePaths } = await openDialog({
@@ -183,9 +202,18 @@ export function useSettingsData({
       const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
       const folderPath = path.join(filePaths[0], folderName);
 
-      // Full-state archive: clean copies of data.db + settings.db + assets
-      // (see src-tauri/src/commands/backup.rs); Yjs content lives in the DBs.
-      await exportBackup(folderPath);
+      if (isScopedPath(filePaths[0])) {
+        const staging = await makeBackupStaging();
+        const stagedFolder = path.join(staging, folderName);
+        await exportBackup(stagedFolder);
+        try {
+          await copyPath(stagedFolder, folderPath);
+        } finally {
+          await removePath(staging).catch(() => {});
+        }
+      } else {
+        await exportBackup(folderPath);
+      }
 
       if (!folderPath.includes('gvfs')) {
         showDialogAlert(
@@ -200,9 +228,7 @@ export function useSettingsData({
 
   async function mergeImportedData(data) {
     try {
-      // Legacy backups stored lock state in top-level maps (lockStatus:
-      // id->'locked', isLocked: id->true); fold into per-note `isLocked`
-      // and never persist them as separate keys.
+
       const lockedIds = new Set([
         ...Object.entries(data.lockStatus ?? {})
           .filter(([, v]) => v === 'locked')
@@ -224,7 +250,7 @@ export function useSettingsData({
       ];
 
       if (storage) {
-        // Test path: legacy KV mock expects storage.set calls
+
         for (const { key, dfData } of keys) {
           const currentData = await storage.get(key, dfData);
           const importedData = data[key] ?? dfData;
@@ -237,7 +263,7 @@ export function useSettingsData({
         }
         await folderStore.retrieve();
       } else {
-        // App path: data lives in Yjs, merge via Pinia/Yjs.
+
         if (Array.isArray(data.labels) && data.labels.length) {
           try {
             const { useLabelStore } = await import('@/store/label');
@@ -262,7 +288,6 @@ export function useSettingsData({
         }
       }
 
-      // Sync isLocked into Yjs meta so legacy imports stay visible (KV no longer read).
       if (data.notes) {
         try {
           const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
@@ -290,11 +315,6 @@ export function useSettingsData({
 
       if (canceled || !dirPath) return;
 
-      // Backup folder formats:
-      //   data.json present → legacy folder backup (see below).
-      //   no data.json → full-state archive created by exportData: replace
-      //     both databases + assets wholesale, then relaunch so every store
-      //     rehydrates from the restored files.
       let legacy;
       try {
         legacy = await readJson(path.join(dirPath, 'data.json'));
@@ -317,7 +337,17 @@ export function useSettingsData({
           okVariant: 'danger',
           onConfirm: async () => {
             try {
-              await importBackup(dirPath);
+              if (isScopedPath(dirPath)) {
+                const staging = await makeBackupStaging();
+                try {
+                  await copyPath(dirPath, staging);
+                  await importBackup(staging);
+                } finally {
+                  await removePath(staging).catch(() => {});
+                }
+              } else {
+                await importBackup(dirPath);
+              }
               await relaunchApp();
               return true;
             } catch (error) {
@@ -335,8 +365,6 @@ export function useSettingsData({
       const finishImport = async (result) => {
         await mergeImportedData(result);
 
-        // Lock state is per-note isLocked in Yjs workspace doc, no localStorage mirror.
-
         await ensureKeyReadyForWrite();
         await copyPath(
           path.join(dirPath, 'assets'),
@@ -344,7 +372,6 @@ export function useSettingsData({
         );
       };
 
-      // Two formats: string is legacy backup (arbitrary password, decrypt directly); object needs workspace passphrase.
       dialog.prompt({
         title: translations.value.settings.inputPassword,
         body: translations.value.settings.body,
@@ -413,7 +440,62 @@ export function useSettingsData({
       if (canceled) return;
       defaultPath.value = await setSyncPath(dir);
       state.syncPath = defaultPath.value;
+
+      try {
+        const { startRustSync } = await import('@/utils/sync/rust-shim.js');
+        await startRustSync();
+      } catch {}
+
+      try {
+        const { startPullTimer } = await import('@/utils/sync');
+        startPullTimer();
+      } catch {}
+
+      detectVaultAndSync(defaultPath.value).catch((error) => {
+        console.error(error);
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function detectVaultAndSync(dir) {
+    try {
       const { forceSyncNow } = await import('@/utils/sync');
+      if (await hasRemoteVaultKeyParams().catch(() => false)) {
+
+        setDeclinedVaultJoin(dir).catch(() => {});
+        dialog.prompt({
+          title: translations.value.settings?.vaultDetected || 'Vault detected',
+          body:
+            translations.value.settings?.vaultDetectedBody ||
+            'This folder holds an existing encrypted vault. Enter its password to import it.',
+          password: true,
+          onConfirm: async (pass) => {
+            if (!pass) return;
+            try {
+              const res = await adoptVaultKey(pass);
+              if (!res.ok) {
+                dialog.alert({
+                  title: translations.value.settings?.alertTitle || 'Alert',
+                  body: res.error || 'Failed to import the vault. Check the password.',
+                  okText: translations.value.dialog?.close || 'Close',
+                });
+                return;
+              }
+            } catch (e) {
+              dialog.alert({
+                title: translations.value.settings?.alertTitle || 'Alert',
+                body: e?.message || 'Failed to import the vault.',
+                okText: translations.value.dialog?.close || 'Close',
+              });
+              return;
+            }
+            forceSyncNow().catch(() => {});
+          },
+        });
+        return;
+      }
       forceSyncNow().catch(() => {});
     } catch (error) {
       console.error(error);
@@ -459,9 +541,6 @@ export function useSettingsData({
           localStorage.clear();
           sessionStorage.clear();
 
-          // In dev, app.restart() makes `cargo tauri dev` exit and kills
-          // the beforeDevCommand vite helper. Use a window reload instead
-          // so vite stays alive and stores rehydrate from cleared DBs.
           if (import.meta.env.DEV) {
             window.location.reload();
             return;

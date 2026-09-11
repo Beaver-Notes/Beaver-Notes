@@ -13,10 +13,6 @@ use crate::shared::{
     generate_key_id, AppError, AppState,
 };
 
-/// Wire format (mirrors JS `YJS_UPDATE_EXT` + `FILENAME_SEP` in `sync-yjs.js`):
-/// `{noteId}~~{device}~~{ts}[~~{seq}].yjs.json` + snapshots
-/// `{doc}~~snapshot~~{device}~~{ts}.yjs.json`. `BeaverNotesSync/commits` mirrors
-/// JS `SYNC_ROOT_DIR`/`COMMITS_DIR`.
 const UPDATE_EXT: &str = ".yjs.json";
 const SEP: &str = "~~";
 const SYNC_ROOT: &str = "BeaverNotesSync";
@@ -38,9 +34,6 @@ struct ReadCursor {
     seq: u64,
 }
 
-/// Parsed sync filename (mirrors JS `parseSyncFilename` in `sync-yjs.js`):
-/// update `{note}~~{device}~~{ts}[~~{seq}]`, snapshot `{doc}~~snapshot~~{device}~~{ts}`.
-/// Legacy 3-part updates default `seq` to 0.
 pub struct ParsedCommit {
     pub note: String,
     pub device: String,
@@ -49,8 +42,6 @@ pub struct ParsedCommit {
     pub is_snapshot: bool,
 }
 
-/// Parse update, legacy 3-part (seq=0), and snapshot names. Anything else
-/// (`notes.json`, wrong ext, empty segments, path separators) → None.
 pub fn parse_sync_filename(name: &str) -> Option<ParsedCommit> {
     if name.contains('/') || name.contains('\\') {
         return None;
@@ -101,8 +92,6 @@ pub fn parse_sync_filename(name: &str) -> Option<ParsedCommit> {
     }
 }
 
-/// Legacy tuple wrapper (kept for `cloud.rs`): updates incl. 3-part → Some,
-/// snapshots and anything else → None (cloud skips snapshots via `~~snapshot~~`).
 pub fn parse_commit_filename(name: &str) -> Option<(String, String, u64, u64)> {
     let p = parse_sync_filename(name)?;
     if p.is_snapshot {
@@ -141,13 +130,6 @@ fn store_cursor(pool: &DbPool, note_id: &str, ts: u64, seq: u64) -> Result<(), A
     )
 }
 
-/// Stable device id for `~~` filenames and the cloud `X-Device-Id` header.
-/// Single source for both drivers (`cloud.rs` imports this): generated once
-/// via `rand`, kv-persisted under the key Task 2 introduced, so existing
-/// installs keep their identity and server (device, sequence) dedupe keys
-/// stay stable. (Explored the safe-storage `beaverAccountDeviceId` blob:
-/// it is a different, JS-owned, sign-in-gated UUID identity — adopting it
-/// here would churn the sync identity mid-flight, so kv stays the store.)
 pub(crate) fn get_or_create_device_id(pool: &DbPool) -> Result<String, AppError> {
     if let Some(id) = db::db_get(pool, DEVICE_ID_KEY, None)? {
         if !id.trim().is_empty() {
@@ -159,9 +141,6 @@ pub(crate) fn get_or_create_device_id(pool: &DbPool) -> Result<String, AppError>
     Ok(id)
 }
 
-/// Thin Tauri exposure of the kv-owned sync identity for JS drivers.
-/// `seed` carries the legacy localStorage id once: adopted only when the kv
-/// key is absent so existing installs keep their filenames/`X-Device-Id`.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_device_id(
@@ -189,9 +168,6 @@ pub(crate) async fn sync_device_id(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Fail-closed envelope decrypt (mirrors JS `decryptJSON` + AAD
-/// `{noteId}-{ts}`, snapshot variant `{docId}-snapshot-{ts}`). Only v4/v5
-/// envelopes; plaintext or unknown versions → None, never appended.
 fn decrypt_commit(
     key: &[u8; 32],
     raw: &[u8],
@@ -243,15 +219,13 @@ fn decrypt_commit(
 
 fn resolve_commits_dir(folder_id: &str) -> Result<PathBuf, AppError> {
     if folder_id.starts_with("scoped:") {
-        // Scoped-storage handles have no filesystem path; the JS
-        // prefetchSyncDir warm path owns them until the scheduler task wires
-        // native warm through the plugin. Explicit error beats silent no-op.
+
         return Err(AppError::Other(
-            "sync: scoped-storage folders sync via JS prefetch; pass a filesystem sync path".into(),
+            "sync: scoped-storage folders sync via JS; pass a filesystem sync path".into(),
         ));
     }
     let base = PathBuf::from(folder_id);
-    // Accept the user-selected sync folder or the commits dir itself.
+
     if base.file_name().is_some_and(|n| n == COMMITS_DIR) {
         Ok(base)
     } else {
@@ -259,9 +233,6 @@ fn resolve_commits_dir(folder_id: &str) -> Result<PathBuf, AppError> {
     }
 }
 
-/// Atomic file write: same-dir tmp + rename + fsync, so a killed cycle never
-/// leaves a half-written `~~` commit behind. Tmp names never match
-/// `UPDATE_EXT`, so readers ignore them; the tmp is removed on any failure.
 pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static CTR: AtomicU64 = AtomicU64::new(0);
@@ -278,7 +249,7 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if res.is_err() {
         let _ = fs::remove_file(&tmp);
     } else if let Some(parent) = target.parent() {
-        // Best-effort dir fsync so the rename itself survives a crash.
+
         #[cfg(unix)]
         if let Ok(d) = fs::File::open(parent) {
             let _ = d.sync_all();
@@ -291,10 +262,25 @@ fn write_file_sync(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()> 
     atomic_write(&dir.join(name), bytes)
 }
 
+#[cfg(unix)]
+fn is_evicted_placeholder(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match std::fs::metadata(path) {
+        Ok(m) => m.len() > 0 && m.blocks() == 0,
+        Err(_) => false,
+    }
+}
+
+#[cfg(not(unix))]
+fn is_evicted_placeholder(_path: &std::path::Path) -> bool {
+    false
+}
+
 fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
+
     let state = app.state::<AppState>();
     let pool = data_pool(app, state.inner())?;
-    // Fail closed when locked, mirroring commands::yjs `yjs_encryption_key`.
+
     let key = current_app_key(state.inner())?.ok_or(AppError::EncryptionLocked)?;
 
     let base = PathBuf::from(folder_id);
@@ -307,9 +293,6 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
     let mut stats = LocalStats::default();
     let mut pulled_notes: Vec<String> = Vec::new();
 
-    // Pull: single read_dir, parse ~~ names, skip own device + at/below
-    // per-note checkpoint, apply oldest-first. Snapshots (seq 0) decrypt with
-    // the snapshot AAD variant and append via the same yjs_append path.
     let mut incoming: Vec<(String, u64, u64, bool, String)> = Vec::new();
     for entry in fs::read_dir(&dir)? {
         let name = entry?.file_name().to_string_lossy().to_string();
@@ -327,9 +310,14 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
     }
     incoming.sort_by_key(|e| (e.1, e.2));
     for (note, ts, seq, is_snapshot, name) in incoming {
-        let raw = match fs::read(dir.join(&name)) {
+        let full = dir.join(&name);
+        if is_evicted_placeholder(&full) {
+            stats.pending_icloud += 1;
+            continue;
+        }
+        let raw = match fs::read(&full) {
             Ok(b) => b,
-            // Evicted iCloud placeholder or raced delete: skip this tick, retry next.
+
             Err(_) => {
                 stats.pending_icloud += 1;
                 continue;
@@ -340,15 +328,12 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
         else {
             continue;
         };
-        // Re-check under the envelope note id (normally == filename note) so a
-        // mismatched file can never append the same update twice.
+
         let (cts, cseq) = load_cursor(&pool, &note_id);
         if (ts, seq) <= (cts, cseq) {
             continue;
         }
-        // Vector gate: content our `sync:vec:{note}` already covers (replayed
-        // file, rewritten same-ts commit) skips the append; the cursor still
-        // advances so the file is never re-read. No vector → append as usual.
+
         if let Some(stored) = load_vector(&pool, &note_id) {
             if covered_by_vector(std::slice::from_ref(&update), &stored) {
                 store_cursor(&pool, &note_id, ts, seq)?;
@@ -360,7 +345,7 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
         stats.pulled += 1;
         pulled_notes.push(note_id);
     }
-    // Vectors refresh once per touched note (not per file) after append.
+
     pulled_notes.sort();
     pulled_notes.dedup();
     for note in &pulled_notes {
@@ -369,7 +354,6 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
         }
     }
 
-    // Push: rows newer than the per-note pushed cursor, one ~~ file each.
     let notes: Vec<String> = {
         let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
         let mut stmt = conn
@@ -383,8 +367,7 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
     };
     let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     for note in notes {
-        // v1 assumes app-generated ids (UUIDs): no ~~ or separators, so the
-        // filename round-trips. Skip anything else rather than escape the dir.
+
         if note.contains(SEP) || note.contains('/') || note.contains('\\') {
             crate::rs_log!("[sync::local] skipping note id unsafe for ~~ filenames");
             continue;
@@ -442,7 +425,7 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
                     since = id;
                     stats.pushed += 1;
                 }
-                // Disk/iCloud pressure: keep the cursor, retry next tick.
+
                 Err(_) => {
                     stats.pending_icloud += 1;
                     break;
@@ -455,10 +438,6 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
     Ok(stats)
 }
 
-/// One local-folder sync cycle: pull new `~~` commits into SQLite, push dirty
-/// rows as new `~~` files + fsync, advance per-note checkpoints. iCloud
-/// placeholders that fail to read are counted as `pendingIcloud` and retried
-/// next tick; the cycle never blocks on downloads.
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_local_cycle(
@@ -512,7 +491,20 @@ mod tests {
         let target = dir.join("n~~d~~1~~2.yjs.json");
         super::atomic_write(&target, b"data").unwrap();
         assert_eq!(std::fs::read(&target).unwrap(), b"data");
-        assert!(std::fs::read_dir(&dir).unwrap().count() == 1); // no tmp leftovers
+        assert!(std::fs::read_dir(&dir).unwrap().count() == 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn evicted_placeholder_check_passes_through_real_files() {
+        let dir =
+            std::env::temp_dir().join(format!("beaver-sync-evicted-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("n~~d~~1~~2.yjs.json");
+        std::fs::write(&target, b"data").unwrap();
+        assert!(!super::is_evicted_placeholder(&target));
+        assert!(!super::is_evicted_placeholder(&dir.join("missing.yjs.json")));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

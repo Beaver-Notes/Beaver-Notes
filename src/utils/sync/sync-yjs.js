@@ -11,8 +11,16 @@ import {
 } from './constants.js';
 import { getSyncDeviceId } from './sync-repository.js';
 
-// Reversible sanitization of characters illegal in filenames on macOS/Windows/Linux,
-// so the original id can be recovered when reading files back.
+const STALLED_READ_MS = 5000;
+
+export function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`sync: ${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
+}
+
 function sanitizeForFilename(str) {
   let s = str;
   const SANITIZE_MAP = [
@@ -59,10 +67,6 @@ function unsanitizeFromFilename(str) {
   return s;
 }
 
-// `~~` is a delimiter that cannot appear in any component: it is filesystem-legal
-// on macOS / Windows / Linux and is never produced by sanitizeForFilename.  This
-// lets us split filenames positionally without ambiguity (deviceId is a UUID
-// containing dashes, which broke the old dash-delimited parser).
 const FILENAME_SEP = '~~';
 
 function yjsFileName(noteId, ts, sequence, deviceId) {
@@ -74,14 +78,6 @@ function yjsSnapshotFileName(docId, ts, deviceId) {
   return `${sanitizeForFilename(docId)}${FILENAME_SEP}snapshot${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${YJS_UPDATE_EXT}`;
 }
 
-/**
- * Parse a sync filename back into { docId, isSnapshot, device, ts, sequence }.
- *
- * Filename formats (segments separated by FILENAME_SEP = "~~"):
- *   update:        {noteId}~~{deviceId}~~{ts}.yjs.json
- *   update+seq:    {noteId}~~{deviceId}~~{ts}~~{sequence}.yjs.json
- *   snapshot:      {docId}~~snapshot~~{deviceId}~~{ts}.yjs.json
- */
 export function parseSyncFilename(file) {
   if (!file.endsWith(YJS_UPDATE_EXT)) return null;
 
@@ -90,8 +86,6 @@ export function parseSyncFilename(file) {
   const parts = base.split(FILENAME_SEP);
   if (parts.length < 3) return null;
 
-  // Four-segment update carries an explicit sequence (may exceed the legacy 999 cap);
-  // snapshots have a marker before the device and never carry a sequence.
   const last = parts[parts.length - 1];
   const lastNum = Number(last);
   const secondLast = parts.length >= 2 ? parts[parts.length - 2] : null;
@@ -129,10 +123,6 @@ export function parseSyncFilename(file) {
   return { docId, isSnapshot, device, ts, sequence };
 }
 
-/**
- * Write a single Yjs update to the shared commits/ directory; a monotonic
- * counter disambiguates multiple flushes in the same millisecond.
- */
 let _writeSeq = 0;
 function _nextWriteSeq() {
   _writeSeq = (_writeSeq + 1) % 1000;
@@ -158,10 +148,6 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, st
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
-/**
- * Write a full Ydoc snapshot so first-sync devices get the whole workspace
- * from one file instead of replaying a genesis history.
- */
 export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, stateVector) {
   const ts = Date.now();
   const deviceId = await getSyncDeviceId();
@@ -179,11 +165,10 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, st
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
-/** List Yjs update files from other devices, sorted by timestamp. Cursors legacy, stateVector optional for pre-decrypt filter. */
-export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, stateVector) {
+export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, stateVector, readTimeoutMs = STALLED_READ_MS) {
   let files;
   try {
-    files = await readSyncDir(commitsDir);
+    files = await withTimeout(readSyncDir(commitsDir), readTimeoutMs, 'folder listing');
   } catch {
     return [];
   }
@@ -195,16 +180,13 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
     const parsed = parseSyncFilename(file);
     if (!parsed) continue;
 
-    // Cheap pre-decrypt filtering from filename metadata:
     if (parsed.device === deviceId) continue;
 
-    // Primary filter: skip if sequence <= maxClock for device.
     if (stateVector) {
       const maxClock = stateVector[parsed.device];
       if (maxClock != null && (parsed.sequence ?? 0) <= maxClock) continue;
     }
 
-    // Legacy cursor filter (backwards compat with callers still passing cursors).
     const cursorKey = `yjs-${parsed.device}`;
     const seen = cursors[cursorKey];
     const seenTs = seen?.ts ?? 0;
@@ -214,9 +196,8 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
 
     let payload;
     try {
-      const raw = await readSyncFile(path.join(commitsDir, file));
+      const raw = await withTimeout(readSyncFile(path.join(commitsDir, file)), readTimeoutMs, `read ${file}`);
 
-      // Reconstruct the AAD used at encryption time
       const aadSuffix = parsed.isSnapshot
         ? `${parsed.docId}-snapshot-${parsed.ts}`
         : `${parsed.docId}-${parsed.ts}`;
@@ -237,17 +218,11 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
     });
   }
 
-  // Sort by (ts, sequence) so cursor advance stays monotonic per device.
   return updates.sort((a, b) => a.ts - b.ts || a.sequence - b.sequence);
 }
 
 const WORKSPACE_COMPACTION_THRESHOLD = 50;
 
-/**
- * Compact a doc's .yjs.json files (incremental + old snapshots) into one
- * full-state snapshot once the count exceeds the threshold, so a new device
- * decrypts a single file per doc instead of potentially thousands.
- */
 export async function compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON) {
   let files;
   try {
@@ -280,7 +255,7 @@ export async function compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON) 
           Y.applyUpdate(doc, new Uint8Array(payload.update));
         }
       } catch {
-        // skip corrupt / undecryptable files
+
       }
     }
 
