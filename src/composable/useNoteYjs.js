@@ -222,10 +222,8 @@ export function useNoteYjs() {
     // type first corrupts the value (length mismatch) and throws on the second accessor.
     let ytext;
     const existing = newDoc.share.get('title');
+    const isLegacyXml = existing instanceof Y.XmlFragment;
     if (existing) {
-      const start = existing._start;
-      const content = start?.content;
-      const isLegacyXml = content && content.constructor && content.constructor.name === 'ContentType';
       if (isLegacyXml) {
         let seed = '';
         try {

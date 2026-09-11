@@ -40,22 +40,6 @@ pub fn encode_vector(updates: &[Vec<u8>]) -> Vec<u8> {
     txn.state_vector().encode_v1()
 }
 
-/// One compact delta: the part of `all` a peer at `remote_vector` is
-/// missing. Unparseable vector → full state (fallback, never an error).
-/// The caller splits the single item only if it exceeds the 5MB push cap
-/// (reuse `chunk_notes` caps); just append it otherwise.
-pub fn diff_updates(all: &[Vec<u8>], remote_vector: &[u8]) -> Vec<Vec<u8>> {
-    let sv = StateVector::decode_v1(remote_vector).unwrap_or_default();
-    let doc = Doc::new();
-    let mut txn = doc.transact_mut();
-    for raw in all {
-        if let Ok(u) = Update::decode_v1(raw) {
-            let _ = txn.apply_update(u);
-        }
-    }
-    vec![txn.encode_diff_v1(&sv)]
-}
-
 /// True when `candidates` add nothing beyond `stored_vector`: every
 /// (client, clock) they cover is already integrated. Lets pull paths drop
 /// replayed/duplicated deliveries before touching SQLite; unknown vector →
@@ -138,7 +122,7 @@ mod tests {
     use yrs::{Doc, ReadTxn, StateVector, Text, Transact};
     use yrs::updates::decoder::Decode;
 
-    use super::{diff_updates, encode_vector, merge_updates};
+    use super::{encode_vector, merge_updates};
 
     /// Build a real update: fresh Doc, insert `text` at 0, full-state encode.
     /// Each call is a distinct client, so two seeds merge like two devices.
@@ -160,27 +144,10 @@ mod tests {
     }
 
     #[test]
-    fn diff_returns_only_missing() {
-        let a = seed_update("one");
-        let b = seed_update("two");
-        let v = encode_vector(std::slice::from_ref(&a));
-        let missing = diff_updates(&[a.clone(), b.clone()], &v);
-        assert_eq!(missing.len(), 1);
-        // Semantic equality: merging the delta onto `a` == merging both.
-        assert_eq!(
-            merge_updates(&[a.clone(), missing[0].clone()]),
-            merge_updates(&[a, b])
-        );
-    }
-
-    #[test]
     fn corrupt_items_skipped_not_fatal() {
         let a = seed_update("hello");
         let merged = merge_updates(&[b"definitely not a yjs update".to_vec(), a.clone()]);
         assert_eq!(merged, merge_updates(std::slice::from_ref(&a)));
-        // Garbage vector falls back to full diff, never errors.
-        let missing = diff_updates(std::slice::from_ref(&a), b"garbage-vector");
-        assert_eq!(merge_updates(&missing), merge_updates(std::slice::from_ref(&a)));
         // `Decode` import is load-bearing: vectors must actually parse.
         assert!(StateVector::decode_v1(&encode_vector(&[a])).is_ok());
     }
