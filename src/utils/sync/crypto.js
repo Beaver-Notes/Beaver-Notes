@@ -44,14 +44,15 @@ export class SyncCryptoError extends Error {
 }
 
 export async function decryptJSON(raw, aad = '') {
-  if (!raw) return null;
-  if (typeof raw !== 'string') return raw;
+  if (typeof raw !== 'string') {
+    throw new Error('sync: non-envelope payload rejected');
+  }
 
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return raw;
+    throw new Error('sync: non-envelope payload rejected');
   }
 
   if (parsed && (parsed.v === 4 || parsed.v === 5)) {
@@ -74,10 +75,7 @@ export async function decryptJSON(raw, aad = '') {
     }
   }
 
-  if (parsed && typeof parsed.update === 'string') {
-    return { ...parsed, update: base64ToBuf(parsed.update) };
-  }
-  return parsed;
+  throw new Error('sync: non-envelope payload rejected');
 }
 
 /** Batch-decrypt sync envelopes in one IPC call; failed items are `null`. */
@@ -110,9 +108,7 @@ export async function encryptBatch(payloads, aads) {
 export function clearSyncKey() {}
 
 export function syncAssetName(localFilename) {
-  return isEncryptionEnabled()
-    ? `${localFilename}${ENCRYPTED_ASSET_EXT}`
-    : localFilename;
+  return `${localFilename}${ENCRYPTED_ASSET_EXT}`;
 }
 export function localAssetName(syncFilename) {
   return syncFilename.endsWith(ENCRYPTED_ASSET_EXT)
@@ -142,9 +138,9 @@ export async function encryptAssetBytes(flatKey, data) {
 
 export async function decryptAssetBytes(flatKey, bytes) {
   const input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  // Legacy plaintext passthrough: pre-E2EE assets decrypt to themselves and
-  // are re-uploaded encrypted by the caller (self-healing migration).
-  if (!isEncryptedEnvelopeBytes(input)) return input;
+  if (!isEncryptedEnvelopeBytes(input)) {
+    throw new Error('sync: non-envelope payload rejected');
+  }
   const raw = new TextDecoder().decode(input);
   try {
     const res = await syncDecryptPayload(raw, `asset:${flatKey}`);
