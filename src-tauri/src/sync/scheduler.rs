@@ -18,8 +18,39 @@ const DIRTY_COALESCE: Duration = Duration::from_millis(1500);
 /// Pushes closer than this after a successful push are skipped unless forced
 /// (mirrors JS `CLOUD_PUSH_MIN_INTERVAL_MS`).
 const PUSH_MIN_INTERVAL: Duration = Duration::from_secs(30);
-/// Server 429 parks pushes here before retrying (30s floor per the spec).
-const THROTTLE_BACKOFF: Duration = Duration::from_secs(60);
+
+/// Exponential backoff budget for transports: 1s floor, doubling per
+/// consecutive failure, 60s cap. `record_success` resets to the floor.
+/// The scheduler parks pushes for the current delay on 429/5xx; 401 stops
+/// pushing via the auth gate below; offline skips silently (typed `Offline`).
+#[derive(Default)]
+pub struct RetryBudget {
+    consecutive: u32,
+}
+
+impl RetryBudget {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn delay_ms(&self, attempt: u32) -> u64 {
+        1_000u64
+            .saturating_mul(2_u64.pow(attempt.saturating_sub(1).min(6)))
+            .min(60_000)
+    }
+
+    pub fn record_failure(&mut self) {
+        self.consecutive = self.consecutive.saturating_add(1);
+    }
+
+    pub fn record_success(&mut self) {
+        self.consecutive = 0;
+    }
+
+    fn current_delay_ms(&self) -> u64 {
+        self.delay_ms(self.consecutive.max(1))
+    }
+}
 
 /// Cloud identity + folder target, owned by JS (account store) and passed in
 /// on every command; the scheduler only caches the latest copy in memory.
@@ -41,6 +72,7 @@ enum KickKind {
 struct SchedState {
     config: Option<StoredConfig>,
     backoff_until: Option<Instant>,
+    retry: RetryBudget,
     /// Server 401/403: stop pushing until the identity inputs change.
     no_push_auth: bool,
     last_push_at: Option<Instant>,
@@ -53,6 +85,7 @@ impl SchedState {
         Self {
             config: None,
             backoff_until: None,
+            retry: RetryBudget::new(),
             no_push_auth: false,
             last_push_at: None,
             running: false,
@@ -77,6 +110,26 @@ fn emit_applied(app: &AppHandle, note_ids: &[String]) {
 
 fn emit_error(app: &AppHandle, message: &str) {
     let _ = app.emit("sync:error", serde_json::json!({ "message": message }));
+}
+
+/// Per-tick telemetry (payload keys mirror the camelCase `sync:status`
+/// convention): wall-clock cycle time plus what the tick moved.
+fn emit_telemetry(
+    app: &AppHandle,
+    cycle_ms: u128,
+    pushed: u64,
+    pulled: u64,
+    pending_icloud: u64,
+) {
+    let _ = app.emit(
+        "sync:telemetry",
+        serde_json::json!({
+            "cycleMs": cycle_ms,
+            "pushed": pushed,
+            "pulled": pulled,
+            "pendingIcloud": pending_icloud,
+        }),
+    );
 }
 
 /// Fail-closed server URLs only (mirrors the JS account store gate).
@@ -111,7 +164,16 @@ fn is_running() -> bool {
 
 fn note_backoff() {
     if let Ok(mut s) = sched().lock() {
-        s.backoff_until = Some(Instant::now() + THROTTLE_BACKOFF);
+        s.retry.record_failure();
+        let delay = s.retry.current_delay_ms();
+        s.backoff_until = Some(Instant::now() + Duration::from_millis(delay));
+    }
+}
+
+fn note_success() {
+    if let Ok(mut s) = sched().lock() {
+        s.retry.record_success();
+        s.backoff_until = None;
     }
 }
 
@@ -149,6 +211,21 @@ fn push_due(force: bool) -> bool {
 }
 
 async fn run_tick(app: &AppHandle, force: bool) -> Result<SyncStatus, AppError> {
+    let start = Instant::now();
+    let out = run_tick_inner(app, force).await;
+    if let Ok(s) = &out {
+        emit_telemetry(
+            app,
+            start.elapsed().as_millis(),
+            s.pushed,
+            s.pulled,
+            s.pending_icloud,
+        );
+    }
+    out
+}
+
+async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppError> {
     emit_status(app, "syncing");
     let cfg = sched().lock().map(|s| s.config.clone()).unwrap_or(None);
     let Some(cfg) = cfg else {
@@ -249,6 +326,9 @@ async fn run_tick(app: &AppHandle, force: bool) -> Result<SyncStatus, AppError> 
     if !applied.is_empty() {
         emit_applied(app, &applied);
     }
+    if status == "complete" {
+        note_success();
+    }
     emit_status(app, status);
     Ok(SyncStatus {
         status: status.to_string(),
@@ -273,6 +353,7 @@ async fn run_dirty_push(app: &AppHandle) {
     match sync_cloud_push(app, &cfg.workspace_id, &cfg.server_url, &cfg.token).await {
         Ok(out) => {
             note_pushed();
+            note_success();
             if out.unauthorized {
                 note_auth_blocked();
             }
@@ -449,4 +530,15 @@ pub(crate) async fn sync_kick_dirty(
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SyncStatusPayload {
     pub(crate) status: String,
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn backoff_grows_then_resets() {
+        let mut b = super::RetryBudget::new();
+        assert!(b.delay_ms(1) < b.delay_ms(4));
+        b.record_success();
+        assert_eq!(b.delay_ms(1), 1_000); // reset to floor
+    }
 }

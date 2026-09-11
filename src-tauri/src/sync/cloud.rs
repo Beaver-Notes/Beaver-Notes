@@ -4,13 +4,12 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
-use super::local::parse_commit_filename;
+use super::local::{get_or_create_device_id, parse_commit_filename};
 use super::merge::{covered_by_vector, load_vector, refresh_vector};
 use crate::db::{self, DbPool};
 use crate::shared::{
     SyncEnvelope, PROTOCOL_VERSION, SYNC_PAYLOAD_VERSION, aead_decrypt_bytes, aead_decrypt_json,
-    aead_encrypt_bytes, current_app_key, data_pool, decrypt_yjs_blob, generate_key_id, AppError,
-    AppState,
+    aead_encrypt_bytes, current_app_key, data_pool, decrypt_yjs_blob, AppError, AppState,
 };
 
 /// Server caps mirrored from the JS cloud path (`remote-yjs.js`):
@@ -140,21 +139,6 @@ fn pushed_key(note_id: &str) -> String {
 
 fn wseq_key(note_id: &str) -> String {
     format!("sync:cloud:wseq:{note_id}")
-}
-
-/// Same kv-persisted device id Task 2 uses for `~~` filenames, so filenames
-/// and the `X-Device-Id` header agree. Task 6 unifies identity beside key
-/// material; until then this single kv key is the source.
-fn cloud_device_id(pool: &DbPool) -> Result<String, AppError> {
-    const DEVICE_ID_KEY: &str = "sync:local:device-id";
-    if let Some(id) = db::db_get(pool, DEVICE_ID_KEY, None)? {
-        if !id.trim().is_empty() {
-            return Ok(id);
-        }
-    }
-    let id = generate_key_id();
-    db::db_set(pool, DEVICE_ID_KEY, &id, None)?;
-    Ok(id)
 }
 
 /// JS `PUSH_VALID_NOTE_ID_RE` (`/^[a-zA-Z0-9_-]{1,256}$/`): skip anything
@@ -482,7 +466,7 @@ async fn push_items(
                 }
             })?;
         let status = resp.status();
-        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
             return Err(CloudFail::Typed(SyncError::Throttled));
         }
         if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN
@@ -569,7 +553,7 @@ async fn pull_all(
             }
         })?;
     let status = resp.status();
-    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
         return Err(CloudFail::Typed(SyncError::Throttled));
     }
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
@@ -651,7 +635,7 @@ async fn pull_all(
                     }
                 })?;
             let status = resp.status();
-            if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
                 return Err(CloudFail::Typed(SyncError::Throttled));
             }
             if status == reqwest::StatusCode::UNAUTHORIZED
@@ -912,7 +896,7 @@ pub(crate) async fn sync_cloud_push(
     let (key, pool) = unlock_gate(app)?;
     let device = blocking({
         let pool = pool.clone();
-        move || cloud_device_id(&pool)
+        move || get_or_create_device_id(&pool)
     })
     .await?;
     let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;

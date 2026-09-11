@@ -141,9 +141,14 @@ fn store_cursor(pool: &DbPool, note_id: &str, ts: u64, seq: u64) -> Result<(), A
     )
 }
 
-/// Stable device id for `~~` filenames. Task 6 moves this beside key material;
-/// until then a kv-persisted id replaces the JS `localStorage` deviceId.
-fn local_device_id(pool: &DbPool) -> Result<String, AppError> {
+/// Stable device id for `~~` filenames and the cloud `X-Device-Id` header.
+/// Single source for both drivers (`cloud.rs` imports this): generated once
+/// via `rand`, kv-persisted under the key Task 2 introduced, so existing
+/// installs keep their identity and server (device, sequence) dedupe keys
+/// stay stable. (Explored the safe-storage `beaverAccountDeviceId` blob:
+/// it is a different, JS-owned, sign-in-gated UUID identity — adopting it
+/// here would churn the sync identity mid-flight, so kv stays the store.)
+pub(crate) fn get_or_create_device_id(pool: &DbPool) -> Result<String, AppError> {
     if let Some(id) = db::db_get(pool, DEVICE_ID_KEY, None)? {
         if !id.trim().is_empty() {
             return Ok(id);
@@ -224,12 +229,36 @@ fn resolve_commits_dir(folder_id: &str) -> Result<PathBuf, AppError> {
     }
 }
 
+/// Atomic file write: same-dir tmp + rename + fsync, so a killed cycle never
+/// leaves a half-written `~~` commit behind. Tmp names never match
+/// `UPDATE_EXT`, so readers ignore them; the tmp is removed on any failure.
+pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static CTR: AtomicU64 = AtomicU64::new(0);
+    let n = CTR.fetch_add(1, Ordering::Relaxed);
+    let tmp = target.with_extension(format!("tmp.{}-{n}", std::process::id()));
+    let res: std::io::Result<()> = (|| {
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        drop(f);
+        fs::rename(&tmp, target)?;
+        Ok(())
+    })();
+    if res.is_err() {
+        let _ = fs::remove_file(&tmp);
+    } else if let Some(parent) = target.parent() {
+        // Best-effort dir fsync so the rename itself survives a crash.
+        #[cfg(unix)]
+        if let Ok(d) = fs::File::open(parent) {
+            let _ = d.sync_all();
+        }
+    }
+    res
+}
+
 fn write_file_sync(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<()> {
-    // Task 6 upgrades this to atomic tmp+rename; direct write + fsync for v1.
-    let mut f = fs::File::create(dir.join(name))?;
-    f.write_all(bytes)?;
-    f.sync_all()?;
-    Ok(())
+    atomic_write(&dir.join(name), bytes)
 }
 
 fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
@@ -244,7 +273,7 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
     fs::create_dir_all(&dir)?;
     assert_path_access(app, state.inner(), &dir, "sync")?;
 
-    let device = local_device_id(&pool)?;
+    let device = get_or_create_device_id(&pool)?;
     let mut stats = LocalStats::default();
     let mut pulled_notes: Vec<String> = Vec::new();
 
@@ -442,5 +471,18 @@ mod tests {
         assert_eq!(p.ts, 1700000000);
         assert!(p.is_snapshot);
         assert!(super::parse_sync_filename("notes.json").is_none());
+    }
+
+    #[test]
+    fn atomic_write_survives_partial_failure() {
+        let dir =
+            std::env::temp_dir().join(format!("beaver-sync-atomic-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("n~~d~~1~~2.yjs.json");
+        super::atomic_write(&target, b"data").unwrap();
+        assert_eq!(std::fs::read(&target).unwrap(), b"data");
+        assert!(std::fs::read_dir(&dir).unwrap().count() == 1); // no tmp leftovers
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
