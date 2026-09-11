@@ -14,6 +14,7 @@ pub mod specta_setup;
 mod menu;
 mod secure_blob;
 mod shared;
+mod sync;
 
 use tauri::{Emitter, Listener, Manager, RunEvent};
 
@@ -253,6 +254,7 @@ pub fn run() {
             commands::yjs::yjs_compact,
             commands::yjs::yjs_compact_batch,
             commands::yjs::yjs_delete,
+            sync::local::sync_local_cycle,
             commands::index::index_save,
             commands::index::index_load,
             commands::search::search_extract_index_data,
