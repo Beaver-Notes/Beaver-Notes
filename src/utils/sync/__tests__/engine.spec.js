@@ -7,6 +7,7 @@ vi.mock('../path.js', () => ({
 
 vi.mock('../sync-assets.js', () => ({
   syncAssets: vi.fn(() => Promise.resolve()),
+  yieldToUi: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@/composable/useNoteYjs.js', () => ({
@@ -295,6 +296,37 @@ describe('SyncEngine pull loop', () => {
     expect(order).toEqual(['pull', 'pull']);
   });
 
+  it('applies a whole-vault batch completely while yielding to the UI', async () => {
+    const storage = { get: vi.fn(() => ({})), set: vi.fn() };
+    const updates = Array.from({ length: 60 }, (_, i) => ({
+      noteId: `note-${i}`, update: new Uint8Array([i % 256]), device: 'device', ts: i, sequence: i,
+    }));
+    const cloud = {
+      pull: vi.fn(async () => ({ updates, hasMore: false })),
+      push: vi.fn(() => ({ updates: [], pushed: 0 })),
+      seedOnce: vi.fn(() => Promise.resolve()),
+      compact: vi.fn(() => Promise.resolve()),
+      syncAssets: vi.fn(() => Promise.resolve()),
+      getCloudBuffer: vi.fn(() => []),
+      setReadiness: vi.fn(),
+    };
+    const local = { pull: vi.fn(() => ({ updates: [] })), push: vi.fn(() => ({ updates: [], pushed: 0 })), seedOnce: vi.fn(() => Promise.resolve()), compact: vi.fn(() => Promise.resolve()) };
+    const current = new SyncEngine({
+      transports: { local, cloud }, storage,
+      getActiveTransports: () => ['cloud'],
+    });
+
+    await current.enqueueSync(true);
+
+    const { applyRemote } = await import('@/composable/useNoteYjs.js');
+    const { appendBatch } = await import('@/lib/native/yjs.js');
+    const { yieldToUi } = await import('../sync-assets.js');
+    expect(applyRemote).toHaveBeenCalledTimes(60);
+    expect(appendBatch).toHaveBeenCalledTimes(1);
+    expect(appendBatch.mock.calls[0][0]).toEqual(updates.map((u) => u.noteId));
+    expect(yieldToUi).toHaveBeenCalled();
+  });
+
   it('runs multiple sync cycles without errors', async () => {
     const storage = { get: vi.fn(() => ({})), set: vi.fn() };
     let pullCount = 0;
@@ -456,6 +488,37 @@ describe('SyncEngine flush', () => {
     expect(mockCloudTransport.push).toHaveBeenCalledWith(
       expect.objectContaining({ force: true })
     );
+  });
+});
+
+describe('SyncEngine declined vault join pause', () => {
+  it('pauses folder cycles and emits vault-join-required instead of syncing', async () => {
+    const { getSettingSync } = await import('@/lib/settings');
+    const prevSettings = getSettingSync.getMockImplementation();
+    getSettingSync.mockImplementation((key) =>
+      key === 'vaultJoinDeclinedPath' ? '/tmp/sync-path' : prevSettings?.(key)
+    );
+
+    const local = { pull: vi.fn(), push: vi.fn(), seedOnce: vi.fn(), compact: vi.fn() };
+    const engine = new SyncEngine({
+      transports: { local },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['local'],
+    });
+
+    await engine.forceSyncNow();
+
+    const { emit } = await import('@tauri-apps/api/event');
+    expect(emit).toHaveBeenCalledWith('sync:status', {
+      status: 'vault-join-required',
+    });
+    expect(local.pull).not.toHaveBeenCalled();
+    expect(local.push).not.toHaveBeenCalled();
+    const { reconcileSyncKeyParams } = await import('@/lib/native/security.js');
+    expect(reconcileSyncKeyParams).not.toHaveBeenCalled();
+    expect(engine.syncing).toBe(false);
+
+    getSettingSync.mockImplementation(prevSettings);
   });
 });
 

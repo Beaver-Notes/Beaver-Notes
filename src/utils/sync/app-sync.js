@@ -1,5 +1,5 @@
 import { initSyncEngine, getSyncEngine } from './engine.js';
-import { startRustSync } from './rust-shim.js;
+import { startRustSync } from './rust-shim.js';
 import { useStorage } from '@/lib/storage';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';

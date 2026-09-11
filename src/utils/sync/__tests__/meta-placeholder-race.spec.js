@@ -108,6 +108,7 @@ vi.mock('@/lib/settings', async (importOriginal) => ({
 
 vi.mock('@/utils/crypto/encryption.js', () => ({
   isEncryptionEnabled: vi.fn(() => false),
+  getDeclinedVaultJoinPath: vi.fn(() => ''),
 }));
 
 vi.mock('@/lib/native/security.js', () => ({

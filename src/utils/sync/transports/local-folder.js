@@ -6,6 +6,7 @@ import { ensureCommitsDir } from '../sync-repository.js';
 import { YJS_UPDATE_EXT } from '../constants.js';
 import { readDir } from '@/lib/native/fs';
 import { seedOnce as seedOnceCommits } from '../shared.js';
+import { prefetchSyncDir } from '@/lib/tauri/scoped-storage';
 
 /** Merge per-note state vectors into { device: maxClock } for pre-decrypt filtering. */
 function mergeAllStateVectors(allStateVectors) {
@@ -30,6 +31,8 @@ export class LocalFolderTransport extends Transport {
     if (!syncPath) return { updates: [] };
 
     const commitsDir = await ensureCommitsDir(syncPath);
+    // Gated iCloud prefetch (no-op elsewhere, never blocks UI).
+    await prefetchSyncDir(commitsDir);
     const { decryptJSON } = await import('../crypto.js');
 
     // Gather state vectors so listRemoteYjsUpdates can pre-decrypt-filter.

@@ -11,10 +11,11 @@ import {
   ASSETS_DIR,
 } from './constants.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
+import { prefetchSyncDir } from '@/lib/tauri/scoped-storage';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
 
-function yieldToUi() {
+export function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
@@ -49,6 +50,36 @@ function isIgnoredAssetEntry(name) {
   return !name || name.startsWith('.') || name === 'Thumbs.db';
 }
 
+let legacyAssetMigrationDone = false;
+
+// One-time move of assets written under the old double-nested layout
+// (<sync>/assets/assets/...) to <sync>/assets/.... Best-effort per entry,
+// runs once per session; the new layout is used unconditionally below.
+async function migrateLegacyAssetLayout(syncDir) {
+  if (legacyAssetMigrationDone) return;
+  legacyAssetMigrationDone = true;
+  for (const assetType of ASSET_TYPES) {
+    const legacyBase = path.join(syncDir, ASSETS_DIR, assetType);
+    const remoteBase = path.join(syncDir, assetType);
+    if (legacyBase === remoteBase) continue;
+    const entries = await readSyncDir(legacyBase).catch(() => []);
+    for (const entry of entries) {
+      if (isIgnoredAssetEntry(entry)) continue;
+      try {
+        await copySyncPath(
+          path.join(legacyBase, entry),
+          path.join(remoteBase, entry)
+        );
+        await removeSyncPath(path.join(legacyBase, entry)).catch(() => {});
+      } catch (error) {
+        console.warn('[sync] legacy asset move failed:', entry, error?.message);
+      }
+    }
+    remoteListingCache.delete(legacyBase);
+    remoteListingCache.delete(remoteBase);
+  }
+}
+
 async function copyRemoteToLocal(remotePath, localDest) {
   await copySyncPath(remotePath, localDest);
 }
@@ -65,11 +96,16 @@ export async function syncAssets(
   const deletedAssets = yMapToObj(getWorkspaceDoc().getMap('deletedAssets'));
   let deletedAssetsDirty = false;
 
+  // Gated iCloud prefetch (no-op elsewhere, never blocks UI).
+  await prefetchSyncDir(syncDir);
+
+  await migrateLegacyAssetLayout(syncDir);
+
   const ops = [];
 
   for (const assetType of ASSET_TYPES) {
     const localBase = path.join(localDir, assetType);
-    const remoteBase = path.join(syncDir, ASSETS_DIR, assetType);
+    const remoteBase = path.join(syncDir, assetType);
 
     await ensureSyncDir(localBase);
     await ensureSyncDir(remoteBase);

@@ -1,6 +1,6 @@
 import { getSyncPath } from './path.js';
 import { SYNC_ROOT_DIR } from './constants.js';
-import { syncAssets } from './sync-assets.js';
+import { syncAssets, yieldToUi } from './sync-assets.js';
 import {
   flushPendingSyncWrites,
   setCloudBuffer,
@@ -24,6 +24,11 @@ import { getCurrentStateVector, saveStateVector } from './state-vector.js';
 import { getActiveDoc } from '@/lib/yjs/shared.js';
 import { isRustSyncActive } from './rust-shim.js';
 import { logger } from '@/utils/logger';
+
+// Yield to the UI thread every N applied updates: a whole-vault first pull
+// applies hundreds of updates back-to-back, and without strides the base64 +
+// Yjs apply stretch holds the renderer for seconds.
+const APPLY_YIELD_STRIDE = 25;
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
 
@@ -224,6 +229,18 @@ export class SyncEngine {
         return;
       }
 
+      // Declined vault join: the folder holds a vault the user refused to
+      // join. Pause folder cycles instead of churning undecryptable data.
+      {
+        const { getDeclinedVaultJoinPath } = await import('@/utils/crypto/encryption.js');
+        if (syncPath && getDeclinedVaultJoinPath() === syncPath) {
+          logger.info('[sync] vault join declined for this folder: pausing cycle');
+          try { emit('sync:status', { status: 'vault-join-required' }); } catch {}
+          outcome = { ok: true };
+          return;
+        }
+      }
+
       // Reconcile every cycle so joiner adopts owner keys fast. Force-only left device on local key after failure.
       {
         let syncPassphrase = null;
@@ -302,11 +319,18 @@ export class SyncEngine {
             if (updates.length > 0) {
               let batchApplied = false;
               try {
-                await appendBatch(
-                  updates.map((u) => u.noteId),
-                  updates.map((u) => bufToBase64(u.update)),
-                  updates.map((u) => u.device)
-                );
+                const noteIds = [];
+                const updateB64s = [];
+                const devices = [];
+                for (let i = 0; i < updates.length; i++) {
+                  noteIds.push(updates[i].noteId);
+                  updateB64s.push(bufToBase64(updates[i].update));
+                  devices.push(updates[i].device);
+                  if (i % APPLY_YIELD_STRIDE === APPLY_YIELD_STRIDE - 1) {
+                    await yieldToUi();
+                  }
+                }
+                await appendBatch(noteIds, updateB64s, devices);
                 batchApplied = true;
               } catch (batchErr) {
                 logger.warn('[sync] batch append failed, falling back to individual:', batchErr?.message);
@@ -319,6 +343,9 @@ export class SyncEngine {
                     succeeded[i] = true;
                   } catch (err) {
                     logger.warn('[sync] pull apply failed:', err?.message);
+                  }
+                  if (i % APPLY_YIELD_STRIDE === APPLY_YIELD_STRIDE - 1) {
+                    await yieldToUi();
                   }
                 }
               } else {
@@ -395,6 +422,7 @@ export class SyncEngine {
           // doesn't false-positive on the new rows and loop bootstrap endlessly.
           if (pullAffectedNotes.size > 0) {
             const { compactUpdates } = await import('@/lib/native/yjs.js');
+            let compacted = 0;
             for (const noteId of pullAffectedNotes) {
               try {
                 const doc = getActiveDoc(noteId);
@@ -406,6 +434,10 @@ export class SyncEngine {
                 }
               } catch {
                 // Non-critical: stale snapshot cache still syncs.
+              }
+              compacted += 1;
+              if (compacted % APPLY_YIELD_STRIDE === 0) {
+                await yieldToUi();
               }
             }
           }
