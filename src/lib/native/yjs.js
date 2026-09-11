@@ -42,6 +42,13 @@ export function compactUpdates(noteId, snapshot) {
   return backend.invoke('yjs:compact', { noteId, snapshot: toIpcBinary(snapshot) });
 }
 
+// Rust-side compaction: merges rows via yrs `merge_updates` off the main
+// thread, no snapshot bytes over IPC. Channel maps via fallback
+// (`sync:compact-note` → `sync_compact_note`), same as rust-shim sync:*.
+export function compactNote(noteId) {
+  return backend.invoke('sync:compact-note', { note_id: noteId, noteId });
+}
+
 export function deleteUpdates(noteId) {
   return backend.invoke('yjs:delete', noteId);
 }

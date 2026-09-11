@@ -5,6 +5,7 @@ import {
   getUpdates,
   getSnapshot,
   compactUpdates,
+  compactNote,
 } from '@/lib/native/yjs.js';
 import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
@@ -91,12 +92,10 @@ async function loadStateIntoDoc(newDoc, noteId) {
 
   // Repair a corrupt cached snapshot so the decode error doesn't re-trigger on
   // every open. Best-effort: failure just means falling back again next time.
+  // Rust merges stored rows in place; no snapshot bytes cross IPC.
   if (snapshotWasCorrupt && newDoc.store) {
     try {
-      const rebuilt = Y.encodeStateAsUpdate(newDoc);
-      if (rebuilt.byteLength > 0) {
-        await compactUpdates(noteId, rebuilt);
-      }
+      await compactNote(noteId);
     } catch (repairErr) {
       console.warn(`[yjs] could not repair snapshot for ${noteId}:`, repairErr);
     }
@@ -160,16 +159,15 @@ export function useNoteYjs() {
     const merged = Y.mergeUpdates(updates);
     await persistUpdate(currentNoteId, merged);
 
-    // Fold accumulated history into a single snapshot row when due.
+    // Fold accumulated history into a single row when due. Rust merges the
+    // stored rows in place (sync_compact_note), so no JS encode and no
+    // snapshot bytes cross IPC. Pending was just flushed, so rows hold it.
     const due =
       Date.now() - lastCompactAt > COMPACT_INTERVAL_MS ||
       updatesSinceCompact >= COMPACT_UPDATE_THRESHOLD;
-    if (due && currentDoc) {
+    if (due && currentNoteId) {
       try {
-        const snapshot = Y.encodeStateAsUpdate(currentDoc);
-        if (snapshot.byteLength > 0) {
-          await compactUpdates(currentNoteId, snapshot);
-        }
+        await compactNote(currentNoteId);
         lastCompactAt = Date.now();
         updatesSinceCompact = 0;
       } catch (err) {
@@ -192,18 +190,11 @@ export function useNoteYjs() {
     await flushPendingUpdates();
 
     if (currentDoc && currentNoteId) {
-      try {
-        const snapshot = Y.encodeStateAsUpdate(currentDoc);
-        if (snapshot.byteLength > 0) {
-          // Don't block the switch on the old note's compact; snapshot is
-          // captured before destroy and compaction runs off-thread in Rust.
-          compactUpdates(currentNoteId, snapshot).catch(() => {
-            // non-critical
-          });
-        }
-      } catch {
+      // Don't block the switch on the old note's compact; pending was just
+      // flushed so Rust can merge rows in place (off-thread, no IPC bytes).
+      compactNote(currentNoteId).catch(() => {
         // non-critical
-      }
+      });
       unregisterActiveDoc(currentNoteId);
       getWsSync().leaveNoteRoom(currentNoteId);
       currentDoc.destroy();
@@ -347,16 +338,10 @@ export function useNoteYjs() {
     await flushPendingUpdates();
 
     if (currentDoc && currentNoteId) {
-      try {
-        const snapshot = Y.encodeStateAsUpdate(currentDoc);
-        if (snapshot.byteLength > 0) {
-          compactUpdates(currentNoteId, snapshot).catch(() => {
-            // non-critical
-          });
-        }
-      } catch {
+      // Fire-and-forget Rust merge; pending was flushed above.
+      compactNote(currentNoteId).catch(() => {
         // non-critical
-      }
+      });
       unregisterActiveDoc(currentNoteId);
       getWsSync().leaveNoteRoom(currentNoteId);
       currentDoc.destroy();

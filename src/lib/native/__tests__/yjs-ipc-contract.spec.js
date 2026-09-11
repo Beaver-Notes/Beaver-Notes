@@ -11,6 +11,7 @@ import {
   appendUpdate,
   appendBatch,
   compactUpdates,
+  compactNote,
   getUpdates,
   getStateVector,
 } from '@/lib/native/yjs.js';
@@ -74,6 +75,14 @@ describe('native yjs IPC binary contract', () => {
       noteId: 'note-1',
       snapshot: toB64(snap),
     });
+  });
+
+  it('compactNote routes to sync_compact_note with the note id', async () => {
+    await compactNote('note-1');
+    expect(invoke).toHaveBeenCalledWith(
+      'sync:compact-note',
+      expect.objectContaining({ note_id: 'note-1' })
+    );
   });
 
   it('read commands pass arguments through without conversion', async () => {
