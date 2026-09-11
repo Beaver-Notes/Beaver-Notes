@@ -1,4 +1,5 @@
 import { initSyncEngine, getSyncEngine } from './engine.js';
+import { startRustSync } from './rust-shim.js;
 import { useStorage } from '@/lib/storage';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
@@ -41,6 +42,15 @@ export async function initAppSync() {
     Boolean(syncPath) || (wantsCloud && accountStore.isAuthenticated);
   if (!hasSyncTarget) {
     return engine;
+  }
+
+  // Rust owns durable sync when available; the JS engine resolve-skips via
+  // the gate and stays as automatic fallback. Failure (e.g. web build
+  // without `sync:start`) logs once and continues with the JS engine.
+  try {
+    await startRustSync();
+  } catch (err) {
+    console.warn('[sync] Rust scheduler unavailable, using JS engine:', err?.message || err);
   }
 
   engine
