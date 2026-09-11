@@ -626,3 +626,39 @@ describe('SyncEngine notifications', () => {
     );
   });
 });
+
+describe('rust-shim sync origin tagging', () => {
+  it('queues exactly the realtime update; a sync:applied for the same note does not echo', async () => {
+    // Real CRDT + real shared registry: the mocked applyRemote above cannot
+    // prove origin semantics, so bypass the mock for this contract.
+    const shared = await vi.importActual('@/lib/yjs/shared.js');
+    const Y = await import('yjs');
+    const doc = new Y.Doc();
+    shared.registerActiveDoc('n1', doc);
+    try {
+      // Mirrors the useNoteYjs observer skip-origins.
+      const queued = [];
+      doc.on('update', (update, origin) => {
+        if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
+        queued.push(update);
+      });
+
+      // Realtime keystroke (provider origin): queued for the dirty push.
+      doc.getText('t').insert(0, 'hello');
+
+      // Rust sync:applied for the same note: the shim fetches the snapshot
+      // and merges it via applyRemote, i.e. origin 'sync'.
+      const remote = new Y.Doc();
+      remote.getText('t').insert(0, 'world');
+      shared.applyRemote('n1', Y.encodeStateAsUpdate(remote));
+
+      expect(queued).toHaveLength(1);
+      const text = doc.getText('t').toString();
+      expect(text).toContain('hello');
+      expect(text).toContain('world');
+    } finally {
+      shared.unregisterActiveDoc('n1');
+      doc.destroy();
+    }
+  });
+});

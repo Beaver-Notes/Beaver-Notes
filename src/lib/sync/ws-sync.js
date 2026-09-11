@@ -12,7 +12,7 @@ import {
 import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces'
-import { forceSyncNow } from '@/utils/sync/engine'
+import { kickRustSync } from '@/utils/sync/rust-shim.js'
 import { ROLES, canEdit } from '@/utils/permissions'
 
 // Collaboration keys per room (roomName -> CryptoKey)
@@ -20,6 +20,17 @@ const collabKeys = new Map()
 
 // Text notification listeners per provider, tracked for cleanup.
 const notificationListeners = new WeakMap()
+
+/** Notify-only sync trigger: the Rust scheduler owns pull/push once started
+ * (debounced `sync_kick`); otherwise fall back to the legacy JS engine.
+ * Dynamic import so this module never statically depends on the engine
+ * (previously an engine↔ws cycle via useNoteYjs). */
+function notifySyncNow() {
+  if (kickRustSync()) return
+  import('@/utils/sync/engine.js')
+    .then(({ forceSyncNow }) => forceSyncNow().catch(() => {}))
+    .catch(() => {})
+}
 
 /** y-websocket handles only binary (types 0-3). Relay sends JSON text notifications: intercept and pull. Re-attaches on reconnect. */
 function createNotificationHandler() {
@@ -29,7 +40,7 @@ function createNotificationHandler() {
       const msg = JSON.parse(event.data)
       if (msg.type === 'notification') {
         console.warn('[ws-sync] notification from server, triggering sync')
-        forceSyncNow().catch(() => {})
+        notifySyncNow()
       }
     } catch {
       // Not JSON: ignore.
@@ -256,7 +267,7 @@ export function useWsSync() {
         if (status === 'connected') {
           reconnectAttempts.delete(roomName)
           attachNotificationListener(provider)
-          forceSyncNow().catch(() => {})
+          notifySyncNow()
         } else if (status === 'disconnected') {
           scheduleRejoin(roomName, () => joinNoteRoom(noteId, doc, awareness))
         }
@@ -316,7 +327,7 @@ export function useWsSync() {
         if (status === 'connected') {
           reconnectAttempts.delete(roomName)
           attachNotificationListener(provider)
-          forceSyncNow().catch(() => {})
+          notifySyncNow()
         } else if (status === 'disconnected') {
           scheduleRejoin(roomName, () => joinMetaRoom(workspaceId))
         }

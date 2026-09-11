@@ -3,6 +3,7 @@
 import { writeYjsUpdate } from './sync-yjs.js';
 import { encryptJSON } from './crypto.js';
 import { getCurrentStateVector } from './state-vector.js';
+import { isRustSyncActive, kickRustDirty } from './rust-shim.js';
 
 const MAX_QUEUE_SIZE = 5000;
 const pendingSyncWrites = [];
@@ -77,6 +78,14 @@ export function clearPendingWrites() {
 }
 
 export function queueSyncWrite(commitsDir, noteId, update) {
+  if (isRustSyncActive()) {
+    // Rust owns durable sync now: the SQLite `yjs_append` row is already
+    // written (that feeds its dirty queue), folder commits are its job — so
+    // skip the legacy queue and just wake its dirty push. Both the note path
+    // (`useNoteYjs` persist) and the meta path route through here.
+    kickRustDirty();
+    return;
+  }
   if (pendingSyncWrites.length >= MAX_QUEUE_SIZE) {
     console.warn('[sync] pending writes queue full, dropping oldest entries');
     pendingSyncWrites.splice(0, pendingSyncWrites.length - MAX_QUEUE_SIZE + 100);

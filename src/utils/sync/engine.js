@@ -22,6 +22,7 @@ import { reconcileSyncKeyParams } from '@/lib/native/security.js';
 import * as Y from 'yjs';
 import { getCurrentStateVector, saveStateVector } from './state-vector.js';
 import { getActiveDoc } from '@/lib/yjs/shared.js';
+import { isRustSyncActive } from './rust-shim.js';
 import { logger } from '@/utils/logger';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
@@ -154,6 +155,16 @@ export class SyncEngine {
     this.syncing = true;
     this.pending = false;
     this._forceFlush = _force;
+
+    // Dual-write guard: once the Rust scheduler runs it owns pull/push (the
+    // Y.Doc observer → flush → `yjs_append` path still feeds its dirty
+    // queue). The JS cycle degrades to a no-op; waiters resolve immediately.
+    if (isRustSyncActive()) {
+      logger.info('[sync] rust scheduler active → skip JS cycle');
+      t?.end();
+      this._resolveSkip();
+      return;
+    }
 
     // Early exit before any sync work or status emit: nothing to do for
     // unconfigured installs. `syncing` was set synchronously so concurrent
