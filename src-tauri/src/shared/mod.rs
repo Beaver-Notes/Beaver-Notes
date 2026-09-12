@@ -563,6 +563,8 @@ pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, AppError> {
     match name {
         "data" => Ok(DATA_STORE),
         "settings" => Ok(SETTINGS_STORE),
+        DATA_STORE => Ok(DATA_STORE),
+        SETTINGS_STORE => Ok(SETTINGS_STORE),
         _ => Err(AppError::Other(format!(
             r#"[storage] blocked access to unknown store: "{name}""#
         ))),

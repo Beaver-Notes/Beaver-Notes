@@ -111,8 +111,7 @@ describe('invokeCommand payload normalization', () => {
     expect(args.snapshot).toBe(b64);
   });
 
-  it('normalizes workspace:registerCloud to snake_case Rust args', async () => {
-    await invokeCommand('workspace:registerCloud', {
+  it('normalizes workspace:registerCloud to snake_case Rust args', async () => {    await invokeCommand('workspace:registerCloud', {
       id: 'w1',
       name: 'Design',
       orgId: 'org-1',
@@ -131,5 +130,27 @@ describe('invokeCommand payload normalization', () => {
         created_at: '2026-01-01T00:00:00Z',
       })
     );
+  });
+
+  it('sends sync:start config with both key casings (scheduler requires workspaceId)', async () => {
+    await invokeCommand('sync:start', {
+      workspace_id: 'w1',
+      server_url: 'https://api.beavernotes.com',
+      token: 'tok',
+      folder_id: '/sync',
+    });
+    const args = invoke.mock.calls.find((c) => c[0] === 'sync_start')[1];
+    expect(args.workspaceId).toBe('w1');
+    expect(args.workspace_id).toBe('w1');
+    expect(args.serverUrl).toBe('https://api.beavernotes.com');
+    expect(args.server_url).toBe('https://api.beavernotes.com');
+    expect(args.token).toBe('tok');
+    expect(args.folderId).toBe('/sync');
+    expect(args.folder_id).toBe('/sync');
+  });
+
+  it('maps storage:repairSettings to its snake_case Rust name', async () => {
+    await invokeCommand('storage:repairSettings');
+    expect(invoke).toHaveBeenCalledWith('storage_repair_settings', {});
   });
 });

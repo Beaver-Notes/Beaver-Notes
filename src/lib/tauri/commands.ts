@@ -33,6 +33,7 @@ const commandAliases = {
   'fs:downloadUrl': 'fs_download_url',
   'fs:readdir': 'fs_readdir',
   'fs:stat': 'fs_stat',
+  'fs:fileIcon': 'fs_file_icon',
   'fs:unlink': 'fs_unlink',
   'fs:remove': 'fs_remove',
   'fs:mkdir': 'fs_mkdir',
@@ -44,6 +45,7 @@ const commandAliases = {
   'storage:delete': 'storage_delete',
   'storage:has': 'storage_has',
   'storage:reencryptLegacyRows': 'storage_reencrypt_legacy_rows',
+  'storage:repairSettings': 'storage_repair_settings',
   'safeStorage:isEncryptionAvailable': 'safe_storage_is_available',
   'safeStorage:getBackendInfo': 'safe_storage_get_backend_info',
   'safeStorage:encryptString': 'safe_storage_encrypt',
@@ -133,6 +135,13 @@ const commandAliases = {
   'workspace:switch': 'workspace_switch',
   'workspace:rename': 'workspace_rename',
   'workspace:delete': 'workspace_delete',
+  'fetch_page_html': 'fetch_page_html',
+  'get_pending_shares': 'get_pending_shares',
+  'clear_pending_shares': 'clear_pending_shares',
+  'sync_folders_to_extension': 'sync_folders_to_extension',
+  'sync_workspaces_to_extension': 'sync_workspaces_to_extension',
+  'sync_notes_to_extension': 'sync_notes_to_extension',
+  'read_shared_file': 'read_shared_file',
 };
 
 type Channel = keyof typeof commandAliases;
@@ -192,6 +201,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'fs:readFile':
     case 'fs:readdir':
     case 'fs:stat':
+    case 'fs:fileIcon':
     case 'fs:unlink':
     case 'fs:readData':
     case 'fs:readFileBinary':
@@ -200,6 +210,9 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('path', payload?.path ?? payload),
         ...(payload?.skipDecryption != null
           ? withKeyVariants('skipDecryption', payload.skipDecryption)
+          : {}),
+        ...(payload?.size != null
+          ? withKeyVariants('size', payload.size)
           : {}),
       };
     case 'fs:isFile':
@@ -316,6 +329,15 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       };
     case 'sync:keyReady':
       return {};
+    case 'sync:start':
+    case 'sync:kick':
+    case 'sync:kick-dirty':
+      return {
+        ...withKeyVariants('workspace_id', payload?.workspaceId ?? payload?.workspace_id),
+        ...withKeyVariants('server_url', payload?.serverUrl ?? payload?.server_url),
+        ...withKeyVariants('token', payload?.token),
+        ...withKeyVariants('folder_id', payload?.folderId ?? payload?.folder_id),
+      };
     case 'encryption:reconcileKeyParams':
       return withKeyVariants('passphrase', payload?.passphrase);
     case 'encryption:localKeyParamsJson':
