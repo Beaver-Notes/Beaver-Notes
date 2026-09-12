@@ -20,7 +20,7 @@ function resolveAwareness(a) {
   if (typeof a === 'function') return a() || null;
   const v = isRef(a) ? a.value : a;
   if (v && typeof v.getStates === 'function') return v;
-  return a;
+  return null;
 }
 
 export function usePresence(awarenessOrRef, localUserId, localUserName) {
