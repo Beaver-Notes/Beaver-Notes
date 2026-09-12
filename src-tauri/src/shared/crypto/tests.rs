@@ -95,9 +95,9 @@ mod characterization {
         let (manifest, data_key, _) =
             create_encryption_manifest("app", "check", passphrase).unwrap();
 
-        // Simulate a 16 MiB vault: derive a 16 MiB KEK and wrap the same key.
+        // Simulate a 128 MiB vault: derive a 128 MiB KEK and wrap the same key.
         let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
-        let kek_16mb = derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
+        let kek_16mb = derive_kek_argon2id_with_params(passphrase, &salt, 128 * 1024, 3, 4).unwrap();
         let wrapped_16mb = encrypt_bytes_with_key(&kek_16mb, &data_key).unwrap();
 
         let params = KeyParams {
@@ -107,9 +107,9 @@ mod characterization {
                 .argon2_salt_hex
                 .clone()
                 .unwrap_or(manifest.salt_hex),
-            argon2_memory_kib: 16 * 1024,
-            argon2_iterations: 2,
-            argon2_parallelism: 2,
+            argon2_memory_kib: 128 * 1024,
+            argon2_iterations: 3,
+            argon2_parallelism: 4,
             wrapped_items_key: wrapped_16mb,
         };
 

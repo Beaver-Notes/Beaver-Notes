@@ -135,6 +135,7 @@ mod tests {
     use yrs::{Doc, ReadTxn, StateVector, Text, Transact};
     use yrs::updates::decoder::Decode;
 
+    use base64::Engine as _;
     use super::{covered_by_vector, encode_vector, merge_updates, BASE64};
 
     fn seed_update(text: &str) -> Vec<u8> {
