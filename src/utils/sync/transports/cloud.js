@@ -23,11 +23,12 @@ import { getSyncDeviceId, getCommitsDir } from '../sync-repository.js';
 import { getSyncPath } from '../path.js';
 import { isNonNegativeInteger, toUpdateBytes, buildAadSuffix, seedOnce as seedOnceCommits } from '../shared.js';
 import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
-import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
+import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir, pathExists, downloadUrl, removePath as removeFsFile } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
 import { localAssetName } from '../crypto.js';
 import { loadServerCheckpoint, saveServerCheckpoint, clearServerCheckpoint } from '../state-vector.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
+import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { mergeIntoMap, reconcileUnknownNotePlaceholders } from '@/lib/yjs/workspace-doc';
 import { useWorkspaceStore } from '@/store/workspace.ts';
@@ -215,32 +216,25 @@ export class CloudTransport extends Transport {
     try { emit('sync:progress', { phase: 'bootstrap', processed: 0, total: urlEntries.length }); } catch {}
 
     const docByNoteId = new Map(docs.map((d) => [d.noteId, d]));
-    for (let i = 0; i < urlEntries.length; i++) {
-      const [noteId, { url, snapshotTs }] = urlEntries[i];
-      // The seed encrypts content snapshots with AAD `${noteId}-${noteTs}`
-      // where noteTs is the timestamp it stored on the document. The download
-      // URL may return a *different* snapshotTs (server-generated), which would
-      // cause an AAD mismatch. Keep the document's own timestamp so we can try
-      // it as a decrypt candidate below.
-      const docNoteTs = docByNoteId.get(noteId)?.noteTs ?? docByNoteId.get(noteId)?.snapshotTs;
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          console.warn(`[sync] bootstrap: download failed for ${noteId}: ${response.status}`);
-          continue;
-        }
-        const blob = await response.blob();
-        const arrayBuf = await blob.arrayBuffer();
-        const envelope = new TextDecoder().decode(arrayBuf);
-        downloadedItems.push({ _noteId: noteId, data: envelope, key: `bootstrap-${noteId}`, snapshotTs, noteTs: docNoteTs });
-      } catch (err) {
-        console.warn(`[sync] bootstrap: download error for ${noteId}:`, err?.message);
-      }
-      if ((i + 1) % 10 === 0 || i === urlEntries.length - 1) {
+    const CONCURRENT_DL = 5;
+    for (let i = 0; i < urlEntries.length; i += CONCURRENT_DL) {
+      const batch = urlEntries.slice(i, i + CONCURRENT_DL);
+      const results = await Promise.all(batch.map(async ([noteId, { url, snapshotTs }]) => {
+        const docNoteTs = docByNoteId.get(noteId)?.noteTs ?? docByNoteId.get(noteId)?.snapshotTs;
         try {
-          emit('sync:progress', { phase: 'bootstrap', processed: i + 1, total: urlEntries.length });
-        } catch {}
-      }
+          const response = await fetch(url);
+          if (!response.ok) return null;
+          const arrayBuf = await response.arrayBuffer();
+          const envelope = new TextDecoder().decode(arrayBuf);
+          return { _noteId: noteId, data: envelope, key: `bootstrap-${noteId}`, snapshotTs, noteTs: docNoteTs };
+        } catch {
+          return null;
+        }
+      }));
+      for (const r of results) if (r) downloadedItems.push(r);
+      try {
+        emit('sync:progress', { phase: 'bootstrap', processed: downloadedItems.length, total: urlEntries.length });
+      } catch {}
     }
 
     if (downloadedItems.length === 0) {
@@ -259,8 +253,7 @@ export class CloudTransport extends Transport {
     // AAD, try each plausible suffix and accept the first that decrypts.
     const candidateSuffixesFor = (item) => {
       const suffixes = [`${item.snapshotTs}`];
-      if (item.noteTs != null) suffixes.push(`${item.noteTs}`);
-      suffixes.push('snapshot-', '0');
+      if (item.noteTs != null && item.noteTs !== item.snapshotTs) suffixes.push(`${item.noteTs}`);
       return suffixes;
     };
 
@@ -373,20 +366,12 @@ export class CloudTransport extends Transport {
       const { extensions } = await import('@/lib/tiptap');
       const schema = getSchema(extensions);
 
-      for (const noteId of noteIds) {
+      const missing = [...noteIds];
+      const snaps = await getSnapshots(missing).catch(() => ({}));
+      const needHistory = missing.filter((id) => !snaps?.[id]?.length && !getActiveDoc(id));
+      const queue = needHistory.slice(0, 20);
+      for (const noteId of queue) {
         try {
-          // Skip anything with local content: snapshot bytes or live doc.
-          const snaps = await getSnapshots([noteId]).catch(() => ({}));
-          if (snaps?.[noteId]?.length) continue;
-          const active = getActiveDoc(noteId);
-          if (active) {
-            let hasContent = false;
-            try {
-              hasContent = active.getXmlFragment('content')?.length > 0
-                || active.getText('title')?.toString()?.length > 0;
-            } catch {}
-            if (hasContent) continue;
-          }
           const commits = await listCommits(workspaceId, noteId).catch(() => []);
           if (!commits?.length) continue;
           const sorted = [...commits].sort((a, b) => (b.ts ?? b.clock ?? 0) - (a.ts ?? a.clock ?? 0));
@@ -438,7 +423,6 @@ export class CloudTransport extends Transport {
         try { emit('sync:status', { status: 'workspace-reset', message: `Server returned ${e?.status}, workspace reset` }); } catch {}
         const workspaceStore = useWorkspaceStore();
         workspaceStore.activeId = null;
-        this._cachedWorkspaceId = null;
         return { updates: [] };
       }
       throw e;
@@ -494,7 +478,7 @@ export class CloudTransport extends Transport {
     const decodedUpdates = [];
     const parseResults = [];
     for (const upd of updates) {
-      const raw = atob(upd.data);
+      const raw = new TextDecoder().decode(base64ToBuf(upd.data));
       const parsed = parseSyncFilename(upd.key);
       if (!parsed || parsed.docId !== upd._noteId ||
         typeof parsed.device !== 'string' || parsed.device.length === 0 ||
@@ -522,12 +506,14 @@ export class CloudTransport extends Transport {
     }
     const envelopeIndexes = parseResults.map((r, i) => (r.isEnvelope ? i : -1)).filter((i) => i >= 0);
 
-    // All-plaintext batch: nothing to decrypt, but the checkpoint must still
-    // advance past the skipped rows or pull would re-fetch them forever.
+    // All-plaintext batch: never advance the checkpoint past rows we could
+    // not authenticate, or a downgrade/injection becomes invisible. The rows
+    // will be re-fetched next cycle; the status event surfaces the stall.
     if (envelopeIndexes.length === 0 && parseResults.length > 0) {
-      for (const [noteId, checkpoint] of pendingCheckpoints) {
-        saveServerCheckpoint(noteId, checkpoint);
-      }
+      try {
+        const { emit } = await import('@tauri-apps/api/event');
+        emit('sync:status', { status: 'downgrade-detected', skipped: parseResults.length });
+      } catch {}
       return { updates: [], hasMore };
     }
 
@@ -632,15 +618,13 @@ export class CloudTransport extends Transport {
       return { updates: [], pushed: 0 };
     }
 
-    const force = opts?.force === true;
+    const force = opts.force === true;
     if (!force && this._throttled()) {
       logger.info('[sync] cloud push: throttled');
       return { updates: [], pushed: 0, throttled: true };
     }
 
     const ownDeviceId = await getSyncDeviceId();
-
-    // If the push phase hasn't probed the server yet, try seeding.
     if (!this._serverProbeComplete) {
       try {
         const seeded = await this.seedCloudOnce();
@@ -695,7 +679,7 @@ export class CloudTransport extends Transport {
         if (!notesMap.has(noteId)) notesMap.set(noteId, []);
         notesMap.get(noteId).push({
           key: `${noteId}~~${ownDeviceId}~~${ts}~~${sequence}${YJS_UPDATE_EXT}`,
-          data: btoa(encryptedResults[i]),
+          data: bufToBase64(new TextEncoder().encode(encryptedResults[i])),
           deviceId: ownDeviceId,
           ts,
           sequence,
@@ -777,7 +761,7 @@ export class CloudTransport extends Transport {
 
         noteUpdates.push({
           key: `${parsed.docId}~~${parsed.device}~~${parsed.ts}~~${parsed.sequence ?? 0}${YJS_UPDATE_EXT}`,
-          data: btoa(typeof raw === 'string' ? raw : raw.toString()),
+          data: typeof raw === 'string' ? bufToBase64(new TextEncoder().encode(raw)) : bufToBase64(raw),
           deviceId: parsed.device,
           ts: parsed.ts,
           sequence: parsed.sequence ?? 0,
@@ -793,11 +777,31 @@ export class CloudTransport extends Transport {
     }
 
     logger.info('[sync] cloud push batchNotes:', batchNotes.length, '| notes total updates:', batchNotes.reduce((s, n) => s + n.updates.length, 0));
+    const pushedFileByKey = new Map();
+    for (const n of batchNotes) {
+      const files = filesByNoteId.get(n.noteId) ?? [];
+      for (const u of n.updates) {
+        const match = files.find((e) => `${e.parsed.docId}~~${e.parsed.device}~~${e.parsed.ts}~~${e.parsed.sequence ?? 0}${YJS_UPDATE_EXT}` === u.key);
+        if (match) pushedFileByKey.set(u.key, match.file);
+      }
+    }
     if (batchNotes.length > 0) {
       try {
         const result = await remotePushUpdates(workspaceId, batchNotes);
         totalPushed = (result.accepted || 0) + (result.duplicate || 0);
         logger.info('[sync] cloud push result:', JSON.stringify(result));
+        const checkpoints = acknowledgedCheckpoints(result, batchNotes.map((n) => n.noteId));
+        const ackedKeys = new Set();
+        for (const n of batchNotes) {
+          const cp = checkpoints[n.noteId];
+          if (!cp || cp.deviceId !== ownDeviceId) continue;
+          for (const u of n.updates) {
+            if (u.ts < cp.ts || (u.ts === cp.ts && u.sequence <= cp.sequence)) ackedKeys.add(u.key);
+          }
+        }
+        for (const [key, file] of pushedFileByKey) {
+          if (ackedKeys.has(key)) removeFsFile(path.join(commitsDir, file)).catch(() => {});
+        }
       } catch (e) {
         console.error('[sync] cloud push error:', e?.status, e?.message, JSON.stringify(e?.body) || '');
         throw e;
@@ -849,7 +853,7 @@ export class CloudTransport extends Transport {
     try {
       const state = await getRemoteState(workspaceId);
       if (!isValidRemoteState(state)) throw malformedRemoteState();
-      if (state.status === 'initialized' && Object.hasOwn(state, 'vault') && !state.vault) {
+      if (state.status === 'initialized' && Object.prototype.hasOwnProperty.call(state, 'vault') && !state.vault) {
         throw seedError(
           'verify',
           'Cloud sync is initialized but its encryption parameters are missing. Reset cloud sync and seed again from the device that owns these notes.'
@@ -866,7 +870,6 @@ export class CloudTransport extends Transport {
         logger.info('[sync] cloud seed: workspace not accessible, resetting');
         const workspaceStore = useWorkspaceStore();
         workspaceStore.activeId = null;
-        this._cachedWorkspaceId = null;
         const newWorkspaceId = await this._ensureWorkspace();
         if (!newWorkspaceId || newWorkspaceId === workspaceId) {
           throw seedError('probe', 'cloud seed: no accessible workspace is available.');
@@ -939,7 +942,7 @@ export class CloudTransport extends Transport {
         noteId: META_DOC_ID,
         update: wsState,
       }, `${META_DOC_ID}-${ts}`);
-      snapshots.push({ noteId: META_DOC_ID, data: btoa(encrypted), noteTs: ts });
+      snapshots.push({ noteId: META_DOC_ID, data: bufToBase64(new TextEncoder().encode(encrypted)), noteTs: ts });
       noteIds.push(META_DOC_ID);
     }
 
@@ -950,13 +953,20 @@ export class CloudTransport extends Transport {
         && VALID_NOTE_ID_RE.test(id)
     );
 
+    const { getSnapshots } = await import('@/lib/native/yjs.js').catch(() => ({}));
+    let snapMap = {};
+    if (typeof getSnapshots === 'function') {
+      try {
+        snapMap = await getSnapshots(allNoteIds);
+      } catch {}
+    }
     for (const noteId of allNoteIds) {
       try {
         const doc = new Y.Doc();
         try {
           let loaded = false;
           try {
-            const snapshot = await getSnapshot(noteId);
+            const snapshot = snapMap?.[noteId] ?? await getSnapshot(noteId);
             if (snapshot && snapshot.length > 0) {
               Y.applyUpdate(doc, toUint8Array(snapshot));
               loaded = true;
@@ -976,7 +986,7 @@ export class CloudTransport extends Transport {
               noteId,
               update: state,
             }, `${noteId}-${noteTs}`);
-            snapshots.push({ noteId, data: btoa(encrypted), noteTs });
+            snapshots.push({ noteId, data: bufToBase64(new TextEncoder().encode(encrypted)), noteTs });
             noteIds.push(noteId);
           }
         } finally {
@@ -1007,7 +1017,7 @@ export class CloudTransport extends Transport {
       const batch = snapshots.slice(i, i + CONCURRENT);
       await Promise.all(batch.map(async ({ noteId, data, noteTs: snapNoteTs }) => {
         const { url, key } = urls[noteId];
-        const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+        const bytes = base64ToBuf(data);
         const response = await fetch(url, {
           method: 'PUT',
           body: bytes,
@@ -1237,6 +1247,14 @@ export class CloudTransport extends Transport {
     }
 
     const ops = [];
+    const remoteByType = new Map();
+    for (const decoded of remoteMap.values()) {
+      if (!remoteByType.has(decoded.type)) remoteByType.set(decoded.type, []);
+      remoteByType.get(decoded.type).push(decoded);
+    }
+    const assertLocalPath = (p) => {
+      if (p !== appDir && !p.startsWith(`${appDir}/`)) throw new Error('path escapes vault');
+    };
 
     for (const assetType of ASSET_TYPES) {
       const localBase = path.join(appDir, assetType);
@@ -1248,12 +1266,15 @@ export class CloudTransport extends Transport {
 
       logger.info('[sync] syncAssets', assetType, 'noteIds:', localNoteIds.length);
 
-      for (const noteId of localNoteIds) {
+      const listings = await Promise.all(localNoteIds.slice(0, 200).map(async (noteId) => {
         const localNoteDir = path.join(localBase, noteId);
         const localFiles = await readDir(localNoteDir)
           .then((e) => e.filter((f) => f && !f.startsWith('.')))
           .catch(() => []);
+        return { noteId, localNoteDir, localFiles };
+      }));
 
+      for (const { noteId, localNoteDir, localFiles } of listings) {
         for (const file of localFiles) {
           const assetKey = `${assetType}/${noteId}/${file}`;
           const flatKey = encodeAssetKey(assetType, noteId, file);
@@ -1273,20 +1294,25 @@ export class CloudTransport extends Transport {
         }
       }
 
-      const remoteForType = [...remoteMap.values()].filter((d) => d.type === assetType);
-      for (const decoded of remoteForType) {
-        const localNoteDir = path.join(appDir, assetType, decoded.noteId);
-        const localFile = localAssetName(decoded.filename);
-        const localPath = path.join(localNoteDir, localFile);
-
-        const exists = await pathExists(localPath);
-        if (!exists) {
-          ops.push({
-            type: 'download',
-            flatKey: encodeAssetKey(assetType, decoded.noteId, decoded.filename),
-            dest: path.join(localNoteDir, localAssetName(decoded.filename)),
-          });
-        }
+      const remoteForType = remoteByType.get(assetType) ?? [];
+      const existsChecks = await Promise.all(remoteForType.map(async (decoded) => {
+        let localPath;
+        try {
+          localPath = path.join(appDir, assetType, decoded.noteId);
+          assertLocalPath(localPath);
+          localPath = path.join(localPath, localAssetName(decoded.filename));
+          assertLocalPath(localPath);
+        } catch { return null; }
+        const exists = await pathExists(localPath).catch(() => true);
+        return exists ? null : { decoded, localPath };
+      }));
+      for (const hit of existsChecks) {
+        if (!hit) continue;
+        ops.push({
+          type: 'download',
+          flatKey: encodeAssetKey(assetType, hit.decoded.noteId, hit.decoded.filename),
+          dest: hit.localPath,
+        });
       }
     }
 
@@ -1551,16 +1577,14 @@ export class CloudTransport extends Transport {
     try {
       const { captureNoteSnapshot, captureNoteSnapshotFromBytes } = await import('../commit-snapshot.js');
       const { createCommit } = await import('@/lib/api/history.js');
+      const { getSnapshots } = await import('@/lib/native/yjs.js');
 
-      for (const noteId of noteIds) {
-        if (noteId === 'meta') continue;
+      const ids = [...noteIds].filter((id) => id !== 'meta').slice(0, 30);
+      const recordOne = async (noteId) => {
         try {
-          // Active docs capture live; background notes fall back to cached
-          // full-state bytes so history covers notes never opened this session.
           let snapshot = await captureNoteSnapshot(noteId);
           if (!snapshot) {
             try {
-              const { getSnapshots } = await import('@/lib/native/yjs.js');
               const snaps = await getSnapshots([noteId]);
               const bytes = snaps?.[noteId];
               if (bytes?.length) snapshot = await captureNoteSnapshotFromBytes(noteId, bytes);
@@ -1570,10 +1594,17 @@ export class CloudTransport extends Transport {
             await createCommit(noteId, snapshot);
           }
         } catch (err) {
-          // Non-fatal: history best-effort.
           logger.warn('[sync] commit record failed for', noteId, err?.message);
         }
+      };
+      const workers = [];
+      const pool = [...ids];
+      for (let w = 0; w < 4 && pool.length; w++) {
+        workers.push((async () => {
+          while (pool.length) await recordOne(pool.pop());
+        })());
       }
+      await Promise.all(workers);
     } catch (err) {
       logger.warn('[sync] commit recording skipped:', err?.message);
     }

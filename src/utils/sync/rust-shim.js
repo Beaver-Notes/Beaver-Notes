@@ -15,6 +15,15 @@ export function isRustFolderOwner() {
   return rustFolderOwned;
 }
 
+export async function refreshRustOwnership() {
+  try {
+    const { getSyncPath } = await import('./path.js');
+    const folderId = (await getSyncPath().catch(() => '')) || '';
+    rustFolderOwned = rustSyncActive && Boolean(folderId) && !folderId.startsWith('scoped:');
+  } catch {}
+  return rustFolderOwned;
+}
+
 async function getSyncConfig() {
   const { useAccountStore } = await import('@/store/account');
   const { useWorkspaceStore } = await import('@/store/workspace');
@@ -42,15 +51,41 @@ async function invokeSync(channel) {
 export async function applySyncedNotes(noteIds) {
   if (!noteIds?.length) return;
   const { backend } = await import('@/lib/tauri-bridge');
+  try {
+    const { invoke } = await import('@/lib/tauri-bridge').catch(() => ({}));
+    void invoke;
+    const snapshots = await backend.invoke('yjs:getSnapshots', noteIds);
+    const entries = Array.isArray(snapshots)
+      ? snapshots
+      : Object.entries(snapshots || {}).map(([noteId, snapshot]) => ({ noteId, snapshot }));
+    for (const entry of entries) {
+      try {
+        const noteId = entry.noteId ?? entry[0];
+        const snapshot = entry.snapshot ?? entry[1];
+        if (!noteId || !snapshot) continue;
+        applyRemote(noteId, base64ToBuf(snapshot));
+      } catch {}
+    }
+    return;
+  } catch {}
   for (const noteId of noteIds) {
     try {
       const snapshot = await backend.invoke('yjs:getSnapshot', noteId);
       if (!snapshot) continue;
       applyRemote(noteId, base64ToBuf(snapshot));
-    } catch {
-
-    }
+    } catch {}
   }
+}
+
+export async function stopRustSync() {
+  rustSyncActive = false;
+  rustFolderOwned = false;
+  if (kickTimer) { clearTimeout(kickTimer); kickTimer = null; }
+  if (dirtyTimer) { clearTimeout(dirtyTimer); dirtyTimer = null; }
+  try {
+    const { backend } = await import('@/lib/tauri-bridge');
+    await backend.invoke('sync:stop');
+  } catch {}
 }
 
 export async function startRustSync() {
@@ -68,56 +103,32 @@ export async function startRustSync() {
   }
 }
 
-export async function stopRustSync() {
-  rustSyncActive = false;
-  rustFolderOwned = false;
-  if (unlistenApplied) {
-    try {
-      await unlistenApplied();
-    } catch {
-
-    }
-    unlistenApplied = null;
+function kick(timerName, channel, ms) {
+  if (!rustSyncActive) return timerName === 'kick' ? false : undefined;
+  if (timerName === 'kick') {
+    if (kickTimer) return true;
+    kickTimer = setTimeout(async () => {
+      kickTimer = null;
+      try {
+        await invokeSync(channel);
+      } catch {}
+    }, ms);
+    return true;
   }
-  if (kickTimer) {
-    clearTimeout(kickTimer);
-    kickTimer = null;
-  }
-  if (dirtyTimer) {
-    clearTimeout(dirtyTimer);
-    dirtyTimer = null;
-  }
-  try {
-    const { backend } = await import('@/lib/tauri-bridge');
-    await backend.invoke('sync:stop', {});
-  } catch {
-
-  }
-}
-
-export function kickRustSync() {
-  if (!rustSyncActive) return false;
-  if (kickTimer) return true;
-  kickTimer = setTimeout(async () => {
-    kickTimer = null;
-    try {
-      await invokeSync('sync:kick');
-    } catch {
-
-    }
-  }, 500);
-  return true;
-}
-
-export function kickRustDirty() {
-  if (!rustSyncActive) return;
-  if (dirtyTimer) return;
+  if (dirtyTimer) return undefined;
   dirtyTimer = setTimeout(async () => {
     dirtyTimer = null;
     try {
-      await invokeSync('sync:kick-dirty');
-    } catch {
+      await invokeSync(channel);
+    } catch {}
+  }, ms);
+  return undefined;
+}
 
-    }
-  }, 1000);
+export function kickRustSync() {
+  return kick('kick', 'sync:kick', 500);
+}
+
+export function kickRustDirty() {
+  return kick('dirty', 'sync:kick-dirty', 1000);
 }

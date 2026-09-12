@@ -3,29 +3,52 @@
 import { getApiClient } from '@/lib/api/client.js';
 import { uint8ArrayToBase64 } from '@/utils/helpers/index.js';
 import { encryptAssetBytes } from './crypto.js';
+import { useAccountStore } from '@/store/account';
 
 let apiClient = null;
+let lastServerUrl = null;
 
 function getClient() {
-  if (!apiClient) {
-    apiClient = getApiClient();
+  let serverUrl;
+  try {
+    serverUrl = useAccountStore()?.serverUrl;
+  } catch {
+    serverUrl = undefined;
   }
+  if (apiClient && serverUrl === lastServerUrl) return apiClient;
+  lastServerUrl = serverUrl;
+  apiClient = getApiClient(serverUrl ? { baseUrl: serverUrl } : undefined);
   return apiClient;
 }
 
-/** Encode a local asset path into a flat server key: assets/abc/img.png → assets--abc--img.png */
+function assertSafeSegment(value) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 256) return false;
+  if (value.includes('/') || value.includes('\\') || value.includes('\0')) return false;
+  if (value === '.' || value === '..' || value.includes('--')) return false;
+  if (value.startsWith('.')) return false;
+  return true;
+}
+
 export function encodeAssetKey(type, noteId, filename) {
-  return `${type}--${noteId}--${filename}`;
+  if (!assertSafeSegment(type) || !assertSafeSegment(noteId) || !assertSafeSegment(filename)) {
+    throw new Error('sync: invalid asset key segment');
+  }
+  return `${encodeURIComponent(type)}--${encodeURIComponent(noteId)}--${encodeURIComponent(filename)}`;
 }
 
 export function decodeAssetKey(key) {
+  if (typeof key !== 'string' || key.includes('/') || key.includes('\\') || key.includes('\0')) return null;
   const parts = key.split('--');
   if (parts.length < 3) return null;
-  return {
-    type: parts[0],
-    noteId: parts[1],
-    filename: parts.slice(2).join('--'),
-  };
+  try {
+    const type = decodeURIComponent(parts[0]);
+    const noteId = decodeURIComponent(parts[1]);
+    const filename = decodeURIComponent(parts.slice(2).join('--'));
+    if (!assertSafeSegment(type) || !assertSafeSegment(noteId) || !assertSafeSegment(filename)) return null;
+    return { type, noteId, filename };
+  } catch {
+    return null;
+  }
 }
 
 export async function listRemoteAssets() {
@@ -50,9 +73,16 @@ export async function listRemoteAssets() {
 }
 
 async function encryptAssetItems(items) {
+  const CONCURRENCY = 4;
   const out = [];
-  for (const item of items) {
-    out.push({ key: item.key, data: uint8ArrayToBase64(await encryptAssetBytes(item.key, item.data)) });
+  for (let i = 0; i < items.length; i += CONCURRENCY) {
+    const slice = items.slice(i, i + CONCURRENCY);
+    const encrypted = await Promise.all(
+      slice.map((item) => encryptAssetBytes(item.key, item.data))
+    );
+    slice.forEach((item, k) => {
+      out[i + k] = { key: item.key, data: uint8ArrayToBase64(encrypted[k]) };
+    });
   }
   return out;
 }
@@ -67,14 +97,14 @@ export async function uploadAsset(flatKey, data) {
       contentType: 'application/octet-stream',
       headers: {
         'Content-Type': 'application/octet-stream',
-        'Content-Length': String(encrypted.byteLength ?? encrypted.length),
+        'Content-Length': String(encrypted.byteLength),
       },
       timeoutMs: 60000,
     });
     return result || { status: 'uploaded' };
   } catch (err) {
     if (err?.status === 413) {
-      console.warn('[sync] asset too large:', flatKey, encrypted.byteLength ?? encrypted.length);
+      console.warn('[sync] asset too large:', flatKey, encrypted.byteLength);
       return { status: 'skipped' };
     }
     throw err;
@@ -124,26 +154,6 @@ export async function downloadAsset(flatKey) {
     }
   }
   return null;
-}
-
-export async function deleteRemoteAsset(flatKey) {
-  const client = getClient();
-  try {
-    await client.delete(`/assets/${encodeURIComponent(flatKey)}`, { timeoutMs: 10000 });
-  } catch {
-    // best-effort
-  }
-}
-
-export async function presignBatchUpload(assetKeys) {
-  const client = getClient();
-  const result = await client.post('/assets/presign-batch', { keys: assetKeys }, { timeoutMs: 30000 });
-  return result?.urls || [];
-}
-
-export async function confirmSeed(assetKeys) {
-  const client = getClient();
-  return client.post('/assets/confirm-seed', { keys: assetKeys }, { timeoutMs: 30000 });
 }
 
 export async function presignGetBatch(assetKeys) {

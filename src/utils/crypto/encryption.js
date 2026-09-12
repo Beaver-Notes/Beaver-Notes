@@ -315,10 +315,6 @@ export async function lockEncryptionKey() {
   await lockEncryption();
   await clearDecryptedCaches();
   await refreshState();
-  try {
-    const { clearSyncKey } = await import('@/utils/sync/crypto.js');
-    clearSyncKey();
-  } catch {}
 }
 
 export { encryptContent as encryptPayload, decryptContent as decryptPayload };

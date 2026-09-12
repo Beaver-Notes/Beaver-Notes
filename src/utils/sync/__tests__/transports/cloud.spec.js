@@ -15,7 +15,6 @@ vi.mock('../../remote-yjs.js', () => ({
     urls: Object.fromEntries(noteIds.map((noteId) => [noteId, { url: 'https://seed.example/upload', key: `yjs/workspace-1/${noteId}/1.yjs` }])),
     generation: 1,
   })),
-  listRemoteNoteIds: vi.fn(() => []),
 }));
 
 vi.mock('../../path.js', () => ({
@@ -35,6 +34,7 @@ vi.mock('../../sync-yjs.js', () => ({
 vi.mock('@/lib/native/fs', () => ({
   readDir: vi.fn(),
   readFile: vi.fn(),
+  removePath: vi.fn(() => Promise.resolve()),
   pathExists: vi.fn(() => Promise.resolve(true)),
 }));
 
@@ -79,8 +79,6 @@ vi.mock('../state-vector.js', () => ({
   loadStateVector: vi.fn(() => null),
   saveStateVector: vi.fn(),
   getCurrentStateVector: vi.fn(async () => ({})),
-  isUpdateKnown: vi.fn(() => false),
-  mergeStateVectors: vi.fn(() => ({})),
   loadServerCheckpoint: vi.fn(() => null),
   saveServerCheckpoint: vi.fn(),
 }));
@@ -89,6 +87,10 @@ vi.mock('../../vault-key-params.js', () => ({
   publishCloudKeyParams: vi.fn(async () => true),
   fetchCloudKeyParams: vi.fn(async () => ({ keyParams: 'test-params' })),
   getFetchedCloudKeyParams: vi.fn(() => null),
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: vi.fn(),
 }));
 
 describe('CloudTransport', () => {
@@ -198,6 +200,31 @@ describe('CloudTransport', () => {
 
       expect(result.pushed).toBe(1);
     });
+
+    it('deletes only server-acknowledged files on partial acceptance', async () => {
+      const { readDir, readFile, removePath } = await import('@/lib/native/fs');
+      const { parseSyncFilename } = await import('../../sync-yjs.js');
+      const { pushUpdates } = await import('../../remote-yjs.js');
+      transport._serverProbeComplete = true;
+      readDir.mockResolvedValue([
+        'note-a~~mock-device~~200~~1.yjs.json',
+        'note-b~~mock-device~~200~~1.yjs.json',
+      ]);
+      readFile.mockResolvedValue('data');
+      parseSyncFilename.mockImplementation((file) => ({
+        docId: file.startsWith('note-a') ? 'note-a' : 'note-b',
+        isSnapshot: false, device: 'mock-device', ts: 200, sequence: 1,
+      }));
+      pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoints: {
+        'note-a': { deviceId: 'mock-device', ts: 200, sequence: 1 },
+      } });
+
+      const result = await transport.push({ force: true });
+
+      expect(result.pushed).toBe(1);
+      expect(removePath).toHaveBeenCalledTimes(1);
+      expect(removePath.mock.calls[0][0]).toContain('note-a');
+    });
   });
 
   describe('pull', () => {
@@ -252,10 +279,11 @@ describe('CloudTransport', () => {
       expect(result.updates[0].device).toBe('remote-device');
     });
 
-    it('skips plaintext relay rows without failing the batch and still advances the checkpoint', async () => {
+    it('skips plaintext relay rows without failing the batch and holds the checkpoint', async () => {
       const { pullUpdates, getRemoteState } = await import('../../remote-yjs.js');
       const { decryptBatch } = await import('../../crypto.js');
       const { parseSyncFilename } = await import('../../sync-yjs.js');
+      const { emit } = await import('@tauri-apps/api/event');
 
       // RAW Yjs binary persisted with update_encrypted=0: base64 of bytes that
       // are not a JSON envelope (mirrors server formatUpdate dropping the flag).
@@ -278,7 +306,8 @@ describe('CloudTransport', () => {
       expect(result.updates).toEqual([]);
       expect(result.hasMore).toBe(false);
       expect(decryptBatch).not.toHaveBeenCalled();
-      expect(localStorage.getItem('syncServerCheckpoints:note-a')).toBe(JSON.stringify(nextCheckpoint));
+      expect(localStorage.getItem('syncServerCheckpoints:note-a')).toBeNull();
+      expect(emit).toHaveBeenCalledWith('sync:status', expect.objectContaining({ status: 'downgrade-detected' }));
     });
 
     it('decrypts enveloped rows while skipping plaintext rows in the same batch', async () => {

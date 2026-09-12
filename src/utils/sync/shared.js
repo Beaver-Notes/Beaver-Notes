@@ -16,23 +16,6 @@ export function toUpdateBytes(value) {
   return null;
 }
 
-export function validateCheckpoint(checkpoint) {
-  if (checkpoint?.deviceId) {
-    return typeof checkpoint.deviceId === 'string' && checkpoint.deviceId.length > 0 &&
-      isNonNegativeInteger(checkpoint.ts) && isNonNegativeInteger(checkpoint.sequence);
-  }
-  return checkpoint && typeof checkpoint === 'object' && Object.entries(checkpoint).every(([deviceId, value]) =>
-    typeof deviceId === 'string' && deviceId.length > 0 && value &&
-    isNonNegativeInteger(value.ts) && isNonNegativeInteger(value.sequence));
-}
-
-export function checkpointMap(checkpoint) {
-  return checkpoint?.deviceId
-    ? { [checkpoint.deviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence } }
-    : checkpoint;
-}
-
-/** AAD suffix binding an envelope to its doc + ts (snapshot variant included). */
 export function buildAadSuffix(parsed) {
   return parsed?.isSnapshot
     ? `${parsed.docId}-snapshot-${parsed.ts}`

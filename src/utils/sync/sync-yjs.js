@@ -22,78 +22,37 @@ export function withTimeout(promise, ms, label) {
 }
 
 function sanitizeForFilename(str) {
-  let s = str;
-  const SANITIZE_MAP = [
-    ['\x00', '__NULL__'],
-    ['\n', '__NEWLINE__'],
-    ['\r', '__CR__'],
-    ['\t', '__TAB__'],
-    ['/', '__SLASH__'],
-    ['\\', '__BSLASH__'],
-    [':', '__COLON__'],
-    ['*', '__STAR__'],
-    ['?', '__QMARK__'],
-    ['"', '__QUOTE__'],
-    ['<', '__LT__'],
-    ['>', '__GT__'],
-    ['|', '__PIPE__'],
-  ];
-  for (const [ch, replacement] of SANITIZE_MAP) {
-    s = s.replaceAll(ch, replacement);
-  }
-  return s;
+  return encodeURIComponent(str);
 }
 
 function unsanitizeFromFilename(str) {
-  let s = str;
-  const UNSANITIZE_MAP = [
-    ['__NULL__', '\x00'],
-    ['__NEWLINE__', '\n'],
-    ['__CR__', '\r'],
-    ['__TAB__', '\t'],
-    ['__SLASH__', '/'],
-    ['__BSLASH__', '\\'],
-    ['__COLON__', ':'],
-    ['__STAR__', '*'],
-    ['__QMARK__', '?'],
-    ['__QUOTE__', '"'],
-    ['__LT__', '<'],
-    ['__GT__', '>'],
-    ['__PIPE__', '|'],
-  ];
-  for (const [pattern, result] of UNSANITIZE_MAP) {
-    s = s.replaceAll(pattern, result);
+  try {
+    return decodeURIComponent(str);
+  } catch {
+    return str;
   }
-  return s;
 }
 
 const FILENAME_SEP = '~~';
 
 function yjsFileName(noteId, ts, sequence, deviceId) {
-  const seqPart = sequence != null ? `${FILENAME_SEP}${sequence}` : '';
-  return `${sanitizeForFilename(noteId)}${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${seqPart}${YJS_UPDATE_EXT}`;
+  return `${sanitizeForFilename(noteId)}${FILENAME_SEP}${encodeURIComponent(deviceId)}${FILENAME_SEP}${ts}${FILENAME_SEP}${sequence}${YJS_UPDATE_EXT}`;
 }
 
 function yjsSnapshotFileName(docId, ts, deviceId) {
-  return `${sanitizeForFilename(docId)}${FILENAME_SEP}snapshot${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${YJS_UPDATE_EXT}`;
+  return `${sanitizeForFilename(docId)}${FILENAME_SEP}snapshot${FILENAME_SEP}${encodeURIComponent(deviceId)}${FILENAME_SEP}${ts}${YJS_UPDATE_EXT}`;
 }
 
 export function parseSyncFilename(file) {
   if (!file.endsWith(YJS_UPDATE_EXT)) return null;
-
   const base = file.slice(0, -YJS_UPDATE_EXT.length);
-
   const parts = base.split(FILENAME_SEP);
   if (parts.length < 3) return null;
-
   const last = parts[parts.length - 1];
   const lastNum = Number(last);
-  const secondLast = parts.length >= 2 ? parts[parts.length - 2] : null;
-  const secondLastNum = secondLast != null ? Number(secondLast) : NaN;
-
+  const secondLastNum = Number(parts[parts.length - 2]);
   let sequence;
   let ts;
-
   if (parts.length >= 4 && parts[parts.length - 3] !== 'snapshot' &&
     Number.isInteger(lastNum) && lastNum >= 0 && Number.isFinite(secondLastNum)) {
     sequence = lastNum;
@@ -106,32 +65,35 @@ export function parseSyncFilename(file) {
   } else {
     return null;
   }
-
-  if (parts.length === 0) return null;
   const device = parts[parts.length - 1];
   parts.pop();
-
   let isSnapshot = false;
   if (parts.length > 0 && parts[parts.length - 1] === 'snapshot') {
     isSnapshot = true;
     parts.pop();
   }
-
+  if (parts.length === 0) return null;
   const docId = unsanitizeFromFilename(parts.join(FILENAME_SEP));
   if (!docId) return null;
-
   return { docId, isSnapshot, device, ts, sequence };
 }
 
+const SEQ_KEY = 'sync:write-seq';
 let _writeSeq = 0;
+try {
+  _writeSeq = Number(localStorage.getItem(SEQ_KEY)) || 0;
+} catch {}
 function _nextWriteSeq() {
-  _writeSeq = (_writeSeq + 1) % 1000;
+  _writeSeq += 1;
+  try {
+    localStorage.setItem(SEQ_KEY, String(_writeSeq));
+  } catch {}
   return _writeSeq;
 }
 
-export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, stateVector) {
+async function writeYjsFile(commitsDir, noteId, update, encryptJSON, stateVector, isSnapshot) {
   const ts = Date.now();
-  const sequence = _nextWriteSeq();
+  const sequence = isSnapshot ? 0 : _nextWriteSeq();
   const deviceId = await getSyncDeviceId();
   const payload = {
     device: deviceId,
@@ -143,26 +105,20 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, st
   if (stateVector) {
     payload.stateVector = stateVector;
   }
-  const encrypted = await encryptJSON(payload, `${noteId}-${ts}`);
-  const fileName = yjsFileName(noteId, ts, sequence, deviceId);
+  const aad = isSnapshot ? `${noteId}-snapshot-${ts}` : `${noteId}-${ts}`;
+  const encrypted = await encryptJSON(payload, aad);
+  const fileName = isSnapshot
+    ? yjsSnapshotFileName(noteId, ts, deviceId)
+    : yjsFileName(noteId, ts, sequence, deviceId);
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
+export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, stateVector) {
+  return writeYjsFile(commitsDir, noteId, update, encryptJSON, stateVector, false);
+}
+
 export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, stateVector) {
-  const ts = Date.now();
-  const deviceId = await getSyncDeviceId();
-  const payload = {
-    device: deviceId,
-    ts,
-    noteId: docId,
-    update: state,
-  };
-  if (stateVector) {
-    payload.stateVector = stateVector;
-  }
-  const encrypted = await encryptJSON(payload, `${docId}-snapshot-${ts}`);
-  const fileName = yjsSnapshotFileName(docId, ts, deviceId);
-  await writeSyncFile(path.join(commitsDir, fileName), encrypted);
+  return writeYjsFile(commitsDir, docId, state, encryptJSON, stateVector, true);
 }
 
 export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, stateVector, readTimeoutMs = STALLED_READ_MS) {
@@ -172,52 +128,101 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
   } catch {
     return [];
   }
-
   const deviceId = await getSyncDeviceId();
-  const updates = [];
-
+  const candidates = [];
   for (const file of files.filter((f) => f.endsWith(YJS_UPDATE_EXT))) {
     const parsed = parseSyncFilename(file);
     if (!parsed) continue;
-
     if (parsed.device === deviceId) continue;
-
     if (stateVector) {
       const maxClock = stateVector[parsed.device];
       if (maxClock != null && (parsed.sequence ?? 0) <= maxClock) continue;
     }
-
     const cursorKey = `yjs-${parsed.device}`;
     const seen = cursors[cursorKey];
     const seenTs = seen?.ts ?? 0;
     const seenSeq = seen?.sequence ?? 0;
     if (parsed.ts < seenTs) continue;
     if (parsed.ts === seenTs && (parsed.sequence ?? 0) <= seenSeq) continue;
-
-    let payload;
-    try {
-      const raw = await withTimeout(readSyncFile(path.join(commitsDir, file)), readTimeoutMs, `read ${file}`);
-
+    candidates.push({ file, parsed });
+  }
+  const CONCURRENCY = 8;
+  const updates = [];
+  let decryptFailures = 0;
+  let decryptBatch;
+  try {
+    ({ decryptBatch } = await import('./crypto.js'));
+    if (typeof decryptBatch !== 'function') decryptBatch = undefined;
+  } catch {
+    decryptBatch = undefined;
+  }
+  for (let i = 0; i < candidates.length; i += CONCURRENCY) {
+    const slice = candidates.slice(i, i + CONCURRENCY);
+    const raws = await Promise.all(
+      slice.map(({ file }) =>
+        withTimeout(readSyncFile(path.join(commitsDir, file)), readTimeoutMs, `read ${file}`).catch(() => null)
+      )
+    );
+    const toDecrypt = [];
+    const toDecryptIdx = [];
+    slice.forEach(({ parsed }, k) => {
+      const raw = raws[k];
+      if (!raw) return;
       const aadSuffix = parsed.isSnapshot
         ? `${parsed.docId}-snapshot-${parsed.ts}`
         : `${parsed.docId}-${parsed.ts}`;
-
-      payload = await decryptJSON(raw, aadSuffix);
-    } catch {
-      continue;
-    }
-    if (!payload?.device || !payload?.noteId || !payload?.update) continue;
-
-    updates.push({
-      device: payload.device,
-      ts: payload.ts,
-      sequence: parsed.sequence ?? payload.sequence ?? 0,
-      noteId: payload.noteId,
-      update: new Uint8Array(payload.update),
-      stateVector: payload.stateVector || null,
+      toDecrypt.push({ raw, aadSuffix, k });
+      toDecryptIdx.push(k);
     });
+    let decrypted = [];
+    if (toDecrypt.length > 0 && decryptBatch) {
+      try {
+        decrypted = await decryptBatch(
+          toDecrypt.map((d) => d.raw),
+          toDecrypt.map((d) => d.aadSuffix)
+        );
+      } catch {
+        decrypted = [];
+      }
+    }
+    if (decrypted.length !== toDecrypt.length) {
+      decrypted = toDecrypt.map(() => null);
+      for (let j = 0; j < toDecrypt.length; j++) {
+        try {
+          decrypted[j] = await decryptJSON(toDecrypt[j].raw, toDecrypt[j].aadSuffix);
+        } catch {
+          decrypted[j] = null;
+          decryptFailures++;
+        }
+      }
+    } else {
+      decrypted.forEach((d) => {
+        if (!d) decryptFailures++;
+      });
+    }
+    slice.forEach(({ parsed }, k) => {
+      const di = toDecryptIdx.indexOf(k);
+      if (di < 0) return;
+      const payload = decrypted[di];
+      if (!payload?.device || !payload?.noteId || !payload?.update) return;
+      updates.push({
+        device: payload.device,
+        ts: payload.ts,
+        sequence: parsed.sequence ?? payload.sequence ?? 0,
+        noteId: payload.noteId,
+        update: new Uint8Array(payload.update),
+        stateVector: payload.stateVector || null,
+      });
+    });
+    if ((i / CONCURRENCY) % 4 === 3) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
   }
-
+  if (candidates.length > 0 && updates.length === 0 && decryptFailures >= candidates.length) {
+    const err = new Error('Sync folder cannot be decrypted');
+    err.code = 'DECRYPT_FAILED';
+    throw err;
+  }
   return updates.sort((a, b) => a.ts - b.ts || a.sequence - b.sequence);
 }
 
@@ -230,7 +235,6 @@ export async function compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON) 
   } catch {
     return;
   }
-
   const groups = new Map();
   for (const file of files) {
     if (!file.endsWith(YJS_UPDATE_EXT)) continue;
@@ -239,10 +243,8 @@ export async function compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON) 
     if (!groups.has(parsed.docId)) groups.set(parsed.docId, []);
     groups.get(parsed.docId).push({ file, parsed });
   }
-
   for (const [docId, entries] of groups) {
     if (entries.length < WORKSPACE_COMPACTION_THRESHOLD) continue;
-
     const doc = new Y.Doc();
     for (const { file, parsed } of entries) {
       try {
@@ -254,19 +256,14 @@ export async function compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON) 
         if (payload?.update) {
           Y.applyUpdate(doc, new Uint8Array(payload.update));
         }
-      } catch {
-
-      }
+      } catch {}
     }
-
     const state = Y.encodeStateAsUpdate(doc);
     const sv = Y.encodeStateVector(doc);
     await writeYjsSnapshot(commitsDir, docId, state, encryptJSON, sv);
-
     for (const { file } of entries) {
       await removeSyncPath(path.join(commitsDir, file)).catch(() => {});
     }
-
     doc.destroy();
   }
 }

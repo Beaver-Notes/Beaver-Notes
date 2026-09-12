@@ -7,7 +7,7 @@ import {
   setSyncTrigger,
   hasPendingWrites,
 } from './pending-writes.js';
-import { applyRemote } from '@/composable/useNoteYjs.js';
+import { applyRemote } from '@/lib/yjs/shared.js';
 import { appendUpdate, appendBatch } from '@/lib/native/yjs.js';
 import { getAppDirectory } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
@@ -22,12 +22,27 @@ import { reconcileSyncKeyParams } from '@/lib/native/security.js';
 import * as Y from 'yjs';
 import { getCurrentStateVector, saveStateVector } from './state-vector.js';
 import { getActiveDoc } from '@/lib/yjs/shared.js';
-import { isRustSyncActive, kickRustSync } from './rust-shim.js';
+import { isRustSyncActive, kickRustSync, refreshRustOwnership } from './rust-shim.js';
 import { logger } from '@/utils/logger';
 
 const APPLY_YIELD_STRIDE = 25;
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
+const MAX_PULL_PAGES = 20;
+
+function settleSync(inst, outcome) {
+  if (outcome.ok) inst.syncResolve?.();
+  else inst.syncReject?.(outcome.err);
+  inst.syncResolve = null;
+  inst.syncReject = null;
+  inst.syncing = false;
+  const waiters = inst.pendingWaiters;
+  inst.pendingWaiters = [];
+  for (const { resolve, reject } of waiters) {
+    if (outcome.ok) resolve();
+    else reject(outcome.err);
+  }
+}
 
 let engine = null;
 
@@ -36,6 +51,7 @@ export function getSyncEngine() {
 }
 
 export function initSyncEngine(deps) {
+  try { engine?.stopPullTimer(); } catch {}
   engine = new SyncEngine(deps);
   return engine;
 }
@@ -67,6 +83,10 @@ export class SyncEngine {
       this.pending = true;
       if (force || this._forceFlush) this._pendingForce = true;
       if (pullOnly) this._pullOnlyMode = true;
+      if (this.pendingWaiters.length >= 50) {
+        const dropped = this.pendingWaiters.shift();
+        try { dropped.resolve(); } catch {}
+      }
       return new Promise((resolve, reject) => {
         this.pendingWaiters.push({ resolve, reject });
       });
@@ -142,12 +162,8 @@ export class SyncEngine {
     this._pullOnlyMode = false;
     this._foregroundWake = false;
     this._forceFlush = false;
-    this.syncResolve?.();
-    this.syncResolve = null;
-    this.syncReject = null;
-    const waiters = this.pendingWaiters;
-    this.pendingWaiters = [];
-    for (const { resolve } of waiters) resolve();
+    this._pendingForce = false;
+    settleSync(this, { ok: true });
   }
 
   async _runCycle(_force = false) {
@@ -157,6 +173,7 @@ export class SyncEngine {
     this._forceFlush = _force;
 
     const gatePath = await getSyncPath().catch(() => '');
+    await refreshRustOwnership().catch(() => {});
     if (isRustSyncActive() && !gatePath.startsWith('scoped:')) {
       logger.debug('[sync] rust scheduler active → skip JS cycle');
       t?.end();
@@ -280,8 +297,10 @@ export class SyncEngine {
           const transport = this.transports[name];
           logger.info(`[sync] ${name} pull start`);
           let hasMore = true;
+          let pages = 0;
           const pullAffectedNotes = new Set();
-          while (hasMore) {
+          while (hasMore && pages < MAX_PULL_PAGES) {
+            pages++;
             let pullResult;
             try {
               pullResult = await transport.pull();
@@ -379,7 +398,7 @@ export class SyncEngine {
 
             const allSucceeded = succeeded.every(Boolean);
             if (allSucceeded) {
-              if (updates.length > 0) {
+              if (updates.length > 0 && hasLocal) {
                 const affectedNoteIds = new Set(updates.map((u) => u.noteId));
                 for (const noteId of affectedNoteIds) {
                   pullAffectedNotes.add(noteId);
@@ -388,10 +407,10 @@ export class SyncEngine {
                     if (sv && Object.keys(sv).length > 0) {
                       saveStateVector(noteId, sv);
                     }
-                  } catch {
-
-                  }
+                  } catch {}
                 }
+              } else {
+                for (const u of updates) pullAffectedNotes.add(u.noteId);
               }
             } else if (!allSucceeded) {
               hasMore = false;
@@ -405,6 +424,7 @@ export class SyncEngine {
             const { compactUpdates } = await import('@/lib/native/yjs.js');
             let compacted = 0;
             for (const noteId of pullAffectedNotes) {
+              if (compacted >= 10) break;
               try {
                 const doc = getActiveDoc(noteId);
                 if (doc) {
@@ -503,19 +523,7 @@ export class SyncEngine {
       outcome = { ok: false, err };
     } finally {
       t?.end();
-      if (outcome.ok) this.syncResolve?.();
-      else this.syncReject?.(outcome.err);
-      this.syncResolve = null;
-      this.syncReject = null;
-      this.syncing = false;
-
-      const waiters = this.pendingWaiters;
-      this.pendingWaiters = [];
-      for (const { resolve, reject } of waiters) {
-        if (outcome.ok) resolve();
-        else reject(outcome.err);
-      }
-
+      settleSync(this, outcome);
       if (this.pending) {
         this.pending = false;
         const pendingForce = this._pendingForce;

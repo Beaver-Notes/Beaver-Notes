@@ -103,26 +103,16 @@ export async function encryptBatch(payloads, aads) {
   return syncEncryptBatch(metas, dataB64s, aads);
 }
 
-// Sync key lifecycle is managed entirely by the Rust backend (safeStorage).
-// @deprecated This is a no-op kept for backward compatibility with dynamic imports.
-export function clearSyncKey() {}
-
-export function syncAssetName(localFilename) {
-  return `${localFilename}${ENCRYPTED_ASSET_EXT}`;
-}
 export function localAssetName(syncFilename) {
   return syncFilename.endsWith(ENCRYPTED_ASSET_EXT)
     ? syncFilename.slice(0, -ENCRYPTED_ASSET_EXT.length)
     : syncFilename;
 }
 
-// Asset bytes E2EE: same sync key as docs, AAD `asset:<flatKey>` binds the
-// ciphertext to its server key. Envelopes reuse the v4/v5 JSON format so
-// detection mirrors decryptJSON.
 export function isEncryptedEnvelopeBytes(bytes) {
   if (!bytes || bytes.byteLength < 6) return false;
-  const head = new TextDecoder().decode(bytes.subarray(0, 6));
-  return head === '{"v":4' || head === '{"v":5';
+  const head = new TextDecoder().decode(bytes.subarray(0, 64)).trimStart();
+  return /^\{\s*"v"\s*:\s*[45]/.test(head);
 }
 
 export async function encryptAssetBytes(flatKey, data) {

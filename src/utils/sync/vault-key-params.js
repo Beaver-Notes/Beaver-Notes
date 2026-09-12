@@ -7,10 +7,10 @@ import { useAccountStore } from '@/store/account';
 import { SYNC_TRANSPORT, canUseCloudSync, normalizeSyncTransport } from '@/lib/api/types';
 import { getApiClient } from '@/lib/api/client';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
+import { base64ToBuf } from '@/utils/crypto/codec.js';
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import { logger } from '@/utils/logger';
 
-export const RESERVED_KEY_PARAMS_KEY = '__key_params__.json';
 const KEY_PARAMS_SUBDIR = 'BeaverNotesSync';
 let fetchedCloudKeyParams = null;
 
@@ -27,11 +27,23 @@ async function localKeyParamsPath() {
 
 function decodeKeyParams(raw) {
   if (!raw) return null;
+  if (typeof raw === 'string' && raw.trim().startsWith('{')) return raw;
   try {
-    const decoded = atob(raw);
+    const decoded = new TextDecoder().decode(base64ToBuf(raw));
     return decoded.trim().startsWith('{') ? decoded : raw;
   } catch {
     return raw;
+  }
+}
+
+function isValidKeyParamsShape(decoded) {
+  try {
+    const p = JSON.parse(decoded);
+    return p && typeof p === 'object'
+      && typeof p.version === 'number'
+      && (p.wrappedKey || p.wrapped_key || p.saltHex || p.salt_hex);
+  } catch {
+    return false;
   }
 }
 
@@ -113,6 +125,7 @@ export async function fetchCloudKeyParams({ force = false, timeoutMs } = {}) {
     if (!p) return null;
     await ensureDir(p.slice(0, p.lastIndexOf('/'))).catch(() => {});
     const decoded = decodeKeyParams(raw);
+    if (!decoded || !isValidKeyParamsShape(decoded)) return null;
     await writeFile(p, decoded);
     fetchedCloudKeyParams = { proofBlob: raw, paramsBlob: decoded };
   } catch (e) {

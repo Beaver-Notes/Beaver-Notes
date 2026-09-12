@@ -6,6 +6,7 @@ import { isRustFolderOwner, kickRustDirty } from './rust-shim.js';
 const MAX_QUEUE_SIZE = 5000;
 const pendingSyncWrites = [];
 let flushing = false;
+let flushWaiters = [];
 let cloudBuffer = null;
 let syncTrigger = null;
 
@@ -34,37 +35,24 @@ function drainPending() {
 }
 
 function waitForFlush(callback) {
-  return new Promise((resolve) => {
-    const check = async () => {
-      if (flushing) { setTimeout(check, 50); return; }
-      resolve(await callback());
-    };
-    check();
+  if (!flushing) return callback();
+  return new Promise((resolve, reject) => {
+    flushWaiters.push({ resolve, reject, callback });
   });
 }
 
-export async function flushPendingSyncWritesTo(writeFn) {
-  if (flushing) {
-    return waitForFlush(() => flushPendingSyncWritesTo(writeFn));
-  }
-  flushing = true;
-  const flushed = [];
-  try {
-    while (pendingSyncWrites.length > 0) {
-      const entries = drainPending();
-      for (const { noteId, update } of entries) {
-        try {
-          await writeFn(noteId, update);
-          flushed.push({ noteId, update });
-        } catch (err) {
-          console.warn('[sync] failed to flush pending write for', noteId, err);
-        }
-      }
+function settleWaiters(err) {
+  const waiters = flushWaiters;
+  flushWaiters = [];
+  for (const w of waiters) {
+    if (err) {
+      w.reject(err);
+      continue;
     }
-  } finally {
-    flushing = false;
+    Promise.resolve()
+      .then(() => w.callback())
+      .then(w.resolve, w.reject);
   }
-  return flushed;
 }
 
 export function clearPendingWrites() {
@@ -72,17 +60,11 @@ export function clearPendingWrites() {
 }
 
 export function queueSyncWrite(commitsDir, noteId, update) {
-  if (isRustFolderOwner()) {
-
-    kickRustDirty();
-    return;
-  }
-  if (pendingSyncWrites.length >= MAX_QUEUE_SIZE) {
-    console.warn('[sync] pending writes queue full, dropping oldest entries');
-    pendingSyncWrites.splice(0, pendingSyncWrites.length - MAX_QUEUE_SIZE + 100);
-  }
+  if (pendingSyncWrites.length >= MAX_QUEUE_SIZE) return false;
   pendingSyncWrites.push({ commitsDir, noteId, update: new Uint8Array(update) });
-  syncTrigger?.();
+  if (isRustFolderOwner()) kickRustDirty();
+  if (typeof syncTrigger === 'function') syncTrigger();
+  return true;
 }
 
 export async function flushPendingSyncWrites() {
@@ -99,18 +81,32 @@ export async function flushPendingSyncWrites() {
         }
         continue;
       }
-
       const entries = drainPending();
+      const failed = [];
       for (const { commitsDir, noteId, update } of entries) {
         try {
           const sv = await getCurrentStateVector(noteId);
           await writeYjsUpdate(commitsDir, noteId, update, encryptJSON, sv);
-        } catch (err) {
-          console.warn('[sync] failed to flush pending write for', noteId, err);
+        } catch {
+          failed.push({ commitsDir, noteId, update });
+          break;
         }
+      }
+      if (failed.length > 0) {
+        const remainingIndex = entries.findIndex(
+          (e) => e.noteId === failed[0].noteId && e.commitsDir === failed[0].commitsDir
+        );
+        const unprocessed = entries.slice(remainingIndex).map((e) => ({
+          commitsDir: e.commitsDir,
+          noteId: e.noteId,
+          update: new Uint8Array(e.update),
+        }));
+        pendingSyncWrites.unshift(...unprocessed);
+        break;
       }
     }
   } finally {
     flushing = false;
+    settleWaiters();
   }
 }

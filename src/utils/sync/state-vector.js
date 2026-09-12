@@ -8,7 +8,13 @@ export function loadStateVector(docId) {
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY}:${docId}`);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const clean = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof k === 'string' && k.length > 0 && Number.isInteger(v) && v >= 0) clean[k] = v;
+    }
+    return clean;
   } catch {
     return null;
   }
@@ -33,37 +39,6 @@ export async function getCurrentStateVector(docId) {
   }
 }
 
-/** True when the update's sequence is already covered by the stored vector. */
-export function isUpdateKnown(docId, updateMetadata) {
-  const sv = loadStateVector(docId);
-  if (!sv) return false;
-
-  const clientClock = sv[updateMetadata.device];
-  if (clientClock == null) return false;
-
-  if (updateMetadata.sequence != null) {
-    return updateMetadata.sequence <= clientClock;
-  }
-  return false;
-}
-
-/** Merge a remote state vector into the stored one (max wins) and persist. */
-export function mergeStateVectors(docId, remoteSV) {
-  const localSV = loadStateVector(docId);
-  if (!localSV || Object.keys(localSV).length === 0) {
-    saveStateVector(docId, remoteSV);
-    return remoteSV;
-  }
-  const merged = { ...localSV };
-  for (const [device, clock] of Object.entries(remoteSV)) {
-    if (clock > (merged[device] ?? 0)) {
-      merged[device] = clock;
-    }
-  }
-  saveStateVector(docId, merged);
-  return merged;
-}
-
 // Per-device { ts, sequence } checkpoints sent back on each pull so the server
 // returns only NEW updates instead of re-downloading everything.
 
@@ -73,7 +48,9 @@ export function loadServerCheckpoint(noteId) {
   try {
     const raw = localStorage.getItem(`${CHECKPOINT_STORAGE_KEY}:${noteId}`);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
   } catch {
     return null;
   }

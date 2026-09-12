@@ -159,6 +159,7 @@ vi.mock('@/lib/native/fs', () => ({
   pathExists: vi.fn(async () => false),
   readDir: vi.fn(async () => ['local-note~~fresh-device~~301~~1.yjs.json', 'local-note~~fresh-device~~301~~2.yjs.json']),
   readFile: vi.fn(async () => 'local-encrypted-envelope'),
+  removePath: vi.fn(async () => {}),
 }));
 vi.mock('../crypto.js', async () => {
   const actual = await vi.importActual('../crypto.js');
@@ -238,8 +239,6 @@ vi.mock('../state-vector.js', () => ({
   loadStateVector: vi.fn(() => null),
   saveStateVector: vi.fn(),
   getCurrentStateVector: vi.fn(async () => ({})),
-  isUpdateKnown: vi.fn(() => false),
-  mergeStateVectors: vi.fn(() => ({})),
   loadServerCheckpoint: vi.fn((noteId) => __checkpointStore.get(noteId) || null),
   saveServerCheckpoint: vi.fn((noteId, cp) => __checkpointStore.set(noteId, cp)),
   clearServerCheckpoint: vi.fn((noteId) => __checkpointStore.delete(noteId)),
@@ -275,7 +274,7 @@ describe('remote bootstrap integration contract', () => {
       get: vi.fn(async () => ({})),
       set: vi.fn(async (_key, value) => { storage.cursors = structuredClone(value); }),
     };
-    const { applyRemote } = await import('@/composable/useNoteYjs.js');
+    const { applyRemote } = await import('@/lib/yjs/shared.js');
     const { appendBatch } = await import('@/lib/native/yjs.js');
     const { syncAssets } = await import('../sync-assets.js');
     const { writeFile } = await import('@/lib/native/fs');
@@ -338,7 +337,7 @@ describe('remote bootstrap integration contract', () => {
   });
 
   it('blocks application when decryption fails', async () => {
-    const { applyRemote } = await import('@/composable/useNoteYjs.js');
+    const { applyRemote } = await import('@/lib/yjs/shared.js');
     const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
     const storage = { cursors: {}, get: vi.fn(async () => ({})), set: vi.fn(async () => {}) };
     loadSecureBlob.mockResolvedValue('wrong-passphrase');

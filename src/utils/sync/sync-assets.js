@@ -8,7 +8,6 @@ import {
 import { localAssetName } from './crypto.js';
 import {
   ASSET_TYPES,
-  ASSETS_DIR,
 } from './constants.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
 import { kickSyncDir } from '@/lib/tauri/scoped-storage';
@@ -31,6 +30,8 @@ async function cachedReadDir(dirPath, useCache) {
   if (useCache) {
     const cached = remoteListingCache.get(dirPath);
     if (cached && Date.now() - cached.t < REMOTE_LISTING_TTL_MS) {
+      remoteListingCache.delete(dirPath);
+      remoteListingCache.set(dirPath, cached);
       return cached.entries;
     }
   }
@@ -49,41 +50,6 @@ function isIgnoredAssetEntry(name) {
   return !name || name.startsWith('.') || name === 'Thumbs.db';
 }
 
-let legacyAssetMigrationDone = false;
-
-async function migrateLegacyAssetLayout(syncDir) {
-  if (legacyAssetMigrationDone) return;
-  legacyAssetMigrationDone = true;
-  for (const assetType of ASSET_TYPES) {
-    const legacyBase = path.join(syncDir, ASSETS_DIR, assetType);
-    const remoteBase = path.join(syncDir, assetType);
-    if (legacyBase === remoteBase) continue;
-    const entries = await readSyncDir(legacyBase).catch(() => []);
-    for (const entry of entries) {
-      if (isIgnoredAssetEntry(entry)) continue;
-      try {
-        await copySyncPath(
-          path.join(legacyBase, entry),
-          path.join(remoteBase, entry)
-        );
-        await removeSyncPath(path.join(legacyBase, entry)).catch(() => {});
-      } catch (error) {
-        console.warn('[sync] legacy asset move failed:', entry, error?.message);
-      }
-    }
-    remoteListingCache.delete(legacyBase);
-    remoteListingCache.delete(remoteBase);
-  }
-}
-
-async function copyRemoteToLocal(remotePath, localDest) {
-  await copySyncPath(remotePath, localDest);
-}
-
-async function copyLocalToRemote(localPath, remoteDest) {
-  await copySyncPath(localPath, remoteDest);
-}
-
 export async function syncAssets(
   localDir,
   syncDir,
@@ -93,8 +59,6 @@ export async function syncAssets(
   let deletedAssetsDirty = false;
 
   kickSyncDir(syncDir);
-
-  await migrateLegacyAssetLayout(syncDir);
 
   const ops = [];
 
@@ -206,13 +170,14 @@ export async function syncAssets(
       const copy = (() => {
         switch (op.type) {
           case 'upload':
-            return copyLocalToRemote(op.src, op.dest).then(() =>
+            return copySyncPath(op.src, op.dest).then(() =>
               remoteListingCache.delete(path.dirname(op.dest)));
           case 'download':
-            return copyRemoteToLocal(op.src, op.dest).then(() =>
+            return copySyncPath(op.src, op.dest).then(() =>
               remoteListingCache.delete(path.dirname(op.src)));
           case 'remove-local':
-            return removeSyncPath(op.src).catch(() => {});
+            return removeSyncPath(op.src).catch(() => {}).then(() =>
+              remoteListingCache.delete(path.dirname(op.src)));
           case 'remove-remote':
             return removeSyncPath(op.src).catch(() => {}).then(() =>
               remoteListingCache.delete(path.dirname(op.src)));

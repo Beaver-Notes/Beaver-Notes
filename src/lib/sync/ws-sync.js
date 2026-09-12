@@ -27,10 +27,14 @@ const notificationListeners = new WeakMap()
  * (previously an engine↔ws cycle via useNoteYjs). */
 function notifySyncNow() {
   if (kickRustSync()) return
+  const now = Date.now()
+  if (now - lastJsKick < 1000) return
+  lastJsKick = now
   import('@/utils/sync/engine.js')
     .then(({ forceSyncNow }) => forceSyncNow().catch(() => {}))
     .catch(() => {})
 }
+let lastJsKick = 0
 
 /** y-websocket handles only binary (types 0-3). Relay sends JSON text notifications: intercept and pull. Re-attaches on reconnect. */
 function createNotificationHandler() {

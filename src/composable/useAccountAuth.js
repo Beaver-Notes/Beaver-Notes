@@ -309,6 +309,10 @@ export function useAccountAuth() {
     }
     await clearAllAccountStorage();
     resetApiClient();
+    try {
+      const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
+      await stopRustSync();
+    } catch {}
     setStatus('anonymous');
     accountStore.setToken(null);
     accountStore.setProfile(null);
@@ -442,6 +446,10 @@ export function useAccountAuth() {
         logger.info('[auth] sync engine could not be initialized, skipping seed');
         return false;
       }
+      try {
+        const { startRustSync } = await import('@/utils/sync/rust-shim.js');
+        await startRustSync();
+      } catch {}
 
       const cloud = engine.transports?.cloud;
       if (!cloud?.seedCloudOnce) {

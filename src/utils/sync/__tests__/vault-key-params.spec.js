@@ -134,13 +134,23 @@ describe('fetchCloudKeyParams', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('writes fetched key params into the shared local file without a folder', async () => {
+    const manifest = '{"version":3,"saltHex":"42424242424242424242424242424242","wrappedKey":{}}';
     getApiClient.mockReturnValue({
-      getVaultKeyParams: vi.fn(() => Promise.resolve({ keyParams: '{"key":"remote"}' })),
+      getVaultKeyParams: vi.fn(() => Promise.resolve({ keyParams: manifest })),
       createVaultChallenge: vi.fn(() => Promise.resolve({ challenge: 'challenge-1' })),
     });
     const ok = await fetchCloudKeyParams();
     expect(ok).toBe(true);
-    expect(writeFile).toHaveBeenCalledWith(expect.stringContaining('keyParams.json'), '{"key":"remote"}');
+    expect(writeFile).toHaveBeenCalledWith(expect.stringContaining('keyParams.json'), manifest);
+  });
+
+  it('refuses to overwrite local key params with a shapeless payload', async () => {
+    getApiClient.mockReturnValue({
+      getVaultKeyParams: vi.fn(() => Promise.resolve({ keyParams: '{"key":"remote"}' })),
+      createVaultChallenge: vi.fn(() => Promise.resolve({ challenge: 'challenge-1' })),
+    });
+    await expect(fetchCloudKeyParams()).resolves.toBeNull();
+    expect(writeFile).not.toHaveBeenCalled();
   });
 
   it('returns null when the vault has no key params', async () => {

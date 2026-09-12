@@ -4,8 +4,8 @@ import { getApiClient } from '@/lib/api/client.js';
 import { getSyncDeviceId } from './sync-repository.js';
 import { useAccountStore } from '@/store/account';
 
-const MAX_BATCH_BODY_BYTES = 5 * 1024 * 1024; // 5MB safe limit per request
-const MAX_BATCH_ITEMS = 50; // server-side array length limit
+const MAX_BATCH_BODY_BYTES = 5 * 1024 * 1024;
+const MAX_BATCH_ITEMS = 50;
 
 let apiClient = null;
 let lastServerUrl = null;
@@ -149,20 +149,6 @@ export async function claimInitialization(workspaceId) {
   return getClient().post('/sync/initialize/claim', { workspaceId }, { timeoutMs: 15000 });
 }
 
-export async function resetInitialization(workspaceId) {
-  return getClient().post('/sync/initialize/reset', { workspaceId }, { timeoutMs: 15000 });
-}
-
-export async function uploadInitializationSnapshot(workspaceId, token, noteId, generation, data) {
-  return getClient().post('/sync/initialize/snapshot', {
-    workspaceId,
-    token,
-    noteId,
-    generation,
-    data,
-  }, { timeoutMs: 60000 });
-}
-
 export async function completeInitialization(workspaceId, token, generation, documents, assets = []) {
   return getClient().post('/sync/initialize/complete', {
     workspaceId,
@@ -186,53 +172,6 @@ export async function getSnapshotDownloadUrls(workspaceId, noteIds) {
     workspaceId,
     noteIds,
   }, { timeoutMs: 30000 });
-}
-
-export async function createWorkspace(name, orgId) {
-  return getClient().post('/workspaces', { name, orgId }, { timeoutMs: 15000 });
-}
-
-export async function getWorkspaces() {
-  return getClient().get('/workspaces', { timeoutMs: 15000 });
-}
-
-export async function deleteRemoteUpdates(workspaceId, noteId, keys) {
-  if (!keys || keys.length === 0) {
-    return { deleted: 0 };
-  }
-
-  const client = getClient();
-
-  const result = await client.delete('/yjs/updates', {
-    body: { workspaceId, noteId, keys },
-    timeoutMs: 15000,
-  });
-
-  return result || { deleted: 0 };
-}
-
-export async function fetchUpdate(key) {
-  const client = getClient();
-  try {
-    const result = await client.get(
-      `/yjs/updates/${encodeURIComponent(key)}`,
-      { timeoutMs: 15000 }
-    );
-    return result?.data ?? null;
-  } catch (e) {
-    if (e?.status === 404) return null;
-    throw e;
-  }
-}
-
-export async function listRemoteNoteIds(workspaceId) {
-  try {
-    const result = await getRemoteState(workspaceId);
-    return result?.documents?.map((document) => document.noteId).filter(Boolean) || [];
-  } catch (e) {
-    console.warn('[sync] listRemoteNoteIds failed:', e?.message);
-    return [];
-  }
 }
 
 function getDeviceLabel() {

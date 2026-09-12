@@ -67,6 +67,11 @@ vi.mock('@/composable/useNoteYjs.js', () => ({
   applyRemote: vi.fn(),
 }));
 
+vi.mock('@/lib/yjs/shared.js', () => ({
+  applyRemote: vi.fn(),
+  getActiveDoc: vi.fn(() => null),
+}));
+
 vi.mock('@/utils/sync/path.js', () => ({
   getSyncPath: vi.fn(async () => '/tmp/sync-race'),
 }));
@@ -80,6 +85,7 @@ vi.mock('@/lib/native/yjs.js', () => ({
   appendBatch: vi.fn(async () => {}),
   compactUpdates: vi.fn(async () => {}),
   getStateVector: vi.fn(async () => ({})),
+  getSnapshots: vi.fn(async () => ({})),
   getSnapshot: vi.fn(async () => null),
   getUpdates: vi.fn(async () => []),
 }));
@@ -154,7 +160,7 @@ function buildTitledMetaUpdate(noteId, title) {
 
 async function runEngineCycle({ envelopes }) {
   const { pullUpdates } = await import('@/utils/sync/remote-yjs.js');
-  const { applyRemote } = await import('@/composable/useNoteYjs.js');
+  const { applyRemote } = await import('@/lib/yjs/shared.js');
 
   // Route pulled meta-doc bytes into the REAL shared workspace doc, exactly
   // like production's applyRemote does for registered docs.

@@ -96,11 +96,11 @@ vi.mock('../readiness.js', () => ({
 const rustGate = { active: false, folderOwned: false };
 vi.mock('../rust-shim.js', () => ({
   isRustSyncActive: () => rustGate.active,
+  refreshRustOwnership: vi.fn(() => Promise.resolve()),
   isRustFolderOwner: () => rustGate.folderOwned,
   kickRustSync: vi.fn(() => true),
   kickRustDirty: vi.fn(),
   startRustSync: vi.fn(() => Promise.resolve()),
-  stopRustSync: vi.fn(() => Promise.resolve()),
 }));
 
 describe('SyncEngine mutex', () => {
@@ -321,7 +321,7 @@ describe('SyncEngine pull loop', () => {
 
     await current.enqueueSync(true);
 
-    const { applyRemote } = await import('@/composable/useNoteYjs.js');
+    const { applyRemote } = await import('@/lib/yjs/shared.js');
     const { appendBatch } = await import('@/lib/native/yjs.js');
     const { yieldToUi } = await import('../sync-assets.js');
     expect(applyRemote).toHaveBeenCalledTimes(60);
@@ -375,7 +375,7 @@ describe('SyncEngine pull loop', () => {
   });
 
   it('stops the pull loop when a page fails to apply despite hasMore:true', async () => {
-    const { applyRemote } = await import('@/composable/useNoteYjs.js');
+    const { applyRemote } = await import('@/lib/yjs/shared.js');
     applyRemote.mockImplementation(() => { throw new Error('apply boom'); });
 
     const cloud = {

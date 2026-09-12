@@ -37,11 +37,13 @@ export async function getSyncDeviceId() {
     return cachedDeviceId;
   }
   try {
-    const id = crypto.randomUUID();
-    localStorage.setItem('deviceId', id);
+    const id = typeof crypto?.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `local-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    try { localStorage.setItem('deviceId', id); } catch {}
     cachedDeviceId = id;
   } catch {
-    cachedDeviceId = `local-${Date.now()}`;
+    cachedDeviceId = `local-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
   }
   return cachedDeviceId;
 }

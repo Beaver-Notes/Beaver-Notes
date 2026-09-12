@@ -71,6 +71,7 @@ const commandAliases = {
   'sync:decryptBatch': 'sync_decrypt_batch',
   'sync:keyReady': 'sync_key_ready',
   'sync:start': 'sync_start',
+  'sync:stop': 'sync_stop',
   'sync:kick': 'sync_kick',
   'sync:kick-dirty': 'sync_kick_dirty',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
@@ -331,6 +332,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('aad', payload?.aad),
       };
     case 'sync:keyReady':
+    case 'sync:stop':
       return {};
     case 'sync:start':
     case 'sync:kick':
