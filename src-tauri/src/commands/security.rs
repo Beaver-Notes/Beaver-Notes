@@ -793,6 +793,16 @@ pub(crate) fn encryption_reconcile_key_params(
     if !state.crypto.session.read()?.active {
         return Ok(());
     }
+    // Scoped-storage paths (iOS) are not real filesystem paths; raw file
+    // access here would publish to a junk location every cycle. The JS side
+    // handles scoped folders through dedicated commands instead.
+    if let Some(path) = sync_key_params_path(&app, state.inner())?
+        .and_then(|p| p.to_str().map(|s| s.to_string()))
+    {
+        if path.starts_with("scoped:") {
+            return Ok(());
+        }
+    }
     let params = read_key_params(&app, state.inner())?;
     match params {
         Some(params) => {
@@ -873,6 +883,42 @@ pub(crate) fn encryption_has_remote_key_params(
     let Some(params) = read_key_params(&app, state.inner())? else {
         return Ok(false);
     };
+    let local_manifest = app_encryption_manifest_path(&app, state.inner())
+        .ok()
+        .and_then(|p| load_encryption_manifest(&p).ok().flatten());
+    Ok(remote_params_differ(&params, local_manifest.as_ref()))
+}
+
+/// Export this device's key params as JSON so a joining device that cannot
+/// read the sync folder directly (iOS scoped storage) can compare or publish
+/// them. None when this device has no local vault yet.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn encryption_local_key_params_json(
+    app: AppHandle,
+    state: State<AppState>,
+) -> Result<Option<String>, AppError> {
+    let manifest = app_encryption_manifest_path(&app, state.inner())
+        .ok()
+        .and_then(|p| load_encryption_manifest(&p).ok().flatten());
+    let Some(manifest) = manifest else {
+        return Ok(None);
+    };
+    Ok(Some(serde_json::to_string(&key_params_from_manifest(
+        &manifest,
+    )?)?))
+}
+
+/// True when the given key-params JSON (read by the caller, e.g. through
+/// scoped storage) belongs to a different vault than the local manifest.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn encryption_remote_params_differ(
+    app: AppHandle,
+    state: State<AppState>,
+    params_json: String,
+) -> Result<bool, AppError> {
+    let params: KeyParams = serde_json::from_str(&params_json)?;
     let local_manifest = app_encryption_manifest_path(&app, state.inner())
         .ok()
         .and_then(|p| load_encryption_manifest(&p).ok().flatten());

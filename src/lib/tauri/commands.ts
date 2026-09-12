@@ -71,6 +71,8 @@ const commandAliases = {
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
   'encryption:adoptKeyParams': 'encryption_adopt_key_params',
   'encryption:hasRemoteKeyParams': 'encryption_has_remote_key_params',
+  'encryption:localKeyParamsJson': 'encryption_local_key_params_json',
+  'encryption:remoteParamsDiffer': 'encryption_remote_params_differ',
   'encryption:rotateKey': 'encryption_rotate_key',
   'encryption:generateRecoveryCode': 'encryption_generate_recovery_code',
   'encryption:recoverWithCode': 'encryption_recover_with_code',
@@ -316,6 +318,10 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {};
     case 'encryption:reconcileKeyParams':
       return withKeyVariants('passphrase', payload?.passphrase);
+    case 'encryption:localKeyParamsJson':
+      return {};
+    case 'encryption:remoteParamsDiffer':
+      return withKeyVariants('paramsJson', payload?.paramsJson);
     case 'encryption:adoptKeyParams':
       return {
         ...withKeyVariants('passphrase', payload?.passphrase),

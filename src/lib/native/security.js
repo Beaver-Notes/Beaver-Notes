@@ -128,6 +128,14 @@ export function hasRemoteKeyParams() {
   return backend.invoke('encryption:hasRemoteKeyParams');
 }
 
+export function localKeyParamsJson() {
+  return backend.invoke('encryption:localKeyParamsJson');
+}
+
+export function remoteParamsDiffer(paramsJson) {
+  return backend.invoke('encryption:remoteParamsDiffer', { paramsJson });
+}
+
 export function decryptAssetStream(path) {
   return backend.invoke('assetCrypto:decryptAssetStream', path);
 }

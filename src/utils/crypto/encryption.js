@@ -8,6 +8,8 @@ import {
   reconcileSyncKeyParams,
   adoptKeyParams,
   hasRemoteKeyParams,
+  localKeyParamsJson,
+  remoteParamsDiffer,
   generateRecoveryCode as generateRecoveryCodeNative,
   recoverWithCode,
 } from '@/lib/native/security.js';
@@ -15,6 +17,7 @@ import {
   loadSecureBlob,
   persistSecureBlobInBackground,
 } from './safeStorageBlob.js';
+import { getSettingSync } from '@/lib/settings';
 
 const state = {
   enabled: false,
@@ -127,6 +130,11 @@ export async function adoptVaultKey(passphrase, keyParams) {
   }
 
   try {
+    if (keyParams == null) {
+      // Scoped folders (iOS) are invisible to the Rust side: hand the remote
+      // params over explicitly instead of letting it read them.
+      keyParams = await readScopedRemoteKeyParamsJson().catch(() => null);
+    }
     const result = await (keyParams == null
       ? adoptKeyParams(passphrase)
       : adoptKeyParams(passphrase, keyParams));
@@ -136,6 +144,7 @@ export async function adoptVaultKey(passphrase, keyParams) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
+    setDeclinedVaultJoin('').catch(() => {});
     // Discard pre-adoption pending writes: encrypted with old key, never flush.
     try {
       const { clearPendingWrites } = await import('@/utils/sync/pending-writes.js');
@@ -149,7 +158,75 @@ export async function adoptVaultKey(passphrase, keyParams) {
 }
 
 export async function hasRemoteVaultKeyParams() {
-  return hasRemoteKeyParams();
+  const remoteJson = await readScopedRemoteKeyParamsJson().catch(() => null);
+  if (remoteJson === null) return hasRemoteKeyParams();
+  // Scoped folder reachable: a vault exists there, but join only when it
+  // differs from ours (or we have no local vault yet).
+  const localJson = await localKeyParamsJson().catch(() => null);
+  if (localJson == null) return true;
+  return remoteParamsDiffer(remoteJson).catch(() => true);
+}
+
+/// Seed this device's key params into a scoped folder vault so a second
+/// device can detect and join it. No-op everywhere else: desktop publish
+/// happens in the Rust reconcile path. Never throws.
+export async function publishLocalKeyParamsToFolder() {
+  try {
+    const { getSyncPath } = await import('@/utils/sync/path.js');
+    const syncPath = await getSyncPath().catch(() => '');
+    if (!syncPath?.startsWith('scoped:')) return false;
+    const json = await localKeyParamsJson().catch(() => null);
+    if (!json) return false;
+    const [{ writeFile }, { path }] = await Promise.all([
+      import('@/lib/native/fs'),
+      import('@/lib/tauri-bridge'),
+    ]);
+    await writeFile(
+      path.join(syncPath, 'BeaverNotesSync', 'keyParams.json'),
+      json
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const DECLINED_JOIN_KEY = 'vaultJoinDeclinedPath';
+
+export function getDeclinedVaultJoinPath() {
+  try {
+    return getSettingSync(DECLINED_JOIN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export async function setDeclinedVaultJoin(syncPath) {
+  try {
+    const { setSetting } = await import('@/lib/settings');
+    await setSetting(DECLINED_JOIN_KEY, syncPath || '');
+  } catch {}
+}
+
+async function readScopedRemoteKeyParamsJson() {
+  const { getSyncPath } = await import('@/utils/sync/path.js');
+  const syncPath = await getSyncPath().catch(() => '');
+  if (!syncPath?.startsWith('scoped:')) return null;
+  // Cloud storage evicts file bodies: kick off downloads so detection
+  // sees the vault once files land. Fire-and-forget: the read below uses
+  // whatever is local (a not-downloaded read looks like "no vault").
+  try {
+    const { kickSyncDir } = await import('@/lib/tauri/scoped-storage.js');
+    kickSyncDir(syncPath);
+  } catch {}
+  const [{ readFile }, { path }] = await Promise.all([
+    import('@/lib/native/fs'),
+    import('@/lib/tauri-bridge'),
+  ]);
+  const text = (
+    await readFile(path.join(syncPath, 'BeaverNotesSync', 'keyParams.json'))
+  )?.trim();
+  return text?.startsWith('{') ? text : null;
 }
 
 export async function tryRestoreKeyFromSafeStorage() {

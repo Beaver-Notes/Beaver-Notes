@@ -137,6 +137,11 @@ const settingDefs = {
     defaultValue: '',
     parse: String,
   },
+  vaultJoinDeclinedPath: {
+    legacyKey: 'vaultJoinDeclinedPath',
+    defaultValue: '',
+    parse: String,
+  },
 };
 
 function getSettingDef(key) {

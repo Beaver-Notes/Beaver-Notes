@@ -469,6 +469,30 @@ pub(crate) fn sync_key_params_path(
     Ok(Some(base.join(SYNC_ROOT_DIR).join(SYNC_KEY_PARAMS_FILE)))
 }
 
+pub(crate) fn key_params_from_manifest(
+    manifest: &EncryptionManifest,
+) -> Result<KeyParams, AppError> {
+    if manifest.version < 3 {
+        return Err(AppError::Crypto(
+            "Encryption manifest is too old to share keys".into(),
+        ));
+    }
+    Ok(KeyParams {
+        version: PROTOCOL_VERSION,
+        kdf: "argon2id".to_string(),
+        salt_hex: manifest
+            .argon2_salt_hex
+            .clone()
+            .unwrap_or(manifest.salt_hex.clone()),
+        argon2_memory_kib: manifest.argon2_memory_kib.unwrap_or(ARGON2_MEMORY_KIB),
+        argon2_iterations: manifest.argon2_iterations.unwrap_or(ARGON2_ITERATIONS),
+        argon2_parallelism: manifest
+            .argon2_parallelism
+            .unwrap_or(ARGON2_PARALLELISM),
+        wrapped_items_key: manifest.wrapped_key.clone(),
+    })
+}
+
 pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let Some(path) = sync_key_params_path(app, state)? else {
         return Ok(());
@@ -476,23 +500,7 @@ pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<()
     let manifest_path = app_encryption_manifest_path(app, state)?;
     let manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Crypto("Encryption manifest is missing".into()))?;
-    if manifest.version < 3 {
-        return Err(AppError::Crypto(
-            "Encryption manifest is too old to share keys".into(),
-        ));
-    }
-    let params = KeyParams {
-        version: PROTOCOL_VERSION,
-        kdf: "argon2id".to_string(),
-        salt_hex: manifest
-            .argon2_salt_hex
-            .clone()
-            .unwrap_or(manifest.salt_hex),
-        argon2_memory_kib: manifest.argon2_memory_kib.unwrap_or(ARGON2_MEMORY_KIB),
-        argon2_iterations: manifest.argon2_iterations.unwrap_or(ARGON2_ITERATIONS),
-        argon2_parallelism: manifest.argon2_parallelism.unwrap_or(ARGON2_PARALLELISM),
-        wrapped_items_key: manifest.wrapped_key.clone(),
-    };
+    let params = key_params_from_manifest(&manifest)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

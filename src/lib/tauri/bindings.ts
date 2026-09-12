@@ -147,6 +147,17 @@ export const commands = {
 	 *  local manifest (or no local manifest exists).
 	 */
 	encryptionHasRemoteKeyParams: () => typedError<boolean, AppError>(__TAURI_INVOKE("encryption_has_remote_key_params")),
+	/**
+	 *  Export this device's key params as JSON so a joining device that cannot
+	 *  read the sync folder directly (iOS scoped storage) can compare or publish
+	 *  them. None when this device has no local vault yet.
+	 */
+	encryptionLocalKeyParamsJson: () => typedError<string | null, AppError>(__TAURI_INVOKE("encryption_local_key_params_json")),
+	/**
+	 *  True when the given key-params JSON (read by the caller, e.g. through
+	 *  scoped storage) belongs to a different vault than the local manifest.
+	 */
+	encryptionRemoteParamsDiffer: (paramsJson: string) => typedError<boolean, AppError>(__TAURI_INVOKE("encryption_remote_params_differ", { paramsJson })),
 	passwdHash: (password: string) => typedError<string, AppError>(__TAURI_INVOKE("passwd_hash", { password })),
 	passwdCompare: (password: string, hash: string) => typedError<boolean, AppError>(__TAURI_INVOKE("passwd_compare", { password, hash })),
 	passwdRecordFailure: () => typedError<FailureResult, AppError>(__TAURI_INVOKE("passwd_record_failure")),
