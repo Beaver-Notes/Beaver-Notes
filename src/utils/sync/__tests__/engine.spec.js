@@ -97,6 +97,7 @@ const rustGate = { active: false, folderOwned: false };
 vi.mock('../rust-shim.js', () => ({
   isRustSyncActive: () => rustGate.active,
   isRustFolderOwner: () => rustGate.folderOwned,
+  kickRustSync: vi.fn(() => true),
   kickRustDirty: vi.fn(),
   startRustSync: vi.fn(() => Promise.resolve()),
   stopRustSync: vi.fn(() => Promise.resolve()),
@@ -727,6 +728,14 @@ describe('rust dual-write gate with scoped folders', () => {
     rustGate.active = true;
     rustGate.folderOwned = true;
     await gateEngine.forceSyncNow();
+    expect(localPull).not.toHaveBeenCalled();
+  });
+
+  it('routes foreground wake to Rust kick when active', async () => {
+    rustGate.active = true;
+    const { kickRustSync } = await import('../rust-shim.js');
+    await gateEngine.notifyForeground();
+    expect(kickRustSync).toHaveBeenCalled();
     expect(localPull).not.toHaveBeenCalled();
   });
 

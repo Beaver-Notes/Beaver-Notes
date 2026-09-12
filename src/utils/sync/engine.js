@@ -22,7 +22,7 @@ import { reconcileSyncKeyParams } from '@/lib/native/security.js';
 import * as Y from 'yjs';
 import { getCurrentStateVector, saveStateVector } from './state-vector.js';
 import { getActiveDoc } from '@/lib/yjs/shared.js';
-import { isRustSyncActive } from './rust-shim.js';
+import { isRustSyncActive, kickRustSync } from './rust-shim.js';
 import { logger } from '@/utils/logger';
 
 const APPLY_YIELD_STRIDE = 25;
@@ -85,6 +85,10 @@ export class SyncEngine {
 
   notifyForeground() {
     this._foregroundWake = true;
+    if (isRustSyncActive() && kickRustSync()) {
+      this._foregroundWake = false;
+      return Promise.resolve(true);
+    }
     return this.enqueueSync(true);
   }
 
@@ -154,7 +158,7 @@ export class SyncEngine {
 
     const gatePath = await getSyncPath().catch(() => '');
     if (isRustSyncActive() && !gatePath.startsWith('scoped:')) {
-      logger.info('[sync] rust scheduler active → skip JS cycle');
+      logger.debug('[sync] rust scheduler active → skip JS cycle');
       t?.end();
       this._resolveSkip();
       return;
