@@ -1,0 +1,10 @@
+{
+  "identifier": "local-ai-capability",
+  "description": "On-device AI (OCR/vision). Apple + desktop only: device-ai ships a `framework` crate-type that does not build on Android.",
+  "platforms": ["macOS", "windows", "linux", "iOS"],
+  "windows": ["main"],
+  "permissions": [
+    "device-ai-apis:allow-get-capabilities",
+    "device-ai-apis:allow-vision-recognize-text"
+  ]
+}

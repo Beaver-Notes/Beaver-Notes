@@ -4551,6 +4551,318 @@
           "markdownDescription": "Denies the unregister command without any pre-configured scope."
         },
         {
+          "description": "Default permissions for the Device AI plugin. Includes capability detection and speech synthesis.\n#### This default permission set includes:\n\n- `allow-get-capabilities`\n- `allow-speech-synthesize`\n- `allow-speech-get-voices`",
+          "type": "string",
+          "const": "device-ai-apis:default",
+          "markdownDescription": "Default permissions for the Device AI plugin. Includes capability detection and speech synthesis.\n#### This default permission set includes:\n\n- `allow-get-capabilities`\n- `allow-speech-synthesize`\n- `allow-speech-get-voices`"
+        },
+        {
+          "description": "All Device AI plugin capabilities\n#### This permission set includes:\n\n- `allow-get-capabilities`\n- `speech-all`\n- `vision-all`\n- `text-all`\n- `llm-all`",
+          "type": "string",
+          "const": "device-ai-apis:all",
+          "markdownDescription": "All Device AI plugin capabilities\n#### This permission set includes:\n\n- `allow-get-capabilities`\n- `speech-all`\n- `vision-all`\n- `text-all`\n- `llm-all`"
+        },
+        {
+          "description": "Full language model capabilities\n#### This permission set includes:\n\n- `allow-llm-check-availability`\n- `allow-llm-get-model-info`\n- `allow-llm-generate`\n- `allow-llm-generate-stream`\n- `allow-llm-create-session`\n- `allow-llm-session-send`\n- `allow-llm-session-send-stream`\n- `allow-llm-destroy-session`\n- `allow-llm-summarize`\n- `allow-llm-rewrite`",
+          "type": "string",
+          "const": "device-ai-apis:llm-all",
+          "markdownDescription": "Full language model capabilities\n#### This permission set includes:\n\n- `allow-llm-check-availability`\n- `allow-llm-get-model-info`\n- `allow-llm-generate`\n- `allow-llm-generate-stream`\n- `allow-llm-create-session`\n- `allow-llm-session-send`\n- `allow-llm-session-send-stream`\n- `allow-llm-destroy-session`\n- `allow-llm-summarize`\n- `allow-llm-rewrite`"
+        },
+        {
+          "description": "Full speech capabilities (recognition and synthesis)\n#### This permission set includes:\n\n- `speech-recognition`\n- `speech-synthesis`",
+          "type": "string",
+          "const": "device-ai-apis:speech-all",
+          "markdownDescription": "Full speech capabilities (recognition and synthesis)\n#### This permission set includes:\n\n- `speech-recognition`\n- `speech-synthesis`"
+        },
+        {
+          "description": "Full speech recognition capabilities (requires microphone permission)\n#### This permission set includes:\n\n- `allow-speech-recognize`\n- `allow-speech-recognize-start`\n- `allow-speech-recognize-stop`",
+          "type": "string",
+          "const": "device-ai-apis:speech-recognition",
+          "markdownDescription": "Full speech recognition capabilities (requires microphone permission)\n#### This permission set includes:\n\n- `allow-speech-recognize`\n- `allow-speech-recognize-start`\n- `allow-speech-recognize-stop`"
+        },
+        {
+          "description": "Full speech synthesis capabilities\n#### This permission set includes:\n\n- `allow-speech-synthesize`\n- `allow-speech-get-voices`",
+          "type": "string",
+          "const": "device-ai-apis:speech-synthesis",
+          "markdownDescription": "Full speech synthesis capabilities\n#### This permission set includes:\n\n- `allow-speech-synthesize`\n- `allow-speech-get-voices`"
+        },
+        {
+          "description": "Full text processing capabilities\n#### This permission set includes:\n\n- `allow-text-identify-language`\n- `allow-text-translate`",
+          "type": "string",
+          "const": "device-ai-apis:text-all",
+          "markdownDescription": "Full text processing capabilities\n#### This permission set includes:\n\n- `allow-text-identify-language`\n- `allow-text-translate`"
+        },
+        {
+          "description": "Full vision capabilities\n#### This permission set includes:\n\n- `allow-vision-recognize-text`\n- `allow-vision-detect-barcodes`\n- `allow-vision-detect-faces`\n- `allow-vision-classify-image`",
+          "type": "string",
+          "const": "device-ai-apis:vision-all",
+          "markdownDescription": "Full vision capabilities\n#### This permission set includes:\n\n- `allow-vision-recognize-text`\n- `allow-vision-detect-barcodes`\n- `allow-vision-detect-faces`\n- `allow-vision-classify-image`"
+        },
+        {
+          "description": "Enables querying available AI capabilities on the current platform",
+          "type": "string",
+          "const": "device-ai-apis:allow-get-capabilities",
+          "markdownDescription": "Enables querying available AI capabilities on the current platform"
+        },
+        {
+          "description": "Check if an on-device language model is available",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-check-availability",
+          "markdownDescription": "Check if an on-device language model is available"
+        },
+        {
+          "description": "Create a multi-turn language model session",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-create-session",
+          "markdownDescription": "Create a multi-turn language model session"
+        },
+        {
+          "description": "Destroy a language model session",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-destroy-session",
+          "markdownDescription": "Destroy a language model session"
+        },
+        {
+          "description": "Generate text using the on-device language model",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-generate",
+          "markdownDescription": "Generate text using the on-device language model"
+        },
+        {
+          "description": "Stream text generation from the on-device language model",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-generate-stream",
+          "markdownDescription": "Stream text generation from the on-device language model"
+        },
+        {
+          "description": "Get language model information",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-get-model-info",
+          "markdownDescription": "Get language model information"
+        },
+        {
+          "description": "Rewrite text using the on-device language model",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-rewrite",
+          "markdownDescription": "Rewrite text using the on-device language model"
+        },
+        {
+          "description": "Send a message in a language model session",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-session-send",
+          "markdownDescription": "Send a message in a language model session"
+        },
+        {
+          "description": "Stream a response in a language model session",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-session-send-stream",
+          "markdownDescription": "Stream a response in a language model session"
+        },
+        {
+          "description": "Summarize text using the on-device language model",
+          "type": "string",
+          "const": "device-ai-apis:allow-llm-summarize",
+          "markdownDescription": "Summarize text using the on-device language model"
+        },
+        {
+          "description": "Enables getting available voices for speech synthesis",
+          "type": "string",
+          "const": "device-ai-apis:allow-speech-get-voices",
+          "markdownDescription": "Enables getting available voices for speech synthesis"
+        },
+        {
+          "description": "Enables one-shot speech recognition",
+          "type": "string",
+          "const": "device-ai-apis:allow-speech-recognize",
+          "markdownDescription": "Enables one-shot speech recognition"
+        },
+        {
+          "description": "Enables starting streaming speech recognition",
+          "type": "string",
+          "const": "device-ai-apis:allow-speech-recognize-start",
+          "markdownDescription": "Enables starting streaming speech recognition"
+        },
+        {
+          "description": "Enables stopping streaming speech recognition",
+          "type": "string",
+          "const": "device-ai-apis:allow-speech-recognize-stop",
+          "markdownDescription": "Enables stopping streaming speech recognition"
+        },
+        {
+          "description": "Enables text-to-speech synthesis",
+          "type": "string",
+          "const": "device-ai-apis:allow-speech-synthesize",
+          "markdownDescription": "Enables text-to-speech synthesis"
+        },
+        {
+          "description": "Enables language identification of text",
+          "type": "string",
+          "const": "device-ai-apis:allow-text-identify-language",
+          "markdownDescription": "Enables language identification of text"
+        },
+        {
+          "description": "Enables text translation between languages",
+          "type": "string",
+          "const": "device-ai-apis:allow-text-translate",
+          "markdownDescription": "Enables text translation between languages"
+        },
+        {
+          "description": "Enables image classification/labeling",
+          "type": "string",
+          "const": "device-ai-apis:allow-vision-classify-image",
+          "markdownDescription": "Enables image classification/labeling"
+        },
+        {
+          "description": "Enables barcode and QR code detection in images",
+          "type": "string",
+          "const": "device-ai-apis:allow-vision-detect-barcodes",
+          "markdownDescription": "Enables barcode and QR code detection in images"
+        },
+        {
+          "description": "Enables face detection in images",
+          "type": "string",
+          "const": "device-ai-apis:allow-vision-detect-faces",
+          "markdownDescription": "Enables face detection in images"
+        },
+        {
+          "description": "Enables text recognition (OCR) in images",
+          "type": "string",
+          "const": "device-ai-apis:allow-vision-recognize-text",
+          "markdownDescription": "Enables text recognition (OCR) in images"
+        },
+        {
+          "description": "Denies the get_capabilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-get-capabilities",
+          "markdownDescription": "Denies the get_capabilities command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_check_availability command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-check-availability",
+          "markdownDescription": "Denies the llm_check_availability command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_create_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-create-session",
+          "markdownDescription": "Denies the llm_create_session command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_destroy_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-destroy-session",
+          "markdownDescription": "Denies the llm_destroy_session command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_generate command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-generate",
+          "markdownDescription": "Denies the llm_generate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_generate_stream command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-generate-stream",
+          "markdownDescription": "Denies the llm_generate_stream command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_get_model_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-get-model-info",
+          "markdownDescription": "Denies the llm_get_model_info command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_rewrite command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-rewrite",
+          "markdownDescription": "Denies the llm_rewrite command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_session_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-session-send",
+          "markdownDescription": "Denies the llm_session_send command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_session_send_stream command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-session-send-stream",
+          "markdownDescription": "Denies the llm_session_send_stream command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the llm_summarize command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-llm-summarize",
+          "markdownDescription": "Denies the llm_summarize command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the speech_get_voices command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-speech-get-voices",
+          "markdownDescription": "Denies the speech_get_voices command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the speech_recognize command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-speech-recognize",
+          "markdownDescription": "Denies the speech_recognize command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the speech_recognize_start command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-speech-recognize-start",
+          "markdownDescription": "Denies the speech_recognize_start command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the speech_recognize_stop command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-speech-recognize-stop",
+          "markdownDescription": "Denies the speech_recognize_stop command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the speech_synthesize command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-speech-synthesize",
+          "markdownDescription": "Denies the speech_synthesize command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the text_identify_language command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-text-identify-language",
+          "markdownDescription": "Denies the text_identify_language command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the text_translate command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-text-translate",
+          "markdownDescription": "Denies the text_translate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the vision_classify_image command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-vision-classify-image",
+          "markdownDescription": "Denies the vision_classify_image command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the vision_detect_barcodes command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-vision-detect-barcodes",
+          "markdownDescription": "Denies the vision_detect_barcodes command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the vision_detect_faces command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-vision-detect-faces",
+          "markdownDescription": "Denies the vision_detect_faces command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the vision_recognize_text command without any pre-configured scope.",
+          "type": "string",
+          "const": "device-ai-apis:deny-vision-recognize-text",
+          "markdownDescription": "Denies the vision_recognize_text command without any pre-configured scope."
+        },
+        {
           "description": "This permission set configures the types of dialogs\navailable from the dialog plugin.\n\n#### Granted Permissions\n\nAll dialog types are enabled.\n\n\n\n#### This default permission set includes:\n\n- `allow-message`\n- `allow-save`\n- `allow-open`",
           "type": "string",
           "const": "dialog:default",
@@ -6981,10 +7293,10 @@
           "markdownDescription": "Denies the unregister_listener command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-pick-folder`\n- `allow-forget-folder`\n- `allow-list-folders`\n- `allow-get-folder-info`\n- `allow-read-dir`\n- `allow-stat`\n- `allow-exists`\n- `allow-read-file`\n- `allow-write-file`\n- `allow-read-text-file`\n- `allow-read-text-file-lines`\n- `allow-write-text-file`\n- `allow-append-file`\n- `allow-mkdir`\n- `allow-remove-file`\n- `allow-remove-dir`\n- `allow-copy`\n- `allow-move`\n- `allow-rename`\n- `allow-truncate`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-pick-folder`\n- `allow-forget-folder`\n- `allow-list-folders`\n- `allow-get-folder-info`\n- `allow-read-dir`\n- `allow-stat`\n- `allow-exists`\n- `allow-read-file`\n- `allow-write-file`\n- `allow-read-text-file`\n- `allow-read-text-file-lines`\n- `allow-write-text-file`\n- `allow-append-file`\n- `allow-mkdir`\n- `allow-remove-file`\n- `allow-remove-dir`\n- `allow-copy`\n- `allow-move`\n- `allow-rename`\n- `allow-truncate`\n- `allow-warm-folder`\n- `allow-warm-status`",
           "type": "string",
           "const": "scoped-storage:default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-pick-folder`\n- `allow-forget-folder`\n- `allow-list-folders`\n- `allow-get-folder-info`\n- `allow-read-dir`\n- `allow-stat`\n- `allow-exists`\n- `allow-read-file`\n- `allow-write-file`\n- `allow-read-text-file`\n- `allow-read-text-file-lines`\n- `allow-write-text-file`\n- `allow-append-file`\n- `allow-mkdir`\n- `allow-remove-file`\n- `allow-remove-dir`\n- `allow-copy`\n- `allow-move`\n- `allow-rename`\n- `allow-truncate`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-pick-folder`\n- `allow-forget-folder`\n- `allow-list-folders`\n- `allow-get-folder-info`\n- `allow-read-dir`\n- `allow-stat`\n- `allow-exists`\n- `allow-read-file`\n- `allow-write-file`\n- `allow-read-text-file`\n- `allow-read-text-file-lines`\n- `allow-write-text-file`\n- `allow-append-file`\n- `allow-mkdir`\n- `allow-remove-file`\n- `allow-remove-dir`\n- `allow-copy`\n- `allow-move`\n- `allow-rename`\n- `allow-truncate`\n- `allow-warm-folder`\n- `allow-warm-status`"
         },
         {
           "description": "Enables the append_file command without any pre-configured scope.",
@@ -7111,6 +7423,18 @@
           "type": "string",
           "const": "scoped-storage:allow-truncate",
           "markdownDescription": "Enables the truncate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the warm_folder command without any pre-configured scope.",
+          "type": "string",
+          "const": "scoped-storage:allow-warm-folder",
+          "markdownDescription": "Enables the warm_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the warm_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "scoped-storage:allow-warm-status",
+          "markdownDescription": "Enables the warm_status command without any pre-configured scope."
         },
         {
           "description": "Enables the write_file command without any pre-configured scope.",
@@ -7251,6 +7575,18 @@
           "markdownDescription": "Denies the truncate command without any pre-configured scope."
         },
         {
+          "description": "Denies the warm_folder command without any pre-configured scope.",
+          "type": "string",
+          "const": "scoped-storage:deny-warm-folder",
+          "markdownDescription": "Denies the warm_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the warm_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "scoped-storage:deny-warm-status",
+          "markdownDescription": "Denies the warm_status command without any pre-configured scope."
+        },
+        {
           "description": "Denies the write_file command without any pre-configured scope.",
           "type": "string",
           "const": "scoped-storage:deny-write-file",
@@ -7317,6 +7653,18 @@
           "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `sharesheet:allow-share-text`\n- `sharesheet:allow-share-file`"
         },
         {
+          "description": "Enables the clearPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "sharesheet:allow-clearPendingShare",
+          "markdownDescription": "Enables the clearPendingShare command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the getPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "sharesheet:allow-getPendingShare",
+          "markdownDescription": "Enables the getPendingShare command without any pre-configured scope."
+        },
+        {
           "description": "Enables the share_file command without any pre-configured scope.",
           "type": "string",
           "const": "sharesheet:allow-share-file",
@@ -7327,6 +7675,18 @@
           "type": "string",
           "const": "sharesheet:allow-share-text",
           "markdownDescription": "Enables the share_text command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the clearPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "sharesheet:deny-clearPendingShare",
+          "markdownDescription": "Denies the clearPendingShare command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the getPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "sharesheet:deny-getPendingShare",
+          "markdownDescription": "Denies the getPendingShare command without any pre-configured scope."
         },
         {
           "description": "Denies the share_file command without any pre-configured scope.",

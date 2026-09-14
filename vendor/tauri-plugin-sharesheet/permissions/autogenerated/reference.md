@@ -19,6 +19,58 @@
 <tr>
 <td>
 
+`sharesheet:allow-clearPendingShare`
+
+</td>
+<td>
+
+Enables the clearPendingShare command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`sharesheet:deny-clearPendingShare`
+
+</td>
+<td>
+
+Denies the clearPendingShare command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`sharesheet:allow-getPendingShare`
+
+</td>
+<td>
+
+Enables the getPendingShare command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`sharesheet:deny-getPendingShare`
+
+</td>
+<td>
+
+Denies the getPendingShare command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `sharesheet:allow-share-file`
 
 </td>

@@ -39,7 +39,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>5.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>5.0.0</string>
+	<string>5.0.0.2</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
@@ -74,6 +74,28 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.beavernotes.bea</string>
+			<key>UTTypeDescription</key>
+			<string>Beaver Notes File</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>bea</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-beaver-notes</string>
+			</dict>
+		</dict>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
@@ -133,6 +155,17 @@
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Default</string>
+		</dict>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.beavernotes.beaver-notes</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>beaver-notes</string>
+			</array>
 		</dict>
 	</array>
 </dict>

@@ -6981,10 +6981,10 @@
           "markdownDescription": "Denies the unregister_listener command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-pick-folder`\n- `allow-forget-folder`\n- `allow-list-folders`\n- `allow-get-folder-info`\n- `allow-read-dir`\n- `allow-stat`\n- `allow-exists`\n- `allow-read-file`\n- `allow-write-file`\n- `allow-read-text-file`\n- `allow-read-text-file-lines`\n- `allow-write-text-file`\n- `allow-append-file`\n- `allow-mkdir`\n- `allow-remove-file`\n- `allow-remove-dir`\n- `allow-copy`\n- `allow-move`\n- `allow-rename`\n- `allow-truncate`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-pick-folder`\n- `allow-forget-folder`\n- `allow-list-folders`\n- `allow-get-folder-info`\n- `allow-read-dir`\n- `allow-stat`\n- `allow-exists`\n- `allow-read-file`\n- `allow-write-file`\n- `allow-read-text-file`\n- `allow-read-text-file-lines`\n- `allow-write-text-file`\n- `allow-append-file`\n- `allow-mkdir`\n- `allow-remove-file`\n- `allow-remove-dir`\n- `allow-copy`\n- `allow-move`\n- `allow-rename`\n- `allow-truncate`\n- `allow-warm-folder`\n- `allow-warm-status`",
           "type": "string",
           "const": "scoped-storage:default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-pick-folder`\n- `allow-forget-folder`\n- `allow-list-folders`\n- `allow-get-folder-info`\n- `allow-read-dir`\n- `allow-stat`\n- `allow-exists`\n- `allow-read-file`\n- `allow-write-file`\n- `allow-read-text-file`\n- `allow-read-text-file-lines`\n- `allow-write-text-file`\n- `allow-append-file`\n- `allow-mkdir`\n- `allow-remove-file`\n- `allow-remove-dir`\n- `allow-copy`\n- `allow-move`\n- `allow-rename`\n- `allow-truncate`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-pick-folder`\n- `allow-forget-folder`\n- `allow-list-folders`\n- `allow-get-folder-info`\n- `allow-read-dir`\n- `allow-stat`\n- `allow-exists`\n- `allow-read-file`\n- `allow-write-file`\n- `allow-read-text-file`\n- `allow-read-text-file-lines`\n- `allow-write-text-file`\n- `allow-append-file`\n- `allow-mkdir`\n- `allow-remove-file`\n- `allow-remove-dir`\n- `allow-copy`\n- `allow-move`\n- `allow-rename`\n- `allow-truncate`\n- `allow-warm-folder`\n- `allow-warm-status`"
         },
         {
           "description": "Enables the append_file command without any pre-configured scope.",
@@ -7111,6 +7111,18 @@
           "type": "string",
           "const": "scoped-storage:allow-truncate",
           "markdownDescription": "Enables the truncate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the warm_folder command without any pre-configured scope.",
+          "type": "string",
+          "const": "scoped-storage:allow-warm-folder",
+          "markdownDescription": "Enables the warm_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the warm_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "scoped-storage:allow-warm-status",
+          "markdownDescription": "Enables the warm_status command without any pre-configured scope."
         },
         {
           "description": "Enables the write_file command without any pre-configured scope.",
@@ -7251,6 +7263,18 @@
           "markdownDescription": "Denies the truncate command without any pre-configured scope."
         },
         {
+          "description": "Denies the warm_folder command without any pre-configured scope.",
+          "type": "string",
+          "const": "scoped-storage:deny-warm-folder",
+          "markdownDescription": "Denies the warm_folder command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the warm_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "scoped-storage:deny-warm-status",
+          "markdownDescription": "Denies the warm_status command without any pre-configured scope."
+        },
+        {
           "description": "Denies the write_file command without any pre-configured scope.",
           "type": "string",
           "const": "scoped-storage:deny-write-file",
@@ -7317,6 +7341,18 @@
           "markdownDescription": "Default plugin permissions.\n#### This default permission set includes:\n\n- `sharesheet:allow-share-text`\n- `sharesheet:allow-share-file`"
         },
         {
+          "description": "Enables the clearPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "sharesheet:allow-clearPendingShare",
+          "markdownDescription": "Enables the clearPendingShare command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the getPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "sharesheet:allow-getPendingShare",
+          "markdownDescription": "Enables the getPendingShare command without any pre-configured scope."
+        },
+        {
           "description": "Enables the share_file command without any pre-configured scope.",
           "type": "string",
           "const": "sharesheet:allow-share-file",
@@ -7327,6 +7363,18 @@
           "type": "string",
           "const": "sharesheet:allow-share-text",
           "markdownDescription": "Enables the share_text command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the clearPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "sharesheet:deny-clearPendingShare",
+          "markdownDescription": "Denies the clearPendingShare command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the getPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "sharesheet:deny-getPendingShare",
+          "markdownDescription": "Denies the getPendingShare command without any pre-configured scope."
         },
         {
           "description": "Denies the share_file command without any pre-configured scope.",
@@ -7351,60 +7399,6 @@
           "type": "string",
           "const": "sharesheet:sharesheet:allow-share-text",
           "markdownDescription": "Allows sharing text via the native share sheet"
-        },
-        {
-          "description": "Default permissions for the SpotSearch plugin\n#### This default permission set includes:\n\n- `allow-enable-indexing`\n- `allow-index-items`\n- `allow-delete-items`\n- `allow-delete-domain`",
-          "type": "string",
-          "const": "spotsearch:default",
-          "markdownDescription": "Default permissions for the SpotSearch plugin\n#### This default permission set includes:\n\n- `allow-enable-indexing`\n- `allow-index-items`\n- `allow-delete-items`\n- `allow-delete-domain`"
-        },
-        {
-          "description": "Enables the delete_domain command without any pre-configured scope.",
-          "type": "string",
-          "const": "spotsearch:allow-delete-domain",
-          "markdownDescription": "Enables the delete_domain command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the delete_items command without any pre-configured scope.",
-          "type": "string",
-          "const": "spotsearch:allow-delete-items",
-          "markdownDescription": "Enables the delete_items command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the enable_indexing command without any pre-configured scope.",
-          "type": "string",
-          "const": "spotsearch:allow-enable-indexing",
-          "markdownDescription": "Enables the enable_indexing command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the index_items command without any pre-configured scope.",
-          "type": "string",
-          "const": "spotsearch:allow-index-items",
-          "markdownDescription": "Enables the index_items command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the delete_domain command without any pre-configured scope.",
-          "type": "string",
-          "const": "spotsearch:deny-delete-domain",
-          "markdownDescription": "Denies the delete_domain command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the delete_items command without any pre-configured scope.",
-          "type": "string",
-          "const": "spotsearch:deny-delete-items",
-          "markdownDescription": "Denies the delete_items command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the enable_indexing command without any pre-configured scope.",
-          "type": "string",
-          "const": "spotsearch:deny-enable-indexing",
-          "markdownDescription": "Denies the enable_indexing command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the index_items command without any pre-configured scope.",
-          "type": "string",
-          "const": "spotsearch:deny-index-items",
-          "markdownDescription": "Denies the index_items command without any pre-configured scope."
         },
         {
           "description": "This permission set configures what kind of\noperations are available from the store plugin.\n\n#### Granted Permissions\n\nAll operations are enabled by default.\n\n\n#### This default permission set includes:\n\n- `allow-load`\n- `allow-get-store`\n- `allow-set`\n- `allow-get`\n- `allow-has`\n- `allow-delete`\n- `allow-clear`\n- `allow-reset`\n- `allow-keys`\n- `allow-values`\n- `allow-entries`\n- `allow-length`\n- `allow-reload`\n- `allow-save`",
