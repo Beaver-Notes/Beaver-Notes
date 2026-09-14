@@ -9,6 +9,7 @@ pub(crate) mod index;
 pub(crate) mod pdf;
 pub(crate) mod search;
 pub(crate) mod security;
+pub(crate) mod share;
 #[cfg(target_os = "ios")]
 pub(crate) mod splash;
 pub(crate) mod storage;

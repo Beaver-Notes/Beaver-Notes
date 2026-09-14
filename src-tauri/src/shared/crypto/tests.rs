@@ -231,3 +231,179 @@ mod characterization {
         assert_ne!(a, c);
     }
 }
+
+#[cfg(test)]
+mod vault_join {
+    use crate::shared::crypto::keys::{
+        create_encryption_manifest, derive_items_key_from_params, generate_recovery_code,
+        key_params_from_manifest, recover_key_from_code, remote_params_differ,
+        unlock_key_from_manifest, KeyParams,
+    };
+    use crate::shared::error::AppError;
+
+    const SCOPE: &str = "app";
+    const CHECK: &str = "password-check";
+    const PW: &str = "correct horse battery staple";
+
+    #[test]
+    fn create_then_unlock_roundtrip() {
+        let (manifest, data_key, kek) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let (key, kek2) = unlock_key_from_manifest(&manifest, PW, SCOPE, CHECK).unwrap();
+        assert_eq!(key, data_key);
+        assert_eq!(kek2, kek);
+    }
+
+    #[test]
+    fn unlock_wrong_password_fails_cleanly() {
+        let (manifest, _, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        assert!(matches!(
+            unlock_key_from_manifest(&manifest, "wrong", SCOPE, CHECK),
+            Err(AppError::WrongPassword)
+        ));
+    }
+
+    #[test]
+    fn unlock_wrong_scope_fails() {
+        let (manifest, _, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        assert!(matches!(
+            unlock_key_from_manifest(&manifest, PW, "other-scope", CHECK),
+            Err(AppError::Crypto(_))
+        ));
+    }
+
+    #[test]
+    fn same_password_two_setups_diverge() {
+        // Random salt per setup: same password alone must NEVER be treated as
+        // the same vault. Join has to copy params, never re-derive.
+        let (_, key_a, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let (manifest_b, key_b, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        assert_ne!(key_a, key_b);
+        // And B's params unlock B's key, never A's.
+        let params_b = key_params_from_manifest(&manifest_b).unwrap();
+        let (joined, _) = derive_items_key_from_params(&params_b, PW).unwrap();
+        assert_eq!(joined, key_b);
+        assert_ne!(joined, key_a);
+    }
+
+    #[test]
+    fn copied_params_same_password_yield_same_key() {
+        // The join primitive: device B adopts A's published params.
+        let (manifest_a, key_a, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let params = key_params_from_manifest(&manifest_a).unwrap();
+        let (joined, _) = derive_items_key_from_params(&params, PW).unwrap();
+        assert_eq!(joined, key_a);
+    }
+
+    #[test]
+    fn key_params_json_roundtrip() {
+        let (manifest, _, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let params = key_params_from_manifest(&manifest).unwrap();
+        let raw = serde_json::to_string(&params).unwrap();
+        let back: KeyParams = serde_json::from_str(&raw).unwrap();
+        assert_eq!(back.wrapped_items_key.nonce, params.wrapped_items_key.nonce);
+        assert_eq!(back.wrapped_items_key.cipher, params.wrapped_items_key.cipher);
+        assert_eq!(back.salt_hex, params.salt_hex);
+        let (joined, _) = derive_items_key_from_params(&back, PW).unwrap();
+        let (direct, _) = derive_items_key_from_params(&params, PW).unwrap();
+        assert_eq!(joined, direct);
+    }
+
+    #[test]
+    fn tampered_wrapped_key_fails() {
+        let (manifest, _, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let mut params = key_params_from_manifest(&manifest).unwrap();
+        let mut cipher = params.wrapped_items_key.cipher.clone();
+        let last = cipher.pop().unwrap();
+        cipher.push(if last == 'A' { 'B' } else { 'A' });
+        params.wrapped_items_key.cipher = cipher;
+        assert!(derive_items_key_from_params(&params, PW).is_err());
+    }
+
+    #[test]
+    fn downgrade_params_rejected() {
+        let (manifest, _, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let mut params = key_params_from_manifest(&manifest).unwrap();
+        params.argon2_memory_kib = 1024;
+        params.argon2_iterations = 1;
+        params.argon2_parallelism = 1;
+        assert!(matches!(
+            derive_items_key_from_params(&params, PW),
+            Err(AppError::Crypto(_))
+        ));
+    }
+
+    #[test]
+    fn unsupported_version_kdf_rejected() {
+        let (manifest, _, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let mut params = key_params_from_manifest(&manifest).unwrap();
+        params.version = 0;
+        assert!(derive_items_key_from_params(&params, PW).is_err());
+        let mut params = key_params_from_manifest(&manifest).unwrap();
+        params.kdf = "pbkdf2".to_string();
+        assert!(derive_items_key_from_params(&params, PW).is_err());
+    }
+
+    #[test]
+    fn remote_params_differ_detects_foreign_vault() {
+        let (manifest_a, _, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let (manifest_b, _, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let params_a = key_params_from_manifest(&manifest_a).unwrap();
+        let params_b = key_params_from_manifest(&manifest_b).unwrap();
+        assert!(!remote_params_differ(&params_a, Some(&manifest_a)));
+        assert!(remote_params_differ(&params_b, Some(&manifest_a)));
+        assert!(remote_params_differ(&params_a, None));
+    }
+
+    #[test]
+    fn recovery_code_roundtrip_and_wrong_code_fails() {
+        let (mut manifest, data_key, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let code = generate_recovery_code(&mut manifest, &data_key).unwrap();
+        assert_eq!(recover_key_from_code(&manifest, &code).unwrap(), data_key);
+        assert!(recover_key_from_code(&manifest, &"00".repeat(32)).is_err());
+    }
+
+    #[test]
+    fn join_decrypt_bridge_two_setups_one_vault() {
+        // Full join at crypto level: B adopts A's params, then decrypts bytes
+        // A encrypted under the shared items key.
+        use crate::shared::crypto::keys::{aead_decrypt_bytes, aead_encrypt_bytes};
+
+        let (manifest_a, key_a, _) = create_encryption_manifest(SCOPE, CHECK, PW).unwrap();
+        let params = key_params_from_manifest(&manifest_a).unwrap();
+        let (key_b, _) = derive_items_key_from_params(&params, PW).unwrap();
+        assert_eq!(key_a, key_b);
+        let (iv, enc) = aead_encrypt_bytes(&key_a, b"shared-note-bytes", "n1-1000").unwrap();
+        assert_eq!(
+            aead_decrypt_bytes(&key_b, &iv, &enc, "n1-1000").unwrap(),
+            b"shared-note-bytes"
+        );
+    }
+
+    #[test]
+    fn empty_passphrase_roundtrips_documents_no_policy() {
+        // No minimum-password policy exists today: empty passphrase creates a
+        // working vault. Pinned so adding a policy later flags this test.
+        let (manifest, data_key, _) = create_encryption_manifest(SCOPE, CHECK, "").unwrap();
+        let (key, _) = unlock_key_from_manifest(&manifest, "", SCOPE, CHECK).unwrap();
+        assert_eq!(key, data_key);
+    }
+
+    #[test]
+    fn garbage_params_rejected_without_panic() {
+        // Garbage params must fail closed before any state is touched (this is
+        // the pure gate adopt_key_params delegates to).
+        let params = KeyParams {
+            version: 255,
+            kdf: "none".to_string(),
+            salt_hex: "00".to_string(),
+            argon2_memory_kib: 0,
+            argon2_iterations: 0,
+            argon2_parallelism: 0,
+            wrapped_items_key: crate::shared::crypto::keys::WrappedKeyEnvelope {
+                nonce: String::new(),
+                cipher: String::new(),
+            },
+        };
+        assert!(derive_items_key_from_params(&params, PW).is_err());
+    }
+}

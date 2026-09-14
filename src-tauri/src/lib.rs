@@ -48,6 +48,7 @@ pub fn run() {
         });
 
     let state = AppState::new(cache_dir, external_open_dir, portable_storage_dir);
+    let context = tauri::generate_context!();
     let mut updater = tauri_plugin_updater::Builder::new();
     if let Ok(pubkey) = std::env::var("TAURI_UPDATER_PUBKEY") {
         if !pubkey.trim().is_empty() {
@@ -66,8 +67,14 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_audio_recorder::init())
         .plugin(tauri_plugin_biometry::init())
-        .plugin(tauri_plugin_device_ai_apis::init())
         .manage(state);
+
+    // Local-AI is Apple-only (see Cargo.toml): the image-menu OCR probe
+    // try/catches getCapabilities, so Android degrades to unavailable.
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.plugin(tauri_plugin_device_ai_apis::init());
+    }
 
     #[cfg(mobile)]
     {
@@ -82,8 +89,7 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
-        builder = builder
-            .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
                 focus_main_window(app);
                 let state = app.state::<AppState>();
                 for arg in args {
@@ -100,8 +106,8 @@ pub fn run() {
                         queue_or_emit_file_open(app, state.inner(), arg);
                     }
                 }
-            }))
-            .plugin(tauri_plugin_deep_link::init());
+            }));
+        builder = builder.plugin(tauri_plugin_deep_link::init());
     }
 
     #[cfg(not(target_os = "android"))]
@@ -175,6 +181,7 @@ pub fn run() {
             commands::fs::fs_path_exists,
             commands::fs::fs_remove,
             commands::fs::fs_write_file,
+            commands::fs::fs_append_file,
             commands::fs::fs_mkdir,
             commands::fs::fs_read_file,
             commands::fs::fs_read_file_binary,
@@ -289,7 +296,7 @@ pub fn run() {
             commands::workspace::workspace_rename,
             commands::workspace::workspace_delete,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             crate::log_bridge::init(app.handle());
             #[cfg(target_os = "android")]
             crate::shared::set_android_app_handle(app.handle().clone());
@@ -323,7 +330,7 @@ pub fn run() {
     }
 
     let app = builder
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application");
 
     app.run(|app, event| match event {

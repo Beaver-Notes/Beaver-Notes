@@ -31,21 +31,77 @@ pub fn encode_vector(updates: &[Vec<u8>]) -> Vec<u8> {
 }
 
 pub(crate) fn covered_by_vector(candidates: &[Vec<u8>], stored_vector: &[u8]) -> bool {
+    // ponytail: pure clock-range comparison — never apply-to-empty-doc. Structs
+    // with unmet dependencies park in the txn pending queue and never reach
+    // the state vector, so the old check called diff updates with novel clocks
+    // "covered" and skipped them forever (this killed meta sync: every
+    // workspace-doc diff landed fully in pending). A candidate is novel when
+    // it overlaps stored clocks (extends) OR starts beyond the stored tip
+    // (lower bound exceeds stored — catches non-overlapping diffs, which
+    // extends() alone misses).
     let stored = StateVector::decode_v1(stored_vector).unwrap_or_default();
-    let doc = Doc::new();
-    let mut txn = doc.transact_mut();
     for raw in candidates {
-        if let Ok(u) = Update::decode_v1(raw) {
-            let _ = txn.apply_update(u);
+        match Update::decode_v1(raw) {
+            Ok(u) => {
+                if u.extends(&stored) {
+                    return false;
+                }
+                let lower = u.state_vector_lower();
+                if lower.iter().any(|(c, k)| stored.get(c) < *k) {
+                    return false;
+                }
+            }
+            // Same fail-closed posture as before: undecodable bytes contribute
+            // nothing, so they stay covered (proven live data always decodes;
+            // revisit only with evidence of corrupt-but-authentic rows).
+            Err(_) => {}
         }
     }
-    txn.state_vector()
-        .iter()
-        .all(|(client, clock)| stored.get(client) >= *clock)
+    true
 }
 
 fn vector_key(note_id: &str) -> String {
     format!("sync:vec:{note_id}")
+}
+
+/// Best-effort one-line summary of a coverage decision, for logs. Never fails.
+/// Shows stored vs incoming client clocks plus how many candidate updates
+/// decoded — a covered-skip with failed=1/decoded=0 is the vacuous-truth hole.
+pub(crate) fn describe_coverage(candidates: &[Vec<u8>], stored_vector: &[u8]) -> String {
+    let stored = StateVector::decode_v1(stored_vector).unwrap_or_default();
+    let mut stored_parts: Vec<String> =
+        stored.iter().map(|(c, k)| format!("{c}:{k}")).collect();
+    stored_parts.sort();
+    let doc = Doc::new();
+    let mut txn = doc.transact_mut();
+    let (mut n_ok, mut n_err) = (0, 0);
+    let (mut n_empty, mut n_apply_err) = (0, 0);
+    let mut first_apply_err = String::new();
+    for raw in candidates {
+        match Update::decode_v1(raw) {
+            Ok(u) => {
+                n_ok += 1;
+                if u.is_empty() {
+                    n_empty += 1;
+                }
+                if let Err(e) = txn.apply_update(u) {
+                    n_apply_err += 1;
+                    if first_apply_err.is_empty() {
+                        first_apply_err = e.to_string();
+                    }
+                }
+            }
+            Err(_) => n_err += 1,
+        }
+    }
+    let mut incoming: Vec<String> =
+        txn.state_vector().iter().map(|(c, k)| format!("{c}:{k}")).collect();
+    incoming.sort();
+    format!(
+        "stored=[{}] incoming=[{}] decoded={n_ok} failed={n_err} empty={n_empty} apply_err={n_apply_err} {first_apply_err}",
+        stored_parts.join(","),
+        incoming.join(",")
+    )
 }
 
 pub(crate) fn snapshot_covers_rows(snapshot: &[u8], rows: &[Vec<u8>]) -> bool {
@@ -134,6 +190,7 @@ pub(crate) async fn sync_compact_note(app: AppHandle, note_id: String) -> Result
 mod tests {
     use yrs::{Doc, ReadTxn, StateVector, Text, Transact};
     use yrs::updates::decoder::Decode;
+    use yrs::updates::encoder::Encode;
 
     use base64::Engine as _;
     use super::{covered_by_vector, encode_vector, merge_updates, BASE64};
@@ -182,5 +239,33 @@ mod tests {
         assert_eq!(merged, merge_updates(std::slice::from_ref(&a)));
 
         assert!(StateVector::decode_v1(&encode_vector(&[a])).is_ok());
+    }
+
+    /// Regression: an incremental diff whose base structs are missing from an
+    /// empty doc parks fully in the txn pending queue. The old apply-to-empty-
+    /// doc check read that as "covered" and skipped novel clocks forever
+    /// (this killed meta sync). Clock-range comparison must report NOT covered.
+    #[test]
+    fn incremental_diff_with_missing_base_is_not_covered() {
+        let doc = Doc::new();
+        let t = doc.get_or_insert_text("t");
+        {
+            let mut txn = doc.transact_mut();
+            t.insert(&mut txn, 0, "hello");
+        }
+        let sv_after_hello = doc.transact().state_vector().encode_v1();
+        {
+            let mut txn = doc.transact_mut();
+            t.insert(&mut txn, 5, " world");
+        }
+        let inc = doc
+            .transact()
+            .encode_state_as_update_v1(
+                &StateVector::decode_v1(&sv_after_hello).unwrap(),
+            );
+        assert!(!covered_by_vector(
+            std::slice::from_ref(&inc),
+            &StateVector::default().encode_v1()
+        ));
     }
 }

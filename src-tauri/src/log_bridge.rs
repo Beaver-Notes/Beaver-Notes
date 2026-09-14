@@ -2,10 +2,12 @@
 //!
 //! Rust call sites use `crate::rs_log!(...)` (same syntax as `eprintln!`);
 //! JS forwards through the `push_js_logs` command (see `src/utils/logger.js`).
-//! File: `<app_log_dir>/beaver.log` (8 MB cap, one `.1` backup).
+//! File: `$BEAVER_LOG_FILE` when set, else `<app_log_dir>/beaver.log`
+//! (8 MB cap, one `.1` backup). The override lets two dev instances log apart.
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
@@ -45,18 +47,26 @@ macro_rules! rs_log {
 }
 
 pub fn init(app: &AppHandle) {
-    let dir = match app.path().app_log_dir() {
-        Ok(d) => d,
-        Err(_) => return,
+    let (dir, path): (PathBuf, PathBuf) = match std::env::var("BEAVER_LOG_FILE") {
+        Ok(p) if !p.trim().is_empty() => {
+            let path = PathBuf::from(p);
+            let dir = path.parent().map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
+            (dir, path)
+        }
+        _ => match app.path().app_log_dir() {
+            Ok(d) => (d.clone(), d.join("beaver.log")),
+            Err(_) => return,
+        },
     };
     if std::fs::create_dir_all(&dir).is_err() {
         return;
     }
-    let path = dir.join("beaver.log");
     // ponytail: single backup generation; add date-based rotation if 16MB total ever matters.
     if let Ok(meta) = std::fs::metadata(&path) {
         if meta.len() > MAX_BYTES {
-            let _ = std::fs::rename(&path, dir.join("beaver.log.1"));
+            let mut backup = path.clone();
+            backup.set_extension("log.1");
+            let _ = std::fs::rename(&path, backup);
         }
     }
     if let Ok(file) = OpenOptions::new().create(true).append(true).open(&path) {

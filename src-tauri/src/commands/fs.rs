@@ -40,9 +40,24 @@ pub(crate) async fn fs_copy(app: AppHandle, path: String, dest: String) -> Resul
         if let Some(parent) = final_dest.parent() {
             fs::create_dir_all(parent)?;
         }
-        let raw = fs::read(&src_path)?;
-        let payload = encrypt_asset(&app, &state, &final_dest, &raw)?;
-        fs::write(final_dest, payload)?;
+        // Asset destinations are encrypted with the items key. For a plaintext
+        // file source, stream the encryption (constant memory) instead of
+        // reading the whole file into RAM; already-encrypted bodies are copied
+        // verbatim, matching `encrypt_asset` idempotency.
+        if is_local_asset_path(&app, &final_dest) && !source_is_encrypted(&src_path)? {
+            let key = current_app_key(&state)?.ok_or(AppError::EncryptionLocked)?;
+            let temp = final_dest.with_file_name(format!(
+                ".{}.tmp",
+                final_dest
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("asset")
+            ));
+            encrypt_asset_streaming(&src_path, &temp, &key)?;
+            fs::rename(&temp, &final_dest)?;
+        } else {
+            fs::copy(&src_path, &final_dest)?;
+        }
         Ok(())
     })
     .await
@@ -69,6 +84,19 @@ fn copy_dir_recursive(
         }
     }
     Ok(())
+}
+
+/// True when the file already carries an encrypted-asset magic header, so a
+/// copy must not encrypt it a second time.
+fn source_is_encrypted(path: &Path) -> Result<bool, AppError> {
+    use std::io::Read;
+    let size = fs::metadata(path)?.len();
+    let mut magic = [0u8; 4];
+    let mut file = fs::File::open(path)?;
+    if file.read_exact(&mut magic).is_err() {
+        return Ok(false);
+    }
+    Ok(is_encrypted_asset_header(&magic, size))
 }
 
 #[tauri::command]
@@ -170,6 +198,38 @@ pub(crate) async fn fs_write_file(
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
         }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
+}
+
+// Appends raw (plaintext) bytes. Used to stage large browser File/Blob inputs in
+// bounded chunks so a whole multi-hundred-MB asset never buffers in the WebView.
+// Unlike fs_write_file this never encrypts; callers stage plaintext and then
+// stream-encrypt via fs_copy into the assets directory.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn fs_append_file(
+    app: AppHandle,
+    path: String,
+    data: String,
+) -> Result<(), AppError> {
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let data = BASE64.decode(data)?;
+        let path = PathBuf::from(path);
+        assert_path_access(&app, &state, &path, "append file")?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)?;
+        file.write_all(&data)?;
+        file.flush()?;
         Ok(())
     })
     .await

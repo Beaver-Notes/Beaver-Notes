@@ -1,5 +1,6 @@
 
 import { backend, path } from '@/lib/tauri-bridge';
+import { copyPath } from '@/lib/native/fs';
 import { getAppDirectory } from '@/lib/native/app';
 import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { speed } from '@/utils/speed.js';
@@ -9,6 +10,11 @@ function sourceFileName(file) {
     return path.basename(file);
   }
   return file?.name || 'file';
+}
+
+/** Display name for a picked/dropped file (string path or File). */
+export function assetFileName(file) {
+  return sourceFileName(file);
 }
 
 async function readFileAsBytes(file) {
@@ -69,18 +75,23 @@ export async function saveFile(file, id) {
   }
   const t = speed('asset_save_file');
   try {
-    const contentUint8Array = await readFileAsBytes(file);
     const { fileName, destPath } = await createFileDestination(file, id);
+    if (typeof file === 'string') {
+      // Rust streams the encrypt; the file never enters the WebView.
+      await copyPath(file, destPath);
+    } else {
+      const contentUint8Array = await readFileAsBytes(file);
+      await backend.invoke('fs:writeFile', {
+        data: contentUint8Array,
+        path: destPath,
+      });
+    }
     const relativePath = `assets://${id}/${fileName}`;
-    await backend.invoke('fs:writeFile', {
-      data: contentUint8Array,
-      path: destPath,
-    });
     t?.end();
     return { fileName, relativePath };
   } catch (error) {
     console.error(error);
-    throw new Error('Failed to save file');
+    throw new Error('Failed to save file', { cause: error });
   }
 }
 
@@ -101,12 +112,17 @@ async function createImageDestination(file, id, timestamp) {
 
 async function copyImage(file, id, timestamp) {
   const ts = timestamp || Date.now();
-  const content = await readFileAsUint32(file);
   const { fileName, destPath } = await createImageDestination(file, id, ts);
-  await backend.invoke('fs:writeFile', {
-    data: content,
-    path: destPath,
-  });
+  if (typeof file === 'string') {
+    // Rust streams the encrypt; the file never enters the WebView.
+    await copyPath(file, destPath);
+  } else {
+    const content = await readFileAsUint32(file);
+    await backend.invoke('fs:writeFile', {
+      data: content,
+      path: destPath,
+    });
+  }
 
   return { destPath, fileName };
 }

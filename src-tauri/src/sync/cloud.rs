@@ -27,7 +27,7 @@ pub(crate) const DEFAULT_API_URL: &str = "https://api.beavernotes.com";
 /// carries the same kv-persisted id Task 2 writes into `~~` filenames.
 const DEVICE_LABEL: &str = "Beaver Notes (Rust)";
 /// `Meta` doc id, applied before note updates like the JS pull path.
-const META_DOC_ID: &str = "meta";
+pub(crate) const META_DOC_ID: &str = "meta";
 
 /// Typed sync failure. Gates surface these as `sync:status` strings
 /// (see `status_str`); only unexpected failures become `AppError`.
@@ -108,6 +108,17 @@ pub(crate) struct PullOutcome {
 pub(crate) struct PushOutcome {
     pub(crate) pushed: u64,
     pub(crate) unauthorized: bool,
+    /// Note ids from the chunks the server accepted, in first-seen order and
+    /// deduplicated. Empty when nothing was sent.
+    pub(crate) note_ids: Vec<String>,
+}
+
+impl PushOutcome {
+    /// Whether a `sync:pushed` event should fire: at least one update pushed
+    /// and a concrete note id to report.
+    pub(crate) fn has_pushed(&self) -> bool {
+        self.pushed > 0 && !self.note_ids.is_empty()
+    }
 }
 
 /// Split `count` items of `bytes` total estimated bytes into per-request
@@ -141,9 +152,34 @@ fn wseq_key(note_id: &str) -> String {
     format!("sync:cloud:wseq:{note_id}")
 }
 
+/// Local-state probe for the scheduler's cloud seed/bootstrap decision.
+/// Returns `(has_notes, has_checkpoints)`:
+/// - `has_notes`: at least one non-meta `note_content` row exists locally
+///   (something this device could seed the cloud with).
+/// - `has_checkpoints`: this device stored a server pull checkpoint, i.e. it
+///   has already pulled this workspace and does not need snapshot bootstrap.
+pub(crate) fn local_cloud_flags(pool: &DbPool) -> Result<(bool, bool), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let notes: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM note_content WHERE note_id != ?1",
+            rusqlite::params![META_DOC_ID],
+            |row| row.get(0),
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let checkpoints: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM kv WHERE key LIKE 'sync:cloud:ckpt:%'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    Ok((notes > 0, checkpoints > 0))
+}
+
 /// JS `PUSH_VALID_NOTE_ID_RE` (`/^[a-zA-Z0-9_-]{1,256}$/`): skip anything
 /// else rather than have the server reject the whole batch.
-fn valid_note_id(id: &str) -> bool {
+pub(crate) fn valid_note_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 256
         && id
@@ -402,6 +438,34 @@ struct PushReport {
     pushed: u64,
     acked: HashSet<String>,
     unauthorized: bool,
+    note_ids: Vec<String>,
+}
+
+/// Append chunk note ids in first-seen order, deduplicated across chunks
+/// (one note's updates can span multiple batches).
+fn record_pushed_ids(note_ids: &mut Vec<String>, order: &[String]) {
+    for note in order {
+        if !note_ids.contains(note) {
+            note_ids.push(note.clone());
+        }
+    }
+}
+
+/// Note ids to report for a chunk: the server's per-note acks (intersected
+/// with what was sent) when it returned any, else the whole chunk.
+fn accepted_chunk_ids(order: &[String], acked: &HashSet<String>) -> Vec<String> {
+    if acked.is_empty() {
+        // ponytail: no per-note ack, so which notes the server accepted is
+        // unknown; report the whole chunk (superset). Upgrade to exact ids if
+        // the server ever omits checkpoints while accepting only some of a batch.
+        order.to_vec()
+    } else {
+        order
+            .iter()
+            .filter(|note| acked.contains(*note))
+            .cloned()
+            .collect()
+    }
 }
 
 async fn push_items(
@@ -416,6 +480,7 @@ async fn push_items(
         pushed: 0,
         acked: HashSet::new(),
         unauthorized: false,
+        note_ids: Vec::new(),
     };
     if items.is_empty() {
         return Ok(report);
@@ -482,15 +547,18 @@ async fn push_items(
         })?)
         .map_err(|e| CloudFail::Fatal(AppError::Other(format!("sync: push decode: {e}"))))?;
         report.pushed += (parsed.accepted.max(0) + parsed.duplicate.max(0)) as u64;
-        match parsed.checkpoints {
-            Some(map) => report.acked.extend(map.keys().cloned()),
+        let mut acked: HashSet<String> = HashSet::new();
+        match &parsed.checkpoints {
+            Some(map) => acked.extend(map.keys().cloned()),
             None => {
                 // Single-note fallback, mirroring JS `acknowledgedCheckpoints`.
                 if order.len() == 1 && parsed.checkpoint.is_some() {
-                    report.acked.insert(order[0].clone());
+                    acked.insert(order[0].clone());
                 }
             }
         }
+        report.acked.extend(acked.iter().cloned());
+        record_pushed_ids(&mut report.note_ids, &accepted_chunk_ids(&order, &acked));
     }
     Ok(report)
 }
@@ -838,7 +906,7 @@ where
         .map_err(CloudFail::Fatal)
 }
 
-fn unlock_gate(app: &AppHandle) -> Result<([u8; 32], DbPool), CloudFail> {
+pub(crate) fn unlock_gate(app: &AppHandle) -> Result<([u8; 32], DbPool), CloudFail> {
     let state = app.state::<AppState>();
     let pool = data_pool(app, state.inner()).map_err(CloudFail::Fatal)?;
     let key = current_app_key(state.inner())
@@ -849,6 +917,34 @@ fn unlock_gate(app: &AppHandle) -> Result<([u8; 32], DbPool), CloudFail> {
 
 fn unconfigured(workspace_id: &str, token: &str) -> bool {
     workspace_id.trim().is_empty() || token.is_empty()
+}
+
+/// Cloud pull with an explicit pool + key (no AppHandle): the script-drivable
+/// core of `sync_cloud_pull`. Live-server tests use this; the app uses the gate.
+pub(crate) async fn sync_cloud_pull_with(
+    pool: &DbPool,
+    key: &[u8; 32],
+    workspace_id: &str,
+    server_url: &str,
+    token: &str,
+) -> Result<PullOutcome, CloudFail> {
+    if unconfigured(workspace_id, token) {
+        return Ok(PullOutcome {
+            pulled: 0,
+            applied: Vec::new(),
+        });
+    }
+    let client = http_client().map_err(CloudFail::Fatal)?;
+    let base = server_url.trim_end_matches('/');
+    let (raw, pending, stale) = pull_all(&client, base, workspace_id, token, pool).await?;
+    let pool2 = pool.clone();
+    let key = *key;
+    let (applied, pulled) = tokio::task::spawn_blocking(move || {
+        decode_append_store(&pool2, &key, raw, pending, stale)
+    })
+    .await
+    .map_err(|e| CloudFail::Fatal(AppError::Other(e.to_string())))??;
+    Ok(PullOutcome { pulled, applied })
 }
 
 /// Cloud pull: fetch unseen updates, decrypt fail-closed, append via
@@ -866,16 +962,46 @@ pub(crate) async fn sync_cloud_pull(
         });
     }
     let (key, pool) = unlock_gate(app)?;
+    sync_cloud_pull_with(&pool, &key, workspace_id, server_url, token).await
+}
+
+/// Cloud push with an explicit pool + key + device (no AppHandle): the
+/// script-drivable core of `sync_cloud_push`. `now_ms` is a parameter so live
+/// tests can pin it; the app passes wall-clock time.
+pub(crate) async fn sync_cloud_push_with(
+    pool: &DbPool,
+    key: &[u8; 32],
+    device: &str,
+    now_ms: u64,
+    workspace_id: &str,
+    server_url: &str,
+    token: &str,
+) -> Result<PushOutcome, CloudFail> {
+    if unconfigured(workspace_id, token) {
+        return Ok(PushOutcome {
+            pushed: 0,
+            unauthorized: false,
+            note_ids: Vec::new(),
+        });
+    }
+    let (items, attempted) = {
+        let pool = pool.clone();
+        let device = device.to_string();
+        let key = *key;
+        blocking(move || collect_dirty(&pool, &key, &device, now_ms)).await?
+    };
     let client = http_client().map_err(CloudFail::Fatal)?;
-    let base = server_url.trim_end_matches('/');
-    let (raw, pending, stale) = pull_all(&client, base, workspace_id, token, &pool).await?;
-    let pool2 = pool.clone();
-    let (applied, pulled) = tokio::task::spawn_blocking(move || {
-        decode_append_store(&pool2, &key, raw, pending, stale)
+    let base = server_url.trim_end_matches('/').to_string();
+    let report = push_items(&client, &base, workspace_id, token, device, &items).await?;
+    if !report.acked.is_empty() {
+        let pool = pool.clone();
+        blocking(move || store_push_acks(&pool, &attempted, &report.acked)).await?;
+    }
+    Ok(PushOutcome {
+        pushed: report.pushed,
+        unauthorized: report.unauthorized,
+        note_ids: report.note_ids,
     })
-    .await
-    .map_err(|e| CloudFail::Fatal(AppError::Other(e.to_string())))??;
-    Ok(PullOutcome { pulled, applied })
 }
 
 /// Cloud push: dirty rows since the kv cursor → envelope encrypt → chunked
@@ -891,6 +1017,7 @@ pub(crate) async fn sync_cloud_push(
         return Ok(PushOutcome {
             pushed: 0,
             unauthorized: false,
+            note_ids: Vec::new(),
         });
     }
     let (key, pool) = unlock_gate(app)?;
@@ -900,22 +1027,7 @@ pub(crate) async fn sync_cloud_push(
     })
     .await?;
     let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    let (items, attempted) = {
-        let pool = pool.clone();
-        let device = device.clone();
-        blocking(move || collect_dirty(&pool, &key, &device, now_ms)).await?
-    };
-    let client = http_client().map_err(CloudFail::Fatal)?;
-    let base = server_url.trim_end_matches('/').to_string();
-    let report = push_items(&client, &base, workspace_id, token, &device, &items).await?;
-    if !report.acked.is_empty() {
-        let pool = pool.clone();
-        blocking(move || store_push_acks(&pool, &attempted, &report.acked)).await?;
-    }
-    Ok(PushOutcome {
-        pushed: report.pushed,
-        unauthorized: report.unauthorized,
-    })
+    sync_cloud_push_with(&pool, &key, &device, now_ms, workspace_id, server_url, token).await
 }
 
 #[cfg(test)]
@@ -924,5 +1036,296 @@ mod tests {
     fn chunk_caps_match_server_limits() {
         assert_eq!(super::chunk_notes(101, 1024).len(), 3); // 50-item cap
         assert_eq!(super::chunk_notes(2, 6 * 1024 * 1024).len(), 2); // 5MB cap
+    }
+
+    #[test]
+    fn record_pushed_ids_dedupes_across_chunks() {
+        let mut ids: Vec<String> = Vec::new();
+        super::record_pushed_ids(&mut ids, &["n1".into(), "n2".into()]);
+        super::record_pushed_ids(&mut ids, &["n2".into(), "n3".into()]);
+        assert_eq!(ids, vec!["n1", "n2", "n3"]);
+    }
+
+    #[test]
+    fn accepted_chunk_ids_prefers_acked_and_falls_back() {
+        use std::collections::HashSet;
+        let order: Vec<String> = vec!["A".into(), "B".into()];
+        // Server acked only A: report A, not B.
+        let acked: HashSet<String> = ["A".to_string()].into_iter().collect();
+        assert_eq!(super::accepted_chunk_ids(&order, &acked), vec!["A"]);
+        // No per-note ack: fall back to the whole chunk.
+        let none: HashSet<String> = HashSet::new();
+        assert_eq!(super::accepted_chunk_ids(&order, &none), vec!["A", "B"]);
+    }
+
+    #[test]
+    fn pushed_event_requires_count_and_ids() {
+        let mk = |pushed: u64, ids: Vec<String>| super::PushOutcome {
+            pushed,
+            unauthorized: false,
+            note_ids: ids,
+        };
+        assert!(mk(1, vec!["n1".into()]).has_pushed());
+        assert!(!mk(0, vec!["n1".into()]).has_pushed());
+        assert!(!mk(1, Vec::new()).has_pushed());
+        assert!(!mk(0, Vec::new()).has_pushed());
+    }
+
+    #[test]
+    fn local_cloud_flags_detect_notes_and_checkpoints() {
+        use std::{fs, path::PathBuf, time::SystemTime};
+
+        fn unique_temp_dir(prefix: &str) -> PathBuf {
+            let ts = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("clock ok")
+                .as_nanos();
+            std::env::temp_dir().join(format!("{prefix}-{ts}-{}", std::process::id()))
+        }
+
+        let root = unique_temp_dir("beaver-notes-cloud-flags");
+        let _ = fs::create_dir_all(&root);
+        let pool = crate::db::open_pool(&root.join("data.db")).expect("pool");
+
+        assert_eq!(super::local_cloud_flags(&pool).unwrap(), (false, false));
+
+        // The `meta` doc alone is not a local note.
+        crate::db::yjs_append(&pool, super::META_DOC_ID, b"x", "dev", None).expect("append meta");
+        assert_eq!(super::local_cloud_flags(&pool).unwrap(), (false, false));
+
+        crate::db::yjs_append(&pool, "n1", b"x", "dev", None).expect("append note");
+        crate::db::db_set(&pool, "sync:cloud:ckpt:n1", "{}", None).expect("ckpt");
+        assert_eq!(super::local_cloud_flags(&pool).unwrap(), (true, true));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Live-server harness: drives the real push/pull code against a running
+    /// Beaver-Sync instance. Hermetic `cargo test` never runs these (`#[ignore]`;
+    /// they also self-skip without env). Run via scripts/cloud-live/engine.sh:
+    /// `cargo test -- --ignored live_`.
+    mod live {
+        use yrs::{updates::decoder::Decode, Doc, GetString, ReadTxn, StateVector, Text, Transact, Update};
+
+        use crate::sync::cloud::{
+            sync_cloud_pull_with, sync_cloud_push_with, CloudFail,
+        };
+        use crate::sync::local::get_or_create_device_id;
+
+        fn unwrap<T>(r: Result<T, CloudFail>, what: &str) -> T {
+            match r {
+                Ok(v) => v,
+                Err(CloudFail::Unauthorized) => panic!("{what}: unauthorized"),
+                Err(CloudFail::Typed(e)) => panic!("{what}: {}", e.status_str()),
+                Err(CloudFail::Fatal(e)) => panic!("{what}: fatal {e:?}"),
+            }
+        }
+
+        fn cfg() -> Option<(String, String, String)> {
+            let url = std::env::var("BEAVER_LIVE_URL").ok()?;
+            let token = std::env::var("BEAVER_LIVE_TOKEN").ok()?;
+            let ws = std::env::var("BEAVER_LIVE_WS").ok()?;
+            if url.is_empty() || token.is_empty() || ws.is_empty() {
+                return None;
+            }
+            Some((url, token, ws))
+        }
+
+        fn pool(tag: &str) -> (crate::db::DbPool, std::path::PathBuf) {
+            // ponytail: temp-dir pools, no AppHandle; add shared-vault key setup if live tests ever need distinct keys.
+            let dir = std::env::temp_dir().join(format!(
+                "beaver-live-{tag}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .expect("clock ok")
+                    .as_nanos()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let pool = crate::db::open_pool(&dir.join("data.db")).expect("pool");
+            (pool, dir)
+        }
+
+        fn update(text: &str) -> Vec<u8> {
+            let doc = Doc::new();
+            let t = doc.get_or_insert_text("content");
+            let mut txn = doc.transact_mut();
+            t.insert(&mut txn, 0, text);
+            txn.encode_state_as_update_v1(&StateVector::default())
+        }
+
+        fn read_text(pool: &crate::db::DbPool, key: &[u8; 32], note: &str) -> String {
+            let doc = Doc::new();
+            let t = doc.get_or_insert_text("content");
+            let rows =
+                crate::db::yjs_get_updates(pool, note, Some(*key)).expect("read rows");
+            assert!(!rows.is_empty(), "expected rows for {note}");
+            for (_, blob) in rows {
+                let update = Update::decode_v1(&blob).expect("decode update");
+                doc.transact_mut().apply_update(update).expect("apply");
+            }
+            let txn = doc.transact_mut();
+            t.get_string(&txn)
+        }
+
+        fn now_ms() -> u64 {
+            chrono::Utc::now().timestamp_millis().max(0) as u64
+        }
+
+        #[tokio::test]
+        #[ignore]
+        async fn live_push_pull_roundtrip() {
+            let Some((url, token, ws)) = cfg() else {
+                eprintln!("skip: set BEAVER_LIVE_URL/_TOKEN/_WS");
+                return;
+            };
+            // Same vault key on both sides = two vault-joined devices.
+            let key = [7u8; 32];
+            let (pool_a, dir_a) = pool("a");
+            let (pool_b, dir_b) = pool("b");
+            let dev_a = unwrap(
+                get_or_create_device_id(&pool_a).map_err(CloudFail::from),
+                "device a",
+            );
+            let dev_b = unwrap(
+                get_or_create_device_id(&pool_b).map_err(CloudFail::from),
+                "device b",
+            );
+            assert_ne!(dev_a, dev_b);
+
+            crate::db::yjs_append(&pool_a, "liveprobe", &update("hello from a"), "t", Some(key))
+                .expect("append a");
+            let push = unwrap(
+                sync_cloud_push_with(
+                    &pool_a, &key, &dev_a, now_ms(), &ws, &url, &token,
+                )
+                .await,
+                "push a",
+            );
+            assert!(push.pushed >= 1, "nothing pushed");
+            assert!(push.note_ids.contains(&"liveprobe".to_string()));
+
+            let pull = unwrap(
+                sync_cloud_pull_with(&pool_b, &key, &ws, &url, &token).await,
+                "pull b",
+            );
+            assert!(pull.applied.contains(&"liveprobe".to_string()));
+            assert_eq!(read_text(&pool_b, &key, "liveprobe"), "hello from a");
+
+            // And back: B's edit must reach A.
+            crate::db::yjs_append(&pool_b, "liveprobe", &update("hello from a + b"), "t", Some(key))
+                .expect("append b");
+            // NOTE: appending a full-state update supersedes; text converges to latest writer.
+            let push_b = unwrap(
+                sync_cloud_push_with(
+                    &pool_b, &key, &dev_b, now_ms(), &ws, &url, &token,
+                )
+                .await,
+                "push b",
+            );
+            assert!(push_b.pushed >= 1);
+            let pull_a = unwrap(
+                sync_cloud_pull_with(&pool_a, &key, &ws, &url, &token).await,
+                "pull a",
+            );
+            assert!(pull_a.applied.contains(&"liveprobe".to_string()));
+
+            // Echo dynamics (same as folder transport): rows that arrived via
+            // pull are new local rows, so the next push relays them once.
+            // First relay round: B's vector predates its own local append, so
+            // the relay of B's own update looks new and lands as one duplicate
+            // row (idempotent bytes, vector then catches up). Second round
+            // must be fully quiet — this locks termination, not silence.
+            let echo = unwrap(
+                sync_cloud_push_with(
+                    &pool_a, &key, &dev_a, now_ms(), &ws, &url, &token,
+                )
+                .await,
+                "echo push",
+            );
+            assert!(echo.pushed >= 1);
+            let pull_b2 = unwrap(
+                sync_cloud_pull_with(&pool_b, &key, &ws, &url, &token).await,
+                "pull b2",
+            );
+            // Duplicate row is dirty on B: one more relay, then coverage holds.
+            let echo2 = unwrap(
+                sync_cloud_push_with(
+                    &pool_b, &key, &dev_b, now_ms(), &ws, &url, &token,
+                )
+                .await,
+                "echo push 2",
+            );
+            let _ = (pull_b2, echo2);
+            let pull_a2 = unwrap(
+                sync_cloud_pull_with(&pool_a, &key, &ws, &url, &token).await,
+                "pull a2",
+            );
+            assert!(
+                pull_a2.applied.is_empty(),
+                "second relay round must be covered-skipped, applied={:?}",
+                pull_a2.applied
+            );
+            let quiet_a = unwrap(
+                sync_cloud_push_with(
+                    &pool_a, &key, &dev_a, now_ms(), &ws, &url, &token,
+                )
+                .await,
+                "quiet push a",
+            );
+            assert_eq!(quiet_a.pushed, 0);
+            let quiet_b = unwrap(
+                sync_cloud_push_with(
+                    &pool_b, &key, &dev_b, now_ms(), &ws, &url, &token,
+                )
+                .await,
+                "quiet push b",
+            );
+            assert_eq!(quiet_b.pushed, 0);
+
+            let _ = std::fs::remove_dir_all(&dir_a);
+            let _ = std::fs::remove_dir_all(&dir_b);
+        }
+
+        #[tokio::test]
+        #[ignore]
+        async fn live_failed_push_keeps_cursor() {
+            let Some((url, token, ws)) = cfg() else {
+                eprintln!("skip: set BEAVER_LIVE_URL/_TOKEN/_WS");
+                return;
+            };
+            let key = [7u8; 32];
+            let (pool_a, dir_a) = pool("c");
+            let dev_a = unwrap(
+                get_or_create_device_id(&pool_a).map_err(CloudFail::from),
+                "device",
+            );
+            crate::db::yjs_append(&pool_a, "liveprobe2", &update("unauthorized first"), "t", Some(key))
+                .expect("append");
+
+            // Bad token: server 401/403 → unauthorized flag, cursor NOT advanced.
+            let bad = unwrap(
+                sync_cloud_push_with(
+                    &pool_a, &key, &dev_a, now_ms(), &ws, &url, "bogus-token",
+                )
+                .await,
+                "bad-token push returns report",
+            );
+            assert!(bad.unauthorized, "expected unauthorized flag");
+            assert_eq!(bad.pushed, 0);
+
+            // Good token replays the same rows (idempotent device+sequence keys).
+            let good = unwrap(
+                sync_cloud_push_with(
+                    &pool_a, &key, &dev_a, now_ms(), &ws, &url, &token,
+                )
+                .await,
+                "good push",
+            );
+            assert!(good.pushed >= 1);
+            assert!(good.note_ids.contains(&"liveprobe2".to_string()));
+
+            let _ = std::fs::remove_dir_all(&dir_a);
+        }
     }
 }

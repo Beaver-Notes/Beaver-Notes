@@ -452,19 +452,12 @@ pub(crate) fn sync_key_params_path(
 ) -> Result<Option<PathBuf>, AppError> {
     let sync_path =
         get_settings_value(app, state, "syncPath").and_then(|v| v.as_str().map(|s| s.to_string()));
-    let base = if let Some(ref p) = sync_path {
-        if !p.is_empty() {
-            PathBuf::from(p)
-        } else {
-            // Cloud-only mode: keep keyParams.json reachable from the JS side.
-            dirs::data_local_dir()
-                .map(|d| d.join("com.beavernotes.beaver-notes"))
-                .unwrap_or_default()
-        }
-    } else {
-        dirs::data_local_dir()
-            .map(|d| d.join("com.beavernotes.beaver-notes"))
-            .unwrap_or_default()
+    // No folder chosen (cloud-only / fresh onboarding): keep keyParams.json inside
+    // this instance's app-data dir. Falling back to the shared real-app directory
+    // would let a second instance read/write the first app's vault.
+    let base = match sync_path.as_deref() {
+        Some(p) if !p.is_empty() => PathBuf::from(p),
+        _ => crate::shared::app_storage_dir(app, state)?,
     };
     Ok(Some(base.join(SYNC_ROOT_DIR).join(SYNC_KEY_PARAMS_FILE)))
 }

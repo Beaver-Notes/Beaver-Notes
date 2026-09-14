@@ -418,6 +418,35 @@ pub(crate) struct SyncMeta {
     pub(crate) note_id: String,
 }
 
+/// Serialize a v5 sync envelope (`{v, meta, iv, enc}`) with `v` first.
+///
+/// serde_json's `Value` map is a BTreeMap (no `preserve_order`), so a `json!`
+/// object emits keys alphabetically (`{"enc":...`). That hides the envelope
+/// from the JS-parity byte-prefix detector (`isEncryptedEnvelopeBytes` /
+/// `is_encrypted_asset_envelope`) and makes `download_missing` write
+/// ciphertext to the asset's plaintext destination. Struct field order is
+/// stable, so every v5 producer must serialize through here.
+#[derive(Serialize)]
+struct V5Envelope<'a, M> {
+    v: u8,
+    meta: &'a M,
+    iv: &'a str,
+    enc: &'a str,
+}
+
+pub(crate) fn serialize_v5_envelope<M: Serialize>(
+    meta: &M,
+    iv: &str,
+    enc: &str,
+) -> Result<String, AppError> {
+    Ok(serde_json::to_string(&V5Envelope {
+        v: SYNC_PAYLOAD_VERSION,
+        meta,
+        iv,
+        enc,
+    })?)
+}
+
 /// Encrypt sync payload (commit/snapshot/genesis) with items key (XChaCha20-Poly1305). AAD binds identity, blocks swapping.
 /// Update is base64 raw bytes, never JSON number arrays. Meta inside envelope.
 #[tauri::command]
@@ -436,13 +465,7 @@ pub(crate) async fn sync_encrypt_payload(
         let bytes = BASE64.decode(data)?;
         let (iv, enc) = aead_encrypt_bytes(&key, &bytes, &aad)?;
         let meta: SyncMeta = serde_json::from_str(&meta)?;
-        let envelope = serde_json::json!({
-            "v": SYNC_PAYLOAD_VERSION,
-            "meta": serde_json::to_value(&meta)?,
-            "iv": iv,
-            "enc": enc,
-        });
-        Ok(serde_json::to_string(&envelope)?)
+        serialize_v5_envelope(&meta, &iv, &enc)
     })
     .await
     .map_err(|e| AppError::Other(e.to_string()))?
@@ -687,13 +710,7 @@ pub(crate) async fn sync_encrypt_batch(
                 let bytes = BASE64.decode(data)?;
                 let (iv, enc) = aead_encrypt_bytes(&key, &bytes, aad)?;
                 let meta: SyncMeta = serde_json::from_str(meta)?;
-                let envelope = serde_json::json!({
-                    "v": SYNC_PAYLOAD_VERSION,
-                    "meta": serde_json::to_value(&meta)?,
-                    "iv": iv,
-                    "enc": enc,
-                });
-                Ok(serde_json::to_string(&envelope)?)
+                serialize_v5_envelope(&meta, &iv, &enc)
             })
             .collect();
 
@@ -1280,4 +1297,34 @@ pub(crate) async fn vault_derive_proof(
     .await
     .map_err(to_error)?;
     Ok(proof)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The JS asset producer path reaches `sync_encrypt_payload` (and batch),
+    /// so its output must be recognized by the JS-parity byte-prefix detector.
+    /// Full command exercise needs an `AppHandle`; this covers the serializer.
+    #[test]
+    fn v5_envelope_is_serialized_v_first() {
+        let meta = SyncMeta {
+            device: "device-1".into(),
+            ts: 42,
+            sequence: Some(0),
+            note_id: "note-1".into(),
+        };
+        let raw = serialize_v5_envelope(&meta, "aabb", "QQ==").unwrap();
+        assert!(raw.starts_with(r#"{"v":5,"meta":{"#));
+        assert!(crate::sync::assets::is_encrypted_asset_envelope(raw.as_bytes()));
+
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["v"], SYNC_PAYLOAD_VERSION);
+        assert_eq!(value["meta"]["device"], "device-1");
+        assert_eq!(value["meta"]["noteId"], "note-1");
+        assert_eq!(value["meta"]["ts"], 42);
+        assert_eq!(value["meta"]["sequence"], 0);
+        assert_eq!(value["iv"], "aabb");
+        assert_eq!(value["enc"], "QQ==");
+    }
 }

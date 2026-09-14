@@ -452,6 +452,32 @@ function pickFilesWithBrowserInput(payload = {}) {
   });
 }
 
+const STAGING_CHUNK_BYTES = 4 * 1024 * 1024;
+
+// Browser File/Blob inputs have no filesystem path, so bytes must cross IPC. Writing
+// in bounded chunks keeps peak WebView memory at one chunk instead of the whole file.
+async function stageFileToDisk(file, destination) {
+  const size = file.size ?? 0;
+  if (size <= STAGING_CHUNK_BYTES) {
+    await invokeCommand('fs:writeFile', {
+      path: destination,
+      data: new Uint8Array(await file.arrayBuffer()),
+    });
+    return;
+  }
+  await invokeCommand('fs:writeFile', {
+    path: destination,
+    data: new Uint8Array(await file.slice(0, STAGING_CHUNK_BYTES).arrayBuffer()),
+  });
+  for (let offset = STAGING_CHUNK_BYTES; offset < size; offset += STAGING_CHUNK_BYTES) {
+    const chunk = await file.slice(offset, offset + STAGING_CHUNK_BYTES).arrayBuffer();
+    await invokeCommand('fs:appendFile', {
+      path: destination,
+      data: new Uint8Array(chunk),
+    });
+  }
+}
+
 async function stageMobileSelectedFiles(files) {
   if (!files.length) return [];
 
@@ -480,12 +506,8 @@ async function stageMobileSelectedFiles(files) {
 
     usedNames.add(candidateName);
 
-    const bytes = new Uint8Array(await file.arrayBuffer());
     const destination = buildPath(stagingRoot, candidateName);
-    await invokeCommand('fs:writeFile', {
-      path: destination,
-      data: bytes,
-    });
+    await stageFileToDisk(file, destination);
     stagedPaths.push(destination);
   }
 

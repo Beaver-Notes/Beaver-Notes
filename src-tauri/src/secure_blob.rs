@@ -75,6 +75,14 @@ impl SecureBlobCache {
     }
 
     fn storage_dir(state: &AppState) -> Result<PathBuf, AppError> {
+        // Per-instance isolation: when the data dir is overridden (e.g. a second
+        // instance for testing), keep this instance's secure blobs there too.
+        // Otherwise both instances would read/write the same passphrase blob.
+        if let Some(dir) = std::env::var_os("BEAVER_NOTES_DATA_DIR").filter(|v| !v.is_empty()) {
+            let dir = PathBuf::from(dir);
+            fs::create_dir_all(&dir)?;
+            return Ok(dir);
+        }
         if let Some(ref dir) = state.files.portable_storage_dir {
             return Ok(dir.clone());
         }
