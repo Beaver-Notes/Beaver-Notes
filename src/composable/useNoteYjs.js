@@ -7,7 +7,6 @@ import {
   compactUpdates,
   compactNote,
 } from '@/lib/native/yjs.js';
-import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import {
   getDeviceId,
@@ -103,7 +102,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
   t?.end();
 }
 
-  // Persist a Yjs update to SQLite and optionally queue it for the sync folder.
+  // Persist a Yjs update to SQLite (Rust reads `note_content`) and dirty-kick Rust.
 async function persistUpdate(noteId, update) {
   if (!noteId || !update || update.byteLength === 0) return;
   try {
@@ -113,13 +112,7 @@ async function persistUpdate(noteId, update) {
     );
   } catch {
   }
-  try {
-    const commitsDir = await getCommitsDir();
-    if (commitsDir) {
-      queueSyncWrite(commitsDir, noteId, update);
-    }
-  } catch {
-  }
+  queueSyncWrite(noteId);
 }
 
 const FLUSH_DELAY_MS = 300;

@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types.js';
-import { forceSyncNow } from '@/utils/sync';
+import { kickRustSync } from '@/utils/sync/rust-shim.js';
 
 export function useSyncTransport() {
   const accountStore = useAccountStore();
@@ -45,7 +45,7 @@ export function useSyncTransport() {
     transport.value = value;
     await setSetting('syncTransport', value);
     if (accountStore.isAuthenticated) {
-      forceSyncNow().catch(() => {});
+      kickRustSync();
     }
   }
 

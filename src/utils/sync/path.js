@@ -3,6 +3,9 @@ import {
   getStoredValue,
   setStoredValue,
 } from '@/lib/native/storage';
+import { settingsMirrorKey } from '@/lib/settings';
+
+const LEGACY_KEY = 'default-path';
 
 async function getPersistedSyncPath() {
   try {
@@ -29,13 +32,35 @@ async function clearPersistedSyncPath() {
   }
 }
 
+function readLegacySyncPath() {
+  const namespaced = localStorage.getItem(settingsMirrorKey(LEGACY_KEY)) || '';
+  const raw = localStorage.getItem(LEGACY_KEY) || '';
+  // Migrate the pre-namespace shared key once, then drop it so a folder can
+  // never leak from one instance to another.
+  if (!namespaced && raw) {
+    localStorage.setItem(settingsMirrorKey(LEGACY_KEY), raw);
+    localStorage.removeItem(LEGACY_KEY);
+  }
+  return (namespaced || raw).trim();
+}
+
+function writeLegacySyncPath(value) {
+  localStorage.setItem(settingsMirrorKey(LEGACY_KEY), value);
+  localStorage.removeItem(LEGACY_KEY);
+}
+
+function clearLegacySyncPath() {
+  localStorage.removeItem(settingsMirrorKey(LEGACY_KEY));
+  localStorage.removeItem(LEGACY_KEY);
+}
+
 /** Resolve sync path from settings, fallback legacy key. Cached in memory, only setSyncPath writes. */
 let cachedSyncPath = null;
 
 export async function getSyncPath() {
   if (cachedSyncPath !== null) return cachedSyncPath;
 
-  const legacy = (localStorage.getItem('default-path') || '').trim();
+  const legacy = readLegacySyncPath();
   const persisted = await getPersistedSyncPath();
   const resolved = persisted || legacy;
 
@@ -48,7 +73,7 @@ export async function getSyncPath() {
     await persistSyncPath(resolved);
   }
   if (legacy !== resolved) {
-    localStorage.setItem('default-path', resolved);
+    writeLegacySyncPath(resolved);
   }
 
   cachedSyncPath = resolved;
@@ -62,12 +87,12 @@ export async function setSyncPath(pathValue) {
   cachedSyncPath = normalized;
 
   if (!normalized) {
-    localStorage.removeItem('default-path');
+    clearLegacySyncPath();
     await clearPersistedSyncPath();
     return '';
   }
 
-  localStorage.setItem('default-path', normalized);
+  writeLegacySyncPath(normalized);
   await persistSyncPath(normalized);
   return normalized;
 }

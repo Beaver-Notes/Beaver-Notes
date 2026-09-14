@@ -3,6 +3,7 @@ import { useAccountStore } from '@/store/account';
 import { setSetting } from '@/lib/settings';
 import { useAccountAuth } from '@/composable/useAccountAuth';
 import { updateUsername as apiUpdateUsername, getAccountExport } from '@/lib/api/account';
+import { logger } from '@/utils/logger';
 
 export function useSettingsAccount({ dialog, translations }) {
   const accountStore = useAccountStore();
@@ -66,8 +67,11 @@ export function useSettingsAccount({ dialog, translations }) {
       );
       signInPassword.value = '';
       if (accountStore.isAuthenticated) {
-        await detectAndPromptVaultJoin();
-        auth.triggerSeed().catch(() => {});
+        if (await detectAndPromptVaultJoin()) {
+          auth.triggerSeed().catch((e) =>
+            logger.warn('[settings] account seed failed:', e)
+          );
+        }
       }
     } catch {
       // error already on the store
@@ -92,8 +96,11 @@ export function useSettingsAccount({ dialog, translations }) {
       signInPassword.value = '';
       signUpUsername.value = '';
       if (accountStore.isAuthenticated) {
-        await detectAndPromptVaultJoin();
-        auth.triggerSeed().catch(() => {});
+        if (await detectAndPromptVaultJoin()) {
+          auth.triggerSeed().catch((e) =>
+            logger.warn('[settings] account seed failed:', e)
+          );
+        }
       }
     } catch {
       // error already on the store
@@ -105,8 +112,11 @@ export function useSettingsAccount({ dialog, translations }) {
     try {
       await auth.signInWithPasskey(passkeyEmail.value?.trim() || null);
       if (accountStore.isAuthenticated) {
-        await detectAndPromptVaultJoin();
-        auth.triggerSeed().catch(() => {});
+        if (await detectAndPromptVaultJoin()) {
+          auth.triggerSeed().catch((e) =>
+            logger.warn('[settings] account seed failed:', e)
+          );
+        }
       }
     } catch {
       // error already on the store
@@ -118,8 +128,11 @@ export function useSettingsAccount({ dialog, translations }) {
     try {
       await auth.signUpWithPasskey(passkeyEmail.value?.trim() || null);
       if (accountStore.isAuthenticated) {
-        await detectAndPromptVaultJoin();
-        auth.triggerSeed().catch(() => {});
+        if (await detectAndPromptVaultJoin()) {
+          auth.triggerSeed().catch((e) =>
+            logger.warn('[settings] account seed failed:', e)
+          );
+        }
       }
     } catch {
       // error already on the store
@@ -132,8 +145,16 @@ export function useSettingsAccount({ dialog, translations }) {
       const { hasRemoteVaultKeyParams, adoptVaultKey } = await import('@/utils/crypto/encryption.js');
 
       // Remote vault differs or no local manifest: never skip, wrong local key still re-imports.
-      await fetchCloudKeyParams({ force: true }).catch(() => null);
-      const hasVault = await hasRemoteVaultKeyParams().catch(() => false);
+      await fetchCloudKeyParams({ force: true }).catch((e) =>
+        logger.warn('[settings] cloud key-params fetch failed:', e)
+      );
+      let hasVault;
+      try {
+        hasVault = await hasRemoteVaultKeyParams();
+      } catch (e) {
+        logger.warn('[settings] cloud vault detection failed:', e);
+        return false;
+      }
 
       if (hasVault) {
         dialog.confirm({
@@ -190,8 +211,10 @@ export function useSettingsAccount({ dialog, translations }) {
         });
       }
     } catch (e) {
-      console.warn('[auth] vault detection failed:', e);
+      logger.warn('[auth] vault detection failed:', e);
+      return false;
     }
+    return true;
   }
 
   async function startQuickConnect() {

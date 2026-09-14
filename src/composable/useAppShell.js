@@ -57,8 +57,8 @@ import {
   backfillNotePreviews,
   repairStrandedNotes,
 } from '@/lib/yjs/workspace-doc';
-import { getSyncEngine } from '@/utils/sync/engine.js';
 import { initAppSync } from '@/utils/sync/app-sync.js';
+import { kickRustSync, kickRustDirty } from '@/utils/sync/rust-shim.js';
 
 import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
 import { useSidebar } from '@/composable/useSidebar';
@@ -507,8 +507,8 @@ export function useAppShell(onboardingCompleted = true) {
     ]);
 
     if (!hasData && !onboardingCompleted) {
-      // Init the sync engine before onboarding so post-onboarding sync has a
-      // live engine; with no sync folder configured the cycles are no-ops.
+      // Start the sync scheduler before onboarding so post-onboarding sync
+      // has a live scheduler; with no sync target the cycles are no-ops.
       initAppSync();
       performance.mark('init:done');
       logStartupTiming();
@@ -827,13 +827,9 @@ export function useAppShell(onboardingCompleted = true) {
 
   function handleVisibilityChange() {
     if (document.hidden) {
-      const engine = getSyncEngine();
-      if (engine) engine.flush().catch(() => {});
-      engine?.stopPullTimer();
+      kickRustDirty();
     } else {
-      const engine = getSyncEngine();
-      if (engine) engine.notifyForeground().catch(() => {});
-      engine?.startPullTimer();
+      kickRustSync();
     }
   }
 
@@ -841,7 +837,6 @@ export function useAppShell(onboardingCompleted = true) {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    getSyncEngine()?.stopPullTimer();
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())

@@ -1,63 +1,33 @@
-import { initSyncEngine, getSyncEngine } from './engine.js';
-import { startRustSync } from './rust-shim.js';
-import { useStorage } from '@/lib/storage';
+import { startRustSync, kickRustSync } from './rust-shim.js';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import { useSyncProgressStore } from '@/store/sync-progress';
 import { getSyncPath } from './path.js';
 import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types';
-import { LocalFolderTransport } from './transports/local-folder.js';
-import { CloudTransport } from './transports/cloud.js';
+import { logger } from '@/utils/logger';
 
 /**
- * Build and start the app sync engine. Autosync is always on: the engine is
- * initialized unconditionally so callers may forceSyncNow anytime without a
- * null engine; a cycle without a configured target is a no-op.
+ * Start Rust-owned sync: the progress store and the Rust scheduler, kicked
+ * once when a sync target (folder path or authenticated cloud account) is
+ * configured. Rust owns the cadence; a cycle without a target is a no-op.
  */
 export async function initAppSync() {
-  const syncProgressStore = useSyncProgressStore();
-  syncProgressStore.startListening();
+  useSyncProgressStore().startListening();
 
-  initSyncEngine({
-    transports: {
-      local: new LocalFolderTransport(),
-      cloud: new CloudTransport(),
-    },
-    storage: useStorage(),
-    getActiveTransports: () => {
-      const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
-      if (transport === SYNC_TRANSPORT.FOLDER) return ['local'];
-      return ['cloud'];
-    },
-  });
-
-  const engine = getSyncEngine();
-
-  // Nothing configured (no folder, no cloud account): stay inert, skip pull and timer, cycles on demand.
   const syncPath = await getSyncPath();
-  const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
-  const wantsCloud = transport !== SYNC_TRANSPORT.FOLDER;
-  const accountStore = useAccountStore();
+  const wantsCloud =
+    normalizeSyncTransport(getSettingSync('syncTransport')) !==
+    SYNC_TRANSPORT.FOLDER;
   const hasSyncTarget =
-    Boolean(syncPath) || (wantsCloud && accountStore.isAuthenticated);
-  if (!hasSyncTarget) {
-    return engine;
-  }
+    Boolean(syncPath) || (wantsCloud && useAccountStore().isAuthenticated);
+  if (!hasSyncTarget) return;
 
-  // Rust owns durable sync when available; the JS engine resolve-skips via
-  // the gate and stays as automatic fallback. Failure (e.g. web build
-  // without `sync:start`) logs once and continues with the JS engine.
   try {
     await startRustSync();
   } catch (err) {
-    console.warn('[sync] Rust scheduler unavailable, using JS engine:', err?.message || err);
+    logger.warn('[sync] Rust scheduler unavailable:', err?.message || err);
+    return;
   }
 
-  engine
-    .forceSyncNow()
-    .catch((err) => console.warn('[sync] initial sync failed:', err));
-
-  engine.startPullTimer();
-
-  return engine;
+  kickRustSync();
 }

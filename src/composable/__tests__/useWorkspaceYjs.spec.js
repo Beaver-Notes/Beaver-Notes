@@ -13,10 +13,6 @@ vi.mock('@/lib/native/yjs.js', () => ({
   deleteUpdates: vi.fn(),
 }));
 vi.mock('@/lib/native/fs', () => ({ readDir: vi.fn() }));
-vi.mock('@/utils/sync/sync-repository.js', () => ({
-  getCommitsDir: vi.fn().mockResolvedValue(null),
-}));
-vi.mock('@/utils/sync/sync-yjs.js', () => ({ writeYjsSnapshot: vi.fn() }));
 vi.mock('@/utils/sync/crypto.js', () => ({ encryptJSON: vi.fn() }));
 vi.mock('@/utils/sync/pending-writes.js', () => ({ queueSyncWrite: vi.fn() }));
 vi.mock('@/lib/yjs/helpers.js', () => ({
@@ -32,6 +28,8 @@ vi.mock('@/store/workspace', () => ({ useWorkspaceStore: () => ({ activeId: null
 import { observeWorkspace, loadWorkspaceDoc, flushPendingMetaUpdates } from '@/lib/yjs/workspace-doc.js';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { appendUpdate } from '@/lib/native/yjs.js';
+import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
+import { readDir } from '@/lib/native/fs';
 
 describe('observeWorkspace scheduling', () => {
   const callback = vi.fn();
@@ -99,6 +97,8 @@ describe('workspace meta-doc debounced persistence', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     appendUpdate.mockClear();
+    queueSyncWrite.mockClear();
+    readDir.mockClear();
   });
 
   afterEach(async () => {
@@ -107,7 +107,7 @@ describe('workspace meta-doc debounced persistence', () => {
     vi.useRealTimers();
   });
 
-  it('coalesces a burst of meta updates into a single append', async () => {
+  it('coalesces a burst of meta updates into a single append and dirty-kicks without folder writes', async () => {
     const doc = getWorkspaceDoc();
 
     // Simulate a bulk op: three separate local transactions in quick succession.
@@ -126,6 +126,9 @@ describe('workspace meta-doc debounced persistence', () => {
 
     expect(appendUpdate).toHaveBeenCalledTimes(1);
     expect(appendUpdate.mock.calls[0][0]).toBe('meta');
+    expect(queueSyncWrite).toHaveBeenCalledTimes(1);
+    expect(queueSyncWrite).toHaveBeenCalledWith('meta');
+    expect(readDir).not.toHaveBeenCalled();
   });
 
   it('persists nothing when only sync/load-origin updates occur', async () => {
@@ -139,5 +142,6 @@ describe('workspace meta-doc debounced persistence', () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(appendUpdate).not.toHaveBeenCalled();
+    expect(queueSyncWrite).not.toHaveBeenCalled();
   });
 });

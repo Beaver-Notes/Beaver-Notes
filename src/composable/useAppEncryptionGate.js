@@ -4,12 +4,15 @@ import {
   tryRestoreKeyFromSafeStorage,
   encryptionIsConfigured,
   isKeyLoaded,
+  reconcileFolderVault,
 } from '@/utils/crypto/encryption.js';
 import { getSyncPath } from '@/utils/sync/path';
 import {
   isBiometricAvailable,
   authenticateWithBiometrics,
 } from '@/lib/native/biometric.js';
+import { logger } from '@/utils/logger';
+
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 
@@ -27,23 +30,23 @@ export function useAppEncryptionGate({ finishWorkspaceInit, onUnlockError }) {
     appEncryptionGate.deriving = true;
     try {
       const first = await tryRestoreKeyFromSafeStorage();
-      console.warn('[gate] first restore:', first, 'isKeyLoaded:', isKeyLoaded());
+      logger.debug('[gate] first restore:', first, 'isKeyLoaded:', isKeyLoaded());
       if (!isKeyLoaded()) {
         const configured = await encryptionIsConfigured().catch(() => false);
-        console.warn('[gate] encryptionIsConfigured:', configured);
+        logger.debug('[gate] encryptionIsConfigured:', configured);
         if (!configured) {
-          console.warn('[gate] skipping auto biometric: encryption not configured');
+          logger.debug('[gate] skipping auto biometric: encryption not configured');
         } else {
           let biometricAvailable = false;
           try {
             biometricAvailable = await isBiometricAvailable();
           } catch (e) {
-            console.warn('[gate] isBiometricAvailable error:', e);
+            logger.warn('[gate] isBiometricAvailable error:', e);
           }
-          console.warn('[gate] biometricAvailable:', biometricAvailable);
+          logger.debug('[gate] biometricAvailable:', biometricAvailable);
           if (biometricAvailable) {
           try {
-            console.warn('[gate] auto-triggering biometrics...');
+            logger.debug('[gate] auto-triggering biometrics...');
             // ponytail: 8s ceiling, FaceID prompt can hang on iOS if dismissed, must not block startup forever
             const timeout = (ms) =>
               new Promise((_, rej) => setTimeout(() => rej(new Error('biometric timeout')), ms));
@@ -51,17 +54,17 @@ export function useAppEncryptionGate({ finishWorkspaceInit, onUnlockError }) {
               authenticateWithBiometrics('Unlock Beaver Notes'),
               timeout(8000),
             ]);
-            console.warn('[gate] biometrics success, retrying restore');
+            logger.debug('[gate] biometrics success, retrying restore');
             await tryRestoreKeyFromSafeStorage();
-            console.warn('[gate] second restore isKeyLoaded:', isKeyLoaded());
+            logger.debug('[gate] second restore isKeyLoaded:', isKeyLoaded());
           } catch (e) {
             const msg = String(e?.message || e || '');
             const isCancel = /cancel/i.test(msg) || /userCancel/i.test(msg) || /timeout/i.test(msg);
-            console.warn('[gate] auto biometric failed/cancelled:', msg);
-            if (!isCancel) console.warn('[gate] auto biometric failed:', e);
+            logger.debug('[gate] auto biometric failed/cancelled:', msg);
+            if (!isCancel) logger.warn('[gate] auto biometric failed:', e);
           }
         } else {
-          console.warn('[gate] skipping auto biometric: not available');
+          logger.debug('[gate] skipping auto biometric: not available');
         }
         }
       }
@@ -69,7 +72,7 @@ export function useAppEncryptionGate({ finishWorkspaceInit, onUnlockError }) {
       appEncryptionGate.deriving = false;
     }
     await refreshEncryptionGate();
-    console.warn('[gate] refresh done show:', appEncryptionGate.show, 'deriving:', appEncryptionGate.deriving);
+    logger.debug('[gate] refresh done show:', appEncryptionGate.show, 'deriving:', appEncryptionGate.deriving);
   };
 
   const refreshEncryptionGate = async (configuredOverride) => {
@@ -89,8 +92,9 @@ export function useAppEncryptionGate({ finishWorkspaceInit, onUnlockError }) {
   // is the deferred remainder of initializeWorkspace().
   const handleEncryptionUnlocked = () => {
     appEncryptionGate.show = false;
+    reconcileFolderVault().catch(() => {});
     finishWorkspaceInit().catch((err) => {
-      console.error('[app] workspace init after unlock failed:', err);
+      logger.error('[app] workspace init after unlock failed:', err);
       onUnlockError?.();
     });
   };

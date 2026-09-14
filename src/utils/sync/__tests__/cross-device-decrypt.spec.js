@@ -7,8 +7,8 @@ const API = process.env.VITE_TEST_BACKEND_URL || 'http://localhost:4000';
 // derivation itself is mocked (SHA-256 here, Argon2id KEK in prod via Rust),
 // so this proves both devices converge given the same key, not KDF convergence.
 // In a real deployment device A and device B converge on the same key because
-// they share the same passphrase + the same vault key-params (synced via the
-// backend by publishCloudKeyParams/fetchCloudKeyParams).
+// they share the same passphrase + the same vault key-params (fetched from the
+// backend by fetchCloudKeyParams).
 const ctx = vi.hoisted(() => ({
   blobs: new Map(),
   fsFiles: new Map(),
@@ -184,7 +184,6 @@ vi.mock('@/store/workspace.ts', () => ({
 
 vi.mock('@/utils/sync/sync-repository.js', () => ({
   getSyncDeviceId: () => 'device-A-cross',
-  getCommitsDir: () => Promise.resolve(null),
 }));
 
 vi.mock('@/utils/sync/path.js', () => ({
@@ -206,8 +205,7 @@ try {
 const d = reachable ? describe : describe.skip;
 
 d('cross-device decrypt through the real sync path (live backend)', () => {
-  const deviceA = 'device-A-cross';
-  const report = { seeded: null, publishKeyParams: null, fetchKeyParams: null };
+  const report = { fetchKeyParams: null };
 
   beforeAll(async () => {
     const auth = await import('@/lib/api/auth.js');
@@ -221,6 +219,7 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
 
     const { createApiClient } = await import('@/lib/api/client.js');
     const client = createApiClient({ baseUrl: API, getToken: () => Promise.resolve(ctx.token) });
+    ctx.client = client;
 
     // Build a real encrypted workspace payload (ML-KEM identity + collab key),
     // same as the production create-workspace flow.
@@ -254,127 +253,29 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
     await (await import('@/lib/api/account.js')).getAccount({ baseUrl: API });
   }, 120000);
 
-  test('vault key-params are reconciled across devices via the backend', async (t) => {
+  test('vault key-params are fetched across devices via the backend', async (t) => {
     if (!ctx.workspaceId) return t.skip();
 
-    const { publishCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    const { fetchCloudKeyParams, getFetchedCloudKeyParams } = await import(
+      '@/utils/sync/vault-key-params.js'
+    );
 
-    // Device A publishes its vault key-params to the backend (real REST).
-    report.publishKeyParams = await publishCloudKeyParams();
-    expect(report.publishKeyParams).toBe(true);
+    // Device A seeds its vault key-params in the backend (real REST). Publishing
+    // itself now lives in Rust, so the JS side only proves the fetch path.
+    const challenge = await ctx.client.createVaultChallenge(ctx.workspaceId);
+    await ctx.client.publishVaultKeyParams(ctx.workspaceId, {
+      keyParams: btoa(ctx.keyParams),
+      passphraseProof: 'device-a-proof',
+      challenge,
+    });
 
     // Device B fetches them back from the backend (real REST) and adopts them.
     report.fetchKeyParams = await fetchCloudKeyParams({ force: true });
     expect(report.fetchKeyParams).toBe(true);
 
-    const fetched = await (await import('@/utils/sync/vault-key-params.js')).getFetchedCloudKeyParams();
+    const fetched = getFetchedCloudKeyParams();
     expect(fetched).toBeTruthy();
     expect(fetched.paramsBlob).toBe(ctx.keyParams);
-  }, 30000);
-
-  test('seed bootstrap path is reachable (claim/complete)', async (t) => {
-    if (!ctx.workspaceId) return t.skip();
-    const {
-      getRemoteState,
-      claimInitialization,
-      completeInitialization,
-    } = await import('@/utils/sync/remote-yjs.js');
-    const state = await getRemoteState(ctx.workspaceId);
-    expect(['empty', 'initializing', 'initialized', 'recovering']).toContain(state.status);
-
-    let claimed = null;
-    try {
-      claimed = await claimInitialization(ctx.workspaceId);
-    } catch {
-      claimed = null;
-    }
-    if (claimed?.token) {
-      // Snapshot upload needs S3 presigned URLs; attempt but tolerate failure.
-      try {
-        await completeInitialization(ctx.workspaceId, claimed.token, claimed.generation ?? 1, [], []);
-        report.seeded = 'complete-initialization-ok';
-      } catch (e) {
-        report.seeded = 'skipped: ' + (e?.message || 'completeInitialization failed');
-      }
-    } else {
-      report.seeded = 'skipped: claimInitialization returned no token (workspace already initialized)';
-    }
-    // This sub-test is informational; do not fail the suite on it.
-    expect(true).toBe(true);
-  }, 30000);
-
-  test('note encrypted + pushed on device A is decrypted on device B', async (t) => {
-    if (!ctx.workspaceId) return t.skip();
-
-    const { encryptBatch } = await import('@/utils/sync/crypto.js');
-    const { decryptBatch } = await import('@/utils/sync/crypto.js');
-    const { pushUpdates, pullUpdates } = await import('@/utils/sync/remote-yjs.js');
-    const { parseSyncFilename } = await import('@/utils/sync/sync-yjs.js');
-    const { YJS_UPDATE_EXT } = await import('@/utils/sync/constants.js');
-    await import('@/utils/crypto/codec.js');
-
-    // Build a real Yjs note update on device A.
-    const doc = new Y.Doc();
-    const text = doc.getText('content');
-    text.insert(0, 'secret note content seeded on device A ' + Date.now());
-    const originalBytes = Y.encodeStateAsUpdate(doc);
-    doc.destroy();
-
-    const noteId = `cross-note-${Date.now()}`;
-    const ts = Date.now();
-    const sequence = 1;
-    const aad = `${noteId}-${ts}`;
-
-    // Device A: REAL encryptBatch (calls mocked syncEncryptBatch).
-    const [envelope] = await encryptBatch(
-      [{ noteId, device: deviceA, ts, sequence, update: originalBytes }],
-      [aad]
-    );
-    expect(typeof envelope).toBe('string');
-
-    // Device A: REAL REST push of the encrypted envelope.
-    const key = `${noteId}~~${deviceA}~~${ts}~~${sequence}${YJS_UPDATE_EXT}`;
-    const push = await pushUpdates(ctx.workspaceId, [
-      {
-        noteId,
-        updates: [
-          { key, data: btoa(envelope), deviceId: deviceA, ts, sequence },
-        ],
-      },
-    ]);
-    expect(push.accepted).toBeGreaterThanOrEqual(1);
-
-    // Device B: REAL REST pull of the encrypted envelope.
-    const pull = await pullUpdates(ctx.workspaceId, [{ noteId }]);
-    const page = pull?.notes?.[noteId];
-    expect(page).toBeTruthy();
-    const updates = page?.updates || [];
-    expect(updates.length).toBeGreaterThanOrEqual(1);
-
-    const match = updates.find((u) => u.key === key);
-    expect(match).toBeTruthy();
-
-    // Reconstruct the SAME AAD the real pull path uses (noteId-ts from filename).
-    const parsed = parseSyncFilename(match.key);
-    expect(parsed?.docId).toBe(noteId);
-    expect(parsed?.ts).toBe(ts);
-    const bAad = `${parsed.docId}-${parsed.ts}`;
-
-    // Device B: REAL decryptBatch (calls mocked syncDecryptBatch, same key).
-    const [decrypted] = await decryptBatch([atob(match.data)], [bAad]);
-    expect(decrypted).toBeTruthy();
-    expect(decrypted.noteId).toBe(noteId);
-    expect(decrypted.device).toBe(deviceA);
-
-    const decryptedBytes = decrypted.update instanceof Uint8Array
-      ? decrypted.update
-      : new Uint8Array(decrypted.update);
-    // THE core cross-device assertion.
-    expect(Array.from(decryptedBytes)).toEqual(Array.from(originalBytes));
-
-    // Sanity: AES-GCM means the ciphertext is not the plaintext.
-    expect(atob(match.data)).not.toContain('secret note content');
   }, 30000);
 
   test('report', () => {

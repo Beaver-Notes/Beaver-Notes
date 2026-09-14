@@ -120,6 +120,9 @@ export const useSyncProgressStore = defineStore('syncProgress', {
         if (described.tone === 'action') {
           this.lastAction = { status, text: described.text, at: Date.now() };
           notifyOnce(status, described.text);
+        } else if (status === 'complete') {
+          // A finished cycle resolves any earlier lock/decrypt/auth warning.
+          this.lastAction = null;
         }
         if (status !== 'syncing') {
           this.phase = '';

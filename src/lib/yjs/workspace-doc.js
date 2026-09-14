@@ -2,12 +2,7 @@
 
 import * as Y from 'yjs';
 import { appendUpdate, getSnapshot, getUpdates } from '@/lib/native/yjs.js';
-import { readDir as readSyncDir } from '@/lib/native/fs';
-import { getCommitsDir } from '@/utils/sync/sync-repository.js';
-import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
-import { encryptJSON } from '@/utils/sync/crypto.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
-import { YJS_UPDATE_EXT } from '@/utils/sync/constants.js';
 import { registerActiveDoc } from './shared.js';
 import { getDeviceId, objToYMap, toUint8Array } from '@/lib/yjs/helpers.js';
 import {
@@ -18,6 +13,7 @@ import {
 import { getWsSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/ws-sync';
 import { useWorkspaceStore } from '@/store/workspace';
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
+import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
 import { unwrapNoteKey } from '@/utils/crypto/note-key';
 
@@ -46,14 +42,12 @@ const NOTE_META_FIELDS = [
 
 let observerAttached = false;
 let persistHandlerAttached = false;
-let snapshotWritten = false;
 
 // Reset module-level flags when the doc singleton is destroyed (workspace
 // switch, account switch) so observers re-attach on next creation.
 onWorkspaceDocDestroy(() => {
   observerAttached = false;
   persistHandlerAttached = false;
-  snapshotWritten = false;
 });
 
 // Debounced, merged persistence: a burst of meta edits would otherwise issue
@@ -81,6 +75,25 @@ export async function flushPendingMetaUpdates() {
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
+
+// Best-effort IPC read with boot-transient retries. Returns null when the
+// backend never answers; callers fall through to their next recovery step.
+async function bootFetch(fn, label, attempts = 5) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === attempts) {
+        logger.warn(
+          `[meta-yjs] ${label} failed after ${attempts} attempts:`,
+          err?.message,
+        );
+        return null;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+}
 
 async function retryWrite(fn, label) {
   for (let attempt = 1; attempt <= MAX_WRITE_RETRIES; attempt++) {
@@ -114,31 +127,7 @@ async function persistWorkspace(update) {
   } catch {
     // Update lost despite retries: documented in retryWrite.
   }
-  try {
-    const commitsDir = await getCommitsDir();
-    if (commitsDir) {
-      if (!snapshotWritten) {
-        const files = await readSyncDir(commitsDir).catch(() => []);
-        const hasWorkspaceFiles = files.some(
-          (f) => f.endsWith(YJS_UPDATE_EXT) && f.startsWith('meta'),
-        );
-        if (!hasWorkspaceFiles) {
-          const fullState = Y.encodeStateAsUpdate(getWorkspaceDoc());
-          await writeYjsSnapshot(
-            commitsDir,
-            META_DOC_ID,
-            fullState,
-            encryptJSON,
-          );
-        }
-        snapshotWritten = true;
-      }
-
-      queueSyncWrite(commitsDir, META_DOC_ID, update);
-    }
-  } catch {
-    // Sync folder write failure non-fatal: update already in SQLite.
-  }
+  queueSyncWrite(META_DOC_ID);
 }
 
 export async function loadWorkspaceDoc() {
@@ -164,8 +153,14 @@ export async function loadWorkspaceDoc() {
   }
 
   let snapshotLoaded = false;
+  // ponytail: the backend can still be starting when the UI boots (migrations,
+  // re-encryption). One failed read must not mean a permanently empty list,
+  // so retry transient IPC failures before falling back to update replay.
+  const snapshot = await bootFetch(
+    () => getSnapshot(META_DOC_ID),
+    'meta snapshot load',
+  );
   try {
-    const snapshot = await getSnapshot(META_DOC_ID);
     if (snapshot && snapshot.length > 0) {
       Y.applyUpdate(doc, toUint8Array(snapshot), 'load');
       snapshotLoaded = true;
@@ -180,7 +175,10 @@ export async function loadWorkspaceDoc() {
   // Recovery: replay individual updates, skip corrupted: snapshot invalid but history may be intact.
   if (!snapshotLoaded) {
     try {
-      const updates = await getUpdates(META_DOC_ID);
+      const updates = await bootFetch(
+        () => getUpdates(META_DOC_ID),
+        'meta update replay',
+      );
       if (Array.isArray(updates) && updates.length > 0) {
         let applied = 0;
         for (const upd of updates) {
@@ -340,25 +338,6 @@ export function mergeIntoMap(mapName, entries) {
   });
 }
 
-/** Diff Yjs Map against desired state, apply minimal set/deletes: O(changed) not clear plus reinsert. */
-function syncTombstoneMap(mapName, desired) {
-  const map = getWorkspaceDoc().getMap(mapName);
-  transactWorkspace(() => {
-    const toDelete = [];
-    for (const [key] of map.entries()) {
-      if (!(key in desired)) {
-        toDelete.push(key);
-      }
-    }
-    for (const key of toDelete) {
-      map.delete(key);
-    }
-    for (const [key, value] of Object.entries(desired)) {
-      map.set(key, value);
-    }
-  });
-}
-
 export function syncLabel(name) {
   if (typeof name !== 'string' || !name) return;
   const arr = getWorkspaceDoc().getArray('labels');
@@ -420,31 +399,10 @@ export function removeNoteMeta(id) {
   });
 }
 
-export function syncDeletedAssets(deletedAssets) {
-  syncTombstoneMap('deletedAssets', deletedAssets || {});
-}
-
 /** Create untitled placeholders for pulled note ids missing from notes map. Skips existing and META_DOC_ID. */
 export function reconcileUnknownNotePlaceholders(noteIds) {
-  const doc = getWorkspaceDoc();
-  const yNotes = doc.getMap('notes');
-  const pending = [...new Set(noteIds)].filter(
-    (id) => id && id !== META_DOC_ID && !yNotes.has(id),
-  );
-  for (const id of pending) {
-    syncNoteMeta({
-      id,
-      title: '',
-      folderId: '',
-      labels: [],
-      isArchived: false,
-      isLocked: false,
-      isBookmarked: false,
-      isFullWidth: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      preview: '',
-      cardPreview: {},
-    });
-  }
+  // ponytail: disabled — synthesizing title:'' here flashes "Untitled" when
+  // content arrives a tick before meta. Callers hydrate via meta instead.
+  void noteIds;
+  return;
 }

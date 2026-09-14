@@ -1,15 +1,13 @@
 import { getSyncPath } from './path.js';
 import { path, backend } from '@/lib/tauri-bridge';
-import { ensureDir, writeFile, readData, pathExists } from '@/lib/native/fs';
+import { ensureDir, writeFile } from '@/lib/native/fs';
 import { getAppDirectory } from '@/lib/native/app';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import { SYNC_TRANSPORT, canUseCloudSync, normalizeSyncTransport } from '@/lib/api/types';
 import { getApiClient } from '@/lib/api/client';
-import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { base64ToBuf } from '@/utils/crypto/codec.js';
 import { useWorkspaceStore } from '@/store/workspace.ts';
-import { logger } from '@/utils/logger';
 
 const KEY_PARAMS_SUBDIR = 'BeaverNotesSync';
 let fetchedCloudKeyParams = null;
@@ -69,30 +67,6 @@ export function cloudKeyParamsReachable({ force = false } = {}) {
       canUseCloudSync(accountStore.activeOrg?.subscription ?? accountStore.subscription) &&
       (force || wantsCloud)
   );
-}
-
-export async function publishCloudKeyParams() {
-  if (!cloudKeyParamsReachable()) { logger.debug('[vault-key-params] publish: cloud not reachable'); return false; }
-  const p = await localKeyParamsPath();
-  if (!p) { logger.info('[vault-key-params] publish: no local key params path'); return false; }
-  const exists = await pathExists(p).catch(() => false);
-  if (!exists) { logger.info('[vault-key-params] publish: key params file not found at', p); return false; }
-  const b64 = await readData(p).catch(() => null);
-  if (!b64) { logger.info('[vault-key-params] publish: could not read key params file'); return false; }
-
-  const workspaceStore = useWorkspaceStore();
-  const workspaceId = workspaceStore.activeId;
-  if (!workspaceId) { logger.info('[vault-key-params] publish: no active workspace'); return false; }
-
-  const passphrase = await loadSecureBlob('encryptionPassphraseBlob').catch(() => null);
-  if (!passphrase) { logger.info('[vault-key-params] publish: no passphrase in secure storage'); return false; }
-  const accountStore = useAccountStore();
-  const client = getApiClient({ baseUrl: accountStore.serverUrl });
-  const { challenge } = await client.createVaultChallenge(workspaceId);
-  const passphraseProof = await deriveVaultPassphraseProof(passphrase, workspaceId, b64, challenge);
-  await client.publishVaultKeyParams(workspaceId, { keyParams: b64, passphraseProof, challenge });
-  logger.info('[vault-key-params] publish: success for workspace', workspaceId);
-  return true;
 }
 
 export async function fetchCloudKeyParams({ force = false, timeoutMs } = {}) {

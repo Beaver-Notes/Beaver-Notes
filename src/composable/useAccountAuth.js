@@ -57,6 +57,25 @@ function normalizeError(err) {
   return String(err);
 }
 
+// Rust emits `sync:progress` with these phases when it starts seeding or
+// bootstrapping; either means the scheduler picked up the seed work.
+const SEED_START_PHASES = new Set(['seed', 'bootstrap']);
+const SEED_START_TIMEOUT_MS = 8000;
+// Transient statuses keep the UI in "seeding" instead of failing the setup.
+const SEED_TRANSIENT_STATUSES = new Set(['retrying', 'offline']);
+
+let seedWatchUnlisten = [];
+
+async function stopSeedWatch() {
+  const unlisten = seedWatchUnlisten;
+  seedWatchUnlisten = [];
+  for (const fn of unlisten) {
+    try {
+      await fn();
+    } catch {}
+  }
+}
+
 export function useAccountAuth() {
   const accountStore = useAccountStore();
 
@@ -428,65 +447,110 @@ export function useAccountAuth() {
       return false;
     }
 
-    try {
-      const { getSyncEngine } = await import('@/utils/sync/engine.js');
+    accountStore.setSeedStatus('seeding');
+    accountStore.setSeedError('');
+    accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
 
-      let engine = getSyncEngine();
-      for (let i = 0; i < 50 && !engine; i++) {
-        await new Promise((r) => setTimeout(r, 100));
-        engine = getSyncEngine();
-      }
+    // Listen before starting the scheduler: Rust runs a tick immediately on
+    // `sync:start`, so subscribing afterwards would race the first `seed`.
+    await stopSeedWatch();
+    const { backend } = await import('@/lib/tauri-bridge');
+    const { describeStatus } = await import('@/store/sync-progress');
 
-      if (!engine) {
-        logger.info('[auth] sync engine not found, initializing now');
-        const { initAppSync } = await import('@/utils/sync/app-sync.js');
-        engine = await initAppSync();
-      }
-      if (!engine) {
-        logger.info('[auth] sync engine could not be initialized, skipping seed');
-        return false;
-      }
-      try {
-        const { startRustSync } = await import('@/utils/sync/rust-shim.js');
-        await startRustSync();
-      } catch {}
+    let resolveStarted;
+    const started = new Promise((resolve) => {
+      resolveStarted = resolve;
+    });
+    let settled = false;
+    let sawActivity = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolveStarted();
+    };
 
-      const cloud = engine.transports?.cloud;
-      if (!cloud?.seedCloudOnce) {
-        throw new Error('Cloud sync transport is unavailable.');
-      }
-
-      accountStore.setSeedStatus('seeding');
-      accountStore.setSeedError('');
-      accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
-
-      // Seed directly instead of inferring its result from a general sync cycle.
-      // The transport still serializes concurrent seed attempts internally.
-      const { getSyncReadiness } = await import('@/utils/sync/readiness.js');
-      cloud.setReadiness?.(await getSyncReadiness());
-      await cloud.seedCloudOnce((progress) => {
-        accountStore.setSeedProgress(progress);
-        onProgress?.(progress);
-      });
-
-      // Flush writes created while snapshots were being uploaded.
-      await engine.forceSyncNow();
-      const seedFailure = cloud._lastSeedFailure;
-      if (seedFailure) {
-        accountStore.setSeedStatus('error');
-        accountStore.setSeedError(seedFailure.message || 'Sync setup failed.');
-        return false;
-      }
-      if (accountStore.seedStatus === 'seeding') {
+    const handleProgress = (payload) => {
+      const phase = payload?.phase;
+      if (!phase) return;
+      sawActivity = true;
+      const progress = {
+        phase,
+        uploaded: payload.processed || 0,
+        total: payload.total || 0,
+      };
+      accountStore.setSeedProgress(progress);
+      onProgress?.(progress);
+      if (SEED_START_PHASES.has(phase)) finish();
+      if (phase === 'done') {
         accountStore.setSeedStatus('done');
+        stopSeedWatch();
       }
-      return true;
+    };
+
+    const onStatus = (payload) => {
+      const status = payload?.status;
+      if (!status || status === 'syncing' || status === 'idle') return;
+      if (status === 'complete') {
+        if (accountStore.seedStatus === 'seeding') {
+          accountStore.setSeedStatus('done');
+        }
+        stopSeedWatch();
+        return;
+      }
+      if (SEED_TRANSIENT_STATUSES.has(status)) return;
+      const described = describeStatus(status, payload?.message);
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError(
+        described?.text || payload?.message || 'Sync setup failed.',
+      );
+      finish();
+      stopSeedWatch();
+    };
+
+    const onError = (payload) => {
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError(payload?.message || 'Sync setup failed.');
+      finish();
+      stopSeedWatch();
+    };
+
+    seedWatchUnlisten = [
+      await backend.listenPayload('sync:progress', handleProgress),
+      await backend.listenPayload('sync:status', onStatus),
+      await backend.listenPayload('sync:error', onError),
+    ];
+
+    try {
+      const { initAppSync } = await import('@/utils/sync/app-sync.js');
+      const { startRustSync, kickRustSync } = await import(
+        '@/utils/sync/rust-shim.js'
+      );
+      await initAppSync();
+      // initAppSync may skip when no target is configured; seed always has a
+      // cloud target, so start the scheduler explicitly to reset its guards.
+      await startRustSync();
+      kickRustSync();
     } catch (err) {
-      console.error('[auth] seed failed:', err);
+      logger.error('[auth] seed failed:', err?.message || err);
       accountStore.setSeedStatus('error');
       accountStore.setSeedError(err?.message || 'Sync setup failed.');
+      await stopSeedWatch();
       return false;
     }
+
+    await Promise.race([
+      started,
+      new Promise((resolve) => setTimeout(resolve, SEED_START_TIMEOUT_MS)),
+    ]);
+
+    if (!settled && !sawActivity) {
+      logger.error('[auth] seed did not start within timeout');
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError('Sync setup timed out.');
+      await stopSeedWatch();
+      return false;
+    }
+    return true;
   }
 
   onMounted(() => {

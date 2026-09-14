@@ -70,15 +70,3 @@ describe('captureNoteSnapshotFromBytes', () => {
     expect(await captureNoteSnapshotFromBytes('n', new Uint8Array([1, 2, 3]))).toBeNull();
   });
 });
-
-describe('isEncryptedEnvelopeBytes', () => {
-  it('detects v4/v5 envelopes, passes through binary', async () => {
-    const { isEncryptedEnvelopeBytes } = await import('../crypto.js');
-    const enc = (s) => new TextEncoder().encode(s);
-    expect(isEncryptedEnvelopeBytes(enc('{"v":5,"meta":{}}'))).toBe(true);
-    expect(isEncryptedEnvelopeBytes(enc('{"v":4,"meta":{}}'))).toBe(true);
-    expect(isEncryptedEnvelopeBytes(enc('{"foo":1}'))).toBe(false);
-    expect(isEncryptedEnvelopeBytes(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBe(false);
-    expect(isEncryptedEnvelopeBytes(new Uint8Array(0))).toBe(false);
-  });
-});

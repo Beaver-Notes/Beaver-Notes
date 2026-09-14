@@ -6,11 +6,16 @@ import compsUi from './lib/comps-ui';
 import { backend } from './lib/tauri-bridge';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/utils/ui/zoom';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
-import { getSettingSync } from '@/lib/settings';
+import { getAppDirectory } from '@/lib/native/app';
+import { getSettingSync, setSettingsMirrorNamespace } from '@/lib/settings';
 import { initializeThemeHandling } from './utils/themeHandler';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
+
+// Namespace the shared webview settings mirror to this instance's data dir, so a
+// second instance (or the real app) never reads/writes the same cached settings.
+setSettingsMirrorNamespace(await getAppDirectory().catch(() => ''));
 
 performance.mark('app:init');
 

@@ -38,9 +38,10 @@ import {
   publishLocalKeyParamsToFolder,
   setDeclinedVaultJoin,
 } from '@/utils/crypto/encryption.js';
+import { logger } from '@/utils/logger';
 import { getOnboardingSyncTransport } from '@/utils/onboarding/sync-policy.js';
 import { setSyncPath } from '@/utils/sync/path.js';
-import { forceSyncNow } from '@/utils/sync';
+import { kickRustSync } from '@/utils/sync/rust-shim.js';
 import {
   detectLegacyLockedNotes,
   validateLegacyLockedPassword,
@@ -161,7 +162,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           try {
             await workspaceStore.retrieve();
           } catch (e) {
-            console.warn(
+            logger.warn(
               '[onboarding] workspace retrieve during vault detect failed:',
               e,
             );
@@ -171,23 +172,27 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           fetchCloudKeyParams,
           hasRemoteVaultKeyParams: async () => hasRemoteVaultKeyParams(),
         }).catch((err) => {
-          console.warn(
+          logger.warn(
             '[onboarding][vault-detect] detectRemoteVaultJoin threw:',
             err,
           );
           return {};
         });
       } else {
-        console.warn(
-          '[onboarding][vault-detect] not authenticated, skipping remote detection',
+        logger.debug(
+          '[onboarding][vault-detect] not authenticated, skipping cloud detection (folder fallback still runs)',
         );
       }
-      if (!detected) {
+      if (!detected && fresh.syncPath) {
         detected = await hasRemoteVaultKeyParams();
       }
-      vaultJoinMode.value = detected;
+      vaultJoinMode.value = detected && !declinedVaultJoin.value;
+      logger.debug('[onboarding][vault-detect] result:', {
+        detected: !!detected,
+        joinMode: vaultJoinMode.value,
+      });
     } catch (e) {
-      console.warn('[onboarding] vault-join detection failed:', e);
+      logger.warn('[onboarding] vault-join detection failed:', e);
       vaultJoinMode.value = false;
     }
   }
@@ -246,7 +251,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           );
           await adoptWorkspaceKeysFromVault(joined);
         } catch (recoverErr) {
-          console.warn(
+          logger.warn(
             '[onboarding][vault-adopt] workspace key recovery skipped:',
             recoverErr?.message || recoverErr,
           );
@@ -306,6 +311,9 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           result.error || 'Failed to set up encryption.';
         return;
       }
+      declinedVaultJoin.value = false;
+      await publishLocalKeyParamsToFolder();
+      await setDeclinedVaultJoin('').catch(() => {});
       goToNextStep();
     } catch (e) {
       encryptionPasswordError.value = e?.message || String(e);
@@ -336,9 +344,9 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       'welcome',
       'account',
       'plans',
+      'sync',
       'password',
       'import',
-      'sync',
       'customize',
       'finish',
     ];
@@ -579,7 +587,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       } else {
         await runOnboardingMigration();
       }
-      console.warn(
+      logger.warn(
         '[onboarding] legacy Electron migration (Rust copy) finished',
       );
 
@@ -605,7 +613,10 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       let alreadyConvertedIds = new Set();
       if (allNoteIds.length > 0) {
         const { getSnapshots } = await import('@/lib/native/yjs.js');
-        const snapshots = await getSnapshots(allNoteIds).catch(() => ({}));
+        const snapshots = await getSnapshots(allNoteIds).catch((e) => {
+          logger.warn('[onboarding] snapshot fetch failed:', e);
+          return {};
+        });
         alreadyConvertedIds = new Set(
           allNoteIds.filter((id) => (snapshots?.[id]?.length ?? 0) > 0),
         );
@@ -619,7 +630,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         legacyPassword: legacyPassword || undefined,
         alreadyConvertedIds,
       });
-      console.warn(
+      logger.warn(
         '[onboarding] note content conversion complete:',
         JSON.stringify(convertResult),
       );
@@ -629,7 +640,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           await import('@/utils/onboarding/legacyContentToYjs.js');
         if (legacyData?.notes) ensureLegacyNotesPreview(legacyData.notes);
       } catch (e) {
-        console.warn('[onboarding] preview enrich failed:', e);
+        logger.warn('[onboarding] preview enrich failed:', e);
       }
       state.migrationStatus = 'Migrating workspace…';
 
@@ -650,7 +661,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         legacyData?.deletedFolderIds || {},
         excludeIds,
       );
-      console.warn(
+      logger.warn(
         '[onboarding] workspace doc seeded from parsed data:',
         JSON.stringify(seedResult),
       );
@@ -674,23 +685,23 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           await import('@/utils/onboarding/import-preferences.js');
         if (legacyDir) {
           const imported = await importLegacyPreferences(legacyDir);
-          console.warn('[onboarding] imported', imported, 'legacy preferences');
+          logger.warn('[onboarding] imported', imported, 'legacy preferences');
         }
       } catch (err) {
-        console.warn('[onboarding] preference import failed:', err);
+        logger.warn('[onboarding] preference import failed:', err);
       }
 
       try {
         const { dumpDebugState } = await import('@/lib/debug/bridge.js');
         await dumpDebugState();
       } catch (err) {
-        console.warn('[onboarding] debug state dump failed:', err);
+        logger.warn('[onboarding] debug state dump failed:', err);
       }
 
       try {
         await buildImportedSearchIndex(legacyData?.notes || {});
       } catch (err) {
-        console.warn(
+        logger.warn(
           '[onboarding] search index build after import failed:',
           err,
         );
@@ -700,7 +711,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       try {
         await secureImportedAssets();
       } catch (e) {
-        console.warn('[onboarding] post-import asset re-encryption failed:', e);
+        logger.warn('[onboarding] post-import asset re-encryption failed:', e);
       }
 
       state.migrationProgress = COPY_WEIGHT + CONVERT_WEIGHT;
@@ -710,7 +721,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       try {
         await seedFreshFromSettings();
       } catch (err) {
-        console.warn(
+        logger.warn(
           '[onboarding] re-seed from imported settings failed:',
           err,
         );
@@ -783,7 +794,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       try {
         await secureImportedAssets();
       } catch (e) {
-        console.warn('[onboarding] post-import asset re-encryption failed:', e);
+        logger.warn('[onboarding] post-import asset re-encryption failed:', e);
       }
 
       state.migrationProgress = 100;
@@ -800,7 +811,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       try {
         await seedFreshFromSettings();
       } catch (err) {
-        console.warn(
+        logger.warn(
           '[onboarding] re-seed from imported settings failed:',
           err,
         );
@@ -833,7 +844,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       state.legacyHasLockedNotes = false;
       return { success: true, migratedCount: lockedCount };
     } catch (e) {
-      console.error('[onboarding] handleLegacyPasswordSubmit error:', e);
+      logger.error('[onboarding] handleLegacyPasswordSubmit error:', e);
       legacyPassword = '';
       state.legacyPasswordError = e?.message || 'Incorrect password';
       return {
@@ -888,16 +899,11 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       await applyOnboardingSyncPreferences(fresh);
       await detectVaultJoin();
       if (vaultJoinMode.value && !declinedVaultJoin.value) {
-
         encryptionPassword.value = '';
         encryptionConfirmPassword.value = '';
         encryptionPasswordError.value = '';
-        goToStep('password');
-        return;
       }
 
-      await publishLocalKeyParamsToFolder();
-      await setDeclinedVaultJoin('').catch(() => {});
       goToNextStep();
     } catch (e) {
       state.error = e?.message || String(e);
@@ -915,19 +921,15 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       try {
         await writeStoresFromWorkspace();
       } catch (e) {
-        console.warn('[onboarding] store hydration failed:', e);
+        logger.warn('[onboarding] store hydration failed:', e);
       }
 
       try {
         const { startRustSync } = await import('@/utils/sync/rust-shim.js');
         await startRustSync();
       } catch {}
-      try {
-        const { startPullTimer } = await import('@/utils/sync');
-        startPullTimer();
-      } catch {}
 
-      forceSyncNow().catch(() => {});
+      kickRustSync();
       await router.replace('/');
     } catch (e) {
       state.error = e?.message || String(e);

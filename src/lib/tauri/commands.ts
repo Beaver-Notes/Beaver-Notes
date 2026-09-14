@@ -27,6 +27,7 @@ const commandAliases = {
   'fs:readData': 'fs_read_data',
   'fs:readFileBinary': 'fs_read_file_binary',
   'fs:writeFile': 'fs_write_file',
+  'fs:appendFile': 'fs_append_file',
   'fs:copy': 'fs_copy',
   'fs:isFile': 'fs_is_file',
   'fs:access': 'fs_access',
@@ -67,7 +68,6 @@ const commandAliases = {
   'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
   'sync:encryptPayload': 'sync_encrypt_payload',
   'sync:decryptPayload': 'sync_decrypt_payload',
-  'sync:encryptBatch': 'sync_encrypt_batch',
   'sync:decryptBatch': 'sync_decrypt_batch',
   'sync:keyReady': 'sync_key_ready',
   'sync:start': 'sync_start',
@@ -239,6 +239,12 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('data', normalizeBinaryData(payload?.data)),
         ...withKeyVariants('mode', payload?.mode),
       };
+    case 'fs:appendFile':
+      return {
+        ...payload,
+        ...withKeyVariants('path', payload?.path),
+        ...withKeyVariants('data', normalizeBinaryData(payload?.data)),
+      };
     case 'storage:store':
     case 'storage:clear':
       return withKeyVariants('name', payload);
@@ -342,6 +348,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('server_url', payload?.serverUrl ?? payload?.server_url),
         ...withKeyVariants('token', payload?.token),
         ...withKeyVariants('folder_id', payload?.folderId ?? payload?.folder_id),
+        ...withKeyVariants('transport', payload?.transport),
       };
     case 'encryption:reconcileKeyParams':
       return withKeyVariants('passphrase', payload?.passphrase);

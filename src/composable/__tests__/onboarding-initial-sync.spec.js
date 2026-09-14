@@ -74,9 +74,11 @@ vi.mock('@/utils/sync/path.js', () => ({
   setSyncPath: vi.fn(async () => {}),
 }));
 
-const forceSyncNowMock = vi.fn(async () => {});
-vi.mock('@/utils/sync', () => ({
-  forceSyncNow: (...a) => forceSyncNowMock(...a),
+const kickRustSyncMock = vi.fn(() => true);
+const startRustSyncMock = vi.fn(async () => {});
+vi.mock('@/utils/sync/rust-shim.js', () => ({
+  kickRustSync: (...a) => kickRustSyncMock(...a),
+  startRustSync: (...a) => startRustSyncMock(...a),
 }));
 
 vi.mock('@/utils/onboarding/import-finalize.js', () => ({
@@ -176,7 +178,8 @@ describe('useOnboardingFlow.completeAndOpenWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     markOnboardingCompletedMock.mockImplementation(async () => {});
-    forceSyncNowMock.mockImplementation(async () => {});
+    kickRustSyncMock.mockImplementation(() => true);
+    startRustSyncMock.mockImplementation(async () => {});
   });
 
   it('triggers the first sync after marking onboarding complete', async () => {
@@ -189,7 +192,7 @@ describe('useOnboardingFlow.completeAndOpenWorkspace', () => {
     await flow.completeAndOpenWorkspace();
 
     expect(markOnboardingCompletedMock).toHaveBeenCalledTimes(1);
-    expect(forceSyncNowMock).toHaveBeenCalledTimes(1);
+    expect(kickRustSyncMock).toHaveBeenCalledTimes(1);
   });
 
   it('still navigates home when the sync trigger fails', async () => {
@@ -199,7 +202,7 @@ describe('useOnboardingFlow.completeAndOpenWorkspace', () => {
       clipboard: {},
       runImportSource: vi.fn(async () => {}),
     });
-    forceSyncNowMock.mockImplementation(() => Promise.reject(new Error('sync down')));
+    startRustSyncMock.mockImplementation(() => Promise.reject(new Error('sync down')));
 
     await flow.completeAndOpenWorkspace();
 

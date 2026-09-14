@@ -65,7 +65,7 @@ export async function createCommit(noteId, snapshot, opts = {}) {
   const clock = ts;
 
   const updateBytes = new TextEncoder().encode(JSON.stringify(snapshot));
-  const encrypted = await encryptJSON({ update: updateBytes, noteId, ts }, noteId);
+  const encrypted = await encryptJSON({ update: updateBytes, device: deviceId, noteId, ts }, noteId);
 
   const commitId = `${clock}-${deviceId}-${clock}`;
 

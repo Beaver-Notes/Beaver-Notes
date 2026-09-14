@@ -339,14 +339,14 @@
         <p class="text-xs text-neutral-500 dark:text-neutral-400">
           {{ lastSyncLabel }}
         </p>
-        <ui-button :disabled="syncState.syncing" @click="onSyncNow">
+        <ui-button :disabled="syncProgressStore.isSyncing" @click="onSyncNow">
           <v-remixicon
-            :name="syncState.syncing ? 'riLoader4Line' : 'riRefreshLine'"
+            :name="syncProgressStore.isSyncing ? 'riLoader4Line' : 'riRefreshLine'"
             size="16"
-            :class="syncState.syncing ? 'animate-spin' : ''"
+            :class="syncProgressStore.isSyncing ? 'animate-spin' : ''"
           />
           <span class="ml-1">{{
-            syncState.syncing
+            syncProgressStore.isSyncing
               ? translations.settings?.syncing || 'Syncing...'
               : translations.settings?.syncNow || 'Sync now'
           }}</span>
@@ -662,7 +662,7 @@ import { getAccount } from '@/lib/api/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 import { clipboard } from '@/lib/tauri-bridge';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
-import { forceSyncNow } from '@/utils/sync';
+import { kickRustSync } from '@/utils/sync/rust-shim.js';
 import {
   isKeyLoaded,
   setupEncryption,
@@ -697,7 +697,6 @@ export default {
     const isMacOS = computed(() => isMacOSRuntime());
 
     const lastSyncAt = ref(Number(localStorage.getItem('sync:lastRunAt') || 0));
-    const syncState = ref({ syncing: false });
     const lastSyncLabel = computed(() => {
       if (!lastSyncAt.value)
         return translations.value.settings?.neverSynced || 'Never synced yet';
@@ -713,17 +712,11 @@ export default {
       }
       return new Date(lastSyncAt.value).toLocaleString();
     });
-    async function onSyncNow() {
-      if (syncState.value.syncing) return;
-      syncState.value = { syncing: true };
-      try {
-        await forceSyncNow();
-        lastSyncAt.value = Date.now();
-        localStorage.setItem('sync:lastRunAt', String(lastSyncAt.value));
-      } catch {
-      } finally {
-        syncState.value = { syncing: false };
-      }
+    function onSyncNow() {
+      if (syncProgressStore.isSyncing) return;
+      if (!kickRustSync()) return;
+      lastSyncAt.value = Date.now();
+      localStorage.setItem('sync:lastRunAt', String(lastSyncAt.value));
     }
 
     onMounted(() => {
@@ -1069,7 +1062,6 @@ export default {
       selectedImportSource,
       showImportModal,
       lastSyncAt,
-      syncState,
       lastSyncLabel,
       onSyncNow,
       keyLoaded,

@@ -18,6 +18,7 @@ import {
   persistSecureBlobInBackground,
 } from './safeStorageBlob.js';
 import { getSettingSync } from '@/lib/settings';
+import { logger } from '@/utils/logger';
 
 const state = {
   enabled: false,
@@ -50,6 +51,14 @@ export function isKeyLoaded() {
 export async function ensureKeyReadyForWrite() {
   const next = await refreshState();
   if (!next?.enabled) {
+    // Never auto-mint a fresh vault when the sync folder already carries one
+    // the user hasn't declined to join: that forks a divergent vault and the
+    // device can never read the shared notes.
+    if (await remoteVaultJoinPending().catch(() => false)) {
+      throw new Error(
+        'This sync folder has an encrypted vault. Join it (or decline) before editing notes.'
+      );
+    }
     const result = await setupEncryption(generateRandomPassphrase());
     if (!result.ok) {
       throw new Error(
@@ -63,6 +72,23 @@ export async function ensureKeyReadyForWrite() {
   throw new Error(
     'Encryption key is locked. Unlock the app before editing notes.'
   );
+}
+
+/**
+ * Publish/adopt folder key params for the currently selected sync path.
+ * Rust reconcile publishes local params when the folder has none; adopting the
+ * folder owner's params happens via the join flow (passphrase supplied there).
+ * Safe on every folder change / unlock; no-op when the app is locked.
+ */
+export async function reconcileFolderVault() {
+  if (!state.loaded) return false;
+  try {
+    await reconcileSyncKeyParams();
+    return true;
+  } catch (e) {
+    logger.warn('[encryption] folder key-params reconcile failed:', e);
+    return false;
+  }
 }
 
 export async function setupEncryption(passphrase) {
@@ -86,14 +112,15 @@ export async function setupEncryption(passphrase) {
     const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
     await fetchCloudKeyParams().catch(() => null);
     // Adopt server keys now, else writes use fresh local key until first reconcile.
-    await reconcileSyncKeyParams(passphrase).catch(() => {});
+    await reconcileSyncKeyParams(passphrase).catch((e) =>
+      logger.warn('[encryption] sync key-params reconcile failed:', e)
+    );
     // NEVER auto-publish key params here.  If fetchCloudKeyParams returned null
-    // (workspace not loaded, network glitch, 404), publishCloudKeyParams would
-    // overwrite the vault owner's keys with this device's freshly-generated key.
-    // Key params are published only by seedCloudOnce and adoptVaultKey.
+    // (workspace not loaded, network glitch, 404), publishing a freshly-generated
+    // local key would overwrite the vault owner's keys. Publish is owned by Rust.
     return { ok: true };
   } catch (err) {
-    console.error('[encryption] setup failed:', err);
+    logger.error('[encryption] setup failed:', err);
     return { ok: false, error: String(err) };
   }
 }
@@ -115,11 +142,13 @@ export async function verifyPassphrase(passphrase) {
     // passphrase, never auto-publish (see setupEncryption).
     const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
     await fetchCloudKeyParams().catch(() => null);
-    await reconcileSyncKeyParams(passphrase).catch(() => {});
+    await reconcileSyncKeyParams(passphrase).catch((e) =>
+      logger.warn('[encryption] sync key-params reconcile failed:', e)
+    );
     return { ok: true };
   } catch (err) {
     const msg = err?.message || String(err);
-    console.error('[encryption] verify failed:', msg);
+    logger.error('[encryption] verify failed:', msg);
     return { ok: false, error: msg };
   }
 }
@@ -152,9 +181,19 @@ export async function adoptVaultKey(passphrase, keyParams) {
     } catch {}
     return { ok: true };
   } catch (err) {
-    console.error('[encryption] vault adopt failed:', err);
+    logger.error('[encryption] vault adopt failed:', err);
     return { ok: false, error: String(err) };
   }
+}
+
+/// True when the sync folder carries a vault the device hasn't joined or
+/// declined: auto-minting a fresh vault here would fork a divergent one.
+async function remoteVaultJoinPending() {
+  if (!(await hasRemoteVaultKeyParams())) return false;
+  const { getSyncPath } = await import('@/utils/sync/path.js');
+  const syncPath = await getSyncPath().catch(() => '');
+  const declined = getDeclinedVaultJoinPath();
+  return !(syncPath && declined === syncPath);
 }
 
 export async function hasRemoteVaultKeyParams() {
@@ -254,7 +293,7 @@ async function _doRestoreKey() {
 
   const result = await verifyPassphrase(passphrase);
   if (!result.ok) {
-    console.warn(
+    logger.warn(
       '[encryption] _doRestoreKey: verifyPassphrase failed:',
       result.error || 'Unknown error'
     );
@@ -288,7 +327,7 @@ export async function decryptContent(contentVal) {
     const jsonStr = new TextDecoder().decode(new Uint8Array(plainBytes));
     return JSON.parse(jsonStr);
   } catch (e) {
-    console.error(
+    logger.error(
       '[encryption] decryptContent: decrypted payload is not valid JSON',
       e
     );

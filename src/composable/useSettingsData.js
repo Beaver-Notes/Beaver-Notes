@@ -2,6 +2,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
+import { logger } from '@/utils/logger';
 
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import {
@@ -30,6 +31,7 @@ import {
   adoptVaultKey,
   ensureKeyReadyForWrite,
   hasRemoteVaultKeyParams,
+  reconcileFolderVault,
   setDeclinedVaultJoin,
   verifyPassphrase,
 } from '@/utils/crypto/encryption.js';
@@ -446,11 +448,6 @@ export function useSettingsData({
         await startRustSync();
       } catch {}
 
-      try {
-        const { startPullTimer } = await import('@/utils/sync');
-        startPullTimer();
-      } catch {}
-
       detectVaultAndSync(defaultPath.value).catch((error) => {
         console.error(error);
       });
@@ -461,8 +458,22 @@ export function useSettingsData({
 
   async function detectVaultAndSync(dir) {
     try {
-      const { forceSyncNow } = await import('@/utils/sync');
-      if (await hasRemoteVaultKeyParams().catch(() => false)) {
+      const { kickRustSync } = await import('@/utils/sync/rust-shim.js');
+      let hasRemoteVault;
+      try {
+        hasRemoteVault = await hasRemoteVaultKeyParams();
+      } catch (e) {
+        logger.warn('[settings] vault detection failed:', e);
+        dialog.alert({
+          title: translations.value.settings?.alertTitle || 'Alert',
+          body:
+            translations.value.settings?.vaultDetectFailed ||
+            'Could not check the sync folder for an existing vault. Sync was not started.',
+          okText: translations.value.dialog?.close || 'Close',
+        });
+        return;
+      }
+      if (hasRemoteVault) {
 
         setDeclinedVaultJoin(dir).catch(() => {});
         dialog.prompt({
@@ -491,12 +502,13 @@ export function useSettingsData({
               });
               return;
             }
-            forceSyncNow().catch(() => {});
+            kickRustSync();
           },
         });
         return;
       }
-      forceSyncNow().catch(() => {});
+      await reconcileFolderVault();
+      kickRustSync();
     } catch (error) {
       console.error(error);
     }

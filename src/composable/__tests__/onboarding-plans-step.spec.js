@@ -93,8 +93,9 @@ vi.mock('@/utils/sync/path.js', () => ({
   setSyncPath: vi.fn(async () => {}),
 }));
 
-vi.mock('@/utils/sync', () => ({
-  forceSyncNow: vi.fn(async () => {}),
+vi.mock('@/utils/sync/rust-shim.js', () => ({
+  kickRustSync: vi.fn(() => true),
+  startRustSync: vi.fn(async () => {}),
 }));
 
 vi.mock('@/utils/onboarding/import-finalize.js', () => ({

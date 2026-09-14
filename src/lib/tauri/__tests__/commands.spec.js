@@ -149,6 +149,26 @@ describe('invokeCommand payload normalization', () => {
     expect(args.folder_id).toBe('/sync');
   });
 
+  it('forwards transport through sync:start, sync:kick and sync:kick-dirty', async () => {
+    const config = {
+      workspace_id: 'w1',
+      server_url: 'https://api.beavernotes.com',
+      token: 'tok',
+      folder_id: '/sync',
+      transport: 'folder',
+    };
+    for (const [channel, command] of [
+      ['sync:start', 'sync_start'],
+      ['sync:kick', 'sync_kick'],
+      ['sync:kick-dirty', 'sync_kick_dirty'],
+    ]) {
+      vi.clearAllMocks();
+      await invokeCommand(channel, config);
+      const args = invoke.mock.calls.find((c) => c[0] === command)[1];
+      expect(args.transport).toBe('folder');
+    }
+  });
+
   it('maps storage:repairSettings to its snake_case Rust name', async () => {
     await invokeCommand('storage:repairSettings');
     expect(invoke).toHaveBeenCalledWith('storage_repair_settings', {});

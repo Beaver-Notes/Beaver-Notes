@@ -21,20 +21,11 @@ const collabKeys = new Map()
 // Text notification listeners per provider, tracked for cleanup.
 const notificationListeners = new WeakMap()
 
-/** Notify-only sync trigger: the Rust scheduler owns pull/push once started
- * (debounced `sync_kick`); otherwise fall back to the legacy JS engine.
- * Dynamic import so this module never statically depends on the engine
- * (previously an engine↔ws cycle via useNoteYjs). */
+/** Notify-only sync trigger: the Rust scheduler owns pull/push (debounced
+ * `sync_kick`). */
 function notifySyncNow() {
-  if (kickRustSync()) return
-  const now = Date.now()
-  if (now - lastJsKick < 1000) return
-  lastJsKick = now
-  import('@/utils/sync/engine.js')
-    .then(({ forceSyncNow }) => forceSyncNow().catch(() => {}))
-    .catch(() => {})
+  kickRustSync()
 }
-let lastJsKick = 0
 
 /** y-websocket handles only binary (types 0-3). Relay sends JSON text notifications: intercept and pull. Re-attaches on reconnect. */
 function createNotificationHandler() {
@@ -54,6 +45,7 @@ function createNotificationHandler() {
 
 function attachNotificationListener(provider) {
   detachNotificationListener(provider)
+  ignoreTextFrames(provider)
   const handler = createNotificationHandler()
   if (provider.ws) {
     provider.ws.addEventListener('message', handler)
@@ -67,6 +59,24 @@ function detachNotificationListener(provider) {
     provider.ws.removeEventListener('message', handler)
   }
   notificationListeners.delete(provider)
+}
+
+/** y-websocket decodes every socket message as binary, but the relay
+ * multiplexes JSON text frames (auth on connect, notifications per sync)
+ * on the same socket. A text frame becomes a zero-length buffer and throws
+ * "Unexpected end of array" as a global error on every connect and every
+ * notification. Skip non-binary frames here; the notification listener
+ * above handles the text side. Re-applied per socket since y-websocket
+ * reassigns onmessage on every reconnect. */
+export function ignoreTextFrames(provider) {
+  const ws = provider?.ws
+  if (!ws || ws._beaverTextGuard) return
+  ws._beaverTextGuard = true
+  const orig = ws.onmessage
+  ws.onmessage = (event) => {
+    if (!(event?.data instanceof ArrayBuffer)) return
+    return orig?.call(ws, event)
+  }
 }
 
 function buildRoomName(workspaceId, noteId) {

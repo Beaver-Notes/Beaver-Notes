@@ -8,8 +8,6 @@ vi.mock('@/lib/tauri-bridge', () => ({
 vi.mock('@/lib/native/fs', () => ({
   ensureDir: vi.fn(() => Promise.resolve()),
   writeFile: vi.fn(() => Promise.resolve()),
-  readData: vi.fn(() => Promise.resolve('eyJrZXkiOiJ2YWx1ZSJ9')),
-  pathExists: vi.fn(() => Promise.resolve(true)),
 }));
 vi.mock('@/lib/settings', () => ({
   getSettingSync: vi.fn(() => 'remote'),
@@ -36,9 +34,6 @@ vi.mock('@/lib/api/client', () => ({
     createVaultChallenge: vi.fn(),
   })),
 }));
-vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
-  loadSecureBlob: vi.fn(() => Promise.resolve('vault-passphrase')),
-}));
 vi.mock('@/lib/account-storage', () => ({
   loadSessionToken: vi.fn(() => Promise.resolve('test-token')),
 }));
@@ -46,10 +41,9 @@ vi.mock('@/lib/account-storage', () => ({
 import {
   cloudKeyParamsReachable,
   deriveVaultPassphraseProof,
-  publishCloudKeyParams,
   fetchCloudKeyParams,
 } from '../vault-key-params.js';
-import { writeFile, readData } from '@/lib/native/fs';
+import { writeFile } from '@/lib/native/fs';
 import { getSettingSync } from '@/lib/settings';
 import { getSyncPath } from '../path.js';
 import { getApiClient } from '@/lib/api/client';
@@ -66,29 +60,6 @@ describe('cloudKeyParamsReachable', () => {
     expect(cloudKeyParamsReachable()).toBe(false);
     expect(cloudKeyParamsReachable({ force: true })).toBe(true);
     getSettingSync.mockReturnValue('remote');
-  });
-});
-
-describe('publishCloudKeyParams', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('publishes local key params through the vault endpoint without a folder', async () => {
-    const put = vi.fn(() => Promise.resolve({ ok: true }));
-    const createChallenge = vi.fn(() => Promise.resolve({ challenge: 'challenge-1' }));
-    getApiClient.mockReturnValue({ publishVaultKeyParams: put, createVaultChallenge: createChallenge });
-    const ok = await publishCloudKeyParams();
-    expect(ok).toBe(true);
-    expect(readData).toHaveBeenCalledWith(expect.stringContaining('keyParams.json'));
-    expect(put).toHaveBeenCalledWith('ws-123', {
-      keyParams: 'eyJrZXkiOiJ2YWx1ZSJ9',
-      passphraseProof: await deriveVaultPassphraseProof(
-        'vault-passphrase',
-        'ws-123',
-        'eyJrZXkiOiJ2YWx1ZSJ9',
-        'challenge-1'
-      ),
-      challenge: 'challenge-1',
-    });
   });
 });
 
