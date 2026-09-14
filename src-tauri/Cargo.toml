@@ -87,15 +87,21 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-biometry = "0.2"
 tauri-plugin-app-icon = "0.1.0"
-tauri-plugin-device-ai-apis = { git = "https://github.com/hypothesi/tauri-plugin-device-ai-apis" }
 specta = { version = "=2.0.0-rc.25", features = ["serde_json", "function"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta-typescript = { version = "0.0.12", features = ["serde"] }
-tauri-plugin-scoped-storage = "1.5.1"
+tauri-plugin-scoped-storage = { git = "https://github.com/Daniele-rolli/tauri-plugin-scoped-storage.git", branch = "main" }
 yrs = "0.27.4"
 
 
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# Folder-transport change detection (desktop only; mobile uses scoped storage).
+notify = "8"
+
+
 [target.'cfg(not(target_os = "android"))'.dependencies]
+# device-ai ships a `framework` crate-type: Apple-only, unbuildable on Android.
+tauri-plugin-device-ai-apis = { git = "https://github.com/hypothesi/tauri-plugin-device-ai-apis" }
 font-kit = "0.14"
 tauri-plugin-spotsearch = "0.2.1"
 
@@ -143,6 +149,7 @@ windows = { version = "0.61", features = ["Win32_System_Com"] }
 [patch.crates-io]
 mac-notification-sys = { path = "../vendor/mac-notification-sys" }
 tauri-plugin-spotsearch = { path = "../vendor/tauri-plugin-spotsearch" }
+
 
 [profile.dev]
 opt-level = 0

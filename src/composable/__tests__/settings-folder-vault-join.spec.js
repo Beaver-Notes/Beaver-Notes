@@ -78,6 +78,7 @@ vi.mock('@/utils/crypto/encryption.js', () => ({
   verifyPassphrase: vi.fn(async () => ({ ok: true })),
   hasRemoteVaultKeyParams: (...a) => hasRemoteVaultKeyParamsMock(...a),
   adoptVaultKey: (...a) => adoptVaultKeyMock(...a),
+  reconcileFolderVault: vi.fn(async () => true),
   setDeclinedVaultJoin: vi.fn(async () => {}),
 }));
 
@@ -86,16 +87,11 @@ vi.mock('@/utils/i18n/languages.js', () => ({
   getLanguageDirection: () => 'ltr',
 }));
 
-const forceSyncNowMock = vi.fn(async () => {});
-const startPullTimerMock = vi.fn(() => {});
-vi.mock('@/utils/sync', () => ({
-  forceSyncNow: (...a) => forceSyncNowMock(...a),
-  startPullTimer: (...a) => startPullTimerMock(...a),
-}));
-
+const kickRustSyncMock = vi.fn(() => true);
 const startRustSyncMock = vi.fn(async () => {});
 vi.mock('@/utils/sync/rust-shim.js', () => ({
   startRustSync: (...a) => startRustSyncMock(...a),
+  kickRustSync: (...a) => kickRustSyncMock(...a),
 }));
 
 import { useSettingsData } from '../useSettingsData.js';
@@ -132,14 +128,13 @@ describe('useSettingsData.chooseDefaultPath with an existing folder vault', () =
 
     expect(setSyncPathMock).toHaveBeenCalledWith('/vault');
     expect(startRustSyncMock).toHaveBeenCalledTimes(1);
-    expect(startPullTimerMock).toHaveBeenCalledTimes(1);
     await vi.waitFor(() => expect(dialog.prompt).toHaveBeenCalledTimes(1));
     expect(dialog.prompt.mock.calls[0][0].password).toBe(true);
 
     await dialog.prompt.mock.calls[0][0].onConfirm('vault-password');
 
     expect(adoptVaultKeyMock).toHaveBeenCalledWith('vault-password');
-    expect(forceSyncNowMock).toHaveBeenCalled();
+    expect(kickRustSyncMock).toHaveBeenCalled();
   });
 
   it('marks the path declined while prompting so cancel pauses the engine', async () => {
@@ -156,7 +151,7 @@ describe('useSettingsData.chooseDefaultPath with an existing folder vault', () =
     );
 
     expect(adoptVaultKeyMock).not.toHaveBeenCalled();
-    expect(forceSyncNowMock).not.toHaveBeenCalled();
+    expect(kickRustSyncMock).not.toHaveBeenCalled();
   });
 
   it('syncs straight away when the folder holds no vault', async () => {
@@ -167,7 +162,7 @@ describe('useSettingsData.chooseDefaultPath with an existing folder vault', () =
     expect(setSyncPathMock).toHaveBeenCalledWith('/fresh');
     expect(dialog.prompt).not.toHaveBeenCalled();
     await vi.waitFor(() =>
-      expect(forceSyncNowMock).toHaveBeenCalledTimes(1)
+      expect(kickRustSyncMock).toHaveBeenCalledTimes(1)
     );
   });
 });
