@@ -1,7 +1,7 @@
 // Shared workspace-doc registration helpers (src/lib/yjs/shared.js)
 //
 // Neutral shared state holder for the active Yjs document registry.
-// Breaking the useNoteYjs ↔ useHocuspocusSync circular dependency.
+// Breaking the useNoteYjs ↔ useWsSync circular dependency.
 
 import * as Y from 'yjs';
 

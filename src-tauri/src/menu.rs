@@ -1,4 +1,4 @@
-use serde_json::json;
+use serde_json::{json, Value};
 use tauri::{
     menu::{Menu, MenuBuilder, MenuEvent, MenuItem, SubmenuBuilder},
     AppHandle, Emitter, Manager, Wry,
@@ -6,6 +6,37 @@ use tauri::{
 use tauri_plugin_opener::OpenerExt;
 
 use crate::shared::{to_error, AppError, HELP_URL, MAIN_WINDOW_LABEL};
+
+#[derive(Default)]
+pub(crate) struct MenuContext {
+    pub screen: String, // "home" | "archive" | "note" | "reader" | "settings"
+    pub note_editable: bool,
+    pub note_locked: bool,
+}
+
+pub(crate) fn menu_context_from_value(v: &Value) -> MenuContext {
+    MenuContext {
+        screen: v
+            .get("screen")
+            .and_then(Value::as_str)
+            .unwrap_or("home")
+            .to_string(),
+        note_editable: v
+            .get("noteEditable")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        note_locked: v
+            .get("noteLocked")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    }
+}
+
+pub(crate) fn rebuild_menu(app: &AppHandle, ctx: &MenuContext) -> Result<(), AppError> {
+    let menu = build_app_menu_for(app, ctx)?;
+    let _ = app.set_menu(menu).map_err(to_error)?;
+    Ok(())
+}
 
 pub(crate) fn build_context_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
     let undo = MenuItem::new(app, "Undo", true, None::<&str>).map_err(to_error)?;
@@ -27,9 +58,32 @@ pub(crate) fn build_context_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError>
 }
 
 pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
-    let new_note = MenuItem::new(app, "New Note", true, Some("CmdOrCtrl+N")).map_err(|e| AppError::Other(e.to_string()))?;
+    build_app_menu_for(app, &MenuContext::default())
+}
+
+pub(crate) fn build_app_menu_for(
+    app: &AppHandle,
+    ctx: &MenuContext,
+) -> Result<Menu<Wry>, AppError> {
+    let note_editable = ctx.screen == "note" && ctx.note_editable && !ctx.note_locked;
+    let show_edit_menu = ctx.screen != "reader";
+    let show_back_to_notes = ctx.screen == "settings";
+
+    let new_note = MenuItem::new(app, "New Note", true, Some("CmdOrCtrl+N"))
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let back_to_notes = MenuItem::with_id(
+        app,
+        "menu-back-to-notes",
+        "Back to Notes",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
     let file_submenu = {
         let mut builder = SubmenuBuilder::new(app, "File").item(&new_note);
+        if show_back_to_notes {
+            builder = builder.separator().item(&back_to_notes);
+        }
         #[cfg(target_os = "macos")]
         {
             builder = builder.close_window();
@@ -38,9 +92,22 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
         {
             builder = builder.quit();
         }
-        builder.build().map_err(|e| AppError::Other(e.to_string()))?
+        builder
+            .build()
+            .map_err(|e| AppError::Other(e.to_string()))?
     };
 
+    let duplicate_note = MenuItem::with_id(
+        app,
+        "menu-duplicate-note",
+        "Duplicate Note",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    let copy_content =
+        MenuItem::with_id(app, "menu-copy-content", "Copy Content", true, None::<&str>)
+            .map_err(|e| AppError::Other(e.to_string()))?;
     let edit_submenu = {
         let mut builder = SubmenuBuilder::new(app, "Edit")
             .undo()
@@ -66,24 +133,70 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
                 .separator()
                 .select_all();
         }
-        builder.build().map_err(|e| AppError::Other(e.to_string()))?
+        if note_editable {
+            builder = builder
+                .separator()
+                .item(&duplicate_note)
+                .item(&copy_content);
+        }
+        builder
+            .build()
+            .map_err(|e| AppError::Other(e.to_string()))?
+    };
+
+    let format_submenu = if note_editable {
+        Some(
+            SubmenuBuilder::new(app, "Format")
+                .text("menu-format-bold", "Bold")
+                .text("menu-format-italic", "Italic")
+                .text("menu-format-underline", "Underline")
+                .text("menu-format-strike", "Strikethrough")
+                .separator()
+                .text("menu-format-heading-1", "Heading 1")
+                .text("menu-format-heading-2", "Heading 2")
+                .text("menu-format-heading-3", "Heading 3")
+                .text("menu-format-heading-4", "Heading 4")
+                .separator()
+                .text("menu-format-list-bullet", "Bullet List")
+                .text("menu-format-list-numbered", "Numbered List")
+                .build()
+                .map_err(|e| AppError::Other(e.to_string()))?,
+        )
+    } else {
+        None
+    };
+
+    let insert_submenu = if note_editable {
+        Some(
+            SubmenuBuilder::new(app, "Insert")
+                .text("menu-insert-link", "Link")
+                .text("menu-insert-image", "Image")
+                .text("menu-insert-table", "Table")
+                .text("menu-insert-record-audio", "Record Audio")
+                .text("menu-insert-date-time", "Date/Time")
+                .build()
+                .map_err(|e| AppError::Other(e.to_string()))?,
+        )
+    } else {
+        None
     };
 
     let view_submenu = {
-        let reload = MenuItem::new(app, "Reload", true, Some("CmdOrCtrl+R")).map_err(|e| AppError::Other(e.to_string()))?;
+        let reload = MenuItem::new(app, "Reload", true, Some("CmdOrCtrl+R"))
+            .map_err(|e| AppError::Other(e.to_string()))?;
         let force_reload = MenuItem::new(app, "Force Reload", true, Some("CmdOrCtrl+Shift+R"))
             .map_err(|e| AppError::Other(e.to_string()))?;
         let toggle_devtools =
             MenuItem::new(app, "Toggle Developer Tools", true, Some("Alt+CmdOrCtrl+I"))
                 .map_err(|e| AppError::Other(e.to_string()))?;
-        let reset_zoom =
-            MenuItem::new(app, "Reset Zoom", true, Some("CmdOrCtrl+0")).map_err(|e| AppError::Other(e.to_string()))?;
-        let zoom_in =
-            MenuItem::new(app, "Zoom In", true, Some("CmdOrCtrl+Plus")).map_err(|e| AppError::Other(e.to_string()))?;
-        let zoom_out =
-            MenuItem::new(app, "Zoom Out", true, Some("CmdOrCtrl+-")).map_err(|e| AppError::Other(e.to_string()))?;
-        let toggle_fullscreen =
-            MenuItem::new(app, "Toggle Fullscreen", true, Some("F11")).map_err(|e| AppError::Other(e.to_string()))?;
+        let reset_zoom = MenuItem::new(app, "Reset Zoom", true, Some("CmdOrCtrl+0"))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let zoom_in = MenuItem::new(app, "Zoom In", true, Some("CmdOrCtrl+Plus"))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let zoom_out = MenuItem::new(app, "Zoom Out", true, Some("CmdOrCtrl+-"))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let toggle_fullscreen = MenuItem::new(app, "Toggle Fullscreen", true, Some("F11"))
+            .map_err(|e| AppError::Other(e.to_string()))?;
         SubmenuBuilder::new(app, "View")
             .item(&reload)
             .item(&force_reload)
@@ -112,10 +225,13 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
         {
             builder = builder.close_window();
         }
-        builder.build().map_err(|e| AppError::Other(e.to_string()))?
+        builder
+            .build()
+            .map_err(|e| AppError::Other(e.to_string()))?
     };
 
-    let docs = MenuItem::new(app, "Docs", true, None::<&str>).map_err(|e| AppError::Other(e.to_string()))?;
+    let docs = MenuItem::new(app, "Docs", true, None::<&str>)
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let help_submenu = SubmenuBuilder::new(app, "Help")
         .item(&docs)
         .build()
@@ -133,14 +249,22 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
             .show_all()
             .separator()
             .quit()
-        .build()
-        .map_err(|e| AppError::Other(e.to_string()))?;
+            .build()
+            .map_err(|e| AppError::Other(e.to_string()))?;
         builder = builder.item(&app_menu);
     }
 
+    builder = builder.item(&file_submenu);
+    if show_edit_menu {
+        builder = builder.item(&edit_submenu);
+    }
+    if let Some(submenu) = &format_submenu {
+        builder = builder.item(submenu);
+    }
+    if let Some(submenu) = &insert_submenu {
+        builder = builder.item(submenu);
+    }
     builder
-        .item(&file_submenu)
-        .item(&edit_submenu)
         .item(&view_submenu)
         .item(&window_submenu)
         .item(&help_submenu)
@@ -167,7 +291,6 @@ pub(crate) fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
         }
         "Toggle Developer Tools" => {
             if let Some(window) = maybe_window {
-                #[cfg(debug_assertions)]
                 window.open_devtools();
             }
         }
@@ -191,6 +314,26 @@ pub(crate) fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
         }
         "Docs" => {
             let _ = app.opener().open_url(HELP_URL, None::<String>);
+        }
+        "menu-back-to-notes"
+        | "menu-duplicate-note"
+        | "menu-copy-content"
+        | "menu-format-bold"
+        | "menu-format-italic"
+        | "menu-format-underline"
+        | "menu-format-strike"
+        | "menu-format-heading-1"
+        | "menu-format-heading-2"
+        | "menu-format-heading-3"
+        | "menu-format-heading-4"
+        | "menu-format-list-bullet"
+        | "menu-format-list-numbered"
+        | "menu-insert-link"
+        | "menu-insert-image"
+        | "menu-insert-table"
+        | "menu-insert-record-audio"
+        | "menu-insert-date-time" => {
+            let _ = app.emit_to(MAIN_WINDOW_LABEL, id, json!({}));
         }
         _ => {}
     }

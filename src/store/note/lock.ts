@@ -4,6 +4,7 @@ import {
   uncollapseHeadings,
 } from '@/utils/note/contentUtils.js';
 import { saveNote } from './index';
+import { syncNoteMeta } from '@/lib/yjs/workspace-doc.js';
 
 interface NoteStoreLockThis {
   data: Record<string, any>;
@@ -20,6 +21,7 @@ export async function lockNote(this: NoteStoreLockThis, id: string, _password?: 
   });
 
   await saveNote(id, this.data[id]);
+  syncNoteMeta(this.data[id]);
 }
 
 export async function unlockNote(this: NoteStoreLockThis, id: string, _password?: string): Promise<void> {
@@ -32,6 +34,7 @@ export async function unlockNote(this: NoteStoreLockThis, id: string, _password?
   });
 
   await saveNote(id, this.data[id]);
+  syncNoteMeta(this.data[id]);
 }
 
 export function convertNote(this: NoteStoreLockThis, id: string): void {

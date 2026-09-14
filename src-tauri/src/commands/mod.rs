@@ -1,4 +1,6 @@
 pub(crate) mod app;
+pub(crate) mod backup;
+pub(crate) mod debug;
 pub(crate) mod dialogs;
 pub(crate) mod external;
 pub(crate) mod fs;
@@ -7,6 +9,9 @@ pub(crate) mod index;
 pub(crate) mod pdf;
 pub(crate) mod search;
 pub(crate) mod security;
+pub(crate) mod share;
+#[cfg(target_os = "ios")]
+pub(crate) mod splash;
 pub(crate) mod storage;
 pub(crate) mod updates;
 pub(crate) mod workspace;

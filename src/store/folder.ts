@@ -2,13 +2,11 @@ import { nanoid } from 'nanoid';
 import { defineStore } from 'pinia';
 
 import { useUndoStore } from './undo';
+import type { BulkDeleteItem, NoteRef, FolderRef } from './undo';
 import {
   syncFolder,
   removeFolder,
-  syncDeletedFolderIds,
 } from '@/lib/yjs/workspace-doc';
-
-import { collectExpiredIds } from '@/utils/helpers/index.js';
 
 interface FolderData {
   id: string;
@@ -26,11 +24,9 @@ interface FolderData {
 
 interface FolderState {
   data: Record<string, FolderData>;
-  deletedIds: Record<string, number>;
   _childrenIndex: Map<string | null, Set<string>> | null;
 }
 
-// Children index helpers
 
 function buildChildIndex(data: Record<string, FolderData>): Map<string | null, Set<string>> {
   const index = new Map<string | null, Set<string>>();
@@ -65,16 +61,12 @@ function indexMove(index: Map<string | null, Set<string>>, folder: FolderData, o
 export const useFolderStore = defineStore('folder', {
   state: (): FolderState => ({
     data: {},
-    deletedIds: {},
-    // _childrenIndex holds the children index (Map). Null until first access.
-    // We store it as plain state so actions can mutate it directly;
-    // Vue won't deeply observe the Map internals.
+    // Children index (Map), null until first access. Plain state for direct mutation, Vue skips deep observe.
     _childrenIndex: null,
   }),
 
   getters: {
-    // Lazily build the children index; Pinia caches this getter until
-    // data/_childrenIndex changes so it only rebuilds when truly necessary.
+    // Lazy children index, Pinia caches until data changes.
     _index(state) {
       if (!state._childrenIndex) state._childrenIndex = buildChildIndex(state.data);
       return state._childrenIndex;
@@ -164,32 +156,26 @@ export const useFolderStore = defineStore('folder', {
     },
 
     validFolders: (state) =>
-      Object.values(state.data).filter(
-        (folder) => folder.id && !state.deletedIds[folder.id]
-      ),
+      Object.values(state.data).filter((folder) => folder.id),
 
     archivedFolders: (state) =>
       Object.values(state.data).filter(
-        (folder) =>
-          folder.id && !state.deletedIds[folder.id] && folder.isArchived
+        (folder) => folder.id && folder.isArchived
       ),
 
-    exists: (state) => (id: string) => !!state.data[id] && !state.deletedIds[id],
+    exists: (state) => (id: string) => !!state.data[id],
   },
 
   actions: {
-    // ── Index maintenance ─────────────────────────────────────────────────
 
     _rebuildIndex() {
       this._childrenIndex = buildChildIndex(this.data);
     },
 
-    // ── Load & hydration ──────────────────────────────────────────────────
 
     async retrieve(): Promise<Record<string, FolderData>> {
       try {
-        // Data is already populated from the Yjs workspace doc via
-        // writeStoresFromWorkspace().  No KV reads needed.
+        // Data already from Yjs workspace doc, no KV reads.
         this._rebuildIndex();
         return this.data;
       } catch (error) {
@@ -198,7 +184,6 @@ export const useFolderStore = defineStore('folder', {
       }
     },
 
-    // ── CRUD ──────────────────────────────────────────────────────────────
 
     async add(folder: Partial<FolderData> = {}): Promise<FolderData> {
       try {
@@ -252,7 +237,7 @@ export const useFolderStore = defineStore('folder', {
         const oldParentId = this.data[id].parentId;
         this.data[id] = { ...this.data[id], ...data, updatedAt: Date.now() };
 
-        // Keep index in sync when parentId changes
+        // Keep index synced on parentId change.
         if (data.parentId !== undefined && data.parentId !== oldParentId) {
           indexMove(this._index, this.data[id], oldParentId);
           useUndoStore().push({ type: 'move', notes: [], folders: [{ id, prevParentId: oldParentId }] });
@@ -268,56 +253,86 @@ export const useFolderStore = defineStore('folder', {
     },
 
     async delete(id: string, options: { moveContentsToParent?: boolean; moveContentsTo?: string | null; deleteContents?: boolean } = {}): Promise<{ deletedFolderId: string; targetFolderId: string | null; affectedFolders: string[] }> {
-      try {
-        if (!this.data[id]) throw new Error('Folder not found');
+      const acc = { items: [] as BulkDeleteItem[], notes: [] as NoteRef[], folders: [] as FolderRef[] };
+      const { targetFolderId, affectedFolders } = await this._deleteSubtree(id, options, acc);
 
-        const {
-          moveContentsToParent = false,
-          moveContentsTo = null,
-          deleteContents = false,
-        } = options;
+      useUndoStore().push({
+        type: 'bulk-delete',
+        items: acc.items,
+        notes: acc.notes,
+        folders: acc.folders,
+      });
 
-        const folderToDelete = this.data[id];
-        const targetFolderId =
-          moveContentsTo ||
-          (moveContentsToParent ? folderToDelete.parentId : null);
-
-        const undoStore = useUndoStore();
-        undoStore.startBatch();
-
-        // O(1) child lookup via index — no Object.values scan
-        const childIds = [...(this._index.get(id) ?? new Set())];
-        for (const childId of childIds) {
-          if (deleteContents) {
-            await this.delete(childId, { deleteContents: true });
-          } else {
-            await this.update(childId, { parentId: targetFolderId });
-          }
-        }
-
-        indexRemove(this._index, folderToDelete);
-        this.deletedIds[id] = Date.now();
-        delete this.data[id];
-
-        removeFolder(id);
-        syncDeletedFolderIds(this.deletedIds);
-
-        const snapshot = JSON.parse(JSON.stringify(folderToDelete));
-        undoStore.cancelBatch();
-        undoStore.push({ type: 'bulk-delete', items: [{ type: 'folder', data: snapshot }] });
-
-        return {
-          deletedFolderId: id,
-          targetFolderId,
-          affectedFolders: childIds,
-        };
-      } catch (error) {
-        console.error('Error deleting folder:', error);
-        throw error;
-      }
+      return { deletedFolderId: id, targetFolderId, affectedFolders };
     },
 
-    // ── Archive / Unarchive ────────────────────────────────────────────
+    async _deleteSubtree(
+      id: string,
+      options: { moveContentsToParent?: boolean; moveContentsTo?: string | null; deleteContents?: boolean },
+      acc: { items: BulkDeleteItem[]; notes: NoteRef[]; folders: FolderRef[] }
+    ): Promise<{ targetFolderId: string | null; affectedFolders: string[] }> {
+      if (!this.data[id]) throw new Error('Folder not found');
+
+      const {
+        moveContentsToParent = false,
+        moveContentsTo = null,
+        deleteContents = false,
+      } = options;
+
+      const folderToDelete = this.data[id];
+      const targetFolderId =
+        moveContentsTo ||
+        (moveContentsToParent ? folderToDelete.parentId : null);
+
+      const undoStore = useUndoStore();
+      const { useNoteStore, setSkipUndo } = await import('./note');
+      const noteStore = useNoteStore();
+      const noteIds = Object.values(noteStore.data)
+        .filter((n) => n?.id && n.folderId === id)
+        .map((n) => n.id);
+
+      // Re-add the folder itself on undo (pushed first so children can reference it)
+      acc.items.push({ type: 'folder', data: JSON.parse(JSON.stringify(folderToDelete)) });
+
+      if (deleteContents) {
+        setSkipUndo(true);
+        try {
+          for (const noteId of noteIds) {
+            const snapshot = JSON.parse(JSON.stringify(noteStore.data[noteId]));
+            await noteStore.delete(noteId);
+            acc.items.push({ type: 'note', data: snapshot });
+          }
+        } finally {
+          setSkipUndo(false);
+        }
+      } else {
+        for (const noteId of noteIds) {
+          await noteStore.update(noteId, { folderId: targetFolderId });
+          acc.notes.push({ id: noteId, prevFolderId: id });
+        }
+      }
+
+      const childIds = [...(this._index.get(id) ?? new Set())];
+      for (const childId of childIds) {
+        if (deleteContents) {
+          await this._deleteSubtree(childId, { deleteContents: true }, acc);
+        } else {
+          const childPrevParent = this.data[childId]?.parentId;
+          undoStore.startBatch();
+          await this.update(childId, { parentId: targetFolderId });
+          undoStore.cancelBatch();
+          acc.folders.push({ id: childId, prevParentId: childPrevParent });
+        }
+      }
+
+      indexRemove(this._index, folderToDelete);
+      delete this.data[id];
+
+      removeFolder(id);
+
+      return { targetFolderId, affectedFolders: childIds };
+    },
+
 
     async archive(id: string): Promise<{ archivedFolderIds: string[] }> {
       try {
@@ -414,11 +429,9 @@ export const useFolderStore = defineStore('folder', {
       return false;
     },
 
-    cleanupDeletedIds(days = 30): string[] {
-      const toDelete = collectExpiredIds(this.deletedIds, days);
-      for (const id of toDelete) delete this.deletedIds[id];
-      syncDeletedFolderIds(this.deletedIds);
-      return toDelete;
+    // No deletedIds tombstones: Yjs folder delete is tombstone.
+    cleanupDeletedIds(_days = 30): string[] {
+      return [];
     },
 
     async createFolderPath(

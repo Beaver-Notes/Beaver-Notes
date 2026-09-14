@@ -74,7 +74,7 @@ function applyImageAttributes(nodeAttrs, imgElement) {
   });
 }
 
-class ImageNodeView {
+export class ImageNodeView {
   constructor({ node, editor, getPos, resizeLimits }) {
     this.node = node;
     this.editor = editor;
@@ -173,7 +173,7 @@ class ImageNodeView {
           event.preventDefault();
           event.stopPropagation();
         },
-        { passive: false }
+        { passive: false },
       );
 
       handle.addEventListener('click', (event) => {
@@ -284,7 +284,7 @@ class ImageNodeView {
               const colPos = $pos.before(d);
               const parentColumn = this.wrapper.closest('[data-type="column"]');
               const columnContainer = parentColumn?.closest(
-                '[data-type="column-container"]'
+                '[data-type="column-container"]',
               );
 
               if (parentColumn && columnContainer) {
@@ -295,7 +295,7 @@ class ImageNodeView {
                 const padding = 24;
                 const targetColWidth = Math.min(
                   newWidth + padding,
-                  containerWidth * 0.9
+                  containerWidth * 0.9,
                 );
 
                 if (currentColWidth > 0 && containerWidth > 0) {
@@ -352,7 +352,24 @@ class ImageNodeView {
   }
 }
 
-export async function insertImages(files, callback) {
+export function swapImageSrc(view, tempSrc, finalSrc) {
+  let pos = null;
+  let node = null;
+  view.state.doc.descendants((n, p) => {
+    if (n.type.name === 'image' && n.attrs.src === tempSrc) {
+      pos = p;
+      node = n;
+      return false;
+    }
+    return true;
+  });
+  if (pos == null || !node) return;
+  view.dispatch(
+    view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: finalSrc }),
+  );
+}
+
+export async function insertImages(files, callback, swap) {
   const store = useStore();
 
   for (const file of files) {
@@ -369,6 +386,20 @@ export async function insertImages(files, callback) {
     if (file.path) {
       const { fileName } = await copyImage(file.path, noteId, timestamp);
       callback(`assets://${noteId}/${fileName}`, name);
+    } else if (swap) {
+      // Optimistic: show the image instantly, encrypt in the background.
+      const tempSrc = URL.createObjectURL(file);
+      callback(tempSrc, name);
+      writeImageFile(file, noteId, timestamp).then(
+        ({ fileName }) => {
+          URL.revokeObjectURL(tempSrc);
+          const finalSrc = `assets://${noteId}/${fileName}`;
+          swap(tempSrc, finalSrc);
+        },
+        (err) => {
+          console.error('Background image save failed:', err?.cause ?? err);
+        },
+      );
     } else {
       const { fileName } = await writeImageFile(file, noteId, timestamp);
       callback(`assets://${noteId}/${fileName}`, name);
@@ -396,15 +427,21 @@ const handleImagePaste = new Plugin({
         }
 
         const urls = items.filter(
-          (item) => item.kind === 'string' && item.type === 'text/plain'
+          (item) => item.kind === 'string' && item.type === 'text/plain',
         );
 
         if (files.length > 0) {
           event.preventDefault();
-          insertImages(files, (src, alt) => {
-            const { tr, schema } = view.state;
-            const imageNode = schema.nodes.image.create({ src, alt });
-            view.dispatch(tr.replaceSelectionWith(imageNode));
+          insertImages(
+            files,
+            (src, alt) => {
+              const { tr, schema } = view.state;
+              const imageNode = schema.nodes.image.create({ src, alt });
+              view.dispatch(tr.replaceSelectionWith(imageNode));
+            },
+            (tempSrc, finalSrc) => swapImageSrc(view, tempSrc, finalSrc),
+          ).catch((err) => {
+            console.error('Image paste failed:', err?.cause ?? err);
           });
         }
 
@@ -450,7 +487,7 @@ export default Image.extend({
             ? layout
             : getLayoutModeFromWrapperStyle(
                 element.getAttribute('wrapperstyle') || '',
-                'block'
+                'block',
               );
         },
       },
@@ -486,6 +523,19 @@ export default Image.extend({
           maxWidth: this.options.maxWidth,
         },
       });
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'img[src]',
+        getAttrs: (el) => ({
+          src: el.getAttribute('src'),
+          alt: el.getAttribute('alt') || el.getAttribute('title') || 'image',
+          title: el.getAttribute('title'),
+        }),
+      },
+    ];
   },
 
   addProseMirrorPlugins() {

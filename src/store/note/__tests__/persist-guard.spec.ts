@@ -63,10 +63,6 @@ vi.mock('@/lib/native/fs', () => ({
   removePath: vi.fn(async () => {}),
 }));
 
-vi.mock('@/utils/sync', () => ({
-  trackDeletedAssets: vi.fn(),
-}));
-
 vi.mock('@/lib/native/yjs.js', () => ({
   deleteUpdates: vi.fn(async () => {}),
 }));

@@ -1,13 +1,13 @@
 export const PLAN_NAMES = Object.freeze({
   FREE: 'free',
-  BASIC: 'basic',
+  STARTER: 'starter',
   PRO: 'pro',
   TEAM: 'team',
   ENTERPRISE: 'enterprise',
 });
 
 export const PAID_PLANS = Object.freeze([
-  PLAN_NAMES.BASIC,
+  PLAN_NAMES.STARTER,
   PLAN_NAMES.PRO,
   PLAN_NAMES.TEAM,
   PLAN_NAMES.ENTERPRISE,
@@ -16,8 +16,15 @@ export const PAID_PLANS = Object.freeze([
 export const SYNC_TRANSPORT = Object.freeze({
   FOLDER: 'folder',
   REMOTE: 'remote',
-  BOTH: 'both',
 });
+
+// The "both" option was removed. Stored `syncTransport` values of "both"
+// (from older installs) map to remote so existing users keep cloud sync.
+export function normalizeSyncTransport(value) {
+  if (value === SYNC_TRANSPORT.REMOTE) return SYNC_TRANSPORT.REMOTE;
+  if (value === 'both') return SYNC_TRANSPORT.REMOTE;
+  return SYNC_TRANSPORT.FOLDER;
+}
 
 export function isPaidPlan(plan) {
   return PAID_PLANS.includes(plan);
@@ -78,6 +85,7 @@ export const ProfileShape = Object.freeze({
   username: 'string?',
   emailHash: 'string?',
   email: 'string?',
+  emailVerified: 'boolean?',
   createdAt: 'string?',
   kemPublicKey: 'string?',
 });
@@ -118,6 +126,7 @@ export function normalizeProfile(raw) {
     username: raw.username || null,
     emailHash: raw.emailHash || raw.emailHmac || null,
     email: raw.email || null,
+    emailVerified: typeof raw.emailVerified === 'boolean' ? raw.emailVerified : null,
     createdAt: raw.createdAt || null,
     kemPublicKey: raw.kemPublicKey ?? null,
   };
@@ -135,8 +144,8 @@ export function normalizeSubscription(raw) {
       }
     : null;
   return {
-    plan: raw.plan || PLAN_NAMES.ENTERPRISE,
-    status: raw.status || 'active',
+    plan: raw.plan || PLAN_NAMES.FREE,
+    status: raw.status || 'inactive',
     renewsAt: raw.renewsAt || null,
     storage,
   };
@@ -221,6 +230,12 @@ export function normalizeWorkspace(raw) {
     ownerId: raw.ownerId || null,
     storageUsedBytes: Number(raw.storageUsedBytes) || 0,
     createdAt: raw.createdAt || null,
+    wrappedKey: raw.wrappedKey || null,
+    vaultWrappedKeys: raw.vaultWrappedKeys || null,
+    nameEncrypted: raw.nameEncrypted || null,
+    orgId: raw.orgId || null,
+    emoji: raw.emoji || null,
+    color: raw.color || null,
   };
 }
 

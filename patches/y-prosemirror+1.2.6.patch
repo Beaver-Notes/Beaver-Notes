@@ -1,0 +1,28 @@
+diff --git a/node_modules/y-prosemirror/src/plugins/cursor-plugin.js b/node_modules/y-prosemirror/src/plugins/cursor-plugin.js
+index 1bbbdc6..d22cd27 100644
+--- a/node_modules/y-prosemirror/src/plugins/cursor-plugin.js
++++ b/node_modules/y-prosemirror/src/plugins/cursor-plugin.js
+@@ -73,6 +73,7 @@ export const createDecorations = (
+   createSelection
+ ) => {
+   const ystate = ySyncPluginKey.getState(state)
++  if (!ystate || !ystate.doc) return DecorationSet.create(state.doc, [])
+   const y = ystate.doc
+   const decorations = []
+   if (
+@@ -172,6 +173,7 @@ export const yCursorPlugin = (
+       },
+       apply (tr, prevState, _oldState, newState) {
+         const ystate = ySyncPluginKey.getState(newState)
++        if (!ystate) return
+         const yCursorState = tr.getMeta(yCursorPluginKey)
+         if (
+           (ystate && ystate.isChangeOrigin) ||
+@@ -202,6 +204,7 @@ export const yCursorPlugin = (
+       }
+       const updateCursorInfo = () => {
+         const ystate = ySyncPluginKey.getState(view.state)
++        if (!ystate || !ystate.binding) return
+         // @note We make implicit checks when checking for the cursor property
+         const current = awareness.getLocalState() || {}
+         if (ystate.binding == null) {

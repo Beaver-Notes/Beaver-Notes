@@ -13,7 +13,7 @@ fn evp_bytes_to_key(password: &[u8], salt: &[u8]) -> (Vec<u8>, Vec<u8>) {
     let mut prev = [0u8; 16];
     while derived.len() < 48 {
         let mut ctx = md5::Context::new();
-        ctx.consume(&prev);
+        ctx.consume(prev);
         ctx.consume(password);
         ctx.consume(salt);
         prev = ctx.compute().0;

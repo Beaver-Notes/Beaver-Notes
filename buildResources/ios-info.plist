@@ -6,5 +6,77 @@
 	<string>Beaver Notes uses the microphone to record audio notes.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.beavernotes.beaver-notes</string>
+			<key>CFBundleURLSchemes</key>
+			<array><string>beaver-notes</string></array>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Beaver Notes File</string>
+			<key>LSItemContentTypes</key>
+			<array><string>com.beavernotes.bea</string></array>
+			<key>CFBundleTypeExtensions</key>
+			<array><string>bea</string></array>
+			<key>CFBundleTypeMIMETypes</key>
+			<array><string>application/x-beaver-notes</string></array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Markdown</string>
+			<key>LSItemContentTypes</key>
+			<array><string>net.daringfireball.markdown</string></array>
+			<key>CFBundleTypeExtensions</key>
+			<array><string>md</string><string>markdown</string><string>mdx</string></array>
+			<key>CFBundleTypeMIMETypes</key>
+			<array><string>text/markdown</string></array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Plain Text</string>
+			<key>LSItemContentTypes</key>
+			<array><string>public.plain-text</string></array>
+			<key>CFBundleTypeExtensions</key>
+			<array><string>txt</string></array>
+			<key>CFBundleTypeMIMETypes</key>
+			<array><string>text/plain</string></array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.beavernotes.bea</string>
+			<key>UTTypeDescription</key>
+			<string>Beaver Notes File</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.json</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array><string>bea</string></array>
+				<key>public.mime-type</key>
+				<string>application/x-beaver-notes</string>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

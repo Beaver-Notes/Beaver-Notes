@@ -27,12 +27,14 @@ const commandAliases = {
   'fs:readData': 'fs_read_data',
   'fs:readFileBinary': 'fs_read_file_binary',
   'fs:writeFile': 'fs_write_file',
+  'fs:appendFile': 'fs_append_file',
   'fs:copy': 'fs_copy',
   'fs:isFile': 'fs_is_file',
   'fs:access': 'fs_access',
   'fs:downloadUrl': 'fs_download_url',
   'fs:readdir': 'fs_readdir',
   'fs:stat': 'fs_stat',
+  'fs:fileIcon': 'fs_file_icon',
   'fs:unlink': 'fs_unlink',
   'fs:remove': 'fs_remove',
   'fs:mkdir': 'fs_mkdir',
@@ -44,12 +46,15 @@ const commandAliases = {
   'storage:delete': 'storage_delete',
   'storage:has': 'storage_has',
   'storage:reencryptLegacyRows': 'storage_reencrypt_legacy_rows',
+  'storage:repairSettings': 'storage_repair_settings',
   'safeStorage:isEncryptionAvailable': 'safe_storage_is_available',
+  'safeStorage:getBackendInfo': 'safe_storage_get_backend_info',
   'safeStorage:encryptString': 'safe_storage_encrypt',
   'safeStorage:decryptString': 'safe_storage_decrypt',
   'safeStorage:storeBlob': 'safe_storage_store_blob',
   'safeStorage:fetchBlob': 'safe_storage_fetch_blob',
   'safeStorage:clearBlob': 'safe_storage_clear_blob',
+  'safeStorage:setDevicePassword': 'safe_storage_set_device_password',
   'assetCrypto:setAppPassphrase': 'asset_crypto_set_passphrase',
   'assetCrypto:clearAppPassphrase': 'asset_crypto_clear_passphrase',
   'assetCrypto:migrateDir': 'asset_crypto_migrate_dir',
@@ -63,12 +68,17 @@ const commandAliases = {
   'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
   'sync:encryptPayload': 'sync_encrypt_payload',
   'sync:decryptPayload': 'sync_decrypt_payload',
-  'sync:encryptBatch': 'sync_encrypt_batch',
   'sync:decryptBatch': 'sync_decrypt_batch',
   'sync:keyReady': 'sync_key_ready',
+  'sync:start': 'sync_start',
+  'sync:stop': 'sync_stop',
+  'sync:kick': 'sync_kick',
+  'sync:kick-dirty': 'sync_kick_dirty',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
   'encryption:adoptKeyParams': 'encryption_adopt_key_params',
   'encryption:hasRemoteKeyParams': 'encryption_has_remote_key_params',
+  'encryption:localKeyParamsJson': 'encryption_local_key_params_json',
+  'encryption:remoteParamsDiffer': 'encryption_remote_params_differ',
   'encryption:rotateKey': 'encryption_rotate_key',
   'encryption:generateRecoveryCode': 'encryption_generate_recovery_code',
   'encryption:recoverWithCode': 'encryption_recover_with_code',
@@ -79,6 +89,7 @@ const commandAliases = {
   'crypto:getCachedDecryptedNote': 'encryption_get_cached_decrypted_note',
   'crypto:decryptLegacyNote': 'decrypt_legacy_cryptojs_note',
   'crypto:deriveArgon2Key': 'derive_argon2_key',
+  'vault:deriveProof': 'vault_derive_proof',
   'passwd:hash': 'passwd_hash',
   'passwd:compare': 'passwd_compare',
   'passwd:recordFailure': 'passwd_record_failure',
@@ -101,6 +112,8 @@ const commandAliases = {
   'import:evernote': 'import_evernote',
   'import:apple-notes': 'import_apple_notes',
   'show-edit-context-menu': 'show_edit_context_menu',
+  'backup:export': 'backup_export',
+  'backup:import': 'backup_import',
   'spotsearch:enableIndexing': 'enable_indexing',
   'spotsearch:indexItems': 'index_items',
   'spotsearch:deleteItems': 'delete_items',
@@ -113,6 +126,7 @@ const commandAliases = {
   'yjs:append': 'yjs_append',
   'yjs:appendBatch': 'yjs_append_batch',
   'yjs:getUpdates': 'yjs_get_updates',
+  'yjs:getStateVector': 'yjs_get_state_vector',
   'yjs:getSnapshot': 'yjs_get_snapshot',
   'yjs:getSnapshots': 'yjs_get_snapshots',
   'yjs:compact': 'yjs_compact',
@@ -121,9 +135,17 @@ const commandAliases = {
   'workspace:list': 'workspace_list',
   'workspace:getActive': 'workspace_get_active',
   'workspace:create': 'workspace_create',
+  'workspace:registerCloud': 'workspace_register_cloud',
   'workspace:switch': 'workspace_switch',
   'workspace:rename': 'workspace_rename',
   'workspace:delete': 'workspace_delete',
+  'fetch_page_html': 'fetch_page_html',
+  'get_pending_shares': 'get_pending_shares',
+  'clear_pending_shares': 'clear_pending_shares',
+  'sync_folders_to_extension': 'sync_folders_to_extension',
+  'sync_workspaces_to_extension': 'sync_workspaces_to_extension',
+  'sync_notes_to_extension': 'sync_notes_to_extension',
+  'read_shared_file': 'read_shared_file',
 };
 
 type Channel = keyof typeof commandAliases;
@@ -144,9 +166,7 @@ function withKeyVariants(
 }
 
 function normalizeBinaryData(data: unknown): string {
-  // Binary crosses the JSON IPC as base64 — the Rust side decodes it. This is
-  // ~3x smaller than the previous JSON number-array encoding (and the sync
-  // layer already uses base64), cutting IPC + parse cost on large snapshots.
+  // Binary crosses JSON IPC as base64, Rust decodes. ~3x smaller than JSON number array, cuts IPC cost.
   if (data == null) return '';
   if (typeof data === 'string') {
     // Plain-text callers (e.g. writing markdown) must be utf-8 encoded before
@@ -161,6 +181,12 @@ function normalizeBinaryData(data: unknown): string {
   }
   if (Array.isArray(data)) return bufToBase64(new Uint8Array(data));
   return bufToBase64(textEncoder.encode(String(data)));
+}
+
+// Yjs payloads are binary, never text. String here is already base64, must pass untouched: double encode otherwise.
+function normalizeYjsBinary(data: unknown): string {
+  if (typeof data === 'string') return data;
+  return normalizeBinaryData(data);
 }
 
 function normalizePayload(channel: Channel, payload: Payload): Record<string, unknown> {
@@ -179,6 +205,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'fs:readFile':
     case 'fs:readdir':
     case 'fs:stat':
+    case 'fs:fileIcon':
     case 'fs:unlink':
     case 'fs:readData':
     case 'fs:readFileBinary':
@@ -187,6 +214,9 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('path', payload?.path ?? payload),
         ...(payload?.skipDecryption != null
           ? withKeyVariants('skipDecryption', payload.skipDecryption)
+          : {}),
+        ...(payload?.size != null
+          ? withKeyVariants('size', payload.size)
           : {}),
       };
     case 'fs:isFile':
@@ -208,6 +238,12 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('path', payload?.path),
         ...withKeyVariants('data', normalizeBinaryData(payload?.data)),
         ...withKeyVariants('mode', payload?.mode),
+      };
+    case 'fs:appendFile':
+      return {
+        ...payload,
+        ...withKeyVariants('path', payload?.path),
+        ...withKeyVariants('data', normalizeBinaryData(payload?.data)),
       };
     case 'storage:store':
     case 'storage:clear':
@@ -238,8 +274,12 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('name', payload?.name),
         ...withKeyVariants('key', payload?.key),
       };
+    case 'safeStorage:getBackendInfo':
+      return {};
     case 'safeStorage:encryptString':
       return withKeyVariants('plain_text', payload);
+    case 'safeStorage:setDevicePassword':
+      return withKeyVariants('password', payload);
     case 'safeStorage:decryptString':
       return withKeyVariants('encrypted_base64', payload);
     case 'safeStorage:fetchBlob':
@@ -283,7 +323,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('password', payload?.password),
       };
     case 'encryption:encryptNotePayload':
-      return withKeyVariants('plain_json', payload);
+      return withKeyVariants('plain_bytes', payload);
     case 'encryption:decryptNotePayload':
       return withKeyVariants('payload', payload);
     case 'sync:encryptPayload':
@@ -298,13 +338,34 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('aad', payload?.aad),
       };
     case 'sync:keyReady':
+    case 'sync:stop':
       return {};
+    case 'sync:start':
+    case 'sync:kick':
+    case 'sync:kick-dirty':
+      return {
+        ...withKeyVariants('workspace_id', payload?.workspaceId ?? payload?.workspace_id),
+        ...withKeyVariants('server_url', payload?.serverUrl ?? payload?.server_url),
+        ...withKeyVariants('token', payload?.token),
+        ...withKeyVariants('folder_id', payload?.folderId ?? payload?.folder_id),
+        ...withKeyVariants('transport', payload?.transport),
+      };
     case 'encryption:reconcileKeyParams':
       return withKeyVariants('passphrase', payload?.passphrase);
+    case 'encryption:localKeyParamsJson':
+      return {};
+    case 'encryption:remoteParamsDiffer':
+      return withKeyVariants('paramsJson', payload?.paramsJson);
     case 'encryption:adoptKeyParams':
       return {
         ...withKeyVariants('passphrase', payload?.passphrase),
         ...(payload?.keyParams != null ? withKeyVariants('keyParams', payload.keyParams) : {}),
+      };
+    case 'vault:deriveProof':
+      return {
+        ...withKeyVariants('passphrase', payload?.passphrase),
+        ...withKeyVariants('workspace_id', payload?.workspaceId ?? payload?.workspace_id),
+        ...withKeyVariants('key_params_blob', payload?.keyParamsBlob ?? payload?.key_params_blob),
       };
     case 'passwd:hash':
       return withKeyVariants('password', payload);
@@ -324,17 +385,19 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'yjs:append':
       return {
         ...withKeyVariants('noteId', payload?.noteId),
-        ...withKeyVariants('update', normalizeBinaryData(payload?.update)),
+        ...withKeyVariants('update', normalizeYjsBinary(payload?.update)),
         ...withKeyVariants('device', payload?.device ?? ''),
       };
     case 'yjs:appendBatch':
       return {
         ...withKeyVariants('noteIds', payload?.noteIds),
-        updates: Array.isArray(payload?.updates) ? payload.updates.map((u: unknown) => normalizeBinaryData(u)) : [],
+        updates: Array.isArray(payload?.updates) ? payload.updates.map((u: unknown) => normalizeYjsBinary(u)) : [],
         ...withKeyVariants('devices', payload?.devices ?? []),
       };
     case 'yjs:getUpdates':
       return withKeyVariants('noteId', payload);
+    case 'yjs:getStateVector':
+      return withKeyVariants('noteId', payload?.noteId ?? payload);
     case 'yjs:getSnapshot':
       return withKeyVariants('noteId', payload);
     case 'yjs:getSnapshots':
@@ -342,7 +405,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'yjs:compact':
       return {
         ...withKeyVariants('noteId', payload?.noteId),
-        ...withKeyVariants('snapshot', normalizeBinaryData(payload?.snapshot)),
+        ...withKeyVariants('snapshot', normalizeYjsBinary(payload?.snapshot)),
       };
     case 'yjs:compactBatch':
       return withKeyVariants('noteId', payload);
@@ -356,6 +419,18 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {
         name: payload?.name ?? payload,
         copySettings: payload?.copySettings ?? false,
+      };
+    case 'workspace:registerCloud':
+      return {
+        ...withKeyVariants('id', payload?.id),
+        ...withKeyVariants('name', payload?.name),
+        ...withKeyVariants('org_id', payload?.orgId ?? payload?.org_id),
+        ...withKeyVariants('owner_id', payload?.ownerId ?? payload?.owner_id),
+        ...withKeyVariants(
+          'workspace_type',
+          payload?.workspaceType ?? payload?.workspace_type
+        ),
+        ...withKeyVariants('created_at', payload?.createdAt ?? payload?.created_at),
       };
     case 'workspace:switch':
       return withKeyVariants('id', payload?.id ?? payload);

@@ -8,6 +8,8 @@ import {
   reconcileSyncKeyParams,
   adoptKeyParams,
   hasRemoteKeyParams,
+  localKeyParamsJson,
+  remoteParamsDiffer,
   generateRecoveryCode as generateRecoveryCodeNative,
   recoverWithCode,
 } from '@/lib/native/security.js';
@@ -15,6 +17,8 @@ import {
   loadSecureBlob,
   persistSecureBlobInBackground,
 } from './safeStorageBlob.js';
+import { getSettingSync } from '@/lib/settings';
+import { logger } from '@/utils/logger';
 
 const state = {
   enabled: false,
@@ -47,6 +51,14 @@ export function isKeyLoaded() {
 export async function ensureKeyReadyForWrite() {
   const next = await refreshState();
   if (!next?.enabled) {
+    // Never auto-mint a fresh vault when the sync folder already carries one
+    // the user hasn't declined to join: that forks a divergent vault and the
+    // device can never read the shared notes.
+    if (await remoteVaultJoinPending().catch(() => false)) {
+      throw new Error(
+        'This sync folder has an encrypted vault. Join it (or decline) before editing notes.'
+      );
+    }
     const result = await setupEncryption(generateRandomPassphrase());
     if (!result.ok) {
       throw new Error(
@@ -60,6 +72,23 @@ export async function ensureKeyReadyForWrite() {
   throw new Error(
     'Encryption key is locked. Unlock the app before editing notes.'
   );
+}
+
+/**
+ * Publish/adopt folder key params for the currently selected sync path.
+ * Rust reconcile publishes local params when the folder has none; adopting the
+ * folder owner's params happens via the join flow (passphrase supplied there).
+ * Safe on every folder change / unlock; no-op when the app is locked.
+ */
+export async function reconcileFolderVault() {
+  if (!state.loaded) return false;
+  try {
+    await reconcileSyncKeyParams();
+    return true;
+  } catch (e) {
+    logger.warn('[encryption] folder key-params reconcile failed:', e);
+    return false;
+  }
 }
 
 export async function setupEncryption(passphrase) {
@@ -78,13 +107,20 @@ export async function setupEncryption(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    reconcileSyncKeyParams().catch(() => {});
-    import('@/utils/sync/vault-key-params.js')
-      .then((m) => m.publishCloudKeyParams())
-      .catch(() => {});
+    // Fetch server key params FIRST so reconcile adopts the vault owner's keys
+    // instead of overwriting the server with this device's own.
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    await fetchCloudKeyParams().catch(() => null);
+    // Adopt server keys now, else writes use fresh local key until first reconcile.
+    await reconcileSyncKeyParams(passphrase).catch((e) =>
+      logger.warn('[encryption] sync key-params reconcile failed:', e)
+    );
+    // NEVER auto-publish key params here.  If fetchCloudKeyParams returned null
+    // (workspace not loaded, network glitch, 404), publishing a freshly-generated
+    // local key would overwrite the vault owner's keys. Publish is owned by Rust.
     return { ok: true };
   } catch (err) {
-    console.error('[encryption] setup failed:', err);
+    logger.error('[encryption] setup failed:', err);
     return { ok: false, error: String(err) };
   }
 }
@@ -102,14 +138,18 @@ export async function verifyPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    reconcileSyncKeyParams(passphrase).catch(() => {});
-    import('@/utils/sync/vault-key-params.js')
-      .then((m) => m.publishCloudKeyParams())
-      .catch(() => {});
+    // Same sequence as setupEncryption: fetch server params, adopt with the
+    // passphrase, never auto-publish (see setupEncryption).
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    await fetchCloudKeyParams().catch(() => null);
+    await reconcileSyncKeyParams(passphrase).catch((e) =>
+      logger.warn('[encryption] sync key-params reconcile failed:', e)
+    );
     return { ok: true };
   } catch (err) {
-    console.error('[encryption] verify failed:', err);
-    return { ok: false, error: err?.message || String(err) };
+    const msg = err?.message || String(err);
+    logger.error('[encryption] verify failed:', msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -119,6 +159,11 @@ export async function adoptVaultKey(passphrase, keyParams) {
   }
 
   try {
+    if (keyParams == null) {
+      // Scoped folders (iOS) are invisible to the Rust side: hand the remote
+      // params over explicitly instead of letting it read them.
+      keyParams = await readScopedRemoteKeyParamsJson().catch(() => null);
+    }
     const result = await (keyParams == null
       ? adoptKeyParams(passphrase)
       : adoptKeyParams(passphrase, keyParams));
@@ -128,15 +173,99 @@ export async function adoptVaultKey(passphrase, keyParams) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
+    setDeclinedVaultJoin('').catch(() => {});
+    // Discard pre-adoption pending writes: encrypted with old key, never flush.
+    try {
+      const { clearPendingWrites } = await import('@/utils/sync/pending-writes.js');
+      clearPendingWrites();
+    } catch {}
     return { ok: true };
   } catch (err) {
-    console.error('[encryption] vault adopt failed:', err);
+    logger.error('[encryption] vault adopt failed:', err);
     return { ok: false, error: String(err) };
   }
 }
 
+/// True when the sync folder carries a vault the device hasn't joined or
+/// declined: auto-minting a fresh vault here would fork a divergent one.
+async function remoteVaultJoinPending() {
+  if (!(await hasRemoteVaultKeyParams())) return false;
+  const { getSyncPath } = await import('@/utils/sync/path.js');
+  const syncPath = await getSyncPath().catch(() => '');
+  const declined = getDeclinedVaultJoinPath();
+  return !(syncPath && declined === syncPath);
+}
+
 export async function hasRemoteVaultKeyParams() {
-  return hasRemoteKeyParams();
+  const remoteJson = await readScopedRemoteKeyParamsJson().catch(() => null);
+  if (remoteJson === null) return hasRemoteKeyParams();
+  // Scoped folder reachable: a vault exists there, but join only when it
+  // differs from ours (or we have no local vault yet).
+  const localJson = await localKeyParamsJson().catch(() => null);
+  if (localJson == null) return true;
+  return remoteParamsDiffer(remoteJson).catch(() => true);
+}
+
+/// Seed this device's key params into a scoped folder vault so a second
+/// device can detect and join it. No-op everywhere else: desktop publish
+/// happens in the Rust reconcile path. Never throws.
+export async function publishLocalKeyParamsToFolder() {
+  try {
+    const { getSyncPath } = await import('@/utils/sync/path.js');
+    const syncPath = await getSyncPath().catch(() => '');
+    if (!syncPath?.startsWith('scoped:')) return false;
+    const json = await localKeyParamsJson().catch(() => null);
+    if (!json) return false;
+    const [{ writeFile }, { path }] = await Promise.all([
+      import('@/lib/native/fs'),
+      import('@/lib/tauri-bridge'),
+    ]);
+    await writeFile(
+      path.join(syncPath, 'BeaverNotesSync', 'keyParams.json'),
+      json
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const DECLINED_JOIN_KEY = 'vaultJoinDeclinedPath';
+
+export function getDeclinedVaultJoinPath() {
+  try {
+    return getSettingSync(DECLINED_JOIN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export async function setDeclinedVaultJoin(syncPath) {
+  try {
+    const { setSetting } = await import('@/lib/settings');
+    await setSetting(DECLINED_JOIN_KEY, syncPath || '');
+  } catch {}
+}
+
+async function readScopedRemoteKeyParamsJson() {
+  const { getSyncPath } = await import('@/utils/sync/path.js');
+  const syncPath = await getSyncPath().catch(() => '');
+  if (!syncPath?.startsWith('scoped:')) return null;
+  // Cloud storage evicts file bodies: kick off downloads so detection
+  // sees the vault once files land. Fire-and-forget: the read below uses
+  // whatever is local (a not-downloaded read looks like "no vault").
+  try {
+    const { kickSyncDir } = await import('@/lib/tauri/scoped-storage.js');
+    kickSyncDir(syncPath);
+  } catch {}
+  const [{ readFile }, { path }] = await Promise.all([
+    import('@/lib/native/fs'),
+    import('@/lib/tauri-bridge'),
+  ]);
+  const text = (
+    await readFile(path.join(syncPath, 'BeaverNotesSync', 'keyParams.json'))
+  )?.trim();
+  return text?.startsWith('{') ? text : null;
 }
 
 export async function tryRestoreKeyFromSafeStorage() {
@@ -149,24 +278,24 @@ export async function tryRestoreKeyFromSafeStorage() {
 
 async function _doRestoreKey() {
   const next = await refreshState();
-  if (!next?.enabled || next?.unlocked) {
-    return !!next?.unlocked;
-  }
 
+  if (next?.unlocked) return true;
+
+  // State may report disabled before passphrase resubmitted: saved blob proves setup, try restore.
   let passphrase;
   try {
     passphrase = await loadSecureBlob(BLOB_KEY);
-  } catch (err) {
-    console.warn('[encryption] _doRestoreKey: loadSecureBlob failed:', err);
+  } catch {
+    // No blob or storage unavailable: encryption never set up.
     return false;
   }
   if (!passphrase) return false;
 
   const result = await verifyPassphrase(passphrase);
   if (!result.ok) {
-    console.warn(
+    logger.warn(
       '[encryption] _doRestoreKey: verifyPassphrase failed:',
-      result.error
+      result.error || 'Unknown error'
     );
     return false;
   }
@@ -198,29 +327,23 @@ export async function decryptContent(contentVal) {
     const jsonStr = new TextDecoder().decode(new Uint8Array(plainBytes));
     return JSON.parse(jsonStr);
   } catch (e) {
-    console.error(
+    logger.error(
       '[encryption] decryptContent: decrypted payload is not valid JSON',
       e
     );
-    throw new Error('Decrypted note content is corrupted — JSON parse failed');
+    throw new Error('Decrypted note content is corrupted: JSON parse failed');
   }
 }
 
-/**
- * True when `contentVal` is an app-key encrypted note envelope in ANY format
- * we can still decrypt (`ae:3` legacy JSON bytes, `ae:6` raw bytes). Used by
- * `decryptContent` and the import-time conversion — the runtime never holds
- * legacy envelopes.
- */
+/** True when contentVal is decryptable app-key envelope (ae:3 legacy, ae:6 raw). Runtime never holds legacy. */
 export function isAppEncryptedEnvelope(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
   return contentVal.ae === 3 || contentVal.ae === 6;
 }
 
 /**
- * Runtime detection of encrypted note content. Yjs is the only content store,
- * so only the current raw-byte envelope (`ae:6`) can appear at runtime; the
- * legacy `ae:1/2/3` formats only exist inside import conversion, never here.
+ * Runtime detection of encrypted note content. Only the raw-byte envelope
+ * (`ae:6`) appears at runtime; legacy `ae:1/2/3` exist only in import conversion.
  */
 export function isEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
@@ -231,13 +354,8 @@ export async function lockEncryptionKey() {
   await lockEncryption();
   await clearDecryptedCaches();
   await refreshState();
-  try {
-    const { clearSyncKey } = await import('@/utils/sync/crypto.js');
-    clearSyncKey();
-  } catch {}
 }
 
-// Re-exports for sync/crypto.js
 export { encryptContent as encryptPayload, decryptContent as decryptPayload };
 
 export async function generateRecoveryCode() {

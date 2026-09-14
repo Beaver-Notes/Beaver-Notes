@@ -67,6 +67,15 @@ describe('useOnboardingAppearance', () => {
     document.documentElement.classList.remove('green');
   });
 
+  it('selectAccentColor preserves the dark mode class', () => {
+    document.documentElement.classList.add('dark');
+    const { appearance } = setup();
+    appearance.selectAccentColor('amber');
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(document.documentElement.classList.contains('amber')).toBe(true);
+    document.documentElement.classList.remove('amber', 'dark');
+  });
+
   it('isDark derives from the chosen theme', () => {
     const { fresh, appearance } = setup();
     fresh.theme = 'dark';
@@ -77,8 +86,15 @@ describe('useOnboardingAppearance', () => {
     const { state, goToStep, appearance } = setup();
     await appearance.prepareFreshWorkspace();
     expect(applyOnboardingFreshPreferences).toHaveBeenCalled();
-    expect(goToStep).toHaveBeenCalledWith('password');
+    expect(goToStep).toHaveBeenCalledWith('finish');
     expect(state.savingPreferences).toBe(false);
+  });
+
+  it('useDefaultPreferences targets the first wizard card step', async () => {
+    const { goToStep, appearance } = setup();
+    await appearance.useDefaultPreferences();
+    expect(applyOnboardingFreshPreferences).toHaveBeenCalled();
+    expect(goToStep).toHaveBeenCalledWith('account');
   });
 
   it('applyFreshAndGo surfaces errors and still clears the saving flag', async () => {

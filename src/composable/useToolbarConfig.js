@@ -1,4 +1,3 @@
-// useToolbarConfig.js
 import { ref, computed } from 'vue';
 import { useAppStore } from '@/store/app';
 import { toolbarRegistry } from '@/utils/ui/toolbarRegistry.js';
@@ -10,7 +9,6 @@ export function useToolbarConfig() {
 
   const appStore = useAppStore();
 
-  //  Bootstrap
   function buildDefault() {
     return toolbarRegistry.all().map(({ id, defaultVisible }) => ({
       id,
@@ -34,7 +32,6 @@ export function useToolbarConfig() {
 
   const config = ref(mergeWithRegistry(appStore.toolbarStorage.get()));
 
-  //  Debounced persist
   let _flushTimer = null;
 
   function persist(immediate = false) {
@@ -46,8 +43,6 @@ export function useToolbarConfig() {
       _flushTimer = setTimeout(write, 400);
     }
   }
-
-  //  Public API
 
   const allItems = computed(() =>
     config.value.map((c) => ({ ...c, meta: toolbarRegistry.get(c.id) }))

@@ -1,7 +1,7 @@
-import { useStorage } from '@/lib/storage';
 import { useNoteStore } from '../../store/note';
 import { useLabelStore } from '@/store/label';
 import { useI18nStore } from '@/store/i18n';
+import { readNoteContents } from '@/lib/yjs/meta-store.js';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readDir } from '@/lib/native/fs';
@@ -51,18 +51,14 @@ async function chooseRootExportDir(title) {
 }
 
 export async function exportBEA(noteId, noteTitle) {
-  const storage = useStorage();
+  const noteStore = useNoteStore();
   const share = getShareTranslations();
   try {
     const rootDir = await chooseRootExportDir(
       share.exportNoteDialogTitle || 'Export note'
     );
     if (!rootDir) return;
-    const allNotes = await storage.store();
-    const notesArray = Array.isArray(allNotes)
-      ? allNotes
-      : Object.values(allNotes.notes || {});
-    const noteToExport = notesArray.find((note) => note.id === noteId);
+    const noteToExport = noteStore.data[noteId];
     if (!noteToExport) {
       console.warn(`Note with ID ${noteId} not found for export.`);
       return;
@@ -71,14 +67,16 @@ export async function exportBEA(noteId, noteTitle) {
     const assetsSource = path.join(appDirectory, 'assets', noteId);
     const assets = {
       notesAssets: await encodeAssets(assetsSource),
-      fileAssets: await encodeAssets(assetsSource),
+      fileAssets: {},
     };
+    // Content lives in per-note Yjs docs; fall back to any in-memory copy.
+    const contents = await readNoteContents([noteId]);
     const exportedData = {
       data: {
         id: noteId,
         title: noteToExport.title,
-        content: noteToExport.content,
-        lockedNotes: JSON.parse(localStorage.getItem('lockedNotes')) || {},
+        content: contents[noteId] ?? noteToExport.content,
+        isLocked: !!noteToExport.isLocked,
         assets,
         labels: noteToExport.labels || [],
       },
@@ -116,7 +114,7 @@ export async function importBEA(filePath, router, store, folderId = null) {
         share.invalidAssetsStructure ||
           'Invalid assets structure in the imported note.'
       );
-    await processImportedNote(fileData, router, store, folderId);
+    await processImportedNote(fileData, router, folderId);
     return true;
   } catch (error) {
     console.error('Error importing note:', error);
@@ -125,7 +123,6 @@ export async function importBEA(filePath, router, store, folderId = null) {
 }
 
 async function processImportedNote(noteData, router, folderId = null) {
-  const _storage = useStorage();
   const noteStore = useNoteStore();
   const labelStore = useLabelStore();
   try {
@@ -133,23 +130,21 @@ async function processImportedNote(noteData, router, folderId = null) {
     for (const label of noteData.labels || []) {
       if (!labelStore.data.includes(label)) await labelStore.add(label);
     }
+    const isLocked =
+      typeof noteData.isLocked === 'boolean'
+        ? noteData.isLocked
+        : !!(noteData.lockedNotes && noteData.lockedNotes[noteData.id]);
     const notePayload = {
       id: noteData.id,
       title: noteData.title,
       content: sanitizeNoteContent(noteData.content),
       labels: noteData.labels || [],
       folderId,
+      isLocked,
     };
     if (noteStore.data[noteData.id])
       await noteStore.update(noteData.id, notePayload);
     else await noteStore.add(notePayload);
-    if (noteData.lockedNotes) {
-      const existing = JSON.parse(localStorage.getItem('lockedNotes') || '{}');
-      localStorage.setItem(
-        'lockedNotes',
-        JSON.stringify({ ...existing, ...noteData.lockedNotes })
-      );
-    }
     if (noteData.assets) {
       const { notesAssets, fileAssets } = noteData.assets;
       const assetsDir = path.join(appDirectory, 'assets', noteData.id);

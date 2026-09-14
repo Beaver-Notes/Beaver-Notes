@@ -13,13 +13,14 @@
         />
       </div>
 
-      <!-- Tile grid -->
       <div
-        class="grid grid-cols-3 sm:grid-cols-4 gap-2 overflow-y-auto no-scrollbar max-h-[50vh]"
+        class="grid min-h-0 grid-cols-3 sm:grid-cols-4 gap-2 overflow-y-auto no-scrollbar overscroll-contain max-h-[50vh]"
+        style="-webkit-overflow-scrolling: touch"
       >
         <button
           v-for="(item, index) in filteredItems"
           :key="index"
+          v-keep-focus
           class="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-700 active:bg-neutral-100 dark:active:bg-neutral-600 transition-colors"
           :disabled="item.disabled"
           @click="handleItemClick(item)"
@@ -34,7 +35,7 @@
             />
           </div>
           <span
-            class="text-[10px] leading-tight text-center text-neutral-600 dark:text-neutral-400 truncate w-full"
+            class="text-xs leading-tight text-center text-neutral-600 dark:text-neutral-400 truncate w-full"
           >
             {{ translations.menu[item.name] || item.name }}
           </span>
@@ -46,12 +47,12 @@
 
 <script>
 import { computed, ref } from 'vue';
-import mime from 'mime';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/utils/assets/editor-image';
-import { saveFile } from '@/utils/assets/storage.js';
+import { assetFileName } from '@/utils/assets/storage.js';
+import { insertFileBlockOptimistic } from '@/lib/tiptap/exts/create-file-block.js';
 import { openDialog } from '@/lib/native/dialog';
 
 export default {
@@ -92,16 +93,23 @@ export default {
         if (canceled || filePaths.length === 0) return;
 
         for (const path of filePaths) {
-          const { fileName, relativePath } = await saveFile(path, props.id);
-
+          const fileName = assetFileName(path);
+          const view = props.editor.view;
           command({
             editor: props.editor,
             range: range.value,
             props: {
               action: () => {
-                props.editor.commands.setFileEmbed(relativePath, fileName);
+                props.editor.commands.setFileEmbed('', fileName);
               },
             },
+          });
+          insertFileBlockOptimistic(view, {
+            typeName: 'fileEmbed',
+            insert: () => {},
+            file: path,
+            noteId: props.id,
+            fileName,
           });
         }
       } catch (error) {
@@ -118,18 +126,22 @@ export default {
         if (canceled || !filePaths.length) return;
 
         for (const path of filePaths) {
-          const { relativePath } = await saveFile(path, props.id);
-          const type = mime.getType(path) || '';
-
-          if (type.startsWith('video/')) {
-            command({
-              editor: props.editor,
-              range: range.value,
-              props: {
-                action: () => props.editor.commands.setVideo(relativePath),
-              },
-            });
-          }
+          const fileName = assetFileName(path);
+          const view = props.editor.view;
+          command({
+            editor: props.editor,
+            range: range.value,
+            props: {
+              action: () => props.editor.commands.setVideo('', fileName),
+            },
+          });
+          insertFileBlockOptimistic(view, {
+            typeName: 'Video',
+            insert: () => {},
+            file: path,
+            noteId: props.id,
+            fileName,
+          });
         }
       } catch (error) {
         console.error(error);
@@ -145,19 +157,22 @@ export default {
         if (canceled || !filePaths.length) return;
 
         for (const path of filePaths) {
-          const { fileName, relativePath } = await saveFile(path, props.id);
-          const type = mime.getType(path) || '';
-
-          if (type.startsWith('audio/')) {
-            command({
-              editor: props.editor,
-              range: range.value,
-              props: {
-                action: () =>
-                  props.editor.commands.setAudio(relativePath, fileName),
-              },
-            });
-          }
+          const fileName = assetFileName(path);
+          const view = props.editor.view;
+          command({
+            editor: props.editor,
+            range: range.value,
+            props: {
+              action: () => props.editor.commands.setAudio('', fileName),
+            },
+          });
+          insertFileBlockOptimistic(view, {
+            typeName: 'Audio',
+            insert: () => {},
+            file: path,
+            noteId: props.id,
+            fileName,
+          });
         }
       } catch (error) {
         console.error(error);

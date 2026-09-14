@@ -1,32 +1,18 @@
 <template>
-  <div
-    :class="['mermaid-viewer', className]"
-    @click="onClick"
-  >
-    <div
-      v-if="svgHtml"
-      class="mermaid-svg"
-      v-html="svgHtml"
-    ></div>
+  <div :class="['mermaid-viewer', className]" @click="onClick">
+    <div v-if="svgHtml" class="mermaid-svg" v-html="svgHtml"></div>
 
-    <div
-      v-else-if="fallback"
-      class="mermaid-fallback"
-    >
+    <div v-else-if="fallback" class="mermaid-fallback">
       <span
         v-if="fallback.kind === 'unsupported'"
         class="mermaid-fallback-badge"
       >
         {{
-          translations.editor.unsupportedDiagram ||
-          'Unsupported diagram type'
+          translations.editor.unsupportedDiagram || 'Unsupported diagram type'
         }}
       </span>
       <pre class="mermaid-fallback-code">{{ content }}</pre>
-      <p
-        v-if="fallback.kind === 'error'"
-        class="mermaid-fallback-error"
-      >
+      <p v-if="fallback.kind === 'error'" class="mermaid-fallback-error">
         {{ fallback.message }}
       </p>
     </div>
@@ -39,6 +25,8 @@ import { renderMermaidSVG } from 'beautiful-mermaid';
 import { useTheme } from '@/composable/theme';
 import { useTranslations } from '@/composable/useTranslations';
 
+// beautiful-mermaid renders exactly these types; everything else gets the
+// plaintext "unsupported" badge instead of a library exception.
 const SUPPORTED_TYPES = new Set([
   'flowchart',
   'state',
@@ -85,6 +73,20 @@ function detectType(content) {
     }
   }
   return { type: null, supported: false };
+}
+
+// Memoized render: output is pure for (source, theme), and card previews
+// remount on scroll while the editor re-renders on unrelated updates.
+const svgCache = new Map();
+const SVG_CACHE_MAX = 100;
+
+function renderCached(content, dark) {
+  const key = `${dark ? 'd' : 'l'}:${content}`;
+  if (svgCache.has(key)) return svgCache.get(key);
+  const svg = renderMermaidSVG(content, resolveThemeColors());
+  if (svgCache.size >= SVG_CACHE_MAX) svgCache.clear();
+  svgCache.set(key, svg);
+  return svg;
 }
 
 function resolveThemeColors() {
@@ -139,7 +141,7 @@ export default defineComponent({
       }
 
       try {
-        svgHtml.value = renderMermaidSVG(props.content, resolveThemeColors());
+        svgHtml.value = renderCached(props.content, isDark());
         fallback.value = null;
       } catch (error) {
         svgHtml.value = '';
@@ -154,7 +156,7 @@ export default defineComponent({
 
     watch(
       () => isDark(),
-      () => render()
+      () => render(),
     );
 
     return {

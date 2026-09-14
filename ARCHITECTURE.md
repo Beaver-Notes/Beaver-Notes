@@ -171,4 +171,4 @@ Workspaces are isolated directories, each containing `data.db` + `settings.db`. 
 - `cargo audit` — Rust dependency audit (RUSTSEC advisories)
 - `yarn knip` — dead code detection
 - Version consistency check — `package.json` ↔ `tauri.conf.json` ↔ `Cargo.toml`
-- **No tests run in CI** (E2E suite exists but requires a display server)
+- **No tests run in CI** — unit tests (`yarn test`, `cargo test --lib`), lint, and typecheck gate every PR; only the E2E suite needs a display server

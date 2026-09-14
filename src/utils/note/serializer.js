@@ -1,11 +1,7 @@
 /**
- * Note hydration and serialization helpers.
- *
- * Responsible for the transformation layer between what is persisted on disk
- * and what lives in the Pinia store in memory:
- *   - stripping transient (computed) fields before write
- *   - rebuilding computed fields (cardPreview, searchText) after read
- *   - handling app-level encryption transparently on load/save
+ * Note hydration and serialization: the transformation layer between what is
+ * persisted on disk and what lives in the Pinia store (strip transient fields
+ * on write, rebuild computed fields on read, transparent app-level encryption).
  */
 import {
   buildCardPreview,
@@ -19,17 +15,13 @@ import {
   isEncryptedContent,
 } from '@/utils/crypto/encryption.js';
 
-/**
- * Yield to UI thread to prevent blocking.
- */
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /**
- * Extracts a flat plain-text string from a ProseMirror content tree.
- * Used to build `searchText` so search never needs to JSON.stringify content.
- * Also exported for use as a defensive fallback in search UI.
+ * Flat plain-text from a ProseMirror tree; builds `searchText` so search never
+ * JSON.stringifies content. Also a defensive fallback in search UI.
  */
 export function extractTextFromContent(content) {
   if (!content) return '';
@@ -58,9 +50,8 @@ export function extractTextFromContent(content) {
  */
 export function stripTransientFields(note) {
   if (!note || typeof note !== 'object') return note;
-  // `cardPreview` is now persisted (it is rebuilt from structured content and
-  // would otherwise be lost after the Yjs migration moved content out of KV).
-  // `searchText` remains a deprecated transient field.
+  // `cardPreview` IS persisted (rebuilt from structured content, otherwise
+  // lost after the Yjs migration moved content out of KV); `searchText` stays transient.
   const { searchText: _searchText, ...persistedNote } = note;
   return persistedNote;
 }
@@ -73,10 +64,10 @@ export function hydrateNote(note) {
   if (!note || typeof note !== 'object') return note;
 
   const persisted = stripTransientFields(note);
+  if (persisted.dir !== 'ltr' && persisted.dir !== 'rtl') persisted.dir = 'auto';
   const hidden = persisted.isLocked || isEncryptedContent(persisted.content);
 
-  // Fast path: if the note already has both a cardPreview and a searchText,
-  // return immediately without any content traversal.
+  // Fast path: both computed fields present, skip traversal.
   if (!hidden && persisted.cardPreview && persisted.searchText) {
     return { ...persisted, cardPreview: persisted.cardPreview, searchText: persisted.searchText };
   }
@@ -88,9 +79,8 @@ export function hydrateNote(note) {
       extractTextFromContent(persisted.content) ||
       '');
 
-  // Prefer a persisted structured `cardPreview` (styled blocks). Rebuild it
-  // from structured content when available, otherwise fall back to a flat
-  // preview (legacy `searchText` / cross-device `preview`).
+  // Prefer persisted structured `cardPreview`; rebuild from content when
+  // possible, else fall back to a flat preview (legacy searchText / preview).
   let cardPreview = persisted.cardPreview;
   if (!hidden && !cardPreview) {
     if (persisted.content) {
@@ -126,9 +116,6 @@ export async function decryptNoteForMemory(note) {
 
 /**
  * Batch decrypt multiple notes with UI yielding to prevent stalls.
- * @param {Array} notes - Array of note objects
- * @param {Object} options - { onProgress, batchSize, signal }
- * @returns {Array} Decrypted notes in same order
  */
 export async function batchDecryptNotesForMemory(notes, options = {}) {
   const { onProgress, batchSize = 5, signal } = options;

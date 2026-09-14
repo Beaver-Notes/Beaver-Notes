@@ -1,12 +1,15 @@
 <template>
   <div v-if="isAuthenticated">
-    <ui-popover :placement="expanded ? 'bottom-start' : 'right-start'">
+    <ui-popover
+      v-model="popoverOpen"
+      :placement="expanded ? 'bottom-start' : 'right-start'"
+    >
       <template #trigger>
         <!-- Expanded: full-width pill trigger -->
         <div
           v-if="expanded"
           ref="triggerEl"
-          class="transition-colors duration-150 rounded-lg flex items-center h-10 w-full px-2 gap-2 cursor-pointer text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100"
+          class="transition-colors duration-150 rounded-xl flex items-center h-10 w-full px-2 gap-2 cursor-pointer text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100"
         >
           <span
             class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
@@ -21,7 +24,7 @@
           </span>
           <span
             v-if="activeRole && activeRole !== 'owner'"
-            class="shrink-0 text-[10px] leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 uppercase font-medium"
+            class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
           >
             {{ activeRole }}
           </span>
@@ -50,64 +53,72 @@
 
       <div class="min-w-[220px] py-1">
         <div
-          class="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 select-none"
+          class="px-2.5 pb-1.5 text-xs font-semibold font-bold text-neutral-500 dark:text-neutral-400 select-none"
         >
           Workspaces
         </div>
 
-        <div
-          v-for="ws in workspaces"
-          :key="ws.id"
-          class="group relative"
-        >
+        <div v-for="ws in workspaces" :key="ws.id" class="group relative">
           <button
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
             @click="switchWorkspace(ws.id)"
           >
-          <span
-            class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none"
-            :class="
-              ws.id === activeId
-                ? 'bg-primary/10 text-primary'
-                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400'
-            "
-          >
-            <span v-if="ws.emoji">{{ ws.emoji }}</span>
-            <v-remixicon v-else name="riFolderLine" size="14" />
-          </span>
+            <span
+              class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none"
+              :class="
+                ws.id === activeId
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400'
+              "
+            >
+              <span v-if="ws.emoji">{{ ws.emoji }}</span>
+              <v-remixicon v-else name="riFolderLine" size="14" />
+            </span>
 
-          <span
-            class="truncate flex-1 min-w-0"
-            :class="
-              ws.id === activeId
-                ? 'text-primary font-medium'
-                : 'text-neutral-700 dark:text-neutral-300'
-            "
-          >
-            {{ ws.name }}
-          </span>
+            <span
+              class="truncate flex-1 min-w-0"
+              :class="
+                ws.id === activeId
+                  ? 'text-primary font-medium'
+                  : 'text-neutral-700 dark:text-neutral-300'
+              "
+            >
+              {{ ws.name }}
+            </span>
 
-          <span
-            v-if="ws.role && ws.role !== 'owner'"
-            class="shrink-0 text-[10px] leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 uppercase font-medium"
-          >
-            {{ ws.role }}
-          </span>
+            <span
+              v-if="ws.role && ws.role !== 'owner'"
+              class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
+            >
+              {{ ws.role }}
+            </span>
 
-          <v-remixicon
-            v-if="ws.id === activeId"
-            name="riCheckLine"
-            size="14"
-            class="shrink-0 text-primary"
-          />
+            <v-remixicon
+              v-if="ws.id === activeId"
+              name="riCheckLine"
+              size="14"
+              class="shrink-0 text-primary"
+            />
           </button>
           <button
-            v-if="isPaid && (ws.role === 'owner' || ws.role === 'admin')"
-            class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
+            v-if="canManageWorkspace(ws)"
+            class="absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
             @click.stop="promptRename(ws)"
             aria-label="Rename workspace"
           >
             <v-remixicon name="riEditLine" size="12" class="text-neutral-400" />
+          </button>
+          <button
+            v-if="canManageWorkspace(ws)"
+            class="absolute ltr:right-6 rtl:left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
+            @click.stop="goToTeamSettings"
+            aria-label="Team settings"
+          >
+            <v-remixicon
+              name="riSettingsLine"
+              size="12"
+              class="text-neutral-400"
+            />
           </button>
         </div>
 
@@ -143,14 +154,25 @@
         </button>
       </div>
     </ui-popover>
+
+    <WorkspaceFormDialog
+      v-model:show="formDialogShow"
+      :mode="formDialogMode"
+      :workspace="formDialogWorkspace"
+      @confirm="handleFormConfirm"
+      @close="() => (formDialogShow = false)"
+    />
   </div>
 </template>
 
 <script>
 import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useAccountStore } from '@/store/account';
+import { getPlans } from '@/lib/api/plans';
+import WorkspaceFormDialog from './WorkspaceFormDialog.vue';
 
 function clearSettingsLocalStorage() {
   const settingsKeys = [
@@ -181,13 +203,22 @@ function clearSettingsLocalStorage() {
 }
 
 export default {
+  components: {
+    WorkspaceFormDialog,
+  },
   props: {
     expanded: { type: Boolean, default: false },
   },
   setup() {
     const workspaceStore = useWorkspaceStore();
     const accountStore = useAccountStore();
+    const router = useRouter();
     const triggerEl = ref(null);
+    const popoverOpen = ref(false);
+    const dashboardFlag = ref(false);
+    const formDialogShow = ref(false);
+    const formDialogMode = ref('create');
+    const formDialogWorkspace = ref(null);
 
     const workspaces = computed(() => workspaceStore.workspaces);
     const activeId = computed(() => workspaceStore.activeId);
@@ -203,8 +234,23 @@ export default {
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const isPaid = computed(() => accountStore.isPaidPlan);
 
+    function canManageWorkspace(ws) {
+      return (
+        dashboardFlag.value && (ws.role === 'owner' || ws.role === 'admin')
+      );
+    }
+
     onMounted(async () => {
       await workspaceStore.retrieve();
+      if (accountStore.isAuthenticated) {
+        getPlans({ baseUrl: accountStore.serverUrl })
+          .then((plans) => {
+            dashboardFlag.value = Boolean(plans?.flags?.dashboard);
+          })
+          .catch(() => {
+            /* plans optional */
+          });
+      }
       await nextTick();
     });
 
@@ -216,42 +262,62 @@ export default {
     }
 
     function promptCreate() {
-      emitter.emit('show-dialog', 'prompt', {
-        title: 'New Workspace',
-        placeholder: 'Workspace name',
-        okText: 'Create',
-        password: false,
-        async onConfirm(name) {
-          if (!name || !name.trim()) return;
+      formDialogMode.value = 'create';
+      formDialogWorkspace.value = null;
+      formDialogShow.value = true;
+    }
+
+    async function handleFormConfirm({ name, emoji, color }) {
+      if (!name.trim()) return;
+      try {
+        if (formDialogMode.value === 'create') {
           const ws = await workspaceStore.create(name.trim(), {
             copySettings: true,
+            emoji,
+            color,
           });
           await workspaceStore.switchTo(ws.id);
-          clearSettingsLocalStorage();
-          window.location.reload();
-        },
-      });
+        } else {
+          const wsId = formDialogWorkspace.value?.id;
+          if (wsId) {
+            const cloud = await import('@/composable/useCloudWorkspaces');
+            await cloud
+              .useCloudWorkspaces()
+              .updateWorkspaceDecoration(wsId, { emoji, color });
+            if (name !== formDialogWorkspace.value.name) {
+              await workspaceStore.rename(wsId, name);
+            } else {
+              const ws = workspaceStore.workspaces.find((w) => w.id === wsId);
+              if (ws) {
+                ws.emoji = emoji;
+                ws.color = color;
+              }
+            }
+          }
+        }
+        formDialogShow.value = false;
+        clearSettingsLocalStorage();
+        window.location.reload();
+      } catch (err) {
+        emitter.emit('show-dialog', 'alert', {
+          title:
+            formDialogMode.value === 'create'
+              ? 'Create Failed'
+              : 'Update Failed',
+          description: err?.message || 'Failed to update workspace.',
+        });
+      }
     }
 
     function promptRename(ws) {
-      emitter.emit('show-dialog', 'prompt', {
-        title: 'Rename Workspace',
-        placeholder: 'Workspace name',
-        okText: 'Rename',
-        password: false,
-        defaultValue: ws.name,
-        async onConfirm(name) {
-          if (!name || !name.trim()) return;
-          try {
-            await workspaceStore.rename(ws.id, name.trim());
-          } catch (err) {
-            emitter.emit('show-dialog', 'alert', {
-              title: 'Rename Failed',
-              description: err?.message || 'Failed to rename workspace.',
-            });
-          }
-        },
-      });
+      formDialogMode.value = 'edit';
+      formDialogWorkspace.value = ws;
+      formDialogShow.value = true;
+    }
+
+    function goToTeamSettings() {
+      popoverOpen.value = false;
+      router.push('/settings/workspace');
     }
 
     function promptJoin() {
@@ -282,6 +348,7 @@ export default {
 
     return {
       triggerEl,
+      popoverOpen,
       workspaces,
       activeId,
       activeName,
@@ -289,10 +356,16 @@ export default {
       activeRole,
       isAuthenticated,
       isPaid,
+      canManageWorkspace,
       switchWorkspace,
       promptCreate,
       promptRename,
+      goToTeamSettings,
       promptJoin,
+      formDialogShow,
+      formDialogMode,
+      formDialogWorkspace,
+      handleFormConfirm,
     };
   },
 };

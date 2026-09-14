@@ -36,6 +36,19 @@ impl<R: Runtime> Sharesheet<R> {
             .run_mobile_plugin("share_file", ShareFilePayload { path, mime_type })
             .map_err(Into::into)
     }
+
+    pub fn get_pending(&self) -> crate::Result<String> {
+        self.0
+            .run_mobile_plugin::<PendingShareResponse>("getPendingShare", ())
+            .map(|v| v.payload)
+            .map_err(Into::into)
+    }
+
+    pub fn clear_pending(&self) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("clearPendingShare", ())
+            .map_err(Into::into)
+    }
 }
 
 /// Extensions to [`tauri::App`], [`tauri::AppHandle`], [`tauri::WebviewWindow`], [`tauri::Webview`] and [`tauri::Window`] to access the sharesheet APIs.

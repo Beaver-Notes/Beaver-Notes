@@ -1,5 +1,6 @@
 import { browser, expect } from '@wdio/globals';
 import { navigateToNotes, deleteCurrentNote, createNote, getTitleText, waitForSaved } from './helpers.js';
+// cloud-sync helpers available via ./helpers cloudFetch/cloudBackendReachable (06.5)
 
 describe('Note CRUD', () => {
   const noteTitle = 'E2E Test Note ' + Date.now();

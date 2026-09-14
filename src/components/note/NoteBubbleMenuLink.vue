@@ -6,12 +6,14 @@
     <!-- View Mode -->
     <div v-if="!isEditing" class="flex items-center gap-2">
       <button
+        v-keep-focus
         class="flex-1 min-w-10 text-left text-secondary hover:text-primary hover:underline truncate px-2 py-1 rounded transition-colors"
         @click="handleClick"
       >
         {{ displayLink }}
       </button>
       <button
+        v-keep-focus
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
         :title="translations.editor?.editLink || 'Edit link'"
         @click="startEditing"
@@ -19,6 +21,7 @@
         <v-remixicon name="riPencilLine" class="size-5" />
       </button>
       <button
+        v-keep-focus
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
         :title="translations.editor?.removeLink || 'Remove link'"
         @click="removeLink"
@@ -44,6 +47,7 @@
           @keyup.enter="saveAndClose"
         />
         <button
+          v-keep-focus
           class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
           :title="translations.common?.cancel || 'Cancel'"
           @click="cancelEditing"
@@ -51,6 +55,7 @@
           <v-remixicon name="riCloseLine" class="size-5" />
         </button>
         <button
+          v-keep-focus
           class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
           :title="translations.common?.save || 'Save'"
           :disabled="!currentLinkVal.trim()"
@@ -128,20 +133,17 @@ export default {
     const originalLinkVal = ref('');
     const inputRef = ref(null);
 
-    // ── Helper: check if a link href is a note:// URL ──────────────
     function isNoteUrl(href) {
       return typeof href === 'string' && href.startsWith('note://');
     }
 
-    // ── Position the editor's cursor on the hovered link ──────────
     function positionCursorOnLink() {
       if (!props.editor || !props.hoverLinkEl) return false;
       try {
         const { view } = props.editor;
         const el = props.hoverLinkEl;
-        // Use TreeWalker to find the first text node inside any descendant
-        // This handles both new-style <a> (text child) and old-style
-        // <a data-link-note><span data-mention>@Title</span></a>
+        // TreeWalker finds the first text node inside any descendant; handles
+        // both new-style <a> and old-style <a data-link-note><span data-mention>.
         const walker = document.createTreeWalker(
           el,
           NodeFilter.SHOW_TEXT,
@@ -166,7 +168,6 @@ export default {
       }
     }
 
-    // ── Active link type detection ───────────────────────────────────
     const activeType = computed(() => {
       if (!props.editor) return null;
       if (props.hoverLinkAttrs) return props.hoverLinkAttrs.type;
@@ -179,7 +180,6 @@ export default {
       return null;
     });
 
-    // ── Active link attributes (normalized) ──────────────────────────
     const activeAttrs = computed(() => {
       if (!props.editor) return null;
       if (props.hoverLinkAttrs) return props.hoverLinkAttrs;
@@ -212,14 +212,12 @@ export default {
       return props.editor.getAttributes('link') || null;
     });
 
-    // ── Notes matching @ query ──────────────────────────────────────
     const notes = computed(() => {
       if (!currentLinkVal.value.startsWith('@')) return [];
 
       const query = currentLinkVal.value.substring(1).toLowerCase();
 
-      // Cap the candidate pool before filtering — scanning 10k+ notes per
-      // keystroke with the popover open janked typing.
+      // Cap pool before filtering: scanning 10k notes per keystroke janked typing.
       const candidates =
         noteStore.notes.length > 200 ? noteStore.notes.slice(0, 200) : noteStore.notes;
 
@@ -233,7 +231,6 @@ export default {
         .slice(0, 6);
     });
 
-    // ── Display text for the link ────────────────────────────────────
     const displayLink = computed(() => {
       const type = activeType.value;
       const attrs = activeAttrs.value;
@@ -248,7 +245,6 @@ export default {
       return attrs.href || '';
     });
 
-    // ── Actions ──────────────────────────────────────────────────────
     function startEditing() {
       isEditing.value = true;
       originalLinkVal.value = currentLinkVal.value;
@@ -271,19 +267,16 @@ export default {
       emit('close');
     }
 
-    // ── Helper: update an existing link with a new href ────────────
-    // Handles both old-style linkNote nodes (converts to mark) and
-    // new-style link marks (updates href in place).
+    // Update an existing link with a new href: old-style linkNote nodes are
+    // converted to link marks; new-style marks are updated in place.
     function updateLinkHref(href) {
       if (!props.editor) return;
       const { editor } = props;
 
-      // Position cursor on the link first
       positionCursorOnLink();
 
       if (editor.isActive('linkNote')) {
-        // Old-style linkNote node: remove it (replaces with its label text),
-        // then apply a link mark with the new href on that same text.
+        // removeLinkNote replaces the node with its label text
         const attrs = editor.getAttributes('linkNote');
         const text = attrs.label || attrs.id || '';
         editor
@@ -299,8 +292,7 @@ export default {
           ])
           .run();
       } else {
-        // New-style link mark: extend the mark range to cover the full
-        // link, then update the href.
+        // Extend the mark range to cover the full link, then update the href.
         editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
       }
     }
@@ -319,7 +311,6 @@ export default {
           updateLinkHref(`note://${note.id}`);
         }
       } else {
-        // Position cursor first, then update the external URL
         positionCursorOnLink();
         props.editor
           .chain()
@@ -353,7 +344,6 @@ export default {
         return;
       }
 
-      // External URL
       positionCursorOnLink();
       props.editor
         .chain()
@@ -380,8 +370,7 @@ export default {
       if (editor.isActive('linkNote')) {
         editor.chain().focus().removeLinkNote().run();
       } else {
-        // For link marks (both note:// and external URLs), extend the
-        // mark range to ensure full coverage, then unset.
+        // Covers both note:// and external URLs
         editor.chain().focus().extendMarkRange('link').unsetLink().run();
       }
 
@@ -433,7 +422,6 @@ export default {
       }
     }
 
-    // ── Watchers ──────────────────────────────────────────────────────
     watch(currentLinkVal, (value) => {
       if (value.startsWith('@')) selectedNoteIndex.value = 0;
     });

@@ -2,6 +2,8 @@ import { onMounted, ref } from 'vue';
 import { useAccountStore } from '@/store/account';
 import { setSetting } from '@/lib/settings';
 import { useAccountAuth } from '@/composable/useAccountAuth';
+import { updateUsername as apiUpdateUsername, getAccountExport } from '@/lib/api/account';
+import { logger } from '@/utils/logger';
 
 export function useSettingsAccount({ dialog, translations }) {
   const accountStore = useAccountStore();
@@ -9,6 +11,7 @@ export function useSettingsAccount({ dialog, translations }) {
 
   const signInEmail = ref('');
   const signInPassword = ref('');
+  const signUpUsername = ref('');
   const passkeyEmail = ref('');
   const quickConnectCode = ref('');
   const quickConnectSecret = ref('');
@@ -19,8 +22,16 @@ export function useSettingsAccount({ dialog, translations }) {
   const draftServerUrl = ref(accountStore.serverUrl);
   const deletingAccount = ref(false);
   const deletePassword = ref('');
+  const editingUsername = ref(false);
+  const draftUsername = ref('');
+  const sessions = ref([]);
+  const loadingSessions = ref(false);
 
   const defaultServerUrl = 'https://api.beavernotes.com';
+
+  function activeBaseUrl() {
+    return accountStore.serverUrl;
+  }
 
   function clearError() {
     accountStore.setError('');
@@ -28,8 +39,11 @@ export function useSettingsAccount({ dialog, translations }) {
 
   async function saveServerUrl() {
     const next = (draftServerUrl.value || '').trim() || defaultServerUrl;
-    accountStore.setServerUrl(next);
-    await setSetting('beaverAccountServerUrl', next);
+    if (!accountStore.setServerUrl(next)) {
+      accountStore.setError('Server URL must start with http:// or https://.');
+      return;
+    }
+    await setSetting('beaverAccountServerUrl', accountStore.serverUrl);
     showServerUrlEditor.value = false;
   }
 
@@ -53,8 +67,11 @@ export function useSettingsAccount({ dialog, translations }) {
       );
       signInPassword.value = '';
       if (accountStore.isAuthenticated) {
-        await detectAndPromptVaultJoin();
-        auth.triggerSeed().catch(() => {});
+        if (await detectAndPromptVaultJoin()) {
+          auth.triggerSeed().catch((e) =>
+            logger.warn('[settings] account seed failed:', e)
+          );
+        }
       }
     } catch {
       // error already on the store
@@ -73,12 +90,17 @@ export function useSettingsAccount({ dialog, translations }) {
     try {
       await auth.signUpWithPassword(
         signInEmail.value.trim(),
-        signInPassword.value
+        signInPassword.value,
+        signUpUsername.value?.trim() || undefined
       );
       signInPassword.value = '';
+      signUpUsername.value = '';
       if (accountStore.isAuthenticated) {
-        await detectAndPromptVaultJoin();
-        auth.triggerSeed().catch(() => {});
+        if (await detectAndPromptVaultJoin()) {
+          auth.triggerSeed().catch((e) =>
+            logger.warn('[settings] account seed failed:', e)
+          );
+        }
       }
     } catch {
       // error already on the store
@@ -90,8 +112,11 @@ export function useSettingsAccount({ dialog, translations }) {
     try {
       await auth.signInWithPasskey(passkeyEmail.value?.trim() || null);
       if (accountStore.isAuthenticated) {
-        await detectAndPromptVaultJoin();
-        auth.triggerSeed().catch(() => {});
+        if (await detectAndPromptVaultJoin()) {
+          auth.triggerSeed().catch((e) =>
+            logger.warn('[settings] account seed failed:', e)
+          );
+        }
       }
     } catch {
       // error already on the store
@@ -103,8 +128,11 @@ export function useSettingsAccount({ dialog, translations }) {
     try {
       await auth.signUpWithPasskey(passkeyEmail.value?.trim() || null);
       if (accountStore.isAuthenticated) {
-        await detectAndPromptVaultJoin();
-        auth.triggerSeed().catch(() => {});
+        if (await detectAndPromptVaultJoin()) {
+          auth.triggerSeed().catch((e) =>
+            logger.warn('[settings] account seed failed:', e)
+          );
+        }
       }
     } catch {
       // error already on the store
@@ -113,29 +141,80 @@ export function useSettingsAccount({ dialog, translations }) {
 
   async function detectAndPromptVaultJoin() {
     try {
-      const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-      const { detectRemoteVaultJoin } = await import('@/utils/onboarding/remote-vault-join.js');
-      const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
-      const { isKeyLoaded } = await import('@/utils/crypto/encryption.js');
+      const { fetchCloudKeyParams, getFetchedCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+      const { hasRemoteVaultKeyParams, adoptVaultKey } = await import('@/utils/crypto/encryption.js');
 
-      // If encryption key is already loaded, no need to prompt
-      if (isKeyLoaded()) return;
-
-      const hasVault = await detectRemoteVaultJoin({
-        fetchCloudKeyParams,
-        hasRemoteVaultKeyParams,
-      }).catch(() => false);
+      // Remote vault differs or no local manifest: never skip, wrong local key still re-imports.
+      await fetchCloudKeyParams({ force: true }).catch((e) =>
+        logger.warn('[settings] cloud key-params fetch failed:', e)
+      );
+      let hasVault;
+      try {
+        hasVault = await hasRemoteVaultKeyParams();
+      } catch (e) {
+        logger.warn('[settings] cloud vault detection failed:', e);
+        return false;
+      }
 
       if (hasVault) {
-        dialog.alert({
+        dialog.confirm({
           title: translations.value.account?.vaultDetected || 'Vault detected',
-          body: translations.value.account?.vaultDetectedBody || 'A vault was found in your sync source. Go to Settings > Security > "Import vault from sync" to unlock your notes.',
-          okText: translations.value.dialog?.close || 'Close',
+          body: translations.value.account?.vaultDetectedBody || 'A vault was found in your sync source. Import it to unlock your notes.',
+          icon: 'riShieldKeyholeLine',
+          okText: translations.value.account?.importVault || 'Import',
+          cancelText: translations.value.dialog?.cancel || 'Cancel',
+          onConfirm: () => {
+            dialog.prompt({
+              title: translations.value.account?.vaultPasswordTitle || 'Enter vault password',
+              body: translations.value.account?.vaultPasswordBody || 'Enter the password for the existing encrypted vault in your sync source.',
+              icon: 'riLockLine',
+              okText: translations.value.account?.importVault || 'Import',
+              cancelText: translations.value.dialog?.cancel || 'Cancel',
+              placeholder: translations.value.settings?.password || 'Vault password',
+              password: true,
+              onConfirm: async (pass) => {
+                if (!pass) {
+                  dialog.alert({
+                    title: translations.value.settings?.alertTitle || 'Alert',
+                    body: translations.value.settings?.invalidPassword || 'Enter the vault password.',
+                    okText: translations.value.dialog?.close || 'Close',
+                  });
+                  return;
+                }
+                try {
+                  const fetched = getFetchedCloudKeyParams();
+                  const res = await adoptVaultKey(pass, fetched?.paramsBlob);
+                  if (!res.ok) {
+                    dialog.alert({
+                      title: translations.value.settings?.alertTitle || 'Alert',
+                      body: res.error || 'Failed to import the vault. Check the password.',
+                      okText: translations.value.dialog?.close || 'Close',
+                    });
+                    return;
+                  }
+                  dialog.alert({
+                    title: translations.value.account?.vaultImported || 'Vault imported',
+                    body: translations.value.account?.vaultImportedBody || 'The vault has been imported. The app will reload.',
+                    okText: translations.value.dialog?.close || 'Close',
+                    onConfirm: () => window.location.reload(),
+                  });
+                } catch (e) {
+                  dialog.alert({
+                    title: translations.value.settings?.alertTitle || 'Alert',
+                    body: e?.message || 'Failed to import the vault.',
+                    okText: translations.value.dialog?.close || 'Close',
+                  });
+                }
+              },
+            });
+          },
         });
       }
     } catch (e) {
-      console.warn('[auth] vault detection failed:', e);
+      logger.warn('[auth] vault detection failed:', e);
+      return false;
     }
+    return true;
   }
 
   async function startQuickConnect() {
@@ -265,9 +344,68 @@ export function useSettingsAccount({ dialog, translations }) {
     }
   }
 
+  function startEditUsername() {
+    draftUsername.value = accountStore.profile?.username || '';
+    editingUsername.value = true;
+  }
+
+  function cancelEditUsername() {
+    editingUsername.value = false;
+    draftUsername.value = '';
+  }
+
+  async function saveUsername() {
+    const name = draftUsername.value.trim();
+    if (!name) return;
+    clearError();
+    try {
+      await apiUpdateUsername(name, { baseUrl: activeBaseUrl() });
+      accountStore.setProfile({ ...accountStore.profile, username: name });
+      editingUsername.value = false;
+    } catch (err) {
+      accountStore.setError(err?.message || 'Failed to update username');
+    }
+  }
+
+  async function loadSessions() {
+    loadingSessions.value = true;
+    try {
+      sessions.value = await auth.listActiveSessions();
+    } catch {
+      sessions.value = [];
+    } finally {
+      loadingSessions.value = false;
+    }
+  }
+
+  async function revokeSession(id) {
+    try {
+      await auth.revokeActiveSession(id);
+      await loadSessions();
+    } catch {
+      // error already on the store
+    }
+  }
+
+  async function exportAccountData() {
+    clearError();
+    try {
+      const data = await getAccountExport({ baseUrl: activeBaseUrl() });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `beaver-account-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      accountStore.setError(err?.message || 'Failed to export account data');
+    }
+  }
+
   onMounted(() => {
-    // hydrate is called by the composable's onMounted; ensure the latest
-    // profile is fetched when the settings page is opened.
+    // Hydration runs in the auth composable's own onMounted; refresh the
+    // profile when the settings page opens.
     if (accountStore.isAuthenticated) {
       auth.refreshProfile().catch(() => {});
     }
@@ -277,6 +415,7 @@ export function useSettingsAccount({ dialog, translations }) {
     accountStore,
     signInEmail,
     signInPassword,
+    signUpUsername,
     passkeyEmail,
     quickConnectCode,
     quickConnectSecret,
@@ -305,5 +444,15 @@ export function useSettingsAccount({ dialog, translations }) {
     confirmDeleteAccount,
     clearError,
     triggerSeed: auth.triggerSeed,
+    editingUsername,
+    draftUsername,
+    startEditUsername,
+    cancelEditUsername,
+    saveUsername,
+    sessions,
+    loadingSessions,
+    loadSessions,
+    revokeSession,
+    exportAccountData,
   };
 }

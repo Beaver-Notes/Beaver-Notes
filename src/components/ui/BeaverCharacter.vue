@@ -328,7 +328,7 @@ export default {
 
     function searchingPose(t, local) {
       const p = basePose();
-      p.eyeSc = 1.1;
+      p.eyeSc = 1; // keep eyes same size per review
       const s = saccade(SEARCH_PTS, local);
       p.eyeLdx = s.x;
       p.eyeLdy = s.y;
@@ -390,10 +390,14 @@ export default {
 
     function cursorTrackPose() {
       const p = basePose();
-      p.eyeLdx = cursorX * 14;
-      p.eyeLdy = cursorY * 10;
-      p.eyeRdx = cursorX * 14;
-      p.eyeRdy = cursorY * 10;
+      // smoothed cursor for natural lag (spring-like)
+      p.eyeLdx = cursorS.x * 13;
+      p.eyeLdy = cursorS.y * 9;
+      p.eyeRdx = cursorS.x * 13;
+      p.eyeRdy = cursorS.y * 9;
+      // subtle head micro-follow
+      p.headX = cursorS.x * 1.2;
+      p.headY = cursorS.y * 0.9;
       return p;
     }
 
@@ -481,6 +485,7 @@ export default {
 
     let cursorX = 0;
     let cursorY = 0;
+    const cursorS = { x: 0, y: 0 };
     let forcedStart = 0;
     let forcedUntil = 0;
 
@@ -515,6 +520,9 @@ export default {
       }
       const dt = Math.min(0.05, (now - lastNow) / 1000);
       lastNow = now;
+      // Natural cursor follow: critically damped spring (no overshoot).
+      cursorS.x += (cursorX - cursorS.x) * Math.min(1, dt * 7);
+      cursorS.y += (cursorY - cursorS.y) * Math.min(1, dt * 7);
 
       const greets = now < forcedUntil;
       let pose;

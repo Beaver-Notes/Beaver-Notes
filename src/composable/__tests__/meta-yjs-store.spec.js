@@ -1,24 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as Y from 'yjs';
 
-const { folderStoreMock, labelStoreMock, noteStoreMock, docHolder, storageGet } = vi.hoisted(() => {
+const { folderStoreMock, labelStoreMock, noteStoreMock, docHolder } = vi.hoisted(() => {
   const folderStoreMock = { data: {}, deletedIds: {}, _rebuildIndex: vi.fn() };
   const labelStoreMock = { data: [], colors: {} };
   const noteStoreMock = { data: {}, deletedIds: {} };
   const docHolder = { doc: null };
-  const storageGet = vi.fn((key) => {
-    if (key === 'labels') return Promise.resolve([]);
-    if (key === 'notes') return Promise.resolve({});
-    if (key === 'folders') return Promise.resolve({});
-    if (key === 'labelColors') return Promise.resolve({});
-    return Promise.resolve({});
-  });
-  return { folderStoreMock, labelStoreMock, noteStoreMock, docHolder, storageGet };
+  return { folderStoreMock, labelStoreMock, noteStoreMock, docHolder };
 });
 
-vi.mock('@/lib/storage', () => ({
-  useStorage: () => ({ get: storageGet }),
-}));
 vi.mock('@/lib/native/yjs.js', () => ({
   getSnapshots: vi.fn().mockResolvedValue({}),
 }));
@@ -26,9 +16,9 @@ vi.mock('@/store/folder', () => ({ useFolderStore: () => folderStoreMock }));
 vi.mock('@/store/label', () => ({ useLabelStore: () => labelStoreMock }));
 vi.mock('@/store/note', () => ({ useNoteStore: () => noteStoreMock }));
 vi.mock('@/store/note/index', () => ({ saveNote: vi.fn() }));
-vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc }));
+vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc, onWorkspaceDocDestroy: vi.fn() }));
 
-import { writeStoresFromWorkspace, seedWorkspaceDocFromKv } from '@/lib/yjs/meta-store.js';
+import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
 
 function seedDoc() {
   const doc = new Y.Doc();
@@ -66,7 +56,6 @@ beforeEach(() => {
   labelStoreMock.colors = {};
   noteStoreMock.data = {};
   noteStoreMock.deletedIds = {};
-  storageGet.mockClear();
 });
 
 describe('writeStoresFromWorkspace incremental folder/label rebuilds', () => {
@@ -152,55 +141,60 @@ describe('writeStoresFromWorkspace incremental folder/label rebuilds', () => {
   });
 });
 
-describe('seedWorkspaceDocFromKv (import-time conversion)', () => {
+describe('seedWorkspaceDocFromData (frontend-led import)', () => {
   beforeEach(() => {
-    storageGet.mockImplementation((key) => {
-      if (key === 'notes') {
-        return Promise.resolve({
-          'imported-1': {
-            id: 'imported-1',
-            title: 'Imported note',
-            folderId: 'folder-imported',
-            labels: ['alpha'],
-            content: { type: 'doc', content: [] },
-          },
-        });
-      }
-      if (key === 'folders') {
-        return Promise.resolve({
-          'folder-imported': { id: 'folder-imported', name: 'Imported folder' },
-        });
-      }
-      if (key === 'labels') return Promise.resolve(['alpha', 'beta']);
-      if (key === 'labelColors') return Promise.resolve({ alpha: '#111' });
-      return Promise.resolve({});
-    });
-  });
-
-  it('writes imported KV metadata into the workspace doc (without content)', async () => {
     docHolder.doc = new Y.Doc();
-    await seedWorkspaceDocFromKv();
-
-    const doc = docHolder.doc;
-    const yNote = doc.getMap('notes').get('imported-1');
-    expect(yNote).toBeDefined();
-    expect(yNote.get('title')).toBe('Imported note');
-    expect(yNote.has('content')).toBe(false);
-
-    expect(doc.getMap('folders').get('folder-imported').get('name')).toBe(
-      'Imported folder'
-    );
-    expect(doc.getArray('labels').toArray()).toEqual(['alpha', 'beta']);
-    expect(doc.getMap('labelColors').get('alpha')).toBe('#111');
   });
 
-  it('does not overwrite entries already in the workspace doc', async () => {
-    seedDoc();
-    await seedWorkspaceDocFromKv();
+  it('seeds note meta, folders, labels, and colors; ignores tombstone args (retired)', async () => {
+    const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
+    const notes = {
+      'note-1': { id: 'note-1', title: 'One', folderId: 'f1', labels: ['alpha'], createdAt: 1, updatedAt: 2 },
+    };
+    const folders = { f1: { id: 'f1', name: 'Folder' } };
+    const labels = ['alpha'];
+    const labelColors = { alpha: '#112233' };
+    const deletedIds = { 'dead-1': 123 };
+    const deletedFolderIds = { 'dead-f1': 456 };
+
+    await seedWorkspaceDocFromData(notes, folders, labels, labelColors, deletedIds, deletedFolderIds);
 
     const doc = docHolder.doc;
-    expect(doc.getMap('notes').get('imported-1')).toBeDefined();
-    // Pre-seeded folder keeps its name (not overwritten by KV).
-    expect(doc.getMap('folders').get('folder-1').get('name')).toBe('Work');
+    const yNote = doc.getMap('notes').get('note-1');
+    expect(yNote.get('id')).toBe('note-1');
+    expect(yNote.get('title')).toBe('One');
+    expect(yNote.get('folderId')).toBe('f1');
+    expect(yNote.has('content')).toBe(false);
+    expect(doc.getMap('folders').get('f1').get('name')).toBe('Folder');
+    expect(doc.getArray('labels').toArray()).toEqual(['alpha']);
+    expect(doc.getMap('labelColors').get('alpha')).toBe('#112233');
+    // Deleted-id tombstones were retired (9679e529): the args are accepted for
+    // compat but nothing is written to the doc.
+    expect(doc.getMap('deletedNoteIds').size).toBe(0);
+    expect(doc.getMap('deletedFolderIds').size).toBe(0);
+  });
+
+  it('overwrites stale note entries from a prior broken seed (valid ids win)', async () => {
+    // Simulate a stale workspace doc: a note key exists but carries an empty
+    // id (the first broken migration seeded KV envelopes which had no readable
+    // id/title). The parsed legacy data is authoritative and must win.
+    const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
+    const doc = docHolder.doc;
+    const stale = new Y.Map();
+    stale.set('id', '');
+    doc.getMap('notes').set('note-1', stale);
+
+    await seedWorkspaceDocFromData(
+      { 'note-1': { id: 'note-1', title: 'Correct', createdAt: 1, updatedAt: 2 } },
+      {},
+      [],
+      {},
+      {},
+      {}
+    );
+
+    const yNote = doc.getMap('notes').get('note-1');
+    expect(yNote.get('id')).toBe('note-1');
+    expect(yNote.get('title')).toBe('Correct');
   });
 });

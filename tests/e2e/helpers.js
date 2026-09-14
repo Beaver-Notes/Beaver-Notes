@@ -189,3 +189,17 @@ export async function deleteAllNotes() {
 export async function waitForSaved() {
   await browser.pause(800);
 }
+
+export const CLOUD_API_BASE = process.env.E2E_API_URL || process.env.VITE_BEAVER_SYNC_API_URL || 'http://127.0.0.1:4000';
+
+export async function cloudFetch(path, opts = {}) {
+  const base = CLOUD_API_BASE.replace(/\/+$/, '');
+  const res = await fetch(`${base}${path}`, { ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+  const text = await res.text();
+  let body = null; try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  return { status: res.status, body, ok: res.ok };
+}
+
+export async function cloudBackendReachable() {
+  try { const r = await cloudFetch('/health'); return r.ok; } catch { return false; }
+}

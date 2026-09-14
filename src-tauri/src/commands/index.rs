@@ -20,10 +20,12 @@ pub(crate) async fn index_save(
     signatures_json: String,
 ) -> Result<(), AppError> {
     let pool = data_pool(&app, &state)?;
+    // Index mirrors content: never write plaintext while locked.
+    let enc_key = kv_encryption_key(&state)?;
     tokio::task::spawn_blocking(move || {
-        crate::db::db_set(&pool, "_index:search", &search_json)?;
-        crate::db::db_set(&pool, "_index:links", &links_json)?;
-        crate::db::db_set(&pool, "_index:signatures", &signatures_json)?;
+        crate::db::db_set(&pool, "_index:search", &search_json, enc_key)?;
+        crate::db::db_set(&pool, "_index:links", &links_json, enc_key)?;
+        crate::db::db_set(&pool, "_index:signatures", &signatures_json, enc_key)?;
         Ok(())
     })
     .await
@@ -37,10 +39,11 @@ pub(crate) async fn index_load(
     state: State<'_, AppState>,
 ) -> Result<Option<IndexSnapshot>, AppError> {
     let pool = data_pool(&app, &state)?;
+    let enc_key = kv_encryption_key(&state)?;
     tokio::task::spawn_blocking(move || {
-        let search = crate::db::db_get(&pool, "_index:search")?;
-        let links = crate::db::db_get(&pool, "_index:links")?;
-        let sigs = crate::db::db_get(&pool, "_index:signatures")?;
+        let search = crate::db::db_get(&pool, "_index:search", enc_key)?;
+        let links = crate::db::db_get(&pool, "_index:links", enc_key)?;
+        let sigs = crate::db::db_get(&pool, "_index:signatures", enc_key)?;
         if search.is_none() && links.is_none() {
             return Ok(None);
         }

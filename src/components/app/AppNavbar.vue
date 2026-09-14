@@ -1,7 +1,6 @@
 <template>
   <nav class="w-full" role="navigation" aria-label="Main navigation" data-selection-keep>
     <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
-      <!-- ── Left Rail ── -->
       <div
         class="flex items-center rounded-full bg-white dark:bg-neutral-900 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-[width] duration-300 ease-[var(--ease-snappy)] overflow-hidden"
         :class="railWidthClass"
@@ -69,56 +68,15 @@
           </span>
           <div class="flex items-center">
             <button
-              v-if="selectionBar.hasSelectedNotes"
-              v-tooltip:right="
-                selectionBar.shouldLock
-                  ? translations.card.lock || 'Lock'
-                  : translations.card.unlock || 'Unlock'
-              "
-              :aria-label="
-                selectionBar.shouldLock
-                  ? translations.card.lock || 'Lock'
-                  : translations.card.unlock || 'Unlock'
-              "
-              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-amber-600 transition-colors duration-200"
-              @click="selectionBar.toggleLock()"
+              v-if="selectionBar.showCustomize"
+              v-tooltip:right="translations.card?.customize || 'Customize'"
+              :aria-label="translations.card?.customize || 'Customize'"
+              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
+              @click="selectionBar.customizeSelection()"
             >
-              <v-remixicon
-                :name="
-                  selectionBar.shouldLock ? 'riLockLine' : 'riLockUnlockLine'
-                "
-                size="20"
-              />
+              <v-remixicon name="riPaletteLine" size="20" />
             </button>
-            <button
-              v-if="selectionBar.hasSelectedNotes"
-              v-tooltip:right="
-                selectionBar.shouldBookmark
-                  ? translations.card.bookmark || 'Bookmark'
-                  : translations.card.removeBookmark || 'Unbookmark'
-              "
-              :aria-label="
-                selectionBar.shouldBookmark
-                  ? translations.card.bookmark || 'Bookmark'
-                  : translations.card.removeBookmark || 'Unbookmark'
-              "
-              class="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200"
-              :class="
-                selectionBar.shouldBookmark
-                  ? 'text-neutral-400 hover:text-amber-500'
-                  : 'text-amber-500'
-              "
-              @click="selectionBar.toggleBookmark()"
-            >
-              <v-remixicon
-                :name="
-                  selectionBar.shouldBookmark
-                    ? 'riBookmarkLine'
-                    : 'riBookmarkFill'
-                "
-                size="20"
-              />
-            </button>
+
             <button
               v-tooltip:right="
                 selectionBar.shouldArchive
@@ -171,7 +129,36 @@
       </div>
 
       <!-- Right Button -->
-      <div v-if="!selectionBar.hasSelection" class="relative flex-shrink-0">
+      <div v-if="!selectionBar.hasSelection" class="relative flex-shrink-0 flex items-center gap-2">
+        <!-- Workspace pill (mobile only) -->
+        <button
+          v-if="isAuthenticated && activeWorkspaceName"
+          class="flex h-8 items-center gap-1.5 rounded-full border border-neutral-200 bg-white/80 px-3 text-xs font-medium text-neutral-600 backdrop-blur dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-neutral-300"
+          @click="showWorkspacePicker = !showWorkspacePicker"
+        >
+          <span class="max-w-[80px] truncate">{{ activeWorkspaceName }}</span>
+          <v-remixicon name="riArrowDownSLine" size="12" />
+        </button>
+        <ui-popover
+          v-if="isAuthenticated"
+          v-model="showWorkspacePicker"
+          placement="bottom-end"
+        >
+          <template #content>
+            <div class="p-1 min-w-[180px]">
+              <button
+                v-for="ws in workspaces"
+                :key="ws.id"
+                class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left transition-colors"
+                :class="ws.id === activeWorkspaceId ? 'bg-primary/10 text-primary font-medium' : 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'"
+                @click="switchWs(ws.id)"
+              >
+                <span class="truncate">{{ ws.name || 'Workspace' }}</span>
+                <v-remixicon v-if="ws.id === activeWorkspaceId" name="riCheckLine" size="14" class="ltr:ml-auto rtl:mr-auto text-primary" />
+              </button>
+            </div>
+          </template>
+        </ui-popover>
         <button
           v-tooltip:right="
             showAddMenu
@@ -213,8 +200,10 @@ import { useRoute } from 'vue-router';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useDialog } from '@/lib/dialog';
-import { useNoteStore } from '@/store/note';
+import { useAccountStore } from '@/store/account';
+import { useWorkspaceStore } from '@/store/workspace';
 
 export default {
   setup() {
@@ -229,7 +218,7 @@ export default {
       handleNavigation,
       createShortcutMap,
     } = useAppShellActions({ includeSettingsNav: true });
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
+    const isMacOS = isMacOSRuntime();
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
     const navRailRef = ref(null);
     const navItemRefs = new Map();
@@ -240,17 +229,30 @@ export default {
     });
     const showAddMenu = ref(false);
     const selectionBar = useSelectionBar();
-    const dialog = useDialog();
-    const noteStore = useNoteStore();
+    const accountStore = useAccountStore();
+    const workspaceStore = useWorkspaceStore();
+    const showWorkspacePicker = ref(false);
 
-    // ── Rail width ──
+    const isAuthenticated = computed(() => accountStore.isAuthenticated);
+    const workspaces = computed(() => workspaceStore.workspaces);
+    const activeWorkspaceId = computed(() => workspaceStore.activeId);
+    const activeWorkspaceName = computed(() => {
+      const ws = workspaces.value.find(w => w.id === activeWorkspaceId.value);
+      return ws?.name || '';
+    });
+
+    async function switchWs(id) {
+      showWorkspacePicker.value = false;
+      await workspaceStore.switchTo(id);
+      window.location.reload();
+    }
+
     const railWidthClass = computed(() => {
       if (selectionBar.hasSelection) return 'flex-1 min-w-0';
       if (showAddMenu.value) return 'w-[156px]';
       return 'w-[216px]';
     });
 
-    // ── Emitter listeners ──
     emitter.on('new-note', addNote);
     emitter.on('new-folder', addFolder);
     emitter.on('open-settings', openSettings);
@@ -265,7 +267,6 @@ export default {
     });
     onUnmounted(() => _unregNavbarShortcuts?.());
 
-    // ── Close add menu when clicking outside ──
     function onDocumentClick(event) {
       if (!showAddMenu.value) return;
       // Ignore clicks inside the navbar
@@ -274,7 +275,6 @@ export default {
       showAddMenu.value = false;
     }
 
-    // ── Add menu ──
     function toggleAddMenu() {
       showAddMenu.value = !showAddMenu.value;
     }
@@ -289,28 +289,12 @@ export default {
       addFolder();
     }
 
-    // ── Selection actions ──
     function handleClearSelection() {
       selectionBar.clearSelection();
     }
 
     function handleDeleteSelection() {
-      const notes = selectionBar.selectedNotes;
-      if (!notes.length) return;
-
-      const t = translations.value || {};
-
-      dialog.confirm({
-        title: t.card?.confirmPrompt || 'Delete note?',
-        okText: t.card?.confirm || 'Delete',
-        cancelText: t.card?.cancel || 'Cancel',
-        onConfirm: async () => {
-          for (const note of notes) {
-            await noteStore.delete(note.id);
-          }
-          selectionBar.clearSelection();
-        },
-      });
+      selectionBar.deleteSelection();
     }
 
     function handleMoveSelection() {
@@ -327,7 +311,6 @@ export default {
       }
     }
 
-    // ── Active pill ──
     onMounted(() => {
       document.addEventListener('click', onDocumentClick, true);
       window.addEventListener('resize', updateActivePill);
@@ -443,6 +426,12 @@ export default {
       handleClearSelection,
       handleDeleteSelection,
       handleMoveSelection,
+      isAuthenticated,
+      workspaces,
+      activeWorkspaceId,
+      activeWorkspaceName,
+      showWorkspacePicker,
+      switchWs,
     };
   },
 };

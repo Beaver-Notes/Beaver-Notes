@@ -13,7 +13,11 @@ vi.mock('@/lib/tauri-bridge', () => ({
   },
 }));
 
-import { getSetting, getSettingSync } from '@/lib/settings.js';
+import {
+  getSetting,
+  getSettingSync,
+  invalidateSettingMirrors,
+} from '@/lib/settings.js';
 
 describe('getSetting localStorage fast path', () => {
   beforeEach(() => {
@@ -60,5 +64,38 @@ describe('getSetting localStorage fast path', () => {
     expect(getSettingSync('theme')).toBe('system');
     localStorage.setItem('theme', 'dark');
     expect(getSettingSync('theme')).toBe('dark');
+  });
+});
+
+describe('invalidateSettingMirrors', () => {
+  beforeEach(() => {
+    storageGet.mockReset();
+    storageSet.mockReset();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('removes the mirror so a subsequent getSetting performs an IPC read from the pool', async () => {
+    localStorage.setItem('color-scheme', 'light');
+    storageGet.mockResolvedValue('dark');
+
+    await invalidateSettingMirrors(['colorScheme']);
+    const value = await getSetting('colorScheme');
+
+    expect(value).toBe('dark');
+    expect(storageGet).toHaveBeenCalled();
+  });
+
+  it('leaves a stale mirror short-circuiting getSetting when not invalidated', async () => {
+    localStorage.setItem('color-scheme', 'light');
+    storageGet.mockResolvedValue('dark');
+
+    const value = await getSetting('colorScheme');
+
+    expect(value).toBe('light');
+    expect(storageGet).not.toHaveBeenCalled();
   });
 });

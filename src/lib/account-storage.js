@@ -49,10 +49,8 @@ export async function saveSessionToken(token) {
   try {
     const cipher = await encryptString(toBase64(token));
     localStorage.setItem(SESSION_BLOB_KEY, cipher);
-    localStorage.setItem(SESSION_BLOB_KEY + '_plain', token);
   } catch {
-    // encryption failed, store plain text
-    localStorage.setItem(SESSION_BLOB_KEY + '_plain', token);
+    // Encryption failed: never persist plaintext backup.
   }
   // Also save to secure storage if available
   if (await safeStorageAvailable()) {
@@ -60,13 +58,18 @@ export async function saveSessionToken(token) {
       const cipher = await encryptString(toBase64(token));
       await storeSecureBlob(SESSION_BLOB_KEY, cipher);
     } catch {
-      // secure storage failed, localStorage backup is already saved
+      // secure storage failed, encrypted localStorage mirror is already saved
     }
   }
 }
 
 export async function loadSessionToken() {
   try {
+    // Opportunistically scrub a legacy plaintext backup written before the
+    // no-plaintext-fallback rule.
+    if (localStorage.getItem(SESSION_BLOB_KEY + '_plain')) {
+      localStorage.removeItem(SESSION_BLOB_KEY + '_plain');
+    }
     // Try secure storage first
     if (await safeStorageAvailable()) {
       try {
@@ -86,12 +89,10 @@ export async function loadSessionToken() {
         const plain = await decryptString(cipher);
         return fromBase64(plain) || null;
       } catch {
-        // Decryption failed, try plain text
+        // Decryption failed, no plaintext fallback exists
       }
     }
-    // Last resort: plain text fallback
-    const plain = localStorage.getItem(SESSION_BLOB_KEY + '_plain');
-    return plain || null;
+    return null;
   } catch (err) {
     console.error('[accountStorage] loadSessionToken failed:', err);
     return null;
@@ -101,6 +102,8 @@ export async function loadSessionToken() {
 export async function clearSessionToken() {
   try {
     await clearSecureBlob(SESSION_BLOB_KEY);
+    localStorage.removeItem(SESSION_BLOB_KEY);
+    localStorage.removeItem(SESSION_BLOB_KEY + '_plain');
   } catch (err) {
     console.error('[accountStorage] clearSessionToken failed:', err);
   }

@@ -1,17 +1,58 @@
 import { Node, mergeAttributes, nodeInputRule } from '@tiptap/core';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
+import { saveFile } from '@/utils/assets/storage.js';
+import { notify } from '@/lib/native/app';
 
 const inputRegex = /!\[(.+|:?)]\((\S+)(?:(?:\s+)["'](\S+)["'])?\)/;
 
 /**
+ * Swap the src of a file-like block node (audio/video/file) after its asset
+ * finishes saving in the background. Matches by temp src (+ fileName when
+ * given, since dialog-picked paths share the same '' temp src).
+ */
+export function swapFileBlockSrc(view, typeName, tempSrc, finalSrc, fileName) {
+  let pos = null;
+  let node = null;
+  view.state.doc.descendants((n, p) => {
+    if (
+      n.type.name === typeName &&
+      n.attrs.src === tempSrc &&
+      (!fileName || n.attrs.fileName === fileName)
+    ) {
+      pos = p;
+      node = n;
+      return false;
+    }
+    return true;
+  });
+  if (pos == null || !node) return;
+  view.dispatch(
+    view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: finalSrc }),
+  );
+}
+
+/** Remove a pending file-like block (used when the background save fails). */
+export function removeFileBlockBySrc(view, typeName, tempSrc, fileName) {  let pos = null;
+  let node = null;
+  view.state.doc.descendants((n, p) => {
+    if (
+      n.type.name === typeName &&
+      n.attrs.src === tempSrc &&
+      (!fileName || n.attrs.fileName === fileName)
+    ) {
+      pos = p;
+      node = n;
+      return false;
+    }
+    return true;
+  });
+  if (pos == null || !node) return;
+  view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
+}
+/**
  * Factory for file-like TipTap block extensions (audio, video, file-embed).
- *
- * @param {object} opts
- * @param {string}  opts.name         – Unique node name (e.g. 'Audio', 'Video', 'fileEmbed')
- * @param {string}  opts.commandName  – Editor command (e.g. 'setAudio', 'setVideo', 'setFileEmbed')
- * @param {object}  opts.component    – Vue component for the node view
- * @param {string[]} [opts.extraAttrs] – Additional attribute keys beyond src/fileName
- * @param {function} [opts.buildAttrs] – (attrs) => object  – map command args to node attrs
+ * `name`/`commandName`/`component` are required; `extraAttrs` adds attribute
+ * keys beyond src/fileName; `buildAttrs` maps command args to node attrs.
  */
 export function createFileBlock({
   name,
@@ -55,6 +96,19 @@ export function createFileBlock({
           getAttrs: (el) => ({
             src: el.getAttribute('data-src'),
             fileName: el.getAttribute('data-file-name'),
+            width: (() => {
+              const raw =
+                el.getAttribute('data-width') ?? el.getAttribute('width');
+              const w = parseInt(raw, 10);
+              return Number.isFinite(w) ? w : null;
+            })(),
+            layout: (() => {
+              const raw =
+                el.getAttribute('data-layout') ?? el.getAttribute('layout');
+              return ['block', 'wrap-left', 'wrap-right'].includes(raw)
+                ? raw
+                : null;
+            })(),
           }),
         },
       ];
@@ -85,4 +139,31 @@ export function createFileBlock({
       return [nodeInputRule({ find: inputRegex, type: this.type })];
     },
   });
+}
+
+/**
+ * Optimistic file insert for audio/video/file blocks. `insert` runs
+ * synchronously with the temp src so the node appears instantly (a blob URL
+ * that plays immediately when holding File bytes, '' for dialog-picked
+ * paths); the encrypt streams in the background and src swaps to the final
+ * assets:// URL on completion. Failures remove the pending node and toast.
+ */
+export function insertFileBlockOptimistic(
+  view,
+  { typeName, insert, file, preview, noteId, fileName },
+) {
+  const tempSrc = preview ? URL.createObjectURL(preview) : '';
+  insert(tempSrc, fileName);
+  saveFile(file, noteId).then(
+    ({ relativePath }) => {
+      if (preview) URL.revokeObjectURL(tempSrc);
+      swapFileBlockSrc(view, typeName, tempSrc, relativePath, fileName);
+    },
+    (error) => {
+      if (preview) URL.revokeObjectURL(tempSrc);
+      console.error('Background file save failed:', error?.cause ?? error);
+      removeFileBlockBySrc(view, typeName, tempSrc, fileName);
+      void notify({ title: `${typeName} insert failed`, body: fileName }).catch(() => {});
+    },
+  );
 }

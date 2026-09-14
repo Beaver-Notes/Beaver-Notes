@@ -1,18 +1,15 @@
 import { getSyncPath } from './path.js';
-import { path } from '@/lib/tauri-bridge';
-import { ensureDir, writeFile, readData, pathExists } from '@/lib/native/fs';
+import { path, backend } from '@/lib/tauri-bridge';
+import { ensureDir, writeFile } from '@/lib/native/fs';
 import { getAppDirectory } from '@/lib/native/app';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
-import { SYNC_TRANSPORT, canUseCloudSync } from '@/lib/api/types';
+import { SYNC_TRANSPORT, canUseCloudSync, normalizeSyncTransport } from '@/lib/api/types';
 import { getApiClient } from '@/lib/api/client';
-import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
+import { base64ToBuf } from '@/utils/crypto/codec.js';
 import { useWorkspaceStore } from '@/store/workspace.ts';
-import { logger } from '@/utils/logger';
 
-export const RESERVED_KEY_PARAMS_KEY = '__key_params__.json';
 const KEY_PARAMS_SUBDIR = 'BeaverNotesSync';
-const PROOF_ITERATIONS = 120000;
 let fetchedCloudKeyParams = null;
 
 function keyParamsPath(syncPath) {
@@ -28,35 +25,33 @@ async function localKeyParamsPath() {
 
 function decodeKeyParams(raw) {
   if (!raw) return null;
+  if (typeof raw === 'string' && raw.trim().startsWith('{')) return raw;
   try {
-    const decoded = atob(raw);
+    const decoded = new TextDecoder().decode(base64ToBuf(raw));
     return decoded.trim().startsWith('{') ? decoded : raw;
   } catch {
     return raw;
   }
 }
 
-export async function deriveVaultPassphraseProof(passphrase, workspaceId, keyParamsBlob, challenge) {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(passphrase),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-       salt: encoder.encode(`beaver-vault-proof-v1:${workspaceId}:${keyParamsBlob}:${challenge}`),
-      iterations: PROOF_ITERATIONS,
-      hash: 'SHA-256',
-    },
-    key,
-    256
-  );
-  const bytes = new Uint8Array(bits);
-  return btoa(String.fromCharCode(...bytes));
+function isValidKeyParamsShape(decoded) {
+  try {
+    const p = JSON.parse(decoded);
+    return p && typeof p === 'object'
+      && typeof p.version === 'number'
+      && (p.wrappedKey || p.wrapped_key || p.saltHex || p.salt_hex);
+  } catch {
+    return false;
+  }
+}
+
+export async function deriveVaultPassphraseProof(passphrase, workspaceId, keyParamsBlob, _challenge) {
+  // Derivation lives in Rust: BLAKE3 over the Argon2id KEK, domain-separated
+  // by workspace + key params. The proof is stable across publish and verify
+  // so the server can store it hashed and compare later. The per-request
+  // `challenge` is kept in the signature for call-site compatibility but is a
+  // Freshness token checked separately, never part of proof.
+  return backend.invoke('vault:deriveProof', { passphrase, workspaceId, keyParamsBlob });
 }
 
 export function getFetchedCloudKeyParams() {
@@ -65,38 +60,13 @@ export function getFetchedCloudKeyParams() {
 
 export function cloudKeyParamsReachable({ force = false } = {}) {
   const accountStore = useAccountStore();
-  const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
-  const wantsCloud =
-    transport === SYNC_TRANSPORT.REMOTE || transport === SYNC_TRANSPORT.BOTH;
+  const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
+  const wantsCloud = transport === SYNC_TRANSPORT.REMOTE;
   return Boolean(
     accountStore.isAuthenticated &&
       canUseCloudSync(accountStore.activeOrg?.subscription ?? accountStore.subscription) &&
       (force || wantsCloud)
   );
-}
-
-export async function publishCloudKeyParams() {
-  if (!cloudKeyParamsReachable()) { logger.debug('[vault-key-params] publish: cloud not reachable'); return false; }
-  const p = await localKeyParamsPath();
-  if (!p) { logger.info('[vault-key-params] publish: no local key params path'); return false; }
-  const exists = await pathExists(p).catch(() => false);
-  if (!exists) { logger.info('[vault-key-params] publish: key params file not found at', p); return false; }
-  const b64 = await readData(p).catch(() => null);
-  if (!b64) { logger.info('[vault-key-params] publish: could not read key params file'); return false; }
-
-  const workspaceStore = useWorkspaceStore();
-  const workspaceId = workspaceStore.activeId;
-  if (!workspaceId) { logger.info('[vault-key-params] publish: no active workspace'); return false; }
-
-  const passphrase = await loadSecureBlob('encryptionPassphraseBlob').catch(() => null);
-  if (!passphrase) { logger.info('[vault-key-params] publish: no passphrase in secure storage'); return false; }
-  const accountStore = useAccountStore();
-  const client = getApiClient({ baseUrl: accountStore.serverUrl });
-  const { challenge } = await client.createVaultChallenge(workspaceId);
-  const passphraseProof = await deriveVaultPassphraseProof(passphrase, workspaceId, b64, challenge);
-  await client.publishVaultKeyParams(workspaceId, { keyParams: b64, passphraseProof, challenge });
-  logger.info('[vault-key-params] publish: success for workspace', workspaceId);
-  return true;
 }
 
 export async function fetchCloudKeyParams({ force = false, timeoutMs } = {}) {
@@ -129,6 +99,7 @@ export async function fetchCloudKeyParams({ force = false, timeoutMs } = {}) {
     if (!p) return null;
     await ensureDir(p.slice(0, p.lastIndexOf('/'))).catch(() => {});
     const decoded = decodeKeyParams(raw);
+    if (!decoded || !isValidKeyParamsShape(decoded)) return null;
     await writeFile(p, decoded);
     fetchedCloudKeyParams = { proofBlob: raw, paramsBlob: decoded };
   } catch (e) {

@@ -57,6 +57,25 @@ function normalizeError(err) {
   return String(err);
 }
 
+// Rust emits `sync:progress` with these phases when it starts seeding or
+// bootstrapping; either means the scheduler picked up the seed work.
+const SEED_START_PHASES = new Set(['seed', 'bootstrap']);
+const SEED_START_TIMEOUT_MS = 8000;
+// Transient statuses keep the UI in "seeding" instead of failing the setup.
+const SEED_TRANSIENT_STATUSES = new Set(['retrying', 'offline']);
+
+let seedWatchUnlisten = [];
+
+async function stopSeedWatch() {
+  const unlisten = seedWatchUnlisten;
+  seedWatchUnlisten = [];
+  for (const fn of unlisten) {
+    try {
+      await fn();
+    } catch {}
+  }
+}
+
 export function useAccountAuth() {
   const accountStore = useAccountStore();
 
@@ -119,9 +138,8 @@ export function useAccountAuth() {
       return data;
     } catch (err) {
       if (err && err.status === 401) {
-        // Don't nuke auth state on profile fetch 401 — it may be a wrong
-        // server URL or transient issue. The token is still valid.
-        console.warn('[auth] fetchProfile 401 — keeping auth state, token may still be valid');
+        // Keep auth on 401: may be wrong URL or transient, token still valid.
+        console.warn('[auth] fetchProfile 401: keeping auth state, token may still be valid');
       } else {
         console.error('[auth] fetchProfile failed:', err);
       }
@@ -152,6 +170,7 @@ export function useAccountAuth() {
     if (persist) {
       await persistToken(token, user);
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
@@ -159,9 +178,10 @@ export function useAccountAuth() {
     // E2E identity: ensure a keypair exists and the server knows its public key
     try {
       const identity = await loadOrCreateIdentity();
+      const deviceId = await ensureDeviceId();
       const userKem = accountStore.profile?.kemPublicKey;
       if (!userKem || userKem !== identity.publicKeyHex) {
-        await publishIdentity(identity);
+        await publishIdentity(identity, deviceId);
         await fetchProfile();
       }
     } catch (err) {
@@ -170,9 +190,6 @@ export function useAccountAuth() {
     return { token, user, subscription };
   }
 
-  // Shared scaffolding for the sign-in / sign-up flows: clear the previous
-  // error, set the authenticating status, hold the busy flag, and on failure
-  // reset to anonymous with a normalized error.
   async function runAuthFlow(fn) {
     clearAuthError();
     setStatus('authenticating');
@@ -243,7 +260,7 @@ export function useAccountAuth() {
     });
   }
 
-  async function signUpWithPassword(email, password) {
+  async function signUpWithPassword(email, password, username) {
     return runAuthFlow(async () => {
       const normalizedEmail = String(email || '').trim();
       if (!normalizedEmail || !password) {
@@ -256,6 +273,7 @@ export function useAccountAuth() {
       const result = await authApi.passwordRegister(normalizedEmail, password, {
         baseUrl: activeBaseUrl(),
         kemPublicKey: identity.publicKeyHex,
+        username: typeof username === 'string' ? username.trim().slice(0, 50) : undefined,
       });
       await ensureDeviceId();
       return performSignIn(result || {});
@@ -310,7 +328,12 @@ export function useAccountAuth() {
     }
     await clearAllAccountStorage();
     resetApiClient();
+    try {
+      const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
+      await stopRustSync();
+    } catch {}
     setStatus('anonymous');
+    accountStore.setToken(null);
     accountStore.setProfile(null);
     accountStore.setSubscription(null);
     accountStore.setDevices([]);
@@ -403,6 +426,7 @@ export function useAccountAuth() {
       }
       return false;
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     const cached = await loadCachedProfile();
     if (cached) accountStore.setProfile(cached);
@@ -411,52 +435,122 @@ export function useAccountAuth() {
     return true;
   }
 
-  async function triggerSeed(_onProgress) {
-    // Skip if no cloud sync is configured
+  async function triggerSeed(onProgress) {
     if (!accountStore.isAuthenticated) return false;
     if (!accountStore.isPaidPlan) return false;
 
     const transportSetting = await import('@/lib/settings').then(
       (m) => m.getSettingSync('syncTransport')
     );
-    if (transportSetting && transportSetting !== 'remote' && transportSetting !== 'both') {
+    const { normalizeSyncTransport } = await import('@/lib/api/types.js');
+    if (transportSetting && normalizeSyncTransport(transportSetting) !== 'remote') {
       return false;
     }
+
+    accountStore.setSeedStatus('seeding');
+    accountStore.setSeedError('');
+    accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
+
+    // Listen before starting the scheduler: Rust runs a tick immediately on
+    // `sync:start`, so subscribing afterwards would race the first `seed`.
+    await stopSeedWatch();
+    const { backend } = await import('@/lib/tauri-bridge');
+    const { describeStatus } = await import('@/store/sync-progress');
+
+    let resolveStarted;
+    const started = new Promise((resolve) => {
+      resolveStarted = resolve;
+    });
+    let settled = false;
+    let sawActivity = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolveStarted();
+    };
+
+    const handleProgress = (payload) => {
+      const phase = payload?.phase;
+      if (!phase) return;
+      sawActivity = true;
+      const progress = {
+        phase,
+        uploaded: payload.processed || 0,
+        total: payload.total || 0,
+      };
+      accountStore.setSeedProgress(progress);
+      onProgress?.(progress);
+      if (SEED_START_PHASES.has(phase)) finish();
+      if (phase === 'done') {
+        accountStore.setSeedStatus('done');
+        stopSeedWatch();
+      }
+    };
+
+    const onStatus = (payload) => {
+      const status = payload?.status;
+      if (!status || status === 'syncing' || status === 'idle') return;
+      if (status === 'complete') {
+        if (accountStore.seedStatus === 'seeding') {
+          accountStore.setSeedStatus('done');
+        }
+        stopSeedWatch();
+        return;
+      }
+      if (SEED_TRANSIENT_STATUSES.has(status)) return;
+      const described = describeStatus(status, payload?.message);
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError(
+        described?.text || payload?.message || 'Sync setup failed.',
+      );
+      finish();
+      stopSeedWatch();
+    };
+
+    const onError = (payload) => {
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError(payload?.message || 'Sync setup failed.');
+      finish();
+      stopSeedWatch();
+    };
+
+    seedWatchUnlisten = [
+      await backend.listenPayload('sync:progress', handleProgress),
+      await backend.listenPayload('sync:status', onStatus),
+      await backend.listenPayload('sync:error', onError),
+    ];
 
     try {
-      const { getSyncEngine } = await import('@/utils/sync/engine.js');
-
-      // Wait up to 5s for the sync engine to initialize (it may start after auth)
-      let engine = getSyncEngine();
-      for (let i = 0; i < 50 && !engine; i++) {
-        await new Promise((r) => setTimeout(r, 100));
-        engine = getSyncEngine();
-      }
-
-      // If the engine still isn't initialized, initialize it now
-      if (!engine) {
-        logger.info('[auth] sync engine not found, initializing now');
-        const { initAppSync } = await import('@/utils/sync/app-sync.js');
-        engine = await initAppSync();
-      }
-      if (!engine) {
-        logger.info('[auth] sync engine could not be initialized, skipping seed');
-        return false;
-      }
-
-      accountStore.setSeedStatus('seeding');
-      // Trigger a force sync — this will handle seeding through the
-      // proper serialized path (seedCloudOnce) in the normal sync cycle.
-      await engine.forceSyncNow();
-      if (accountStore.seedStatus === 'seeding') {
-        accountStore.setSeedStatus('done');
-      }
-      return true;
+      const { initAppSync } = await import('@/utils/sync/app-sync.js');
+      const { startRustSync, kickRustSync } = await import(
+        '@/utils/sync/rust-shim.js'
+      );
+      await initAppSync();
+      // initAppSync may skip when no target is configured; seed always has a
+      // cloud target, so start the scheduler explicitly to reset its guards.
+      await startRustSync();
+      kickRustSync();
     } catch (err) {
-      console.error('[auth] seed failed:', err);
+      logger.error('[auth] seed failed:', err?.message || err);
       accountStore.setSeedStatus('error');
+      accountStore.setSeedError(err?.message || 'Sync setup failed.');
+      await stopSeedWatch();
       return false;
     }
+
+    await Promise.race([
+      started,
+      new Promise((resolve) => setTimeout(resolve, SEED_START_TIMEOUT_MS)),
+    ]);
+
+    if (!settled && !sawActivity) {
+      logger.error('[auth] seed did not start within timeout');
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError('Sync setup timed out.');
+      await stopSeedWatch();
+      return false;
+    }
+    return true;
   }
 
   onMounted(() => {

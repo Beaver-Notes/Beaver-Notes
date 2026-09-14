@@ -1,6 +1,5 @@
 <template>
-  <ui-modal :model-value="state.show" content-class="max-w-md" persist>
-    <!-- Alert -->
+  <ui-modal :model-value="state.show" content-class="max-w-md" overlay-class="z-[70]" persist>
     <template v-if="state.type === 'alert'">
       <div class="text-left mb-6 mobile:text-center">
         <div
@@ -8,7 +7,7 @@
         >
           <div v-if="state.options.icon" class="flex-shrink-0">
             <div
-              class="w-12 h-12 rounded-lg flex items-center justify-center"
+              class="w-12 h-12 rounded-xl flex items-center justify-center"
               :class="
                 state.options.okVariant === 'danger'
                   ? 'bg-red-100 dark:bg-red-900/30'
@@ -26,7 +25,7 @@
               />
             </div>
           </div>
-          <h3 class="font-semibold text-lg">{{ state.options.title }}</h3>
+          <h3 class="font-semibold text-lg tracking-tight leading-snug">{{ state.options.title }}</h3>
         </div>
         <p class="text-neutral-600 dark:text-neutral-200 leading-relaxed">
           {{ state.options.body }}
@@ -45,14 +44,13 @@
       </ui-button>
     </template>
 
-    <!-- Confirm / Prompt / Auth -->
     <template v-else>
       <div
         class="flex flex-col items-start text-left mobile:flex-col mobile:items-center mobile:text-center gap-3 mb-4 mobile:mt-6"
       >
         <div v-if="state.options.icon" class="flex-shrink-0">
           <div
-            class="w-12 h-12 rounded-lg flex items-center justify-center"
+            class="w-12 h-12 rounded-xl flex items-center justify-center"
             :class="
               state.options.okVariant === 'danger'
                 ? 'bg-red-100 dark:bg-red-900/30'
@@ -71,7 +69,7 @@
           </div>
         </div>
         <div class="flex-1 min-w-0">
-          <h3 class="font-semibold text-lg mb-3">{{ state.options.title }}</h3>
+          <h3 class="font-semibold text-lg tracking-tight leading-snug mb-3">{{ state.options.title }}</h3>
 
           <div v-if="state.options.body" class="mb-4">
             <p
@@ -101,7 +99,6 @@
         </div>
       </div>
 
-      <!-- Actions -->
       <div class="flex gap-3 mobile:flex-col-reverse">
         <ui-button
           class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
@@ -156,6 +153,7 @@ export default {
       type: '',
       input: '',
       options: defaultOptions,
+      reentered: false,
     });
 
     const isEmpty = ref(false);
@@ -170,6 +168,9 @@ export default {
 
       state.input = options.defaultValue ?? '';
       state.show = true;
+      // A new show-dialog emit while a callback runs means a nested dialog
+      // took over the modal; fireCallback must not tear it down afterwards.
+      state.reentered = true;
       isEmpty.value = false;
     });
 
@@ -192,6 +193,10 @@ export default {
         }
       }
 
+      // Reset before running the callback so a nested show-dialog emit can
+      // mark it.
+      state.reentered = false;
+
       if (callback) {
         const cbReturn = callback(param);
 
@@ -206,7 +211,9 @@ export default {
         }
       }
 
-      if (hide) {
+      // A nested dialog (confirm → prompt, …) replaces the modal via a new
+      // show-dialog emit while this callback runs; it is already visible.
+      if (hide && !state.reentered) {
         state.options = defaultOptions;
         state.show = false;
         state.input = '';

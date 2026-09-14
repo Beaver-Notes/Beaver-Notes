@@ -7,6 +7,9 @@ pub(crate) enum AppError {
     Serialization(String),
     WrongPassword,
     EncryptionLocked,
+    DevicePasswordRequired,
+    WrongDevicePassword,
+    SecureStorageUnavailable,
     Other(String),
 }
 
@@ -19,6 +22,13 @@ impl fmt::Display for AppError {
             AppError::WrongPassword => f.write_str("Wrong password."),
             AppError::EncryptionLocked => {
                 f.write_str("App encryption is locked. Unlock before reading assets.")
+            }
+            AppError::DevicePasswordRequired => {
+                f.write_str("Device password required to unlock secure storage.")
+            }
+            AppError::WrongDevicePassword => f.write_str("Incorrect device password."),
+            AppError::SecureStorageUnavailable => {
+                f.write_str("Secure storage is not available on this device.")
             }
             AppError::Other(m) => f.write_str(m),
         }
@@ -33,6 +43,9 @@ impl AppError {
             AppError::Serialization(_) => "Serialization",
             AppError::WrongPassword => "WrongPassword",
             AppError::EncryptionLocked => "EncryptionLocked",
+            AppError::DevicePasswordRequired => "DevicePasswordRequired",
+            AppError::WrongDevicePassword => "WrongDevicePassword",
+            AppError::SecureStorageUnavailable => "SecureStorageUnavailable",
             AppError::Other(_) => "Other",
         }
     }
@@ -135,10 +148,7 @@ mod tests {
 
     #[test]
     fn display_crypto_carries_message() {
-        assert_eq!(
-            AppError::Crypto("boom".to_string()).to_string(),
-            "boom"
-        );
+        assert_eq!(AppError::Crypto("boom".to_string()).to_string(), "boom");
     }
 
     #[test]
@@ -188,6 +198,33 @@ mod tests {
         assert_eq!(AppError::Serialization("x".into()).kind(), "Serialization");
         assert_eq!(AppError::Other("x".into()).kind(), "Other");
     }
+
+    #[test]
+    fn display_device_password_required() {
+        assert_eq!(
+            AppError::DevicePasswordRequired.to_string(),
+            "Device password required to unlock secure storage."
+        );
+    }
+
+    #[test]
+    fn display_wrong_device_password() {
+        assert_eq!(
+            AppError::WrongDevicePassword.to_string(),
+            "Incorrect device password."
+        );
+    }
+
+    #[test]
+    fn kind_discriminator_covers_new_variants() {
+        assert_eq!(
+            AppError::DevicePasswordRequired.kind(),
+            "DevicePasswordRequired"
+        );
+        assert_eq!(AppError::WrongDevicePassword.kind(), "WrongDevicePassword");
+        assert_eq!(
+            AppError::SecureStorageUnavailable.kind(),
+            "SecureStorageUnavailable"
+        );
+    }
 }
-
-

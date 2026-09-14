@@ -1,66 +1,65 @@
 <template>
   <node-view-wrapper>
-    <!-- Preview area -->
     <div
       :class="[
         'overflow-x-auto max-w-full border bg-neutral-50 dark:bg-neutral-900 cursor-text min-h-20 p-2',
-        isEditing ? 'rounded-t-lg' : ' rounded-lg',
+        isEditing ? 'rounded-t-xl' : 'rounded-xl',
       ]"
       @click="startEditing"
     >
       <p ref="contentRef" class="select-none pl-2"></p>
     </div>
 
-    <!-- Editor panel -->
-    <div
-      v-if="isEditing"
-      :class="[
-        'bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col',
-        isEditing ? 'rounded-b-lg' : ' rounded-lg',
-      ]"
-      class="bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col mt-0 p-0"
-    >
-      <!-- Growable content area -->
-      <div class="flex mb-2 p-2 flex-grow">
-        <!-- Main content textarea -->
-        <textarea
-          v-if="!useKatexMacros"
-          ref="contentTextarea"
-          :value="node.attrs.content"
-          type="textarea"
-          :placeholder="translations.editor.mathPlaceholder || '-'"
-          class="bg-transparent ml-2 pl-2 flex-1 resize-y min-h-32 ltr"
-          @input="updateContent($event, 'content', true)"
-          @keydown="handleKeydown"
-        />
-
-        <!-- KaTeX macros textarea -->
-        <textarea
-          v-if="useKatexMacros"
-          ref="macrosTextarea"
-          :value="node.attrs.macros"
-          placeholder="KaTeX macros"
-          class="bg-transparent ml-2 pl-2 flex-1 resize-y"
-          @input="updateContent($event, 'macros', true)"
-          @keydown="handleKeydown"
-        />
-      </div>
-
+    <ExpandCollapse :open="isEditing">
       <div
-        class="flex p-2 border-t rounded-b-lg items-center justify-between bg-neutral-100 dark:bg-neutral-900/70"
+        class="bg-neutral-50 dark:bg-neutral-900 border flex flex-col mt-0 p-0 rounded-b-lg"
       >
-        <p class="text-sm m-0">
-          <strong>{{ translations.editor.exit }}</strong>
-        </p>
-        <v-remixicon
-          v-tooltip="'KaTeX Macros (Ctrl+Shift+M)'"
-          :class="{ 'text-primary': useKatexMacros }"
-          name="riSettings3Line"
-          class="ml-2"
-          @click="toggleMacros"
-        />
+        <div class="flex mb-2 p-2 flex-grow">
+          <textarea
+            v-if="!useKatexMacros"
+            ref="contentTextarea"
+            :value="node.attrs.content"
+            type="textarea"
+            :placeholder="translations.editor.mathPlaceholder || '-'"
+            class="bg-transparent ml-2 pl-2 flex-1 resize-y min-h-32 ltr"
+            @input="updateContent($event, 'content', true)"
+            @keydown="handleKeydown"
+          />
+
+          <textarea
+            v-if="useKatexMacros"
+            ref="macrosTextarea"
+            :value="node.attrs.macros"
+            placeholder="KaTeX macros"
+            class="bg-transparent ml-2 pl-2 flex-1 resize-y"
+            @input="updateContent($event, 'macros', true)"
+            @keydown="handleKeydown"
+          />
+        </div>
+
+        <div
+          class="flex p-2 border-t rounded-b-lg items-center justify-between bg-neutral-100 dark:bg-neutral-900/70"
+        >
+          <p class="text-sm m-0">
+            <strong>{{ translations.editor.exit }}</strong>
+          </p>
+          <button
+            type="button"
+            v-tooltip="'KaTeX Macros (Ctrl+Shift+M)'"
+            aria-label="KaTeX macros"
+            :class="[
+              'ml-2 flex items-center justify-center rounded-full size-8 transition-colors',
+              useKatexMacros
+                ? 'text-primary'
+                : 'text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10',
+            ]"
+            @click="toggleMacros"
+          >
+            <v-remixicon name="riSettings3Line" />
+          </button>
+        </div>
       </div>
-    </div>
+    </ExpandCollapse>
   </node-view-wrapper>
 </template>
 
@@ -68,11 +67,12 @@
 import { ref, onMounted, nextTick } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useTranslations } from '@/composable/useTranslations';
+import ExpandCollapse from '@/components/ui/ExpandCollapse.vue';
 import katex from 'katex';
 import { debounce } from '@/utils/helpers/index.js';
 
 export default {
-  components: { NodeViewWrapper },
+  components: { NodeViewWrapper, ExpandCollapse },
   props: nodeViewProps,
   setup(props) {
     const contentRef = ref(null);
@@ -83,7 +83,6 @@ export default {
     const useKatexMacros = ref(false);
     const { translations } = useTranslations();
 
-    // Render KaTeX
     const renderContent = () => {
       let macros = {};
       try {
@@ -96,7 +95,7 @@ export default {
         displayMode: true,
         throwOnError: false,
         fleqn: true,
-        trust: true,
+        trust: false,
         strict: 'ignore',
         output: 'htmlAndMathml',
       });
@@ -104,7 +103,6 @@ export default {
 
     const debouncedRenderContent = debounce(renderContent, 300);
 
-    // Update content or macros
     const updateContent = ({ target: { value } }, key, shouldRender) => {
       props.updateAttributes({ [key]: value });
       if (shouldRender) nextTick(() => debouncedRenderContent());
@@ -121,13 +119,11 @@ export default {
       });
     };
 
-    // Stop editing
     const stopEditing = () => {
       isEditing.value = false;
       useKatexMacros.value = false;
     };
 
-    // Toggle macros textarea
     const toggleMacros = () => {
       useKatexMacros.value = !useKatexMacros.value;
       nextTick(() => {

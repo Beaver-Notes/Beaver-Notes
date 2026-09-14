@@ -61,7 +61,10 @@ const splitListItem = (_listItem) => (state, dispatch) => {
 
   const tr = state.tr;
   if (dispatch) {
-    dispatch(tr.split($from.pos, 2, inner.contentMatchAt($from.index($from.depth - 1)).copy()));
+    // prosemirror-model >= 1.19 removed ContentMatch.copy(); the old
+    // third argument was vestigial (split() treated it as undefined and
+    // copied the original nodes), so pass no typesAfter.
+    dispatch(tr.split($from.pos, 2));
   }
   return true;
 };

@@ -5,6 +5,7 @@
       v-if="awareness"
       :awareness="awareness"
       :user-name="userName"
+      :user-id="userId"
       class="mb-2"
     />
     <drag-handle
@@ -18,11 +19,7 @@
       :class="{ 'opacity-0 pointer-events-none': isDragging }"
     >
       <div class="drag-handle-inner">
-        <button
-          class="dh-button"
-          title="Add block"
-          @click.prevent="addBlock"
-        >
+        <button class="dh-button" title="Add block" @click.prevent="addBlock">
           <v-remixicon name="riAddLine" class="dh-icon" />
         </button>
         <div class="dh-grip">
@@ -76,6 +73,7 @@ import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
 import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
 import PresenceIndicator from './PresenceIndicator.vue';
+import { getColorFromId } from '@/composable/usePresence';
 
 export default {
   components: {
@@ -95,6 +93,7 @@ export default {
     ydoc: { type: Object, default: null },
     awareness: { type: Object, default: null },
     userName: { type: String, default: 'Anonymous' },
+    userId: { type: String, default: '' },
     role: { type: String, default: 'editor' },
   },
   emits: ['init', 'update', 'update:modelValue', 'comment-activated'],
@@ -102,11 +101,11 @@ export default {
     const router = useRouter();
     const appStore = useAppStore();
 
-    const isYjs = !!props.ydoc;
+    const isYjs = computed(() => !!props.ydoc);
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
 
     const showDragHandle = ref(
-      typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+      typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
     );
     const isDragging = ref(false);
     const currentNodePos = ref(-1);
@@ -267,32 +266,37 @@ export default {
     });
 
     const exts = [
-      ...(isYjs && props.ydoc ? createBaseExtensions({ yjs: true }) : extensions),
+      ...(isYjs.value && props.ydoc
+        ? createBaseExtensions({ yjs: true })
+        : extensions),
       dropFile.configure({ id: props.id }),
       NodeRangeSelection,
     ];
-    if (typeof window === 'undefined' || window.innerWidth >= 768) {
-      exts.push(Commands.configure({ id: props.id }));
-    }
+    // Always registered (mobile keeps its block picker as an extra affordance).
+    exts.push(Commands.configure({ id: props.id }));
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
-    if (isYjs && props.ydoc) {
+    if (isYjs.value && props.ydoc) {
       exts.push(
         Collaboration.configure({
           document: props.ydoc,
           field: 'content',
-        })
+        }),
       );
-      if (props.awareness) {
-        exts.push(
-          CollaborationCursor.configure({
-            provider: { awareness: props.awareness },
-            user: {
-              name: props.userName,
-              color: '#3B82F6',
-            },
-          })
-        );
+      if (props.awareness && canEdit(props.role)) {
+        try {
+          exts.push(
+            CollaborationCursor.configure({
+              provider: { awareness: props.awareness },
+              user: {
+                name: props.userName || 'Anonymous',
+                color: getColorFromId(props.userName || props.id || 'anon'),
+              },
+            }),
+          );
+        } catch (e) {
+          console.warn('[editor] cursor init skipped:', e?.message);
+        }
       }
       exts.push(
         CommentExtension.configure({
@@ -302,14 +306,14 @@ export default {
           onCommentActivated: (commentId) => {
             emit('comment-activated', commentId);
           },
-        })
+        }),
       );
     }
 
     let _lastContent = null;
     let _lastSanitized = null;
     const safeContent = computed(() => {
-      if (isYjs) return '';
+      if (isYjs.value) return '';
       if (isEncryptedContent(props.modelValue)) return '';
       if (props.modelValue === _lastContent) return _lastSanitized;
       _lastContent = props.modelValue;
@@ -321,7 +325,7 @@ export default {
     let pendingProgrammaticUpdates = 0;
 
     const editor = useEditor({
-      content: isYjs ? undefined : safeContent.value,
+      content: isYjs.value ? undefined : safeContent.value,
       editable: canEdit(props.role),
       autofocus: props.cursorPosition,
       extensions: exts,
@@ -389,7 +393,7 @@ export default {
       if (!editor.value) return;
       emit('init', editor.value);
 
-      if (!isYjs && safeContent.value) {
+      if (!isYjs.value && safeContent.value) {
         editor.value.commands.setContent(safeContent.value);
       }
 
@@ -397,14 +401,16 @@ export default {
         const { state, view } = editor.value;
         const pos = Math.min(props.cursorPosition, state.doc.content.size);
         const tr = state.tr.setSelection(
-          state.selection.constructor.near(state.doc.resolve(pos))
+          state.selection.constructor.near(state.doc.resolve(pos)),
         );
         view.dispatch(tr);
       }
 
       editor.value.on('update', () => {
-        if (isYjs) {
-          emit('update', null);
+        if (isYjs.value) {
+          // Yjs owns persistence, but downstream (previews, search index)
+          // still needs the JSON — emit it instead of discarding.
+          emit('update', editor.value.getJSON());
           return;
         }
         if (pendingProgrammaticUpdates > 0) {
@@ -418,7 +424,7 @@ export default {
       });
     });
 
-    if (!isYjs) {
+    if (!isYjs.value) {
       watch(safeContent, (val) => {
         if (!editor.value || !val) return;
         if (!hasUserEdited.value) {
@@ -463,7 +469,28 @@ export default {
       () => props.id,
       () => {
         destroyEditor();
-      }
+      },
+    );
+
+    watch(
+      () => props.role,
+      (role) => {
+        if (editor.value && !editor.value.isDestroyed) {
+          editor.value.setEditable(canEdit(role), false);
+        }
+      },
+    );
+
+    watch(
+      () => props.userName,
+      (name) => {
+        if (props.awareness && name) {
+          props.awareness.setLocalStateField('user', {
+            name,
+            color: getColorFromId(name),
+          });
+        }
+      },
     );
 
     return {
@@ -485,8 +512,50 @@ export default {
 
 <style>
 .comment-highlight {
-  background-color: rgba(255, 235, 59, 0.3);
-  border-bottom: 2px solid rgba(255, 235, 59, 0.6);
+  background: rgba(254, 240, 138, 0.42);
+  border-bottom: 1.5px solid hsl(var(--twc-primary));
+  border-radius: 3px;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
   cursor: pointer;
+  position: relative;
+  transition: background 140ms var(--ease-standard);
+}
+.comment-highlight:hover {
+  background: rgba(254, 240, 138, 0.62);
+}
+/* active thread (clicked in sidebar) */
+.comment-highlight.is-active,
+.comment-highlight[data-active='true'] {
+  background: rgba(254, 249, 195, 0.95);
+  border-bottom-color: #eab308;
+  box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.14);
+}
+.comment-highlight[data-comment-id]::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 3px;
+  margin-right: 1px;
+  vertical-align: text-bottom;
+  border-radius: 9999px;
+  background-color: #facc15;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z'/%3E%3C/svg%3E");
+  background-size: 9px 9px;
+  background-repeat: no-repeat;
+  background-position: center;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+  transform: translateY(1px);
+}
+:root.dark .comment-highlight {
+  background: rgba(202, 138, 4, 0.22);
+  border-bottom-color: rgba(250, 204, 21, 0.55);
+}
+:root.dark .comment-highlight:hover {
+  background: rgba(202, 138, 4, 0.32);
 }
 </style>

@@ -18,7 +18,7 @@ const settingDefs = {
   },
   colorScheme: {
     legacyKey: 'color-scheme',
-    defaultValue: 'light',
+    defaultValue: 'amber',
     parse: String,
   },
   zoomLevel: { legacyKey: 'zoomLevel', defaultValue: '1.0', parse: String },
@@ -127,7 +127,32 @@ const settingDefs = {
     defaultValue: 'folder',
     parse: String,
   },
+  collaborationEnabled: {
+    legacyKey: 'collaborationEnabled',
+    defaultValue: true,
+    parse: (value) => value === true || value === 'true',
+  },
+  syncPath: {
+    legacyKey: 'default-path',
+    defaultValue: '',
+    parse: String,
+  },
+  vaultJoinDeclinedPath: {
+    legacyKey: 'vaultJoinDeclinedPath',
+    defaultValue: '',
+    parse: String,
+  },
 };
+
+// Per-instance namespace for the localStorage settings mirror. Both the real app
+// and any second instance share one WKWebView localStorage DB (same bundle id),
+// so the mirror must be scoped to this instance's data dir; the per-instance kv
+// stays the source of truth.
+let mirrorNamespace = '';
+
+export function setSettingsMirrorNamespace(namespace) {
+  mirrorNamespace = namespace ? `${namespace}::` : '';
+}
 
 function getSettingDef(key) {
   const def = settingDefs[key];
@@ -137,30 +162,40 @@ function getSettingDef(key) {
   return def;
 }
 
+function mirrorKey(legacyKey) {
+  return `${mirrorNamespace}${legacyKey}`;
+}
+
+// Shared so path.js mirrors its legacy `default-path` under the same
+// per-instance namespace instead of leaking one folder to every instance.
+export function settingsMirrorKey(legacyKey) {
+  return mirrorKey(legacyKey);
+}
+
 function mirrorToLocalStorage(key, value) {
   const { legacyKey } = getSettingDef(key);
   if (value == null) {
-    localStorage.removeItem(legacyKey);
+    localStorage.removeItem(mirrorKey(legacyKey));
     return;
   }
 
   if (typeof value === 'object') {
-    localStorage.setItem(legacyKey, JSON.stringify(value));
+    localStorage.setItem(mirrorKey(legacyKey), JSON.stringify(value));
     return;
   }
 
-  localStorage.setItem(legacyKey, String(value));
+  localStorage.setItem(mirrorKey(legacyKey), String(value));
 }
 
 export function getSettingSync(key) {
   const { legacyKey, defaultValue, parse } = getSettingDef(key);
-  const raw = localStorage.getItem(legacyKey);
+  const raw = localStorage.getItem(mirrorKey(legacyKey));
   return raw == null ? defaultValue : parse(raw);
 }
 
 function hasMirroredValue(key) {
   const { legacyKey } = getSettingDef(key);
-  return localStorage.getItem(legacyKey) != null;
+  return localStorage.getItem(mirrorKey(legacyKey)) != null;
 }
 
 export async function getSetting(key) {
@@ -200,4 +235,10 @@ export async function hydrateSettingsStore(keys = Object.keys(settingDefs)) {
     })
   );
   return Object.fromEntries(entries);
+}
+
+export function invalidateSettingMirrors(keys) {
+  for (const key of keys) {
+    mirrorToLocalStorage(key, null);
+  }
 }

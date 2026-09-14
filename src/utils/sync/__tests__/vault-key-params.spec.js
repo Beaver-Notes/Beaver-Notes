@@ -8,8 +8,6 @@ vi.mock('@/lib/tauri-bridge', () => ({
 vi.mock('@/lib/native/fs', () => ({
   ensureDir: vi.fn(() => Promise.resolve()),
   writeFile: vi.fn(() => Promise.resolve()),
-  readData: vi.fn(() => Promise.resolve('eyJrZXkiOiJ2YWx1ZSJ9')),
-  pathExists: vi.fn(() => Promise.resolve(true)),
 }));
 vi.mock('@/lib/settings', () => ({
   getSettingSync: vi.fn(() => 'remote'),
@@ -25,7 +23,8 @@ vi.mock('@/store/workspace.ts', () => ({
   useWorkspaceStore: () => ({ activeId: 'ws-123' }),
 }));
 vi.mock('@/lib/api/types', () => ({
-  SYNC_TRANSPORT: { FOLDER: 'folder', REMOTE: 'remote', BOTH: 'both' },
+  SYNC_TRANSPORT: { FOLDER: 'folder', REMOTE: 'remote' },
+  normalizeSyncTransport: (v) => v === 'remote' ? 'remote' : 'folder',
   canUseCloudSync: () => true,
 }));
 vi.mock('@/lib/api/client', () => ({
@@ -35,9 +34,6 @@ vi.mock('@/lib/api/client', () => ({
     createVaultChallenge: vi.fn(),
   })),
 }));
-vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
-  loadSecureBlob: vi.fn(() => Promise.resolve('vault-passphrase')),
-}));
 vi.mock('@/lib/account-storage', () => ({
   loadSessionToken: vi.fn(() => Promise.resolve('test-token')),
 }));
@@ -45,14 +41,14 @@ vi.mock('@/lib/account-storage', () => ({
 import {
   cloudKeyParamsReachable,
   deriveVaultPassphraseProof,
-  publishCloudKeyParams,
   fetchCloudKeyParams,
 } from '../vault-key-params.js';
-import { writeFile, readData } from '@/lib/native/fs';
+import { writeFile } from '@/lib/native/fs';
 import { getSettingSync } from '@/lib/settings';
 import { getSyncPath } from '../path.js';
 import { getApiClient } from '@/lib/api/client';
 import { loadSessionToken } from '@/lib/account-storage';
+import { backend } from '@/lib/tauri-bridge';
 
 describe('cloudKeyParamsReachable', () => {
   it('is true when authed, paid, and transport wants cloud', () => {
@@ -67,31 +63,19 @@ describe('cloudKeyParamsReachable', () => {
   });
 });
 
-describe('publishCloudKeyParams', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('publishes local key params through the vault endpoint without a folder', async () => {
-    const put = vi.fn(() => Promise.resolve({ ok: true }));
-    const createChallenge = vi.fn(() => Promise.resolve({ challenge: 'challenge-1' }));
-    getApiClient.mockReturnValue({ publishVaultKeyParams: put, createVaultChallenge: createChallenge });
-    const ok = await publishCloudKeyParams();
-    expect(ok).toBe(true);
-    expect(readData).toHaveBeenCalledWith(expect.stringContaining('keyParams.json'));
-    expect(put).toHaveBeenCalledWith('ws-123', {
-      keyParams: 'eyJrZXkiOiJ2YWx1ZSJ9',
-      passphraseProof: await deriveVaultPassphraseProof(
-        'vault-passphrase',
-        'ws-123',
-        'eyJrZXkiOiJ2YWx1ZSJ9',
-        'challenge-1'
-      ),
-      challenge: 'challenge-1',
-    });
-  });
-});
-
 describe('vault API payloads', () => {
-  it('derives a deterministic proof bound to the key params blob', async () => {
+  afterEach(() => {
+    // Restore the module-wide default so later suites keep resolving paths.
+    backend.invoke.mockImplementation(() => Promise.resolve('/app'));
+  });
+
+  it('derives proofs through the rust bridge, bound to workspace + blob, independent of the challenge', async () => {
+    const derive = vi.fn(
+      (_channel, { passphrase, workspaceId, keyParamsBlob }) =>
+        Promise.resolve(`proof:${passphrase}:${workspaceId}:${keyParamsBlob}`)
+    );
+    backend.invoke.mockImplementation(derive);
+
     const first = await deriveVaultPassphraseProof('vault-passphrase', 'ws-a', 'blob-a', 'challenge');
     const second = await deriveVaultPassphraseProof('vault-passphrase', 'ws-a', 'blob-a', 'challenge');
     const differentWorkspace = await deriveVaultPassphraseProof('vault-passphrase', 'ws-b', 'blob-a', 'challenge');
@@ -99,11 +83,21 @@ describe('vault API payloads', () => {
     const differentChallenge = await deriveVaultPassphraseProof('vault-passphrase', 'ws-a', 'blob-a', 'other-challenge');
     const differentPassphrase = await deriveVaultPassphraseProof('other', 'ws-a', 'blob-a', 'challenge');
 
+    // The proof must be stable across requests so publish and verify can be
+    // compared later; the per-request challenge is a freshness token handled
+    // by the server, NOT part of derivation.
     expect(first).toBe(second);
+    expect(first).toBe(differentChallenge);
     expect(first).not.toBe(differentBlob);
     expect(first).not.toBe(differentWorkspace);
-    expect(first).not.toBe(differentChallenge);
     expect(first).not.toBe(differentPassphrase);
+
+    // Derivation is delegated to the Rust command; the challenge never crosses the bridge.
+    expect(backend.invoke).toHaveBeenCalledWith('vault:deriveProof', {
+      passphrase: 'vault-passphrase',
+      workspaceId: 'ws-a',
+      keyParamsBlob: 'blob-a',
+    });
   });
 });
 
@@ -111,13 +105,23 @@ describe('fetchCloudKeyParams', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('writes fetched key params into the shared local file without a folder', async () => {
+    const manifest = '{"version":3,"saltHex":"42424242424242424242424242424242","wrappedKey":{}}';
     getApiClient.mockReturnValue({
-      getVaultKeyParams: vi.fn(() => Promise.resolve({ keyParams: '{"key":"remote"}' })),
+      getVaultKeyParams: vi.fn(() => Promise.resolve({ keyParams: manifest })),
       createVaultChallenge: vi.fn(() => Promise.resolve({ challenge: 'challenge-1' })),
     });
     const ok = await fetchCloudKeyParams();
     expect(ok).toBe(true);
-    expect(writeFile).toHaveBeenCalledWith(expect.stringContaining('keyParams.json'), '{"key":"remote"}');
+    expect(writeFile).toHaveBeenCalledWith(expect.stringContaining('keyParams.json'), manifest);
+  });
+
+  it('refuses to overwrite local key params with a shapeless payload', async () => {
+    getApiClient.mockReturnValue({
+      getVaultKeyParams: vi.fn(() => Promise.resolve({ keyParams: '{"key":"remote"}' })),
+      createVaultChallenge: vi.fn(() => Promise.resolve({ challenge: 'challenge-1' })),
+    });
+    await expect(fetchCloudKeyParams()).resolves.toBeNull();
+    expect(writeFile).not.toHaveBeenCalled();
   });
 
   it('returns null when the vault has no key params', async () => {

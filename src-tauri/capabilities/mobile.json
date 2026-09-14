@@ -15,6 +15,7 @@
     "opener:default",
     "sharesheet:allow-share-file",
     "sharesheet:allow-share-text",
+    "iap:default",
     {
       "identifier": "fs:scope",
       "allow": [

@@ -47,7 +47,7 @@ export default Node.create({
         }),
       },
       height: { default: 400 },
-      paperType: { default: 'plain' },
+      paperType: { default: 'dotted' },
     };
   },
 
@@ -76,7 +76,7 @@ export default Node.create({
         ({ commands }) => {
           return commands.insertContent({
             type: 'paper',
-            attrs: { lines: [], height: 800 },
+            attrs: { lines: [], height: 800, paperType: 'dotted' },
           });
         },
     };

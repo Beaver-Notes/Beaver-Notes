@@ -33,14 +33,7 @@ impl SecureBlobCache {
 
         self.memory.lock()?.insert(key.to_string(), value.clone());
 
-        // Best-effort: keep OS keyring copy when available.
-        if let Ok(entry) = crate::shared::keyring_entry(key) {
-            if let Ok(as_string) = String::from_utf8(value.clone()) {
-                let _ = entry.set_password(&as_string);
-            }
-        }
-
-        // Fallback: write an encrypted copy to disk so safe-storage works even without keyring.
+        // Persist encrypted disk copy with master key. Keychain holds only master key, no per-blob entries.
         let encrypted = safe_storage_encrypt_bytes(&value)?;
         let _guard = self.disk_lock.lock()?;
         let mut disk = self.read_disk(state)?;
@@ -59,27 +52,12 @@ impl SecureBlobCache {
             return Ok(Some(value));
         }
 
-        if let Ok(entry) = crate::shared::keyring_entry(key) {
-            if let Ok(value) = entry.get_password() {
-                let bytes = value.into_bytes();
-                self.memory.lock()?.insert(key.to_string(), bytes.clone());
-                return Ok(Some(bytes));
-            }
-        }
-
         let _guard = self.disk_lock.lock()?;
         let disk = self.read_disk(state)?;
         let Some(encrypted) = disk.blobs.get(key) else {
             return Ok(None);
         };
         let bytes = safe_storage_decrypt_bytes(encrypted)?;
-
-        // Migrate disk-only blob to keyring so future reads don't depend on the file.
-        if let Ok(entry) = crate::shared::keyring_entry(key) {
-            if let Ok(as_string) = String::from_utf8(bytes.clone()) {
-                let _ = entry.set_password(&as_string);
-            }
-        }
 
         self.memory.lock()?.insert(key.to_string(), bytes.clone());
         Ok(Some(bytes))
@@ -90,10 +68,6 @@ impl SecureBlobCache {
 
         let _ = self.memory.lock()?.remove(key);
 
-        if let Ok(entry) = crate::shared::keyring_entry(key) {
-            let _ = entry.delete_password();
-        }
-
         let _guard = self.disk_lock.lock()?;
         let mut disk = self.read_disk(state)?;
         disk.blobs.remove(key);
@@ -101,13 +75,20 @@ impl SecureBlobCache {
     }
 
     fn storage_dir(state: &AppState) -> Result<PathBuf, AppError> {
+        // Per-instance isolation: when the data dir is overridden (e.g. a second
+        // instance for testing), keep this instance's secure blobs there too.
+        // Otherwise both instances would read/write the same passphrase blob.
+        if let Some(dir) = std::env::var_os("BEAVER_NOTES_DATA_DIR").filter(|v| !v.is_empty()) {
+            let dir = PathBuf::from(dir);
+            fs::create_dir_all(&dir)?;
+            return Ok(dir);
+        }
         if let Some(ref dir) = state.files.portable_storage_dir {
             return Ok(dir.clone());
         }
         Ok(dirs::data_local_dir()
             .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))?
-            .join("com.beavernotes.beaver-notes")
-            .into())
+            .join("com.beavernotes.beaver-notes"))
     }
 
     fn storage_path(state: &AppState) -> Result<PathBuf, AppError> {

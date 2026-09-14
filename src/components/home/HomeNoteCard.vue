@@ -1,7 +1,7 @@
 <template>
   <ui-card
     data-testid="note-card"
-    class="hover:ring-1 hover:ring-primary/20 hover:shadow-md hover:shadow-neutral-200/60 dark:hover:shadow-neutral-900 group note-card flex flex-col cursor-pointer"
+    class="hover:ring-1 hover:ring-primary/20 hover:shadow-[var(--shadow-md)] group note-card flex flex-col cursor-pointer"
     padding="p-0"
     @click="openNote($event, note.id)"
   >
@@ -13,7 +13,7 @@
       <v-remixicon name="riErrorWarningLine" size="14" class="flex-shrink-0" />
       <span class="flex-1">{{
         translations.card.conflictCopy ||
-        'Conflict copy — review and delete one version'
+        'Conflict copy: review and delete one version'
       }}</span>
     </div>
 
@@ -26,7 +26,7 @@
           {{ note.title || translations.card.untitledNote }}
         </div>
         <div
-          v-if="note.labels.length !== 0"
+          v-if="note.labels?.length"
           class="text-primary dark:text-primary mt-2 mb-1 w-full flex flex-wrap gap-1"
         >
           <span
@@ -47,119 +47,63 @@
           </span>
         </div>
       </div>
+      <!-- Pending-extraction retry chip (offline URL shares) -->
+      <button
+        v-if="needsExtraction"
+        data-testid="retry-extraction-chip"
+        class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-60"
+        :disabled="retrying"
+        @click.stop="retryExtraction"
+      >
+        <v-remixicon name="riRefreshLine" size="14" class="flex-shrink-0" />
+        <span>{{
+          retrying
+            ? translations.card?.retrying || 'Retrying…'
+            : translations.card?.needsExtraction ||
+              'Needs extraction — tap to retry'
+        }}</span>
+      </button>
       <div
         v-if="!note.isLocked"
         data-preview-shell
-        class="relative h-[140px] overflow-hidden mt-1.5 eio-fade-y-4"
+        class="relative h-[140px] overflow-hidden mt-1.5 eio-fade-b-4"
       >
-        <div v-if="preview.blocks.length" class="note-card-preview-stack">
-          <div
-            v-for="(block, index) in preview.blocks"
-            :key="`${block.kind}-${index}-${block.text || block.label || ''}`"
-            :class="[
-              'note-card-preview-block',
-              `is-${block.kind}`,
-              block.tone ? `tone-${block.tone}` : '',
-              block.checked ? 'is-checked' : '',
-            ]"
-          >
-            <template v-if="block.kind === 'image'">
-              <img
-                class="note-card-preview-image"
-                :src="block.src"
-                :alt="block.alt || 'Note preview image'"
-                decoding="async"
-              />
-            </template>
-
-            <template v-else-if="block.kind === 'table'">
-              <div class="note-card-preview-table-wrap">
-                <table class="note-card-preview-table">
-                  <tbody>
-                    <tr
-                      v-for="(row, rowIndex) in block.rows"
-                      :key="`row-${rowIndex}`"
-                      class="note-card-preview-table-row"
-                    >
-                      <component
-                        :is="cell.isHeader ? 'th' : 'td'"
-                        v-for="(cell, cellIndex) in row"
-                        :key="`cell-${rowIndex}-${cellIndex}`"
-                        class="note-card-preview-table-cell"
-                      >
-                        {{ cell.text }}
-                      </component>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </template>
-
-            <template v-else-if="block.kind === 'media'">
-              <span class="note-card-preview-media-icon" aria-hidden="true">
-                <v-remixicon :name="mediaIcon(block.tone)" size="16" />
-              </span>
-              <span class="note-card-preview-media-copy">
-                <span class="note-card-preview-media-label">
-                  {{ block.label }}
-                </span>
-                <span v-if="block.text" class="note-card-preview-media-text">
-                  {{ block.text }}
-                </span>
-              </span>
-            </template>
-
-            <template v-else-if="block.kind === 'task'">
-              <span
-                class="note-card-preview-check"
-                :data-checked="block.checked ? 'true' : 'false'"
-              >
-                <v-remixicon
-                  v-if="block.checked"
-                  name="riCheckLine"
-                  size="13"
-                  class="note-card-preview-check-icon"
-                />
-              </span>
-              <span class="note-card-preview-task-text truncate">{{
-                block.text
-              }}</span>
-            </template>
-
-            <template v-else>
-              {{ block.text }}
-            </template>
-          </div>
-
-          <div
-            v-if="preview.hasMore || preview.mediaCount > 1"
-            class="note-card-preview-meta"
-          >
-            {{ previewMeta }}
-          </div>
-        </div>
-
+        <NotePreviewBlocks
+          v-if="preview.blocks.length"
+          :blocks="preview.blocks"
+        />
         <div v-else class="note-card-preview-empty">
           {{ translations.card.content || 'Start writing...' }}
         </div>
       </div>
 
-      <button
-        v-if="note.isLocked"
+      <div
+        v-else
+        class="relative h-[140px] mt-1.5 flex flex-col items-center justify-center gap-2 p-4 cursor-pointer"
+        role="button"
+        tabindex="0"
         :aria-label="translations.card.unlock || 'Unlock'"
-        class="hover:text-neutral-600 dark:text-[color:var(--selected-dark-text)] h-full transition"
         @click.stop="unlockNote(note.id)"
+        @keydown.enter.stop="unlockNote(note.id)"
+        @keydown.space.prevent.stop="unlockNote(note.id)"
       >
         <v-remixicon
-          class="w-24 h-auto text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
           name="riLockLine"
+          size="32"
+          class="text-neutral-400 dark:text-neutral-500"
         />
-        <div
-          class="text-xs text-neutral-500 dark:text-neutral-400 invisible group-hover:visible dark:text-[color:var(--selected-dark-text)]"
+        <span
+          class="text-xs font-medium text-neutral-600 dark:text-neutral-300"
+          >{{ translations.card.isLocked || 'Locked note' }}</span
         >
-          {{ translations.card.unlockToEdit || '-' }}
-        </div>
-      </button>
+        <span
+          class="text-xs text-neutral-400 dark:text-neutral-500 text-center leading-tight"
+          >{{
+            translations.card.unlockToEdit ||
+            'Tap to unlock: Face ID / vault password'
+          }}</span
+        >
+      </div>
     </div>
 
     <!-- Unified action bar: shows full actions on desktop, bookmark-only on mobile -->
@@ -173,7 +117,11 @@
             ? translations.card.removeBookmark
             : translations.card.bookmark
         "
-        :aria-label="note.isBookmarked ? (translations.card.removeBookmark || 'Remove bookmark') : (translations.card.bookmark || 'Bookmark')"
+        :aria-label="
+          note.isBookmarked
+            ? translations.card.removeBookmark || 'Remove bookmark'
+            : translations.card.bookmark || 'Bookmark'
+        "
         class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
         :class="[note.isBookmarked ? 'text-primary' : 'hover:text-neutral-900']"
         @click.stop="toggleBookmark(note)"
@@ -191,8 +139,12 @@
               ? translations.card.unarchive
               : translations.card.archive
           "
-          :aria-label="note.isArchived ? (translations.card.unarchive || 'Unarchive') : (translations.card.archive || 'Archive')"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          :aria-label="
+            note.isArchived
+              ? translations.card.unarchive || 'Unarchive'
+              : translations.card.archive || 'Archive'
+          "
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="toggleArchive(note)"
         >
           <v-remixicon
@@ -205,7 +157,7 @@
           v-if="!note.isLocked"
           v-tooltip.group="translations.card.lock"
           :aria-label="translations.card.lock || 'Lock'"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="lockNote(note.id)"
         >
           <v-remixicon name="riLockLine" class="size-5" />
@@ -215,7 +167,7 @@
           v-if="note.isLocked"
           v-tooltip.group="translations.card.unlock"
           :aria-label="translations.card.unlock || 'Unlock'"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="unlockNote(note.id)"
         >
           <v-remixicon
@@ -227,8 +179,8 @@
         <button
           v-tooltip.group="translations.card.moveToFolder"
           :aria-label="translations.card.moveToFolder || 'Move to folder'"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
-          @click.stop="showMoveModal = true"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
+          @click.stop="$emit('move', note)"
         >
           <v-remixicon name="riFolderTransferLine" class="size-5" />
         </button>
@@ -236,7 +188,7 @@
         <button
           v-tooltip.group="translations.card.delete"
           :aria-label="translations.card.delete || 'Delete'"
-          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-red-500/5 hover:text-red-500 invisible group-hover:visible"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-red-500/5 hover:text-red-500 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="deleteNote(note.id)"
         >
           <v-remixicon name="riDeleteBin6Line" class="size-5" />
@@ -253,8 +205,6 @@
         }}
       </p>
     </div>
-
-    <folder-tree v-model="showMoveModal" :notes="[note]" mode="note" />
   </ui-card>
 </template>
 
@@ -262,16 +212,21 @@
 import dayjs from '@/lib/dayjs';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';
-import { usePasswordStore } from '@/store/passwd';
+import {
+  isBiometricAvailable,
+  authenticateWithBiometrics,
+} from '@/lib/native/biometric.js';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/lib/dialog';
-import FolderTree from './FolderTree.vue';
 import { useLabelStore } from '@/store/label';
+import NotePreviewBlocks from '@/components/note/NotePreviewBlocks.vue';
 import { useSounds } from '@/composable/useSounds';
+import { hasPendingExtraction } from '@/lib/share/retryExtraction';
+import { EMPTY_CARD_PREVIEW } from '@/utils/note/cardPreview.js';
 
 const props = defineProps({
   note: {
@@ -284,37 +239,20 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update', 'update:label']);
+const emit = defineEmits(['update', 'update:label', 'move']);
 
 const labelStore = useLabelStore();
 const router = useRouter();
 const dialog = useDialog();
-const showMoveModal = ref(false);
 const { play } = useSounds();
 
 const { translations } = useTranslations();
 
-const preview = computed(
-  () =>
-    props.note?.cardPreview || {
-      blocks: [],
-      hasMore: false,
-      mediaCount: 0,
-      visibleMediaCount: 0,
-    }
-);
-
-const previewMeta = computed(() => {
-  const extraVisuals = Math.max(
-    0,
-    (preview.value.mediaCount || 0) - (preview.value.visibleMediaCount || 0)
-  );
-
-  if (extraVisuals > 0) {
-    return `+${extraVisuals} more visuals`;
-  }
-
-  return 'More';
+const preview = computed(() => {
+  const cp = props.note?.cardPreview;
+  return cp && (cp.blocks?.length || cp.hasMore || cp.mediaCount)
+    ? cp
+    : EMPTY_CARD_PREVIEW;
 });
 
 const labelColorMap = computed(() => {
@@ -324,6 +262,19 @@ const labelColorMap = computed(() => {
   }
   return map;
 });
+
+const needsExtraction = computed(() => hasPendingExtraction(props.note));
+const retrying = ref(false);
+
+async function retryExtraction() {
+  if (retrying.value || !needsExtraction.value) return;
+  retrying.value = true;
+  try {
+    await useNoteStore().retryNoteExtraction(props.note.id);
+  } finally {
+    retrying.value = false;
+  }
+}
 
 function labelColor(name) {
   return labelColorMap.value[name] ?? null;
@@ -355,13 +306,31 @@ async function lockNote(note) {
   }
 }
 
-async function unlockNote(note) {
-  const noteStore = useNoteStore();
+let biometricAvailableCache = null;
+async function getBiometricAvailable() {
+  if (biometricAvailableCache !== null) return biometricAvailableCache;
   try {
-    await noteStore.unlockNote(note);
-  } catch (error) {
-    console.error('Error unlocking note:', error);
+    biometricAvailableCache = await isBiometricAvailable();
+  } catch {
+    biometricAvailableCache = false;
   }
+  return biometricAvailableCache;
+}
+
+async function unlockNote(noteId) {
+  const noteStore = useNoteStore();
+  if (await getBiometricAvailable()) {
+    try {
+      await authenticateWithBiometrics('Unlock note');
+      await noteStore.unlockNote(noteId);
+      return;
+    } catch (e) {
+      const msg = String(e?.message || '');
+      if (/cancel/i.test(msg) || /User canceled/i.test(msg)) return;
+    }
+  }
+  // Vault fallback shares UnlockCard with gate/editor: open note where card shows.
+  router.push(`/note/${noteId}`);
 }
 
 async function deleteNote(note) {
@@ -390,6 +359,8 @@ function formatDate(date) {
 function openNote(event, noteId) {
   if (props.disableOpen) return;
   if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+  // Don't navigate when the click ends a text-selection drag on the card.
+  if (window.getSelection()?.toString()) return;
   router.push(`/note/${noteId}`);
 }
 
@@ -404,27 +375,6 @@ function toggleBookmark(note) {
 function toggleArchive(note) {
   emitUpdate({ isArchived: !note.isArchived });
 }
-
-function mediaIcon(tone) {
-  switch (tone) {
-    case 'audio':
-      return 'riVolumeDownFill';
-    case 'video':
-      return 'riMovieLine';
-    case 'file':
-      return 'riFile2Line';
-    case 'diagram':
-      return 'riPieChart2Line';
-    case 'math':
-      return 'riCalculatorLine';
-    case 'sketch':
-      return 'riBrushLine';
-    case 'table':
-      return 'riTableLine';
-    default:
-      return 'riArticleLine';
-  }
-}
 </script>
 
 <style>
@@ -433,7 +383,8 @@ function mediaIcon(tone) {
   contain-intrinsic-size: 320px;
   min-width: 0;
   transform: translate3d(0, 0, 0) scale(1);
-  transition: transform var(--motion-fast) var(--ease-standard),
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
     background-color var(--motion-fast) var(--ease-standard),
     border-color var(--motion-fast) var(--ease-standard);
@@ -456,6 +407,15 @@ function mediaIcon(tone) {
   visibility: visible;
 }
 
+/* Touch-primary devices (phones, tablets without a mouse): hover is unreliable,
+   so keep card actions visible instead of hover-revealed. */
+@media (hover: none) {
+  .note-card .invisible.group-hover\:visible,
+  .note-card__action.invisible {
+    visibility: visible !important;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .note-card:hover {
     transform: translate3d(0, -1px, 0) scale(1.002);
@@ -467,7 +427,8 @@ function mediaIcon(tone) {
 }
 
 .note-card__action {
-  transition: background-color var(--motion-fast) var(--ease-standard),
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
     transform var(--motion-fast) var(--ease-standard);
   transform: translate3d(0, 0, 0);
@@ -481,6 +442,7 @@ function mediaIcon(tone) {
   contain: layout paint style;
 }
 
+/* Preview tokens mirror editor.css and callout styles. */
 .note-card-preview-stack {
   display: flex;
   min-height: 100%;
@@ -518,19 +480,6 @@ function mediaIcon(tone) {
 
 .dark .note-card-preview-block {
   color: var(--text-dark);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .note-card,
-  .note-card__action {
-    transition-duration: 0.01ms;
-  }
-
-  .note-card:hover,
-  .note-card:active,
-  .note-card__action:active {
-    transform: none;
-  }
 }
 
 .note-card-preview-block.is-image,
@@ -585,64 +534,60 @@ function mediaIcon(tone) {
   background: currentColor;
 }
 
-.note-card-preview-block.is-quote,
-.note-card-preview-block.is-callout {
-  border-left: 4px solid theme('colors.zinc.300');
+.note-card-preview-block.is-quote {
+  border-left: 3px solid theme('colors.neutral.300');
   margin: 0.5em 0;
   padding: 0.25rem 0.25rem 0.25rem 0.9rem;
   color: theme('colors.neutral.700');
 }
 
-.dark .note-card-preview-block.is-quote,
-.dark .note-card-preview-block.is-callout {
+.dark .note-card-preview-block.is-quote {
   border-left-color: theme('colors.neutral.600');
   color: var(--text-dark);
 }
 
+/* Callouts mirror callout cssClass. */
+.note-card-preview-block.is-callout {
+  border-left-width: 4px;
+  border-left-style: solid;
+  margin: 0.5em 0;
+  padding: 0.25rem 0.5rem 0.25rem 0.9rem;
+  border-radius: 0 0.35rem 0.35rem 0;
+}
+
 .note-card-preview-block.is-callout.tone-blue {
-  border-left-color: theme('colors.blue.500');
-  background: theme('colors.blue.500 / 0.08');
-}
-
-.note-card-preview-block.is-callout.tone-green {
-  border-left-color: theme('colors.green.500');
-  background: theme('colors.green.500 / 0.08');
-}
-
-.note-card-preview-block.is-callout.tone-red {
-  border-left-color: theme('colors.red.500');
-  background: theme('colors.red.500 / 0.08');
+  @apply border-blue-300 bg-blue-500/10;
 }
 
 .note-card-preview-block.is-callout.tone-yellow {
-  border-left-color: theme('colors.yellow.500');
-  background: theme('colors.yellow.500 / 0.12');
+  @apply border-yellow-300 bg-yellow-500/10;
+}
+
+.note-card-preview-block.is-callout.tone-red {
+  @apply border-red-300 bg-red-500/10;
 }
 
 .note-card-preview-block.is-callout.tone-purple {
-  border-left-color: theme('colors.purple.500');
-  background: theme('colors.purple.500 / 0.1');
+  @apply border-purple-300 bg-purple-500/10;
+}
+
+.note-card-preview-block.is-callout.tone-green {
+  @apply border-green-700 dark:border-green-500 bg-green-900/10 dark:bg-green-400/10;
 }
 
 .note-card-preview-block.is-callout.tone-black {
-  border-left-color: theme('colors.neutral.600');
-  background: theme('colors.zinc.700 / 0.09');
+  @apply border-neutral-700 dark:border-neutral-500 bg-neutral-900/10 dark:bg-neutral-400/10;
 }
 
+/* Code mirrors ProseMirror pre/inline-code. */
 .note-card-preview-block.is-code {
   margin: 0.55em 0;
-  border-radius: 0.5rem;
-  background: theme('colors.black / 0.05');
-  color: theme('colors.zinc.700');
+  @apply border bg-neutral-50 dark:bg-neutral-900 rounded-lg dark:text-neutral-200;
+  color: theme('colors.neutral.700');
   padding: 0.5rem 0.75rem;
   font-family: var(--selected-font-code), 'Source Code Pro', monospace;
   font-size: 0.82rem;
   line-height: 1.45;
-}
-
-.dark .note-card-preview-block.is-code {
-  background: theme('colors.neutral.600 / 0.3');
-  color: theme('colors.zinc.200');
 }
 
 .note-card-preview-block.is-media {
@@ -656,7 +601,7 @@ function mediaIcon(tone) {
   --preview-media-icon-surface: theme('colors.white / 0.58');
   border: 1px solid
     color-mix(in srgb, var(--preview-media-accent) 18%, transparent);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   background: linear-gradient(
     135deg,
     var(--preview-media-surface),
@@ -669,6 +614,13 @@ function mediaIcon(tone) {
   --preview-media-accent: theme('colors.indigo.600');
   --preview-media-surface: theme('colors.indigo.500 / 0.12');
   --preview-media-surface-alt: theme('colors.indigo.400 / 0.05');
+}
+
+/* Rendered diagram/math art needs no pill chrome — drop the container entirely */
+.note-card-preview-block.is-media.has-art {
+  padding: 0;
+  border: 0;
+  background: none;
 }
 
 .note-card-preview-block.is-media.tone-math {
@@ -686,9 +638,12 @@ function mediaIcon(tone) {
 .note-card-preview-block.is-media.tone-file,
 .note-card-preview-block.is-media.tone-audio,
 .note-card-preview-block.is-media.tone-video {
-  --preview-media-accent: theme('colors.cyan.600');
-  --preview-media-surface: theme('colors.cyan.400 / 0.12');
-  --preview-media-surface-alt: theme('colors.cyan.400 / 0.05');
+  --preview-media-accent: theme('colors.neutral.500');
+  --preview-media-surface: theme('colors.neutral.500 / 0.07');
+  --preview-media-surface-alt: transparent;
+  align-items: center;
+  background: var(--preview-media-surface);
+  padding: 0.5rem 0.65rem;
 }
 
 .note-card-preview-media-label {
@@ -767,27 +722,68 @@ function mediaIcon(tone) {
 .dark .note-card-preview-block.is-media.tone-file,
 .dark .note-card-preview-block.is-media.tone-audio,
 .dark .note-card-preview-block.is-media.tone-video {
-  --preview-media-accent: theme('colors.cyan.300');
+  --preview-media-accent: theme('colors.neutral.400');
+}
+
+.note-card-preview-file-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--preview-media-accent);
+}
+
+.note-card-preview-file-name {
+  display: block;
+  overflow: hidden;
+  color: theme('colors.zinc.800');
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-card-preview-file-kind {
+  display: block;
+  color: theme('colors.zinc.500');
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.dark .note-card-preview-file-name {
+  color: theme('colors.zinc.100');
+}
+
+.dark .note-card-preview-file-kind {
+  color: theme('colors.zinc.400');
 }
 
 .note-card-preview-image {
   display: block;
   width: 100%;
   max-height: 82px;
-  border: 1px solid theme('colors.zinc.200 / 0.9');
-  border-radius: 0.5rem;
+  border: 1px solid theme('colors.neutral.200 / 0.9');
+  border-radius: 0.75rem;
   object-fit: cover;
-  background: theme('colors.zinc.100');
+  background: theme('colors.neutral.100');
 }
 
 .dark .note-card-preview-image {
-  border-color: theme('colors.zinc.700 / 0.9');
-  background: theme('colors.zinc.900');
+  border-color: theme('colors.neutral.700 / 0.9');
+  background: theme('colors.neutral.900');
 }
 
 .note-card-preview-table-wrap {
   overflow: hidden;
   border-radius: 0.75rem;
+  border: 1px solid theme('colors.neutral.200');
+}
+
+.dark .note-card-preview-table-wrap {
+  border-color: theme('colors.neutral.700');
 }
 
 .note-card-preview-table {
@@ -796,7 +792,7 @@ function mediaIcon(tone) {
   border-collapse: separate;
   border-spacing: 0;
   overflow: hidden;
-  background: theme('colors.zinc.50 / 0.95');
+  @apply bg-white dark:bg-neutral-900;
 }
 
 .dark .note-card-preview-table {
@@ -809,10 +805,13 @@ function mediaIcon(tone) {
 
 .note-card-preview-table-cell {
   overflow: hidden;
-  border: 1px solid theme('colors.zinc.200 / 0.9');
+  /* Right + bottom dividers only — the wrap draws the continuous outer border */
+  border-style: solid;
+  border-width: 0 1px 1px 0;
+  border-color: theme('colors.neutral.200');
   background: transparent;
   padding: 0.42rem 0.48rem;
-  color: theme('colors.zinc.700');
+  color: theme('colors.neutral.700');
   font-size: 0.76rem;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -822,17 +821,49 @@ function mediaIcon(tone) {
 }
 
 .note-card-preview-table-cell:is(th) {
-  background: theme('colors.zinc.700 / 0.08');
+  background: theme('colors.neutral.100');
   font-weight: 600;
 }
 
+/* Dividers stop where they meet the wrap's outer border — no doubled edges */
+.note-card-preview-table-row:last-child .note-card-preview-table-cell {
+  border-bottom-width: 0;
+}
+
+.note-card-preview-table-cell:last-child,
+.note-card-preview-table-cell:last-of-type {
+  border-right-width: 0;
+}
+
 .dark .note-card-preview-table-cell {
-  border-color: theme('colors.neutral.600 / 0.85');
+  border-color: theme('colors.neutral.700');
   color: theme('colors.zinc.200');
 }
 
 .dark .note-card-preview-table-cell:is(th) {
-  background: theme('colors.neutral.600 / 0.28');
+  background: rgb(82 82 82 / 0.3);
+}
+
+.note-card-preview-diagram {
+  max-height: 140px;
+  overflow: hidden;
+}
+
+.note-card-preview-diagram .mermaid-viewer {
+  overflow: hidden;
+}
+
+.note-card-preview-diagram .mermaid-svg svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 140px;
+}
+
+.note-card-preview-math {
+  max-height: 140px;
+  overflow: hidden;
+  font-size: 0.8rem;
 }
 
 .note-card-preview-check {
@@ -898,5 +929,18 @@ function mediaIcon(tone) {
 
 .dark .note-card-preview-empty {
   color: theme('colors.zinc.500');
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-card,
+  .note-card__action {
+    transition-duration: 0.01ms;
+  }
+
+  .note-card:hover,
+  .note-card:active,
+  .note-card__action:active {
+    transform: none;
+  }
 }
 </style>

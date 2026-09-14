@@ -12,24 +12,38 @@ import { useRoute, useRouter } from 'vue-router';
 const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
 import { useTheme } from './theme';
 import { useStorage } from '@/lib/storage';
-import { getSettingSync, hydrateSettingsStore, setSetting } from '@/lib/settings';
+import {
+  getSettingSync,
+  hydrateSettingsStore,
+  setSetting,
+} from '@/lib/settings';
 import { useUiState } from '@/composable/useUiState';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
 import { useAppStore } from '@/store/app';
+import { useAccountStore } from '@/store/account';
 import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
-import { appReady, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
+import {
+  appReady,
+  notify,
+  setMenuVisibility,
+  setZoomLevel,
+} from '@/lib/native/app';
 import {
   checkForUpdates,
   getAutoUpdateStatus,
   installUpdate,
   isUpdateManaged,
 } from '@/lib/native/updates';
-import { getStoredZoomLevel, setStoredZoomLevel, wasZoomAppliedAtBoot } from '@/utils/ui/zoom';
+import {
+  getStoredZoomLevel,
+  setStoredZoomLevel,
+  wasZoomAppliedAtBoot,
+} from '@/utils/ui/zoom';
 import {
   encryptionIsConfigured,
   isKeyLoaded,
@@ -41,9 +55,17 @@ import {
   observeWorkspace,
   writeStoresFromWorkspace,
   backfillNotePreviews,
+  repairStrandedNotes,
 } from '@/lib/yjs/workspace-doc';
-import { getSyncEngine } from '@/utils/sync/engine.js';
 import { initAppSync } from '@/utils/sync/app-sync.js';
+import { kickRustSync, kickRustDirty } from '@/utils/sync/rust-shim.js';
+
+import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
+import { useSidebar } from '@/composable/useSidebar';
+
+// Re-exported here so it stays unit-testable via this module
+// (see src/composable/__tests__/menu-context.spec.js).
+export { buildMenuContext };
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -55,8 +77,8 @@ function logStartupTiming() {
   for (let i = 1; i < entries.length; i++) {
     measures.push(
       `${entries[i].name}: ${Math.round(
-        entries[i].startTime - entries[i - 1].startTime
-      )}ms`
+        entries[i].startTime - entries[i - 1].startTime,
+      )}ms`,
     );
   }
   // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
@@ -65,22 +87,22 @@ function logStartupTiming() {
   console.log(
     '[perf] Total startup:',
     Math.round(entries[entries.length - 1].startTime - entries[0].startTime) +
-      'ms'
+      'ms',
   );
 }
 
 function applyDocumentSettings() {
   document.documentElement.style.setProperty(
     '--selected-font',
-    getSettingSync('selectedFont')
+    getSettingSync('selectedFont'),
   );
   document.documentElement.style.setProperty(
     '--selected-font-code',
-    getSettingSync('selectedCodeFont')
+    getSettingSync('selectedCodeFont'),
   );
   document.documentElement.style.setProperty(
     '--selected-dark-text',
-    getSettingSync('selectedDarkText')
+    getSettingSync('selectedDarkText'),
   );
   document.documentElement.classList.add(getSettingSync('colorScheme'));
 }
@@ -92,7 +114,6 @@ export function useAppShell(onboardingCompleted = true) {
   const route = useRoute();
   const router = useRouter();
   const settingsStorage = useStorage('settings');
-  const dataStorage = useStorage('data');
   const appStore = useAppStore();
 
   useSoundActions();
@@ -108,31 +129,32 @@ export function useAppShell(onboardingCompleted = true) {
   const state = reactive({
     zoomLevel: getStoredZoomLevel().toFixed(1),
   });
-  // ── Layout ──
   const keyboardVisible = ref(false);
   const pluginKeyboardVisible = ref(false);
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
   const showSidebar = computed(
-    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
+    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME,
   );
   const showMobileNavbar = computed(
     () =>
-      showSidebar.value &&
+      route.name !== ONBOARDING_ROUTE_NAME &&
       route.name !== 'Note' &&
-      (!isPhoneRuntime.value || !keyboardVisible.value)
+      (!isPhoneRuntime.value || !keyboardVisible.value),
   );
   const useMobileBottomDockSpacing = computed(
-    () => isPhoneRuntime.value && showMobileNavbar.value
+    () => isPhoneRuntime.value && showMobileNavbar.value,
   );
   const mainStyle = computed(() => {
     if (!isMobileRuntime.value || route.name === ONBOARDING_ROUTE_NAME)
       return undefined;
     return {
       paddingTop: 'var(--app-safe-area-top)',
+      paddingRight: 'var(--app-safe-area-right)',
       paddingBottom: useMobileBottomDockSpacing.value
         ? 'var(--app-mobile-content-offset)'
         : 'var(--app-safe-area-bottom)',
+      paddingLeft: 'var(--app-safe-area-left)',
     };
   });
   const bottomBannerStyle = computed(() => {
@@ -141,6 +163,21 @@ export function useAppShell(onboardingCompleted = true) {
       bottom: useMobileBottomDockSpacing.value
         ? 'var(--app-mobile-floating-offset)'
         : 'var(--app-safe-area-bottom)',
+    };
+  });
+  const { expanded: sidebarExpanded } = useSidebar();
+  const undoBannerWrapperStyle = computed(() => {
+    if (isMobileRuntime.value) {
+      return {
+        ...bottomBannerStyle.value,
+        left: '0',
+        right: '0',
+      };
+    }
+    if (!showSidebar.value) return undefined;
+    return {
+      left: sidebarExpanded.value ? '16rem' : '4rem',
+      right: '0',
     };
   });
   const mobileNavbarStyle = computed(() => {
@@ -155,6 +192,22 @@ export function useAppShell(onboardingCompleted = true) {
     if (uiState.overlayCount > 0) return false;
     return true;
   });
+
+  // Keep the native menu in sync with the current screen. Desktop only;
+  // debounced so rapid navigation coalesces into one rebuild.
+  watch(
+    () => [route.name, uiState.inReaderMode],
+    () => {
+      if (!backend.isDesktopRuntime()) return;
+      pushMenuContext(
+        buildMenuContext({
+          routeName: route.name,
+          inReaderMode: uiState.inReaderMode,
+        }),
+      );
+    },
+    { immediate: true },
+  );
 
   let maxVisualViewportHeight = 0;
   let pendingBlurTimeout = null;
@@ -194,10 +247,10 @@ export function useAppShell(onboardingCompleted = true) {
       if (typeof document === 'undefined' || !isPhoneRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-mobile-dock-height-active',
-        visible ? 'var(--app-mobile-dock-height)' : '0px'
+        visible ? 'var(--app-mobile-dock-height)' : '0px',
       );
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   watch(
@@ -206,37 +259,62 @@ export function useAppShell(onboardingCompleted = true) {
       if (typeof document === 'undefined' || !isMobileRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-keyboard-inset-bottom',
-        visible ? '8px' : 'var(--app-safe-area-bottom)'
+        visible ? '8px' : 'var(--app-safe-area-bottom)',
+      );
+      document.documentElement.style.setProperty(
+        '--app-note-page-padding',
+        `calc(56px + var(--app-keyboard-inset-bottom) + 0.75rem)`,
       );
     },
-    { immediate: true }
+    { immediate: true },
   );
+
+  // ponytail: 1.5s ceiling, real safe-area plugin can hang on cold iOS launch, never block first paint
+  const withTimeout = (p, ms, label) =>
+    Promise.race([
+      p,
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error(`${label} timeout after ${ms}ms`)), ms),
+      ),
+    ]);
 
   const initializeSafeAreaInsets = async () => {
     if (!isMobileRuntime.value) return;
     try {
-      const { getTopInset, getBottomInset } = await import(
-        '@saurl/tauri-plugin-safe-area-insets-css-api'
+      const { getTopInset, getBottomInset } = await withTimeout(
+        import('@saurl/tauri-plugin-safe-area-insets-css-api'),
+        1500,
+        'safe-area import',
       );
-      const topInset = await getTopInset();
-      const bottomInset = await getBottomInset();
+      const [topInset, bottomInset] = await withTimeout(
+        Promise.all([getTopInset(), getBottomInset()]),
+        1500,
+        'safe-area insets',
+      );
       const bottomInsetValue = `${bottomInset?.inset ?? 0}px`;
       const rootStyle = document.documentElement.style;
       rootStyle.setProperty(
         '--safe-area-inset-top',
-        `${topInset?.inset ?? 0}px`
+        `${topInset?.inset ?? 0}px`,
       );
       rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-keyboard-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-toolbar-bottom', bottomInsetValue);
-      rootStyle.setProperty(
-        '--app-note-page-padding',
-        `calc(54px + ${bottomInsetValue} + 0.75rem)`
-      );
     } catch (error) {
       console.warn('Safe area inset CSS plugin failed to initialize:', error);
     }
   };
+
+  // ponytail: asymmetric insets change on fold; plugin has top/bottom only, left/right ride the env() fallback in CSS
+  let safeAreaTimer = 0;
+  const handleSafeAreaResize = () => {
+    if (!isMobileRuntime.value) return;
+    window.clearTimeout(safeAreaTimer);
+    safeAreaTimer = window.setTimeout(() => {
+      initializeSafeAreaInsets();
+    }, 150);
+  };
+  window.addEventListener('resize', handleSafeAreaResize);
 
   const initializeMobileKeyboardTracking = (unlistenFns) => {
     if (!isMobileRuntime.value) return;
@@ -248,7 +326,7 @@ export function useAppShell(onboardingCompleted = true) {
       backend.listen('keyboard_hidden', () => {
         pluginKeyboardVisible.value = false;
         keyboardVisible.value = false;
-      })
+      }),
     );
     maxVisualViewportHeight =
       window.visualViewport?.height ?? window.innerHeight ?? 0;
@@ -277,11 +355,11 @@ export function useAppShell(onboardingCompleted = true) {
       document.removeEventListener('focusout', handleFocusOut);
       window.visualViewport?.removeEventListener(
         'resize',
-        handleViewportChange
+        handleViewportChange,
       );
       window.visualViewport?.removeEventListener(
         'scroll',
-        handleViewportChange
+        handleViewportChange,
       );
       if (pendingBlurTimeout) {
         clearTimeout(pendingBlurTimeout);
@@ -292,10 +370,11 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   onUnmounted(() => {
+    window.removeEventListener('resize', handleSafeAreaResize);
+    window.clearTimeout(safeAreaTimer);
     removeMobileKeyboardListeners();
   });
 
-  // ── Banners ──
   const updateBanner = reactive({
     show: false,
     content: '',
@@ -303,24 +382,12 @@ export function useAppShell(onboardingCompleted = true) {
     secondaryText: '',
     version: '',
   });
-  const syncLockBanner = reactive({
-    show: false,
-    dismissed: false,
-  });
   const appEncryptionMigrationBanner = reactive({
     show: false,
     dismissed: false,
     status: null,
     error: null,
   });
-
-  const syncLockBannerCopy = computed(() => ({
-    content:
-      translations.value.app?.syncLockContent ||
-      'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.',
-    primaryText: translations.value.app?.openSettings || 'Open Settings',
-    secondaryText: translations.value.app?.dismiss || 'Dismiss',
-  }));
 
   const appEncryptionMigrationBannerCopy = computed(() => ({
     content:
@@ -340,33 +407,6 @@ export function useAppShell(onboardingCompleted = true) {
 
   const handleUpdateDismiss = () => {
     updateBanner.show = false;
-  };
-
-  const openSyncSettings = () => {
-    syncLockBanner.show = false;
-    router.push(SETTINGS_ROUTE_PREFIX);
-  };
-
-  const dismissSyncBanner = () => {
-    syncLockBanner.dismissed = true;
-    syncLockBanner.show = false;
-  };
-
-  const refreshSyncLockBanner = async () => {
-    const inSettings = router.currentRoute.value.path.startsWith(
-      SETTINGS_ROUTE_PREFIX
-    );
-    if (
-      inSettings ||
-      syncLockBanner.dismissed ||
-      route.name === ONBOARDING_ROUTE_NAME
-    ) {
-      syncLockBanner.show = false;
-      return;
-    }
-    const configured = await encryptionIsConfigured();
-    syncLockBanner.show = configured && !isKeyLoaded();
-    await refreshEncryptionGate(configured);
   };
 
   const dismissAppEncryptionMigrationBanner = () => {
@@ -413,22 +453,48 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   const hasExistingWorkspaceData = async () => {
-    const [notesData, foldersData] = await Promise.all([
-      dataStorage.get('notes', {}),
-      dataStorage.get('folders', {}),
-    ]);
-
-    return (
-      Object.keys(notesData || {}).length > 0 ||
-      Object.keys(foldersData || {}).length > 0
-    );
+    const isLocked = (e) => {
+      const msg = String(e?.message || e || '');
+      return (
+        msg.includes('EncryptionLocked') ||
+        msg.includes('App encryption is locked')
+      );
+    };
+    // Yjs workspace doc is the source for notes/folders (KV `notes`/`folders`
+    // are legacy, never written post-migration); KV is only a fallback for
+    // not-yet-migrated users.
+    try {
+      const snap = await withTimeout(
+        backend.invoke('yjs:getSnapshot', { noteId: 'meta' }),
+        2000,
+        'yjs:getSnapshot',
+      );
+      if (snap?.data?.length) return true;
+    } catch (e) {
+      if (isLocked(e)) return true;
+    }
+    try {
+      const { useStorage: _useStorage } = await import('@/lib/storage');
+      const legacy = _useStorage('data');
+      const [notesData, foldersData] = await withTimeout(
+        Promise.all([legacy.get('notes', {}), legacy.get('folders', {})]),
+        2000,
+        'legacy storage',
+      );
+      return (
+        Object.keys(notesData || {}).length > 0 ||
+        Object.keys(foldersData || {}).length > 0
+      );
+    } catch (e) {
+      if (isLocked(e)) return true;
+      return false;
+    }
   };
 
   const initializeWorkspace = async () => {
     performance.mark('init:start');
 
-    // Set retrieved immediately — the UI can render while we check onboarding state.
-    // This eliminates the white screen for both first-time and returning users.
+    // Set immediately: UI renders while onboarding checked (no white screen).
     retrieved.value = true;
 
     await hydrateSettingsStore();
@@ -441,9 +507,8 @@ export function useAppShell(onboardingCompleted = true) {
     ]);
 
     if (!hasData && !onboardingCompleted) {
-      // First run: initialize the sync engine before entering onboarding so a
-      // post-onboarding sync (path set + initial pull) has a live engine. With
-      // no sync folder configured yet the engine's cycles are no-ops.
+      // Start the sync scheduler before onboarding so post-onboarding sync
+      // has a live scheduler; with no sync target the cycles are no-ops.
       initAppSync();
       performance.mark('init:done');
       logStartupTiming();
@@ -453,22 +518,16 @@ export function useAppShell(onboardingCompleted = true) {
       return;
     }
 
-    // Derive/restore the encryption key BEFORE reading any note data. Note
-    // blobs are encrypted at rest when the vault is enabled, so loading them
-    // before the items key is available would hand ciphertext to the Yjs
-    // decoder (which aborts on invalid UTF-8).
+    // Derive/restore the encryption key BEFORE reading note data: blobs are
+    // encrypted at rest, and handing ciphertext to the Yjs decoder makes it
+    // abort on invalid UTF-8.
     await restoreEncryptionKeys();
     performance.mark('init:encryption');
 
-    // The vault passphrase is set by the user during onboarding — the startup
-    // path never auto-creates encryption. Encryption is mandatory; the yjs
-    // layer fails closed if it is ever missing (a startup/init bug).
+    // The vault passphrase is user-set during onboarding; startup never
+    // auto-creates encryption. The yjs layer fails closed if it is missing.
     if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
-      // Encryption is configured but the key could not be restored (no stored
-      // passphrase / safe storage unavailable). Loading note data now would
-      // yield garbage (or fail closed server-side), so defer until the user
-      // unlocks via the encryption gate. handleEncryptionUnlocked() runs the
-      // remainder of the init afterwards.
+      // Key configured but unrestorable: defer to gate, remainder runs on unlock.
       retrieved.value = true;
       return;
     }
@@ -479,37 +538,53 @@ export function useAppShell(onboardingCompleted = true) {
   const finishWorkspaceInit = async () => {
     const migrationStatus = await settingsStorage.get(
       'app_encryption_migration',
-      null
+      null,
     );
     if (migrationStatus) {
       checkAppEncryptionMigration(migrationStatus);
     }
 
-    // Load the unified workspace Y.Doc first — it is the single source of
-    // truth for all note/folder/label metadata.  On first run after legacy
-    // migration the doc may still be empty, so seed it from the KV stores
-    // before wiring observers.
+    // Load unified workspace Y.Doc: single truth for note/folder/label metadata, seeded during onboarding.
     await loadWorkspaceDoc();
     performance.mark('init:workspace-doc');
+
+    // One-time repair for legacy imports that seeded meta without a Yjs doc
+    // (unopenable, undeletable cards): titled notes get empty docs, untitled
+    // and id-less notes are dropped. Awaited so drops land before hydration.
+    if (!(await settingsStorage.get('stranded_repair_done', false))) {
+      try {
+        const result = await repairStrandedNotes();
+        if (!result.failed) {
+          await settingsStorage.set('stranded_repair_done', true);
+        }
+      } catch (err) {
+        console.warn('[app] stranded repair failed:', err?.message || err);
+      }
+    }
+
     observeWorkspace(writeStoresFromWorkspace);
     await writeStoresFromWorkspace();
     performance.mark('init:workspace-write');
 
-    // Post-process — the stores are now populated from Yjs, so retrieve()
-    // must NOT read from KV.
+    // Stores now from Yjs: retrieve() must NOT read KV.
     await store.retrieve();
     performance.mark('init:retrieve');
 
-    // One-time whole-row re-encryption of legacy migration rows (which left
-    // note titles and folder metadata as plaintext JSON on disk). Idempotent.
+    // One-time idempotent re-encryption of legacy migration rows (plaintext
+    // titles/folder metadata on disk).
     backend.invoke('storage:reencryptLegacyRows').catch((err) => {
-      console.warn('[app] legacy row re-encryption failed:', err);
+      console.warn(
+        '[app] legacy row re-encryption failed:',
+        err?.message || err,
+      );
+    });
+    // One-time repair: rows sealed while settings were incorrectly encrypted
+    // become plaintext after the fix; decrypt with the now-loaded key.
+    backend.invoke('storage:repairSettings').catch((err) => {
+      console.warn('[app] settings repair failed:', err?.message || err);
     });
 
-    await refreshSyncLockBanner();
-
-    // One-time deferred backfill of card previews for notes that predate the
-    // persisted `cardPreview` (so their cards aren't blank on launch).
+    // One-time backfill of previews for notes predating persisted `cardPreview`.
     if (!(await settingsStorage.get('preview_backfill_done', false))) {
       backfillNotePreviews()
         .then(() => settingsStorage.set('preview_backfill_done', true))
@@ -523,34 +598,43 @@ export function useAppShell(onboardingCompleted = true) {
       }
     }
 
-    // Always initialize the engine so runtime sync config (Settings "Sync now",
-    // transport, path pick) works without an app restart. Autosync is always
-    // on — periodic sync runs whenever the app is visible.
+    // Always init so runtime sync works without restart. Autosync on: periodic sync when visible.
     try {
-      const { useAccountStore } = await import('@/store/account');
       const { useWorkspaceStore } = await import('@/store/workspace.ts');
       const accountStore = useAccountStore();
-      // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
-      // useAccountAuth components which may not have mounted yet.
-      if (!accountStore.isAuthenticated) {
+      // Hydrate auth before sync: hydrate() runs in onMounted, may not have mounted yet.
+      if (!useAccountStore().isAuthenticated) {
         const { loadSessionToken } = await import('@/lib/account-storage');
         const token = await loadSessionToken().catch(() => null);
         if (token) {
+          accountStore.setToken(token);
           accountStore.setStatus('authenticated');
         }
       }
-      if (accountStore.isAuthenticated) {
-        // Fetch profile/subscription so _remoteAllowed has plan info for sync
-        import('@/lib/api/account').then(({ getAccount }) => {
-          getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
-            if (data) {
-              accountStore.setProfile(data.profile);
-              accountStore.setSubscription(data.subscription);
-              accountStore.setDevices(data.devices || []);
-            }
-          }).catch(() => {});
-        }).catch(() => {});
+      if (useAccountStore().isAuthenticated) {
+        // Fetch profile/subscription so _remoteAllowed has plan info; awaited
+        // so initAppSync() runs with full auth state.
+        try {
+          const { getAccount } = await import('@/lib/api/account');
+          const data = await getAccount({ baseUrl: accountStore.serverUrl });
+          if (data) {
+            accountStore.setProfile(data.profile);
+            accountStore.setSubscription(data.subscription);
+            accountStore.setDevices(data.devices || []);
+          }
+        } catch {
+          // non-critical: sync retries next cycle.
+        }
         await useWorkspaceStore().retrieve();
+
+        // Join meta room now activeId known (was null at loadWorkspaceDoc).
+        const { getWsSync } = await import('@/lib/sync/ws-sync');
+        const { ensureMetaRoomKey } = await import('@/lib/yjs/workspace-doc');
+        const wsId = useWorkspaceStore().activeId;
+        if (wsId) {
+          await ensureMetaRoomKey(wsId).catch(() => {});
+          getWsSync().joinMetaRoom(wsId);
+        }
       }
     } catch (err) {
       console.warn('[app] pre-sync auth/workspace hydrate failed:', err);
@@ -562,32 +646,38 @@ export function useAppShell(onboardingCompleted = true) {
     logStartupTiming();
   };
 
-  // Full-screen encryption gate (show/derive state, key auto-restore, deferred
-  // init on unlock) lives in a focused composable.
   const encryptionGate = useAppEncryptionGate({
     finishWorkspaceInit,
     onUnlockError: () => {
       retrieved.value = true;
     },
   });
-  const { appEncryptionGate, restoreEncryptionKeys, refreshEncryptionGate, handleEncryptionUnlocked } =
-    encryptionGate;
+  const {
+    appEncryptionGate,
+    restoreEncryptionKeys,
+    refreshEncryptionGate,
+    handleEncryptionUnlocked,
+  } = encryptionGate;
 
   const handleDeepLink = async (payload) => {
     try {
-      const raw = typeof payload === 'string' ? payload : payload?.url || payload?.path || '';
+      const raw =
+        typeof payload === 'string'
+          ? payload
+          : payload?.url || payload?.path || '';
       const path = raw.replace(/^beaver-notes:\/\//, '');
       if (path.startsWith('join/')) {
         const token = path.slice('join/'.length);
         if (!token) return;
-        const { useAccountStore } = await import('@/store/account');
         const accountStore = useAccountStore();
         if (!accountStore.isAuthenticated) {
           console.warn('[deep-link] Cannot join note: not authenticated');
           return;
         }
         const { joinViaInviteLink } = await import('@/lib/api/collaboration');
-        const result = await joinViaInviteLink(token, { baseUrl: accountStore.serverUrl });
+        const result = await joinViaInviteLink(token, {
+          baseUrl: accountStore.serverUrl,
+        });
         if (result?.noteId) {
           router.push(`/note/${result.noteId}`);
         }
@@ -600,7 +690,6 @@ export function useAppShell(onboardingCompleted = true) {
   onMounted(async () => {
     document.body.style.zoom = state.zoomLevel;
 
-    // Skip heavy init for first-time users (onboarding not completed)
     if (!onboardingCompleted) {
       retrieved.value = true;
       return;
@@ -634,31 +723,47 @@ export function useAppShell(onboardingCompleted = true) {
         updateBanner.secondaryText = bannerData.secondaryText;
         updateBanner.version = bannerData.version;
         updateBanner.show = true;
+        if (!backend.isTouchRuntime()) {
+          const copy = translations.value.app || {};
+          notify({
+            title: copy.updateAvailableTitle || 'Update available',
+            body:
+              copy.updateAvailableBody ||
+              bannerData.content ||
+              'An update is ready to install.',
+          }).catch(() => {});
+        }
       }),
       backend.listen('spellcheck-changed', () => {}),
       backend.listen('deep-link://received', (_, payload) => {
         handleDeepLink(payload);
-      })
+      }),
     );
 
-    try {
-      await appReady();
-      await initializeSafeAreaInsets();
-    } catch (error) {
-      console.error(
-        'Error notifying the Tauri backend that the app is ready:',
-        error
-      );
-    }
+    // ponytail: native ready plus safe-area must never block first paint on iOS, run in background with timeouts
+    const nativeReady = Promise.allSettled([
+      withTimeout(appReady(), 2000, 'appReady').catch((e) =>
+        console.warn('[app] appReady failed:', e?.message || e),
+      ),
+      withTimeout(initializeSafeAreaInsets(), 2000, 'safeArea').catch((e) =>
+        console.warn('[app] safeArea failed:', e?.message || e),
+      ),
+    ]);
 
     initializeMobileKeyboardTracking(unlistenFns);
 
     try {
-      const managed = await isUpdateManaged();
-
+      const managed = await withTimeout(
+        isUpdateManaged(),
+        1500,
+        'isUpdateManaged',
+      );
       if (!managed) {
-        const autoUpdateEnabled = await getAutoUpdateStatus();
-
+        const autoUpdateEnabled = await withTimeout(
+          getAutoUpdateStatus(),
+          1500,
+          'getAutoUpdateStatus',
+        ).catch(() => false);
         if (autoUpdateEnabled) {
           setTimeout(async () => {
             try {
@@ -670,17 +775,29 @@ export function useAppShell(onboardingCompleted = true) {
         }
       }
     } catch (error) {
-      console.error('Error checking auto-update status:', error);
+      console.warn(
+        'Error checking auto-update status:',
+        error?.message || error,
+      );
     }
 
+    // Always run workspace init even if nativeReady pending: retrieved set sync so UI paints.
     try {
-      await initializeWorkspace();
+      await withTimeout(initializeWorkspace(), 8000, 'initializeWorkspace');
     } catch (error) {
-      console.error('Error initializing workspace:', error);
+      console.error('Error initializing workspace:', error?.message || error);
       try {
         const [hasData, onboardingCompleted] = await Promise.all([
-          dataStorage.get('notes', {}),
-          settingsStorage.get('onboardingCompleted', false),
+          withTimeout(
+            hasExistingWorkspaceData(),
+            2000,
+            'hasExistingWorkspaceData',
+          ).catch(() => false),
+          withTimeout(
+            settingsStorage.get('onboardingCompleted', false),
+            1500,
+            'onboardingCompleted',
+          ).catch(() => false),
         ]);
         if (!hasData && !onboardingCompleted) {
           retrieved.value = true;
@@ -691,16 +808,17 @@ export function useAppShell(onboardingCompleted = true) {
         console.error('Fallback onboarding check failed:', innerError);
       }
       retrieved.value = true;
+    } finally {
+      // No await: let it settle in background.
+      void nativeReady;
     }
 
-    void refreshSyncLockBanner();
     removeBeforeRouteGuard = router.beforeEach((to, from, next) => {
       animateRouteChange.value =
         Boolean(from.name) && to.fullPath !== from.fullPath;
       next();
     });
     removeRouteGuard = router.afterEach(async () => {
-      void refreshSyncLockBanner();
       await nextTick();
       const mainEl = document.querySelector('[data-testid="app-main"]');
       if (mainEl) mainEl.scrollTop = 0;
@@ -709,15 +827,9 @@ export function useAppShell(onboardingCompleted = true) {
 
   function handleVisibilityChange() {
     if (document.hidden) {
-      // Flush cloud push before going to background
-      const engine = getSyncEngine();
-      if (engine) engine.flush().catch(() => {});
-      engine?.stopPullTimer();
+      kickRustDirty();
     } else {
-      // App returned to foreground — pull remote changes and restart pull timer
-      const engine = getSyncEngine();
-      if (engine) engine.notifyForeground().catch(() => {});
-      engine?.startPullTimer();
+      kickRustSync();
     }
   }
 
@@ -725,7 +837,6 @@ export function useAppShell(onboardingCompleted = true) {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    getSyncEngine()?.stopPullTimer();
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())
@@ -747,14 +858,14 @@ export function useAppShell(onboardingCompleted = true) {
               resolve();
             }
           },
-          { immediate: true }
+          { immediate: true },
         );
       });
     }
 
     const ext = path.split('.').pop().toLowerCase();
 
-    const SUPPORTED = ['bea', 'md', 'mdx', 'txt', 'html'];
+    const SUPPORTED = ['bea', 'md', 'mdx', 'markdown', 'txt', 'html'];
     if (!SUPPORTED.includes(ext)) {
       console.warn('Unsupported file format for import:', ext, path);
       return;
@@ -766,9 +877,8 @@ export function useAppShell(onboardingCompleted = true) {
       let title;
 
       if (ext === 'bea') {
-        // Read just the metadata from the BEA JSON
         const fileContent = await import('@/lib/native/exports').then((m) =>
-          m.readImportJson(path)
+          m.readImportJson(path),
         );
         title =
           fileContent?.data?.title ||
@@ -778,11 +888,10 @@ export function useAppShell(onboardingCompleted = true) {
             .replace(/\.bea$/i, '') ||
           'Untitled';
       } else {
-        // Read file once, reuse for title extraction and later import
+        // Read once; raw content is reused for title extraction and import.
         const { readFile } = await import('@/lib/native/fs');
-        const { extractImportTitle } = await import(
-          '@/utils/import/fileImport'
-        );
+        const { extractImportTitle } =
+          await import('@/utils/import/fileImport');
         const raw = await readFile(path);
         importFileContent.value = raw;
         title = await extractImportTitle(path, raw);
@@ -843,21 +952,18 @@ export function useAppShell(onboardingCompleted = true) {
     importFileType,
     showImportDialog,
     bottomBannerStyle,
-    dismissSyncBanner,
+    undoBannerWrapperStyle,
     getTopLevelRouteKey,
     handleUpdateDismiss,
     handleUpdateInstall: () => handleUpdateInstall(installUpdate),
     initializeWorkspace,
     mainStyle,
     mobileNavbarStyle,
-    openSyncSettings,
     retrieved,
     showMobileNavbar,
     showSidebar,
     state,
     store,
-    syncLockBanner,
-    syncLockBannerCopy,
     appEncryptionGate,
     refreshEncryptionGate,
     handleEncryptionUnlocked,

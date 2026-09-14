@@ -33,6 +33,10 @@ export function readLegacyData(dir) {
   return backend.invoke('migration:read-legacy-data', { dir });
 }
 
+export function readLegacyPreferences(dir) {
+  return backend.invoke('migration:read-legacy-preferences', { dir });
+}
+
 export function writeLegacyData(dir, content) {
   return backend.invoke('migration:write-legacy-data', { dir, content });
 }
@@ -55,6 +59,10 @@ export function setSpellcheck(enabled) {
 
 export function setMenuVisibility(visible) {
   return backend.invoke('app:change-menu-visibility', visible);
+}
+
+export function updateMenu(context) {
+  return backend.invoke('app:update-menu', { context });
 }
 
 export function setZoomLevel(level) {
@@ -89,13 +97,32 @@ export function relaunchApp() {
   return backend.invoke('helper:relaunch');
 }
 
-export async function showNotification(title, body) {
-  let permissionGranted = await isPermissionGranted();
-  if (!permissionGranted) {
-    const permission = await requestPermission();
-    permissionGranted = permission === 'granted';
-  }
-  if (permissionGranted) {
+let _notifyPermission = null; // 'granted' | 'denied' | null (unknown)
+
+export async function notify({ title, body }) {
+  try {
+    if (_notifyPermission !== 'granted') {
+      let granted = await isPermissionGranted();
+      if (!granted) {
+        const result = await requestPermission();
+        granted = result === 'granted';
+      }
+      _notifyPermission = granted ? 'granted' : 'denied';
+    }
+    if (_notifyPermission !== 'granted') return false;
     sendNotification({ title, body });
+    return true;
+  } catch (error) {
+    // Fail gracefully on any platform error (missing notification daemon on
+    // Linux, unregistered AUMID on Windows, denied permission, etc.).
+    console.warn('Notification failed:', error);
+    return false;
   }
+}
+
+/**
+ * @deprecated Use `notify({ title, body })` instead.
+ */
+export async function showNotification(title, body) {
+  return notify({ title, body });
 }

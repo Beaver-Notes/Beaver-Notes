@@ -8,6 +8,8 @@ interface Workspace {
   ownerId?: string | null;
   storageUsedBytes?: number;
   createdAt?: string | null;
+  emoji?: string | null;
+  color?: string | null;
 }
 
 interface WorkspaceState {
@@ -41,6 +43,8 @@ export const useWorkspaceStore = defineStore('workspace', {
           ownerId: w.ownerId,
           storageUsedBytes: w.storageUsedBytes,
           createdAt: w.createdAt,
+          emoji: w.emoji,
+          color: w.color,
         }));
         if (cloud.activeId.value) {
           this.activeId = cloud.activeId.value;
@@ -52,9 +56,9 @@ export const useWorkspaceStore = defineStore('workspace', {
       }
     },
 
-    async create(name: string, _options: { copySettings?: boolean } = {}) {
+    async create(name: string, options: { copySettings?: boolean; emoji?: string; color?: string } = {}) {
       const cloud = useCloudWorkspaces();
-      const ws = await cloud.createWorkspace(name);
+      const ws = await cloud.createWorkspace(name, { emoji: options.emoji, color: options.color });
       this.workspaces.push({
         id: ws.id,
         name: ws.name,
@@ -62,6 +66,8 @@ export const useWorkspaceStore = defineStore('workspace', {
         ownerId: ws.ownerId,
         storageUsedBytes: ws.storageUsedBytes,
         createdAt: ws.createdAt,
+        emoji: ws.emoji,
+        color: ws.color,
       });
       this.activeId = ws.id;
       return ws;
