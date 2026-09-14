@@ -371,6 +371,11 @@ img.ProseMirror-selectednode {
     pointer-events: auto;
     transform: translateY(-50%) scale(1);
   }
+  @media (pointer: coarse) {
+    .bn-image-resize-handle {
+      width: 1.1rem;
+    }
+  }
   .bn-video-card {
     container-type: inline-size;
   }
@@ -995,6 +1000,8 @@ th.is-active {
 }
 .editor[data-reader-theme] .title-placeholder {
   padding-inline: 1.5rem !important;
+  font-size: calc(var(--reader-size, 18px) * 1.6);
+  line-height: 1.25;
 }
 .editor[data-reader-theme='light'] .title-placeholder {
   color: #1a1a1a !important;
@@ -1010,6 +1017,9 @@ th.is-active {
 }
 .editor[data-reader-theme][data-reader-family='sans'] .title-placeholder {
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.editor[data-reader-theme][data-reader-family='default'] .title-placeholder {
+  font-family: inherit;
 }
 .editor[data-reader-theme='light'] {
   background: #fff;

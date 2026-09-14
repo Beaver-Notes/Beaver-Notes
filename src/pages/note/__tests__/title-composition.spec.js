@@ -8,7 +8,6 @@ vi.mock('@/lib/native/yjs.js', () => ({
   getSnapshot: vi.fn().mockResolvedValue(null),
   appendUpdate: vi.fn().mockResolvedValue(),
   compactUpdates: vi.fn().mockResolvedValue(),
-  getCommitsDir: vi.fn(),
 }));
 vi.mock('@/lib/yjs/helpers.js', () => ({
   getDeviceId: () => 'd1',

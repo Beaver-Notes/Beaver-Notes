@@ -47,15 +47,30 @@
           </span>
         </div>
       </div>
+      <!-- Pending-extraction retry chip (offline URL shares) -->
+      <button
+        v-if="needsExtraction"
+        data-testid="retry-extraction-chip"
+        class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-60"
+        :disabled="retrying"
+        @click.stop="retryExtraction"
+      >
+        <v-remixicon name="riRefreshLine" size="14" class="flex-shrink-0" />
+        <span>{{
+          retrying
+            ? translations.card?.retrying || 'Retrying…'
+            : translations.card?.needsExtraction ||
+              'Needs extraction — tap to retry'
+        }}</span>
+      </button>
       <div
         v-if="!note.isLocked"
         data-preview-shell
-        class="relative h-[140px] overflow-hidden mt-1.5 eio-fade-y-4"
+        class="relative h-[140px] overflow-hidden mt-1.5 eio-fade-b-4"
       >
         <NotePreviewBlocks
           v-if="preview.blocks.length"
           :blocks="preview.blocks"
-          :meta="preview.hasMore || preview.mediaCount > 1 ? previewMeta : ''"
         />
         <div v-else class="note-card-preview-empty">
           {{ translations.card.content || 'Start writing...' }}
@@ -72,9 +87,22 @@
         @keydown.enter.stop="unlockNote(note.id)"
         @keydown.space.prevent.stop="unlockNote(note.id)"
       >
-        <v-remixicon name="riLockLine" size="32" class="text-neutral-400 dark:text-neutral-500" />
-        <span class="text-xs font-medium text-neutral-600 dark:text-neutral-300">{{ translations.card.isLocked || 'Locked note' }}</span>
-        <span class="text-xs text-neutral-400 dark:text-neutral-500 text-center leading-tight">{{ translations.card.unlockToEdit || 'Tap to unlock: Face ID / vault password' }}</span>
+        <v-remixicon
+          name="riLockLine"
+          size="32"
+          class="text-neutral-400 dark:text-neutral-500"
+        />
+        <span
+          class="text-xs font-medium text-neutral-600 dark:text-neutral-300"
+          >{{ translations.card.isLocked || 'Locked note' }}</span
+        >
+        <span
+          class="text-xs text-neutral-400 dark:text-neutral-500 text-center leading-tight"
+          >{{
+            translations.card.unlockToEdit ||
+            'Tap to unlock: Face ID / vault password'
+          }}</span
+        >
       </div>
     </div>
 
@@ -89,7 +117,11 @@
             ? translations.card.removeBookmark
             : translations.card.bookmark
         "
-        :aria-label="note.isBookmarked ? (translations.card.removeBookmark || 'Remove bookmark') : (translations.card.bookmark || 'Bookmark')"
+        :aria-label="
+          note.isBookmarked
+            ? translations.card.removeBookmark || 'Remove bookmark'
+            : translations.card.bookmark || 'Bookmark'
+        "
         class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
         :class="[note.isBookmarked ? 'text-primary' : 'hover:text-neutral-900']"
         @click.stop="toggleBookmark(note)"
@@ -107,7 +139,11 @@
               ? translations.card.unarchive
               : translations.card.archive
           "
-          :aria-label="note.isArchived ? (translations.card.unarchive || 'Unarchive') : (translations.card.archive || 'Archive')"
+          :aria-label="
+            note.isArchived
+              ? translations.card.unarchive || 'Unarchive'
+              : translations.card.archive || 'Archive'
+          "
           class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible group-focus-within:visible focus-visible:visible"
           @click.stop="toggleArchive(note)"
         >
@@ -169,7 +205,6 @@
         }}
       </p>
     </div>
-
   </ui-card>
 </template>
 
@@ -177,7 +212,10 @@
 import dayjs from '@/lib/dayjs';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';
-import { isBiometricAvailable, authenticateWithBiometrics } from '@/lib/native/biometric.js';
+import {
+  isBiometricAvailable,
+  authenticateWithBiometrics,
+} from '@/lib/native/biometric.js';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { getSettingSync } from '@/lib/settings';
@@ -187,6 +225,8 @@ import { useDialog } from '@/lib/dialog';
 import { useLabelStore } from '@/store/label';
 import NotePreviewBlocks from '@/components/note/NotePreviewBlocks.vue';
 import { useSounds } from '@/composable/useSounds';
+import { hasPendingExtraction } from '@/lib/share/retryExtraction';
+import { EMPTY_CARD_PREVIEW } from '@/utils/note/cardPreview.js';
 
 const props = defineProps({
   note: {
@@ -212,25 +252,7 @@ const preview = computed(() => {
   const cp = props.note?.cardPreview;
   return cp && (cp.blocks?.length || cp.hasMore || cp.mediaCount)
     ? cp
-    : {
-        blocks: [],
-        hasMore: false,
-        mediaCount: 0,
-        visibleMediaCount: 0,
-      };
-});
-
-const previewMeta = computed(() => {
-  const extraVisuals = Math.max(
-    0,
-    (preview.value.mediaCount || 0) - (preview.value.visibleMediaCount || 0)
-  );
-
-  if (extraVisuals > 0) {
-    return `+${extraVisuals} more visuals`;
-  }
-
-  return 'More';
+    : EMPTY_CARD_PREVIEW;
 });
 
 const labelColorMap = computed(() => {
@@ -240,6 +262,19 @@ const labelColorMap = computed(() => {
   }
   return map;
 });
+
+const needsExtraction = computed(() => hasPendingExtraction(props.note));
+const retrying = ref(false);
+
+async function retryExtraction() {
+  if (retrying.value || !needsExtraction.value) return;
+  retrying.value = true;
+  try {
+    await useNoteStore().retryNoteExtraction(props.note.id);
+  } finally {
+    retrying.value = false;
+  }
+}
 
 function labelColor(name) {
   return labelColorMap.value[name] ?? null;
@@ -274,7 +309,11 @@ async function lockNote(note) {
 let biometricAvailableCache = null;
 async function getBiometricAvailable() {
   if (biometricAvailableCache !== null) return biometricAvailableCache;
-  try { biometricAvailableCache = await isBiometricAvailable(); } catch { biometricAvailableCache = false; }
+  try {
+    biometricAvailableCache = await isBiometricAvailable();
+  } catch {
+    biometricAvailableCache = false;
+  }
   return biometricAvailableCache;
 }
 
@@ -320,6 +359,8 @@ function formatDate(date) {
 function openNote(event, noteId) {
   if (props.disableOpen) return;
   if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+  // Don't navigate when the click ends a text-selection drag on the card.
+  if (window.getSelection()?.toString()) return;
   router.push(`/note/${noteId}`);
 }
 
@@ -342,7 +383,8 @@ function toggleArchive(note) {
   contain-intrinsic-size: 320px;
   min-width: 0;
   transform: translate3d(0, 0, 0) scale(1);
-  transition: transform var(--motion-fast) var(--ease-standard),
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
     background-color var(--motion-fast) var(--ease-standard),
     border-color var(--motion-fast) var(--ease-standard);
@@ -385,7 +427,8 @@ function toggleArchive(note) {
 }
 
 .note-card__action {
-  transition: background-color var(--motion-fast) var(--ease-standard),
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
     transform var(--motion-fast) var(--ease-standard);
   transform: translate3d(0, 0, 0);
@@ -573,6 +616,13 @@ function toggleArchive(note) {
   --preview-media-surface-alt: theme('colors.indigo.400 / 0.05');
 }
 
+/* Rendered diagram/math art needs no pill chrome — drop the container entirely */
+.note-card-preview-block.is-media.has-art {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
 .note-card-preview-block.is-media.tone-math {
   --preview-media-accent: theme('colors.orange.700');
   --preview-media-surface: theme('colors.orange.500 / 0.12');
@@ -588,9 +638,12 @@ function toggleArchive(note) {
 .note-card-preview-block.is-media.tone-file,
 .note-card-preview-block.is-media.tone-audio,
 .note-card-preview-block.is-media.tone-video {
-  --preview-media-accent: theme('colors.cyan.600');
-  --preview-media-surface: theme('colors.cyan.400 / 0.12');
-  --preview-media-surface-alt: theme('colors.cyan.400 / 0.05');
+  --preview-media-accent: theme('colors.neutral.500');
+  --preview-media-surface: theme('colors.neutral.500 / 0.07');
+  --preview-media-surface-alt: transparent;
+  align-items: center;
+  background: var(--preview-media-surface);
+  padding: 0.5rem 0.65rem;
 }
 
 .note-card-preview-media-label {
@@ -669,7 +722,43 @@ function toggleArchive(note) {
 .dark .note-card-preview-block.is-media.tone-file,
 .dark .note-card-preview-block.is-media.tone-audio,
 .dark .note-card-preview-block.is-media.tone-video {
-  --preview-media-accent: theme('colors.cyan.300');
+  --preview-media-accent: theme('colors.neutral.400');
+}
+
+.note-card-preview-file-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--preview-media-accent);
+}
+
+.note-card-preview-file-name {
+  display: block;
+  overflow: hidden;
+  color: theme('colors.zinc.800');
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-card-preview-file-kind {
+  display: block;
+  color: theme('colors.zinc.500');
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.dark .note-card-preview-file-name {
+  color: theme('colors.zinc.100');
+}
+
+.dark .note-card-preview-file-kind {
+  color: theme('colors.zinc.400');
 }
 
 .note-card-preview-image {
@@ -690,6 +779,11 @@ function toggleArchive(note) {
 .note-card-preview-table-wrap {
   overflow: hidden;
   border-radius: 0.75rem;
+  border: 1px solid theme('colors.neutral.200');
+}
+
+.dark .note-card-preview-table-wrap {
+  border-color: theme('colors.neutral.700');
 }
 
 .note-card-preview-table {
@@ -711,7 +805,10 @@ function toggleArchive(note) {
 
 .note-card-preview-table-cell {
   overflow: hidden;
-  border: 1px solid theme('colors.neutral.200');
+  /* Right + bottom dividers only — the wrap draws the continuous outer border */
+  border-style: solid;
+  border-width: 0 1px 1px 0;
+  border-color: theme('colors.neutral.200');
   background: transparent;
   padding: 0.42rem 0.48rem;
   color: theme('colors.neutral.700');
@@ -728,6 +825,16 @@ function toggleArchive(note) {
   font-weight: 600;
 }
 
+/* Dividers stop where they meet the wrap's outer border — no doubled edges */
+.note-card-preview-table-row:last-child .note-card-preview-table-cell {
+  border-bottom-width: 0;
+}
+
+.note-card-preview-table-cell:last-child,
+.note-card-preview-table-cell:last-of-type {
+  border-right-width: 0;
+}
+
 .dark .note-card-preview-table-cell {
   border-color: theme('colors.neutral.700');
   color: theme('colors.zinc.200');
@@ -735,6 +842,28 @@ function toggleArchive(note) {
 
 .dark .note-card-preview-table-cell:is(th) {
   background: rgb(82 82 82 / 0.3);
+}
+
+.note-card-preview-diagram {
+  max-height: 140px;
+  overflow: hidden;
+}
+
+.note-card-preview-diagram .mermaid-viewer {
+  overflow: hidden;
+}
+
+.note-card-preview-diagram .mermaid-svg svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 140px;
+}
+
+.note-card-preview-math {
+  max-height: 140px;
+  overflow: hidden;
+  font-size: 0.8rem;
 }
 
 .note-card-preview-check {

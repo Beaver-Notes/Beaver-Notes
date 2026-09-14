@@ -96,7 +96,7 @@
 
 <script>
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { formatMediaTime } from '@/utils/mediaTime.js';
 
 export default {
@@ -119,6 +119,15 @@ export default {
       audioPlayer.value.playbackRate = playbackRate.value;
       audioSrc.value = props.node.attrs.src;
     });
+
+    // Background-saved assets swap src after insert; follow the attr so the
+    // player picks up the final assets:// URL without a remount.
+    watch(
+      () => props.node.attrs.src,
+      (src) => {
+        audioSrc.value = src;
+      },
+    );
 
     const readDuration = () => {
       const el = audioPlayer.value;

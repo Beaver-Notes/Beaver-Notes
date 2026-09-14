@@ -218,8 +218,8 @@ function setTheme(name, isSystem = false) {
 }
 
 function loadTheme() {
-  const savedTheme = getSettingSync('theme');
-  setTheme(savedTheme, savedTheme === 'system');
+  const themeName = getSettingSync('theme') || 'system';
+  setTheme(themeName, themeName === 'system');
 }
 
 export function useTheme() {

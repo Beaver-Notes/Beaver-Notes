@@ -224,9 +224,11 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useReaderPrefs } from '@/composable/useReaderPrefs';
+import { usePillDock } from '@/composable/usePillDock';
 
 const emit = defineEmits(['exit', 'change', 'update:prefs']);
 const { prefs, setTheme, setSize, setLine, setFamily } = useReaderPrefs();
+const { expandedPill } = usePillDock();
 
 const visible = ref(true);
 const showAa = ref(false);
@@ -317,6 +319,10 @@ function onDocumentClick(e) {
 }
 
 onMounted(() => {
+  // Claim the pill dock so recording/word-count collapse to their bare
+  // toggles while reading. Only take an unclaimed dock, and only release
+  // what we claimed, so an explicit mid-read toggle is never clobbered.
+  if (expandedPill.value === null) expandedPill.value = 'reader';
   startTimer();
   window.addEventListener('mousemove', reset);
   window.addEventListener('scroll', reset);
@@ -325,6 +331,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (expandedPill.value === 'reader') expandedPill.value = null;
   clearTimer();
   window.removeEventListener('mousemove', reset);
   window.removeEventListener('scroll', reset);

@@ -430,7 +430,8 @@ import { useTheme } from '@/composable/theme';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import emitter from 'tiny-emitter/instance';
-import { forceSyncNow } from '@/utils/sync';
+import { kickRustSync, startRustSync } from '@/utils/sync/rust-shim.js';
+import { logger } from '@/utils/logger';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
@@ -673,13 +674,26 @@ export default {
       }
     });
 
-    function manualSync() {
-      if (spinning.value) return;
+    async function manualSync() {
+      if (spinning.value || syncProgressStore.isSyncing) return;
+      let accepted = kickRustSync();
+      if (!accepted) {
+        // Scheduler isn't running (stopped or failed to start): bring it up.
+        try {
+          await startRustSync();
+          accepted = kickRustSync();
+        } catch (err) {
+          logger.warn('[sidebar] sync unavailable:', err?.message);
+        }
+      }
+      if (!accepted) {
+        logger.warn('[sidebar] sync kick was not accepted');
+        return;
+      }
       spinning.value = true;
-      forceSyncNow().catch(() => {});
+      play('sync');
       setTimeout(() => {
         spinning.value = false;
-        play('sync');
       }, 1000);
     }
 
@@ -717,6 +731,7 @@ export default {
       spinning,
       syncProgressStore,
       syncStateText,
+      syncAttentionIcon,
       donutDash,
       addNote,
       addFolder,

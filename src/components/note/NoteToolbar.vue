@@ -41,6 +41,27 @@
 
             <span class="tb-divider" />
 
+            <button
+              v-keep-focus
+              v-tooltip.group="translations.noteActions?.undo || 'Undo'"
+              :aria-label="translations.noteActions?.undo || 'Undo'"
+              :class="tbBtn()"
+              @click="editor.chain().focus().undo().run()"
+            >
+              <v-remixicon name="riArrowGoBackLine" />
+            </button>
+            <button
+              v-keep-focus
+              v-tooltip.group="translations.noteActions?.redo || 'Redo'"
+              :aria-label="translations.noteActions?.redo || 'Redo'"
+              :class="tbBtn()"
+              @click="editor.chain().focus().redo().run()"
+            >
+              <v-remixicon name="riArrowGoForwardLine" />
+            </button>
+
+            <span class="tb-divider" />
+
             <toolbar-overflow
               section="text"
               :editor="editor"
@@ -753,7 +774,8 @@ import { backend } from '@/lib/tauri-bridge';
 import { useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import copyImage from '@/utils/assets/storage.js';
-import { saveFile } from '@/utils/assets/storage.js';
+import { assetFileName } from '@/utils/assets/storage.js';
+import { insertFileBlockOptimistic } from '@/lib/tiptap/exts/create-file-block.js';
 
 export default {
   components: {
@@ -903,9 +925,16 @@ export default {
           properties: ['openFile', 'multiSelections'],
         });
         if (canceled || filePaths.length === 0) return;
+        const view = props.editor.view;
         for (const filePath of filePaths) {
-          const { fileName, relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'fileEmbed', { src: relativePath, fileName });
+          const fileName = assetFileName(filePath);
+          insertFileBlockOptimistic(view, {
+            typeName: 'fileEmbed',
+            insert: (tempSrc) => insertAtPos(pos, 'fileEmbed', { src: tempSrc, fileName }),
+            file: filePath,
+            noteId: props.id,
+            fileName,
+          });
         }
       } catch (error) {
         console.error('triggerFileInput failed:', error);
@@ -935,9 +964,16 @@ export default {
               ],
         });
         if (canceled || filePaths.length === 0) return;
+        const view = props.editor.view;
         for (const filePath of filePaths) {
-          const { fileName, relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'Audio', { src: relativePath, fileName });
+          const fileName = assetFileName(filePath);
+          insertFileBlockOptimistic(view, {
+            typeName: 'Audio',
+            insert: (tempSrc) => insertAtPos(pos, 'Audio', { src: tempSrc, fileName }),
+            file: filePath,
+            noteId: props.id,
+            fileName,
+          });
         }
       } catch (error) {
         console.error('triggerAudioInput failed:', error);
@@ -959,9 +995,16 @@ export default {
               ],
         });
         if (canceled || filePaths.length === 0) return;
+        const view = props.editor.view;
         for (const filePath of filePaths) {
-          const { relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'Video', { src: relativePath });
+          const fileName = assetFileName(filePath);
+          insertFileBlockOptimistic(view, {
+            typeName: 'Video',
+            insert: (tempSrc) => insertAtPos(pos, 'Video', { src: tempSrc, fileName }),
+            file: filePath,
+            noteId: props.id,
+            fileName,
+          });
         }
       } catch (error) {
         console.error('triggerVideoInput failed:', error);

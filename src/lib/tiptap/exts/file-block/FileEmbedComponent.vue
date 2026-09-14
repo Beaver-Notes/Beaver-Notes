@@ -65,7 +65,7 @@
 
 <script>
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { backend } from '@/lib/tauri-bridge';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { openFileExternal, getAppDirectory } from '@/lib/native/app';
@@ -218,6 +218,18 @@ export default {
     onUnmounted(() => {
       if (typeof unlistenFileUpdated === 'function') unlistenFileUpdated();
     });
+
+    // Background-saved assets swap src after insert; re-resolve existence,
+    // size and icon once the final assets:// URL lands.
+    watch(
+      () => props.node.attrs.src,
+      (src) => {
+        if (src && src.startsWith('assets://')) {
+          checkFileExists();
+          loadFileMeta();
+        }
+      },
+    );
 
     async function downloadFile(event) {
       if (missing.value) return;

@@ -1,59 +1,90 @@
 <template>
   <NodeViewWrapper>
     <div
-      class="bg-neutral-100 dark:bg-neutral-800 rounded-lg flex flex-col w-full"
+      ref="cardEl"
+      class="bn-video-card inline-flex flex-col w-full text-left align-top bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl"
+      :title="fileName"
+      :style="cardWidth"
     >
       <!-- Video Container -->
       <div class="relative w-full">
+        <iframe
+          v-if="youtubeEmbedSrc"
+          :src="youtubeEmbedSrc"
+          class="block w-full aspect-video rounded-t-xl m-0 bg-black"
+          allowfullscreen
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+        ></iframe>
         <video
-          id="videoPlayer"
+          v-else
           ref="videoPlayer"
           :src="videoSrc"
-          controls
-          class="w-full rounded-t-lg m-0"
+          playsinline
+          preload="metadata"
+          class="block w-full rounded-t-xl m-0 bg-black"
+          @click="togglePlay"
           @timeupdate="updateProgress"
           @loadedmetadata="initialize"
           @ended="videoEnded"
           @error="videoError"
         ></video>
+        <button
+          type="button"
+          class="bn-image-resize-handle bn-image-resize-handle--left"
+          aria-label="Resize video from the left"
+          @pointerdown="startResize($event, 'left')"
+        ></button>
+        <button
+          type="button"
+          class="bn-image-resize-handle bn-image-resize-handle--right"
+          aria-label="Resize video from the right"
+          @pointerdown="startResize($event, 'right')"
+        ></button>
       </div>
 
       <!-- Controls Row -->
-      <div class="flex items-center py-3 px-1 w-full space-x-2">
-        <div class="border-r-2 rtl:border-none">
-          <!-- Skip Backward Button -->
-          <button
-            class="text-neutral-700 dark:text-[color:var(--selected-dark-text)] py-1 px-3 rounded-full"
-            @click="skipBackward"
-          >
-            <v-remixicon name="riBack5" />
-          </button>
-
-          <!-- Play/Pause Button -->
-          <button
-            class="bg-primary text-white p-2 ml-2 rounded-full"
-            @click="togglePlay"
-          >
-            <v-remixicon :name="isPlaying ? 'riPauseFill' : 'riPlayFill'" />
-          </button>
-
-          <!-- Skip Forward Button -->
-          <button
-            class="text-neutral-700 dark:text-[color:var(--selected-dark-text)] py-1 px-3 ml-2 rounded-full"
-            @click="skipForward"
-          >
-            <v-remixicon name="riFoward5" />
-          </button>
-        </div>
-
-        <!-- Time Display -->
-        <span class="text-neutral-700 dark:text-neutral-300 mx-2">
-          {{ formattedCurrentTime }}
-        </span>
-
-        <!-- Progress Bar -->
+      <div v-if="!youtubeEmbedSrc" class="flex items-center gap-1 px-3 py-1.5 min-w-0">
+        <button
+          type="button"
+          class="flex items-center justify-center shrink-0 rounded-full size-7 text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10 transition-colors touch-manipulation"
+          aria-label="Back 5 seconds"
+          @click="skipBackward"
+        >
+          <v-remixicon name="riBack5" class="size-4" />
+        </button>
+        <button
+          type="button"
+          class="flex items-center justify-center shrink-0 rounded-full size-8 active:scale-95 transition touch-manipulation"
+          :class="
+            isPlaying
+              ? 'text-primary hover:bg-black/5 dark:hover:bg-white/10'
+              : 'text-neutral-700 hover:bg-black/5 dark:text-neutral-200 dark:hover:bg-white/10'
+          "
+          :aria-label="isPlaying ? 'Pause' : 'Play'"
+          @click="togglePlay"
+        >
+          <v-remixicon
+            :name="isPlaying ? 'riPauseFill' : 'riPlayFill'"
+            class="size-4"
+          />
+        </button>
+        <button
+          type="button"
+          class="flex items-center justify-center shrink-0 rounded-full size-7 text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10 transition-colors touch-manipulation"
+          aria-label="Forward 5 seconds"
+          @click="skipForward"
+        >
+          <v-remixicon name="riFoward5" class="size-4" />
+        </button>
+        <p
+          class="video-time shrink-0 tabular-nums text-xs text-neutral-500 dark:text-neutral-400"
+        >
+          {{ formattedCurrentTime }}/{{ formattedDuration }}
+        </p>
         <div
-          class="flex-grow mx-2 h-1.5 bg-neutral-200 rounded-full overflow-hidden dark:bg-neutral-700 relative"
+          class="group h-3 flex flex-1 items-center cursor-pointer touch-manipulation min-w-12"
           role="progressbar"
           :aria-valuenow="currentTime"
           aria-valuemin="0"
@@ -61,46 +92,53 @@
           @click="seek"
         >
           <div
-            class="bg-primary h-full rounded-full"
-            :style="{ width: progressBarWidth }"
-          ></div>
-          <div
-            class="absolute top-0 left-0 h-full w-4 bg-secondary rounded-full transform -translate-x-1/2"
-            :style="{ left: progressBarWidth }"
-            @mousedown="startDrag"
-          ></div>
+            class="relative h-1 w-full rounded-full bg-neutral-200 dark:bg-neutral-700"
+          >
+            <div
+              class="absolute inset-y-0 left-0 rounded-full bg-primary"
+              :style="{ width: progressBarWidth }"
+            ></div>
+            <div
+              class="absolute top-1/2 size-3 rounded-full bg-primary cursor-grab active:cursor-grabbing -translate-x-1/2 -translate-y-1/2 transition-transform group-hover:scale-125"
+              :style="{ left: progressBarWidth }"
+              @pointerdown="startDrag"
+            ></div>
+          </div>
         </div>
-
-        <span class="text-neutral-700 dark:text-neutral-300 mx-2">
-          {{ formattedDuration }}
-        </span>
-
-        <!-- Mute Button -->
         <button
-          class="text-neutral-700 dark:text-[color:var(--selected-dark-text)] p-2"
+          type="button"
+          class="flex items-center justify-center shrink-0 rounded-full size-8 text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10 transition-colors touch-manipulation"
+          :aria-label="isMuted ? 'Unmute' : 'Mute'"
           @click="toggleMute"
         >
           <v-remixicon
             :name="isMuted ? 'riVolumeMuteFill' : 'riVolumeDownFill'"
+            class="size-4"
           />
         </button>
-
-        <!-- Playback Speed -->
-        <div class="flex items-center ml-4 relative">
+        <div class="relative shrink-0">
           <button
-            class="text-black py-1 px-3 rounded dark:text-[color:var(--selected-dark-text)]"
+            type="button"
+            class="flex items-center justify-center rounded-full text-neutral-500 hover:bg-black/5 size-8 tabular-nums text-xs font-semibold dark:text-neutral-400 dark:hover:bg-white/10 transition-colors touch-manipulation"
+            :aria-label="`Playback speed ${playbackRate}x`"
             @click="toggleSpeedOptions"
           >
-            <v-remixicon name="riSpeedDial" />
+            {{ playbackRate }}x
           </button>
           <div
             v-show="showSpeedOptions"
-            class="absolute bg-white border border-gray-300 rounded mt-2 py-1 shadow-lg dark:bg-neutral-700 dark:border-gray-500"
+            class="absolute top-full mt-1 right-0 bg-white border border-neutral-200 rounded-lg py-1 shadow-lg dark:bg-neutral-700 dark:border-neutral-600 z-10"
           >
             <button
               v-for="speed in playbackRates"
               :key="speed"
-              class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-200 dark:text-[color:var(--selected-dark-text)] dark:hover:bg-neutral-600"
+              type="button"
+              class="block w-full text-left px-4 py-1.5 text-sm tabular-nums transition-colors"
+              :class="
+                speed === playbackRate
+                  ? 'font-semibold text-neutral-900 dark:text-neutral-100'
+                  : 'text-neutral-600 hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/10'
+              "
               @click="setPlaybackRate(speed)"
             >
               {{ speed }}x
@@ -114,8 +152,9 @@
 
 <script>
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { formatMediaTime } from '@/utils/mediaTime.js';
+import { youtubeEmbedId } from '@/lib/share/extractContent';
 
 export default {
   components: {
@@ -125,7 +164,12 @@ export default {
   setup(props) {
     const fileName = ref(props.node.attrs.fileName || '');
     const videoSrc = ref('');
+    const youtubeEmbedSrc = computed(() => {
+      const id = youtubeEmbedId(videoSrc.value || props.node.attrs.src || '');
+      return id ? `https://www.youtube-nocookie.com/embed/${id}` : '';
+    });
     const videoPlayer = ref(null);
+    const cardEl = ref(null);
     const isPlaying = ref(false);
     const currentTime = ref(0);
     const duration = ref(0);
@@ -134,25 +178,79 @@ export default {
     const showSpeedOptions = ref(false);
     const playbackRates = [0.5, 1, 1.5, 2];
 
-    const loadVideoFromFile = async () => {
-      try {
-        const filePath = props.node.attrs.src;
-        videoSrc.value = filePath;
-        preloadVideo();
-      } catch (error) {
-        console.error('Failed to read video file:', error);
-      }
+    const cardWidth = computed(() => {
+      const w = Number(props.node.attrs.width);
+      return Number.isFinite(w) && w > 0
+        ? { width: `${w}px`, maxWidth: '100%' }
+        : {};
+    });
+
+    const videoLayout = computed(() => {
+      const layout = props.node.attrs.layout;
+      return layout === 'wrap-left' || layout === 'wrap-right'
+        ? layout
+        : 'block';
+    });
+
+    const syncVideoLayout = () => {
+      // cardEl's parent is the NodeViewWrapper root — mirror the image
+      // layout convention so the same editor.css float rules apply.
+      const wrapper = cardEl.value?.parentElement;
+      if (!wrapper) return;
+      wrapper.classList.add('bn-video-node');
+      wrapper.dataset.layout = videoLayout.value;
+      // Mirror the vanilla image view's selectNode(): tiptap only exposes
+      // selection as a prop, so sync the class the resize handles gate on.
+      wrapper.classList.toggle('is-selected', !!props.selected);
     };
 
     onMounted(() => {
-      videoPlayer.value.volume = 1;
-      videoPlayer.value.playbackRate = playbackRate.value;
-      loadVideoFromFile();
+      if (videoPlayer.value) {
+        videoPlayer.value.volume = 1;
+        videoPlayer.value.playbackRate = playbackRate.value;
+      }
+      videoSrc.value = props.node.attrs.src;
+      syncVideoLayout();
     });
+
+    watch(
+      [() => props.node.attrs.layout, () => props.selected],
+      syncVideoLayout,
+    );
+
+    // Background-saved assets swap src after insert; follow the attr so the
+    // player picks up the final assets:// URL without a remount.
+    watch(
+      () => props.node.attrs.src,
+      (src) => {
+        videoSrc.value = src;
+      },
+    );
+
+    const readDuration = () => {
+      const el = videoPlayer.value;
+      if (!el) return;
+      const d = el.duration;
+      // Some engines report Infinity until the media fully loads; only trust
+      // finite, positive durations so the label never shows garbage.
+      if (Number.isFinite(d) && d > 0) {
+        duration.value = d;
+      }
+    };
+
+    const initialize = () => {
+      readDuration();
+      const el = videoPlayer.value;
+      if (el) currentTime.value = el.currentTime || 0;
+    };
 
     const togglePlay = () => {
       if (!videoPlayer.value) return;
-      if (isPlaying.value) { videoPlayer.value.pause(); } else { videoPlayer.value.play(); }
+      if (isPlaying.value) {
+        videoPlayer.value.pause();
+      } else {
+        videoPlayer.value.play();
+      }
       isPlaying.value = !isPlaying.value;
     };
 
@@ -177,7 +275,9 @@ export default {
     };
 
     const startDrag = (event) => {
-      const progressBar = event.target.closest('[role="progressbar"]');
+      if (event.cancelable) event.preventDefault();
+      const progressBar = event.currentTarget.closest('[role="progressbar"]');
+      if (!progressBar) return;
       const onMove = (moveEvent) => {
         const rect = progressBar.getBoundingClientRect();
         const offsetX = moveEvent.clientX - rect.left;
@@ -188,28 +288,53 @@ export default {
         }
       };
       const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
       };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
     };
 
-    const preloadVideo = () => {
-      const tempVideo = document.createElement('video');
-      tempVideo.src = videoSrc.value;
-      tempVideo.addEventListener('loadedmetadata', () => {
-        if (!isNaN(tempVideo.duration) && tempVideo.duration > 0) {
-          duration.value = tempVideo.duration;
-        }
-      });
-      tempVideo.addEventListener('error', (event) => {
-        console.error('Error loading video metadata:', event);
-      });
+    const startResize = (event, side) => {
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      const el = cardEl.value;
+      if (!el) return;
+      const startX = event.clientX;
+      const startWidth = Number(props.node.attrs.width) || el.offsetWidth;
+      const parentWidth = el.parentElement ? el.parentElement.offsetWidth : 0;
+      const maxWidth = parentWidth > 0 ? parentWidth : startWidth;
+      el.parentElement?.classList.add('is-resizing');
+      const onMove = (moveEvent) => {
+        const delta =
+          side === 'right'
+            ? moveEvent.clientX - startX
+            : startX - moveEvent.clientX;
+        // 280px floor: the control row needs ~250px even with time hidden.
+        const newWidth = Math.min(
+          Math.max(Math.round(startWidth + delta), 280),
+          Math.max(maxWidth, 280),
+        );
+        props.updateAttributes({ width: newWidth });
+      };
+      const onUp = () => {
+        el.parentElement?.classList.remove('is-resizing');
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+      };
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     };
 
     const videoEnded = () => {
       isPlaying.value = false;
+    };
+
+    const videoError = (event) => {
+      const src = videoSrc.value || 'unknown';
+      console.error('Video playback error:', src, event);
     };
 
     const toggleMute = () => {
@@ -222,7 +347,7 @@ export default {
       if (!videoPlayer.value) return;
       const newTime = Math.min(
         videoPlayer.value.currentTime + 5,
-        duration.value
+        duration.value,
       );
       videoPlayer.value.currentTime = newTime;
       currentTime.value = newTime;
@@ -253,15 +378,20 @@ export default {
         : '0%';
     });
 
-    const formattedCurrentTime = computed(() => formatMediaTime(currentTime.value));
+    const formattedCurrentTime = computed(() =>
+      formatMediaTime(currentTime.value),
+    );
     const formattedDuration = computed(() => formatMediaTime(duration.value));
 
     return {
       fileName,
       videoSrc,
+      youtubeEmbedSrc,
       duration,
       progressBarWidth,
       videoPlayer,
+      cardEl,
+      cardWidth,
       isPlaying,
       currentTime,
       isMuted,
@@ -269,10 +399,13 @@ export default {
       updateProgress,
       seek,
       startDrag,
+      startResize,
       toggleMute,
       skipForward,
       skipBackward,
       videoEnded,
+      initialize,
+      videoError,
       formattedCurrentTime,
       formattedDuration,
       playbackRate,
@@ -284,37 +417,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-video::-webkit-media-controls {
-  display: none;
-}
-
-video::-webkit-media-controls-play-button {
-  display: none;
-}
-
-video::-webkit-media-controls-volume-slider {
-  display: none;
-}
-
-video::-webkit-media-controls-mute-button {
-  display: none;
-}
-
-video::-webkit-media-controls-timeline {
-  display: none;
-}
-
-video::-webkit-media-controls-current-time-display {
-  display: none;
-}
-
-.relative {
-  position: relative;
-}
-
-.absolute {
-  position: absolute;
-}
-</style>

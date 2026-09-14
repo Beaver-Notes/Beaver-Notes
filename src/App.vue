@@ -7,29 +7,12 @@
   <div
     id="pill-dock"
     class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2"
-    :class="uiState.inReaderMode ? 'mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+1rem)]' : 'mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+4.25rem)]'"
+    :class="
+      uiState.inReaderMode
+        ? 'mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+1rem)]'
+        : 'mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+4.25rem)]'
+    "
   ></div>
-  <div
-    v-if="showVerificationBanner"
-    class="fixed top-3 inset-x-0 z-40 flex justify-center px-4 pointer-events-none"
-    role="status"
-  >
-    <ui-pill :fixed="false" class="pointer-events-auto max-w-[calc(100vw-2rem)]">
-      <div class="flex items-center gap-1.5 py-1 pl-1.5 pr-1">
-        <v-remixicon name="riMailLine" class="text-lg text-amber-500 shrink-0" />
-        <p class="min-w-0 text-xs font-medium text-neutral-700 dark:text-neutral-200">
-          Please verify your email. Check your inbox for a verification link.
-        </p>
-        <button
-          class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          :disabled="verificationSending || verificationCooldown > 0"
-          @click="handleRequestVerification"
-        >
-          {{ verificationCooldown > 0 ? `Resend (${verificationCooldown}s)` : verificationSending ? 'Sending…' : 'Resend email' }}
-        </button>
-      </div>
-    </ui-pill>
-  </div>
   <recording-pill />
   <app-encryption-gate
     v-if="appEncryptionGate.show"
@@ -133,6 +116,8 @@
     @cancel="handleImportCancel"
   />
 
+  <share-preview-modal />
+
   <div
     id="a11y-live-region"
     aria-live="polite"
@@ -145,6 +130,10 @@
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
+import SharePreviewModal from '@/components/share/SharePreviewModal.vue';
+import { useIncomingShare } from '@/composable/useIncomingShare';
+import { useShareExtensionSync } from '@/composable/useShareExtensionSync';
+import { retryPendingExtractions } from '@/lib/share/retryExtraction';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
@@ -168,8 +157,11 @@ export default {
     ImportFolderPicker,
     AppEncryptionGate,
     RecordingPill,
+    SharePreviewModal,
   },
   setup() {
+    useIncomingShare();
+    useShareExtensionSync();
     const { translations } = useTranslations();
     const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));
     const shell = useAppShell(onboardingCompleted.value);
@@ -259,44 +251,13 @@ export default {
     });
 
     function skipToMain() {
-      const main = document.getElementById('app-main');
-      if (main) {
-        main.focus();
-      }
+      document.getElementById('app-main')?.focus();
     }
 
-    // Soft-gate banner: unverified but authenticated shows nag with throttled resend.
-    const verificationSending = ref(false);
-    const verificationCooldown = ref(0);
-    let cooldownTimer = null;
-    const showVerificationBanner = computed(() => {
-      // Onboarding shows its own inline notice inside the account step.
-      if (!onboardingCompleted.value) return false;
-      if (!accountStore.isAuthenticated) return false;
-      const v = accountStore.profile?.emailVerified;
-      // Null means legacy/unknown: treat as verified to avoid nagging old installs.
-      if (v === null || v === undefined) return false;
-      return v === false;
-    });
-    async function handleRequestVerification() {
-      if (verificationSending.value || verificationCooldown.value > 0) return;
-      verificationSending.value = true;
-      try {
-        const { requestEmailVerification } = await import('@/lib/api/account');
-        await requestEmailVerification({ baseUrl: accountStore.serverUrl });
-        verificationCooldown.value = 60;
-        cooldownTimer = setInterval(() => {
-          verificationCooldown.value -= 1;
-          if (verificationCooldown.value <= 0) {
-            clearInterval(cooldownTimer);
-            cooldownTimer = null;
-          }
-        }, 1000);
-      } catch (err) {
-        console.warn('[verify] request failed:', err?.message);
-      } finally {
-        verificationSending.value = false;
-      }
+    function preventDropNavigation(e) {
+      // Let native file inputs keep their default drop-to-fill behavior.
+      if (e.target?.closest?.('input[type="file"]')) return;
+      e.preventDefault();
     }
 
     onMounted(() => {
@@ -305,6 +266,13 @@ export default {
         wsSync.start();
       }
       maybePromptDevicePassword();
+      // Delayed so initial hydration/sync wins the race; failures stay flagged for next launch.
+      setTimeout(() => void retryPendingExtractions(), 3000);
+      // Safety net: drops outside the editor's own handler (title, toolbar,
+      // sidebar, home) must never navigate the webview like a browser would.
+      // Editor insertion still works — ProseMirror handles the event first.
+      window.addEventListener('dragover', preventDropNavigation);
+      window.addEventListener('drop', preventDropNavigation);
     });
 
     onBeforeUnmount(() => {
@@ -321,10 +289,6 @@ export default {
       skipToMain,
       onboardingCompleted,
       translations,
-      showVerificationBanner,
-      verificationSending,
-      verificationCooldown,
-      handleRequestVerification,
     };
   },
 };

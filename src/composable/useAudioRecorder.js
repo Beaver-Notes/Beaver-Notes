@@ -10,7 +10,6 @@ import {
 } from 'tauri-plugin-audio-recorder-api';
 import { backend, path, addCloseHandler } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
-import { removePath } from '@/lib/native/fs';
 import { useDialog } from '@/lib/dialog';
 
 // Module-scope singleton state: the recorder survives note navigation and
@@ -187,7 +186,9 @@ async function stop() {
       }
     });
     if (!consumed) {
-      void removePath(filePath).catch(() => {});
+      // ponytail: keep the file instead of deleting — a missed listener
+      // (nav race) must not vaporize the recording. Next stop overwrites.
+      console.warn('Recording saved but not inserted; file kept at', filePath);
     }
     return payload;
   }

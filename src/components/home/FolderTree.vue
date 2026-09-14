@@ -37,10 +37,8 @@
         </span>
       </div>
 
-      <hr class="my-1 border-neutral-100 dark:border-neutral-800" />
-
       <!-- Folder tree -->
-      <div class="max-h-64 overflow-y-auto p-1">
+      <div class="max-h-64 mt-1 overflow-y-auto">
         <folder-tree-item
           v-for="rootFolder in rootFolders"
           :key="rootFolder.id"

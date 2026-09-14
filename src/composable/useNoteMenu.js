@@ -31,7 +31,8 @@ import { readExportData } from '@/lib/native/exports';
 import { saveDialog } from '@/lib/native/dialog';
 import { shareFileViaNative } from '@/lib/native/share';
 import mime from 'mime';
-import { saveFile } from '@/utils/assets/storage.js';
+import { assetFileName } from '@/utils/assets/storage.js';
+import { insertFileBlockOptimistic } from '@/lib/tiptap/exts/create-file-block.js';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/utils/ui/zoom';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 
@@ -507,24 +508,48 @@ export function useNoteMenu(props) {
     videoUrl.value = '';
   }
 
-  async function handleFileSelect(event) {
+  function handleFileSelect(event) {
+    const view = props.editor.view;
     for (const file of event.target.files) {
-      const { fileName, relativePath } = await saveFile(file, props.id);
-      props.editor.commands.setFileEmbed(`${relativePath}`, fileName);
+      const fileName = assetFileName(file);
+      insertFileBlockOptimistic(view, {
+        typeName: 'fileEmbed',
+        insert: (tempSrc) => props.editor.commands.setFileEmbed(tempSrc, fileName),
+        file,
+        preview: file,
+        noteId: props.id,
+        fileName,
+      });
     }
   }
 
-  async function handleAudioSelect(event) {
+  function handleAudioSelect(event) {
+    const view = props.editor.view;
     for (const file of event.target.files) {
-      const { fileName, relativePath } = await saveFile(file, props.id);
-      props.editor.commands.setAudio(`${relativePath}`, fileName);
+      const fileName = assetFileName(file);
+      insertFileBlockOptimistic(view, {
+        typeName: 'Audio',
+        insert: (tempSrc) => props.editor.commands.setAudio(tempSrc, fileName),
+        file,
+        preview: file,
+        noteId: props.id,
+        fileName,
+      });
     }
   }
 
-  async function handleVideoSelect(event) {
+  function handleVideoSelect(event) {
+    const view = props.editor.view;
     for (const file of event.target.files) {
-      const { relativePath } = await saveFile(file, props.id);
-      props.editor.commands.setVideo(`${relativePath}`);
+      const fileName = assetFileName(file);
+      insertFileBlockOptimistic(view, {
+        typeName: 'Video',
+        insert: (tempSrc) => props.editor.commands.setVideo(tempSrc, fileName),
+        file,
+        preview: file,
+        noteId: props.id,
+        fileName,
+      });
     }
   }
 

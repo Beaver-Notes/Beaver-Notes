@@ -352,7 +352,24 @@ export class ImageNodeView {
   }
 }
 
-export async function insertImages(files, callback) {
+export function swapImageSrc(view, tempSrc, finalSrc) {
+  let pos = null;
+  let node = null;
+  view.state.doc.descendants((n, p) => {
+    if (n.type.name === 'image' && n.attrs.src === tempSrc) {
+      pos = p;
+      node = n;
+      return false;
+    }
+    return true;
+  });
+  if (pos == null || !node) return;
+  view.dispatch(
+    view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: finalSrc }),
+  );
+}
+
+export async function insertImages(files, callback, swap) {
   const store = useStore();
 
   for (const file of files) {
@@ -369,6 +386,20 @@ export async function insertImages(files, callback) {
     if (file.path) {
       const { fileName } = await copyImage(file.path, noteId, timestamp);
       callback(`assets://${noteId}/${fileName}`, name);
+    } else if (swap) {
+      // Optimistic: show the image instantly, encrypt in the background.
+      const tempSrc = URL.createObjectURL(file);
+      callback(tempSrc, name);
+      writeImageFile(file, noteId, timestamp).then(
+        ({ fileName }) => {
+          URL.revokeObjectURL(tempSrc);
+          const finalSrc = `assets://${noteId}/${fileName}`;
+          swap(tempSrc, finalSrc);
+        },
+        (err) => {
+          console.error('Background image save failed:', err?.cause ?? err);
+        },
+      );
     } else {
       const { fileName } = await writeImageFile(file, noteId, timestamp);
       callback(`assets://${noteId}/${fileName}`, name);
@@ -401,10 +432,16 @@ const handleImagePaste = new Plugin({
 
         if (files.length > 0) {
           event.preventDefault();
-          insertImages(files, (src, alt) => {
-            const { tr, schema } = view.state;
-            const imageNode = schema.nodes.image.create({ src, alt });
-            view.dispatch(tr.replaceSelectionWith(imageNode));
+          insertImages(
+            files,
+            (src, alt) => {
+              const { tr, schema } = view.state;
+              const imageNode = schema.nodes.image.create({ src, alt });
+              view.dispatch(tr.replaceSelectionWith(imageNode));
+            },
+            (tempSrc, finalSrc) => swapImageSrc(view, tempSrc, finalSrc),
+          ).catch((err) => {
+            console.error('Image paste failed:', err?.cause ?? err);
           });
         }
 

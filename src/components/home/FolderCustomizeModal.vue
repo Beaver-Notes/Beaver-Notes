@@ -45,7 +45,7 @@
             v-for="color in FOLDER_ICON_COLORS"
             :key="color"
             type="button"
-            class="w-8 h-8 rounded-full shrink-0 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900 transition focus:outline-none"
+            class="w-8 h-8 mobile:w-11 mobile:h-11 rounded-full shrink-0 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900 transition focus:outline-none"
             :class="isColorSelected(color) ? 'ring-2 ring-primary' : 'ring-1 ring-black/10 dark:ring-white/10 hover:ring-black/20'"
             :style="{ backgroundColor: color }"
             :aria-label="color"
@@ -53,7 +53,7 @@
             @click="selectedColor = color"
           />
           <label
-            class="relative w-8 h-8 rounded-full shrink-0 flex items-center justify-center ring-offset-2 ring-offset-white dark:ring-offset-neutral-900 overflow-hidden cursor-pointer"
+            class="relative w-8 h-8 mobile:w-11 mobile:h-11 rounded-full shrink-0 flex items-center justify-center ring-offset-2 ring-offset-white dark:ring-offset-neutral-900 overflow-hidden cursor-pointer"
             :class="isCustomSelected ? 'ring-2 ring-primary' : 'ring-1 ring-black/10 dark:ring-white/10 hover:ring-black/20'"
             style="background: conic-gradient(from 0deg, #ef4444, #fbbf24, #84cc16, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444)"
             aria-label="Custom color"

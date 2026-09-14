@@ -2,8 +2,7 @@ import { ref } from 'vue';
 import { nanoid } from 'nanoid';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
-import { readDir, removePath } from '@/lib/native/fs';
-import { trackDeletedAssets } from '@/utils/sync';
+import { removePath } from '@/lib/native/fs';
 import { deleteUpdates } from '@/lib/native/yjs.js';
 import { hydrateNote, extractTextFromContent } from '@/utils/note/serializer.js';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
@@ -504,12 +503,6 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
       const appDirectory = await getAppDirectory();
       if (appDirectory) {
         const assetDir = path.join(appDirectory, 'assets', id);
-        try {
-          const files = await readDir(assetDir);
-          if (files?.length) await trackDeletedAssets('assets', id, files);
-        } catch {
-          // Missing asset folder is fine.
-        }
         await removePath(assetDir);
       }
     } catch (fileError) {
@@ -585,6 +578,13 @@ export async function normalizeInvalidFolderIds(this: NoteStoreThis): Promise<st
   return invalid.map((note) => note.id);
 }
 
+// Manual per-note extraction retry (card chip entry point). Delegates to the
+// shared lib helper via dynamic import: retryExtraction statically imports
+// this store, so a static import back would cycle.
+export async function retryNoteExtraction(this: NoteStoreThis, id: string): Promise<boolean> {
+  const { retrySingleExtraction } = await import('@/lib/share/retryExtraction');
+  return retrySingleExtraction(id);
+}
 
 export async function addLabel(this: NoteStoreThis, id: string, labelId: string): Promise<string | undefined> {
   try {

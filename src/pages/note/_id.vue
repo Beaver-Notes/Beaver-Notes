@@ -58,7 +58,13 @@
       :style="
         uiState.inReaderMode
           ? {
-              '--selected-width': '42rem',
+              // Same column as the editor unless the note is full-width:
+              // reader mode used to force 42rem and visibly collapse the page.
+              '--selected-width': note?.isFullWidth
+                ? '42rem'
+                : hingeSegmentWidth
+                  ? `min(54rem, ${hingeSegmentWidth}px)`
+                  : '54rem',
               'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
               '--reader-size': prefs.size + 'px',
               '--reader-line': prefs.line,
@@ -133,7 +139,6 @@
           data-testid="note-title-input"
           :contenteditable="canEdit(noteRole) && !uiState.inReaderMode"
           class="outline-none bg-transparent cursor-text title-placeholder"
-          :class="editor ? '' : 'invisible'"
           :data-placeholder="translations.editor.untitledNote"
           :style="{
             paddingInlineStart: 'var(--drag-handle-gutter, 0px)',
@@ -927,6 +932,9 @@ export default {
         if (titleText) {
           titleDiv.value.textContent = titleText;
           autoResizeTitle();
+        } else {
+          // Clear stray <br>/whitespace from contenteditable so :empty placeholder shows
+          titleDiv.value.innerHTML = '';
         }
         titleInitialized = true;
       }
@@ -1013,7 +1021,10 @@ export default {
           return;
         }
         const stored = newNote?.title || yjsGetTitle() || '';
-        if (titleDiv.value.textContent !== stored) {
+        if (
+          titleDiv.value.textContent !== stored ||
+          (stored === '' && titleDiv.value.innerHTML !== '')
+        ) {
           titleDiv.value.textContent = stored;
         }
         autoResizeTitle();
@@ -1038,7 +1049,11 @@ export default {
             updateNote(id.value, { title });
           }
           if (isTitleFocused(titleDiv.value) || isComposing) return;
-          if (titleDiv.value && titleDiv.value.textContent !== title) {
+          if (
+            titleDiv.value &&
+            (titleDiv.value.textContent !== title ||
+              (title === '' && titleDiv.value.innerHTML !== ''))
+          ) {
             titleDiv.value.textContent = title;
             autoResizeTitle();
           }

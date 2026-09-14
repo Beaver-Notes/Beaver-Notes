@@ -1,14 +1,13 @@
 <template>
-  <div class="beaver-emoji-picker">
+  <div class="beaver-emoji-picker" style="container-type: inline-size">
     <div class="mb-2">
       <ui-input
-        :model-value="searchQuery"
+        v-model.lowercase="searchQuery"
         class="w-full note-search-input"
         prepend-icon="riSearch2Line"
         :clearable="true"
-        :placeholder="translations.index.search"
-        @keydown.esc="$event.target.blur()"
-        @change="searchQuery = $event.toLowerCase()"
+        :placeholder="translations.card?.searchEmojis || translations.index.search"
+        @keydown.esc="searchQuery = ''"
       />
     </div>
 
@@ -35,7 +34,8 @@
     </div>
 
     <div
-      class="grid grid-cols-8 gap-1 max-h-52 overflow-y-auto relative"
+      class="grid grid-cols-8 gap-1 max-h-52 overflow-y-auto overflow-x-hidden relative"
+      style="max-height: calc((100cqw - 1.75rem) / 8 * 5 + 1rem)"
       :class="{
         'pb-12': activeSkinToneBase && skinToneMap[activeSkinToneBase],
       }"
@@ -43,7 +43,7 @@
       <button
         v-for="emoji in filteredEmojis"
         :key="emoji.char"
-        class="text-xl p-1.5 rounded-lg transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        class="text-lg p-1 min-w-0 w-full aspect-square flex items-center justify-center rounded-lg transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         :class="{
           'bg-primary/15 ring-1 ring-primary': emoji.char === current,
         }"

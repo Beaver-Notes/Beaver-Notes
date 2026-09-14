@@ -12,9 +12,17 @@ import Commands from './Commands.vue';
  * the ySyncPlugin intercepts the first dispatch and the second transaction
  * applies against a stale state.
  */
-function runCommand({ editor, range, props }) {
+export function runCommand({ editor, range, props }) {
   if (!editor || editor.isDestroyed) return;
-  const ch = editor.chain().focus().deleteRange(range);
+  // The suggestion range is captured when the menu opens; the doc can shrink
+  // underneath it (Yjs remote update, undo) so deleteRange would throw
+  // `Position out of range`. Clamp to the live doc; a fully out-of-bounds
+  // range just skips the delete and runs the action at the cursor.
+  const size = editor.state.doc.content.size;
+  const from = Math.min(Math.max(range?.from ?? 0, 0), size);
+  const to = Math.min(Math.max(range?.to ?? from, from), size);
+  const ch = editor.chain().focus();
+  if (to > from) ch.deleteRange({ from, to });
   props.action(ch);
   ch.run();
 }

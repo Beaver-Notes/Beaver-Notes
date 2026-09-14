@@ -53,7 +53,8 @@ import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/utils/assets/editor-image';
 import { useAudioRecorder } from '@/composable/useAudioRecorder';
-import { saveFile } from '@/utils/assets/storage.js';
+import { assetFileName } from '@/utils/assets/storage.js';
+import { insertFileBlockOptimistic } from '../create-file-block.js';
 import { openDialog } from '@/lib/native/dialog';
 
 export default {
@@ -130,14 +131,21 @@ export default {
         if (canceled || filePaths.length === 0) return;
 
         for (const path of filePaths) {
-          const { fileName, relativePath } = await saveFile(path, props.id);
-
+          const fileName = assetFileName(path);
+          const view = props.editor.view;
           props.command({
             editor: props.editor,
             range: props.range,
             props: {
-              action: (chain) => chain.setFileEmbed(relativePath, fileName),
+              action: (chain) => chain.setFileEmbed('', fileName),
             },
+          });
+          insertFileBlockOptimistic(view, {
+            typeName: 'fileEmbed',
+            insert: () => {},
+            file: path,
+            noteId: props.id,
+            fileName,
           });
         }
       } catch (error) {
@@ -154,13 +162,21 @@ export default {
         if (canceled || !filePaths.length) return;
 
         for (const path of filePaths) {
-          const { relativePath } = await saveFile(path, props.id);
+          const fileName = assetFileName(path);
+          const view = props.editor.view;
           props.command({
             editor: props.editor,
             range: props.range,
             props: {
-              action: (chain) => chain.setVideo(relativePath),
+              action: (chain) => chain.setVideo('', fileName),
             },
+          });
+          insertFileBlockOptimistic(view, {
+            typeName: 'Video',
+            insert: () => {},
+            file: path,
+            noteId: props.id,
+            fileName,
           });
         }
       } catch (error) {
@@ -177,13 +193,21 @@ export default {
         if (canceled || !filePaths.length) return;
 
         for (const path of filePaths) {
-          const { fileName, relativePath } = await saveFile(path, props.id);
+          const fileName = assetFileName(path);
+          const view = props.editor.view;
           props.command({
             editor: props.editor,
             range: props.range,
             props: {
-              action: (chain) => chain.setAudio(relativePath, fileName),
+              action: (chain) => chain.setAudio('', fileName),
             },
+          });
+          insertFileBlockOptimistic(view, {
+            typeName: 'Audio',
+            insert: () => {},
+            file: path,
+            noteId: props.id,
+            fileName,
           });
         }
       } catch (error) {

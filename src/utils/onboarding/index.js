@@ -118,6 +118,10 @@ export async function applyOnboardingFreshPreferences(preferences, { theme }) {
   );
 
   const root = document.documentElement;
+  // `dark` is a legacy accent alias, so the sweep strips it; keep the resolved
+  // dark theme across the sweep or Tailwind `dark:` components go light while
+  // the theme tokens stay dark.
+  const keepDark = root.classList.contains('dark');
   // Include legacy aliases: amber canonical, light/dark same color.
   const allAccentNames = [...ONBOARDING_ACCENT_COLOR_NAMES, 'light', 'dark'];
   ;[...root.classList].forEach((cls) => {
@@ -126,6 +130,7 @@ export async function applyOnboardingFreshPreferences(preferences, { theme }) {
     }
   });
   root.classList.add(preferences.accentColor);
+  if (keepDark) root.classList.add('dark');
 }
 
 export async function applyOnboardingSyncPreferences(preferences) {

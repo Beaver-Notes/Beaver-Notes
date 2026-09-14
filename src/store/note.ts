@@ -35,6 +35,7 @@ import {
   normalizeInvalidFolderIds,
   addLabel,
   removeLabel,
+  retryNoteExtraction,
 } from './note/index';
 import { getBacklinks, getBacklinkCount } from './note/backlinks';
 export { setSkipUndo } from './note/index';
@@ -90,5 +91,8 @@ export const useNoteStore = defineStore('note', {
     // Labels
     addLabel,
     removeLabel,
+
+    // Share extraction retry (card chip)
+    retryNoteExtraction,
   },
 });
