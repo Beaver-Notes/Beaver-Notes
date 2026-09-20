@@ -8,10 +8,19 @@ const iapCtl = vi.hoisted(() => ({
   restoreImpl: null,
   paid: false,
   alert: null,
+  storage: null,
 }));
 
 vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(async () => {}) }),
+  createRouter: vi.fn(() => ({
+    beforeEach: vi.fn(),
+    afterEach: vi.fn(),
+    push: vi.fn(),
+    replace: vi.fn(),
+  })),
+  createWebHashHistory: vi.fn(() => ({})),
 }));
 
 vi.mock('@/lib/dialog', () => ({
@@ -35,10 +44,17 @@ vi.mock('@/store/account', () => ({
     get isPaidPlan() {
       return iapCtl.paid;
     },
-    plan: iapCtl.paid ? 'pro' : 'free',
+    get plan() {
+      return iapCtl.paid ? 'pro' : 'free';
+    },
     profile: { id: 'u1' },
     serverUrl: 'https://api.test',
-    subscription: { plan: iapCtl.paid ? 'pro' : 'free' },
+    get subscription() {
+      return { plan: iapCtl.paid ? 'pro' : 'free', storage: iapCtl.storage };
+    },
+    get storageUsedPercent() {
+      return 0;
+    },
     devices: [],
     busy: false,
     error: '',
@@ -142,6 +158,7 @@ describe('Account IAP handlers (mounted)', () => {
   beforeEach(() => {
     iapCtl.paid = false;
     iapCtl.alert = vi.fn();
+    iapCtl.storage = null;
     iapCtl.buyImpl = async () => 'pro';
     iapCtl.restoreImpl = async () => {};
   });
@@ -219,5 +236,25 @@ describe('Account IAP handlers (mounted)', () => {
     expect(w.vm.billingSuccess).toBe(false);
     expect(w.vm.showPlansDialog).toBe(true);
     expect(w.vm.iapBusy).toBe(false);
+  });
+
+  it('warns and offers an Upgrade CTA above 85% storage', async () => {
+    iapCtl.paid = true;
+    iapCtl.storage = { usedBytes: 90, quotaBytes: 100 };
+    const w = mountAccount();
+    await flushPromises();
+    expect(w.vm.storageNearLimit).toBe(true);
+    expect(w.find('[data-testid="storage-quota-warning"]').exists()).toBe(true);
+    await w.vm.openUpgrade();
+    expect(w.vm.showPlansDialog).toBe(true);
+  });
+
+  it('does not warn below the storage threshold', async () => {
+    iapCtl.paid = true;
+    iapCtl.storage = { usedBytes: 10, quotaBytes: 100 };
+    const w = mountAccount();
+    await flushPromises();
+    expect(w.vm.storageNearLimit).toBe(false);
+    expect(w.find('[data-testid="storage-quota-warning"]').exists()).toBe(false);
   });
 });

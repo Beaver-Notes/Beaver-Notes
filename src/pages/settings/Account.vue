@@ -332,11 +332,15 @@
                 {{ translations.account?.username || 'Username' }}
               </p>
               <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                {{ accountStore.profile?.username || 'Not set' }}
+                {{
+                  accountStore.profile?.username ||
+                  accountStore.profile?.email ||
+                  'Not set'
+                }}
               </p>
             </div>
             <ui-button variant="secondary" @click="startEditUsername">
-              {{ translations.settings?.changePassword || 'Change' }}
+              {{ translations.settings?.change || 'Change' }}
             </ui-button>
           </div>
           <div v-else class="flex flex-col gap-2">
@@ -491,10 +495,12 @@
               {{ translations.account?.plan || 'Plan' }}
             </p>
             <p
-              class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 capitalize"
+              class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400"
             >
               {{
-                accountStore.plan || translations.account?.noPlan || 'No plan'
+                planLabel(accountStore.plan) ||
+                translations.account?.noPlan ||
+                'No plan'
               }}
             </p>
           </div>
@@ -653,9 +659,29 @@
             <div
               class="h-1.5 rounded bg-primary transition-all duration-200"
               :style="{
-                width: `${Math.min(100, accountStore.storageUsedPercent)}%`,
+                width: `${Math.min(100, storageUsedPercent)}%`,
               }"
             />
+          </div>
+          <div
+            v-if="storageNearLimit"
+            data-testid="storage-quota-warning"
+            class="mt-2 flex items-center justify-between gap-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 px-3 py-2"
+          >
+            <p class="text-xs text-amber-800 dark:text-amber-200">
+              {{
+                tr.storageWarning ||
+                'You are close to your storage limit. Upgrade for more space.'
+              }}
+            </p>
+            <ui-button
+              size="sm"
+              :loading="billingBusy"
+              :disabled="billingBusy"
+              @click="openUpgrade"
+            >
+              {{ tr.upgrade || 'Upgrade' }}
+            </ui-button>
           </div>
         </div>
 
@@ -669,7 +695,7 @@
             >
               {{
                 translations.account?.cloudSyncCtaHeading ||
-                'Cloud sync is part of Basic.'
+                `Cloud sync is part of ${planLabel(PLAN_NAMES.STARTER)}.`
               }}
             </p>
             <p
@@ -677,7 +703,7 @@
             >
               {{
                 translations.account?.cloudSyncCtaBody ||
-                'Upgrade to Basic or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.'
+                `Upgrade to ${planLabel(PLAN_NAMES.STARTER)} or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.`
               }}
             </p>
           </div>
@@ -685,53 +711,17 @@
       </div>
     </section>
 
-    <section
-      v-if="accountStore.isAuthenticated && accountStore.devices.length"
-      class="space-y-2"
-    >
-      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-        {{ translations.account?.devices || 'Devices' }}
-      </p>
-      <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
+    <details class="space-y-2">
+      <summary
+        class="text-sm font-semibold text-neutral-600 dark:text-neutral-300 cursor-pointer select-none"
       >
-        <div
-          v-for="device in accountStore.devices"
-          :key="device.deviceId"
-          class="flex items-center gap-3 px-4 py-3.5"
-        >
-          <div
-            class="shrink-0 w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center"
-          >
-            <v-remixicon name="riComputerLine" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate"
-            >
-              {{ device.label || 'Unknown device' }}
-            </p>
-            <p
-              class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate font-mono"
-            >
-              {{ device.deviceId }}
-            </p>
-          </div>
-          <ui-button
-            icon
-            variant="danger"
-            @click="handleRevokeDevice(device.deviceId)"
-          >
-            <v-remixicon name="riDeleteBin6Line" />
-          </ui-button>
-        </div>
-      </div>
-    </section>
-
+        {{ translations.account?.security || 'Security' }}
+      </summary>
+      <div class="mt-2 space-y-2">
     <section v-if="accountStore.isAuthenticated" class="space-y-2">
       <div class="flex items-center justify-between">
         <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-          {{ translations.account?.activeSessions || 'Active sessions' }}
+          {{ translations.account?.devices || 'Your devices' }}
         </p>
         <ui-button variant="secondary" size="sm" @click="loadSessions">
           <v-remixicon name="riRefreshLine" size="14" class="mr-1" />
@@ -741,7 +731,10 @@
       <div
         class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
-        <div v-if="loadingSessions" class="px-4 py-6 text-center">
+        <div
+          v-if="loadingSessions && !unifiedDevices.length"
+          class="px-4 py-6 text-center"
+        >
           <div class="animate-spin inline-block">
             <v-remixicon
               name="riLoader4Line"
@@ -750,56 +743,43 @@
             />
           </div>
         </div>
-        <div v-else-if="!sessions.length" class="px-4 py-3.5">
+        <div v-else-if="!unifiedDevices.length" class="px-4 py-3.5">
           <p class="text-xs text-neutral-500 dark:text-neutral-400">
-            {{ translations.account?.noSessions || 'No active sessions' }}
+            {{ translations.account?.noSessions || 'No active devices' }}
           </p>
         </div>
         <div
-          v-for="session in sessions"
-          :key="session.id"
+          v-for="entry in unifiedDevices"
+          :key="entry.key"
           class="flex items-center gap-3 px-4 py-3.5"
         >
           <div
             class="shrink-0 w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center"
           >
-            <v-remixicon
-              :name="
-                session.deviceInfo?.platform === 'mobile'
-                  ? 'riSmartphoneLine'
-                  : 'riComputerLine'
-              "
-            />
+            <v-remixicon :name="platformIcon(entry.platform)" />
           </div>
           <div class="min-w-0 flex-1">
             <p
               class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate"
             >
-              {{
-                session.deviceInfo?.label ||
-                session.userAgent ||
-                'Unknown session'
-              }}
+              {{ entry.name }}
             </p>
             <p
               class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate"
+              :title="entry.id || ''"
             >
-              {{
-                session.createdAt
-                  ? new Date(session.createdAt).toLocaleString()
-                  : ''
-              }}
-              <span v-if="session.expiresAt">
-                · expires
-                {{ new Date(session.expiresAt).toLocaleDateString() }}</span
-              >
+              {{ platformLabel(entry.platform) }}
+              <template v-if="entry.lastSeen">
+                · {{ fmtLastSeen(entry.lastSeen) }}
+              </template>
             </p>
           </div>
           <ui-button
             icon
             variant="danger"
             size="sm"
-            @click="revokeSession(session.id)"
+            :aria-label="translations.account?.revokeDevice || 'Revoke device'"
+            @click="revokeUnified(entry)"
           >
             <v-remixicon name="riDeleteBin6Line" />
           </ui-button>
@@ -808,9 +788,6 @@
     </section>
 
     <section v-if="accountStore.isAuthenticated" class="space-y-2">
-      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-        {{ translations.account?.security || 'Security' }}
-      </p>
       <div
         class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
@@ -907,15 +884,20 @@
               <p
                 class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
               >
-                {{ tr.recoveryCode || 'Recovery code' }}
+                {{ tr.recoveryCode || 'Account recovery code' }}
               </p>
               <p
                 class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
               >
                 {{
                   tr.recoveryCodeDescription ||
-                  'Single code to recover your account if you lose all passkeys. Regenerating invalidates the old code. Restores ACCOUNT access only. E2E data needs vault passphrase.'
+                  'Restores account sign-in if you lose your passkeys. Regenerating invalidates the old code. It does not unlock your notes.'
                 }}
+              </p>
+              <p
+                class="mt-1 whitespace-pre-line text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+              >
+                {{ whatUnlocks }}
               </p>
               <p
                 v-if="recoveryCode"
@@ -953,13 +935,46 @@
         </div>
       </div>
     </section>
+      </div>
+    </details>
 
-    <section class="space-y-2 beaver-sync-ready">
+    <section v-if="accountStore.isAuthenticated" class="space-y-2">
       <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-        {{ translations.account?.server || 'Server' }}
+        {{ translations.account?.privacy || 'Privacy' }}
       </p>
       <div
         class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
+      >
+        <div class="flex items-center justify-between gap-3 px-4 py-3.5">
+          <div class="space-y-0.5">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.account?.exportData || 'Export account data' }}
+            </p>
+            <p class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+              {{
+                translations.account?.exportDataBody ||
+                'Download a copy of your account information.'
+              }}
+            </p>
+          </div>
+          <ui-button variant="secondary" @click="exportAccountData">
+            <v-remixicon name="riDownloadLine" class="mr-1" />
+            {{ translations.account?.export || 'Export' }}
+          </ui-button>
+        </div>
+      </div>
+    </section>
+
+    <details class="space-y-2 beaver-sync-ready">
+      <summary
+        class="text-sm font-semibold text-neutral-600 dark:text-neutral-300 cursor-pointer select-none"
+      >
+        {{ translations.account?.advanced || 'Advanced' }}
+      </summary>
+      <div
+        class="mt-2 space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div
           v-if="!showServerUrlEditor"
@@ -979,7 +994,7 @@
             </p>
           </div>
           <ui-button @click="showServerUrlEditor = true">
-            {{ translations.settings?.changePassword || 'Change' }}
+            {{ translations.settings?.change || 'Change' }}
           </ui-button>
         </div>
         <div v-else class="flex flex-col gap-2 px-4 py-3.5">
@@ -1004,7 +1019,7 @@
           </div>
         </div>
       </div>
-    </section>
+    </details>
 
     <section v-if="accountStore.isAuthenticated" class="space-y-2">
       <p
@@ -1015,26 +1030,6 @@
       <div
         class="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50/80 dark:border-red-900/70 dark:bg-red-950/30 px-4 py-3.5"
       >
-        <div class="flex items-center justify-between gap-3">
-          <div class="space-y-0.5">
-            <p class="text-sm font-medium text-red-900 dark:text-red-100">
-              {{ translations.account?.exportData || 'Export account data' }}
-            </p>
-            <p class="text-xs leading-relaxed text-red-700 dark:text-red-300">
-              {{
-                translations.account?.exportDataBody ||
-                'Download a copy of your account information.'
-              }}
-            </p>
-          </div>
-          <ui-button variant="secondary" @click="exportAccountData">
-            <v-remixicon name="riDownloadLine" class="mr-1" />
-            {{ translations.account?.exportData || 'Export' }}
-          </ui-button>
-        </div>
-
-        <div class="border-t border-red-200 dark:border-red-800" />
-
         <div class="space-y-0.5">
           <p class="text-sm font-medium text-red-900 dark:text-red-100">
             {{ translations.account?.deleteAccount || 'Delete Beaver Account' }}
@@ -1083,13 +1078,13 @@
 </template>
 
 <script>
-import { computed, ref, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
-import { PLAN_NAMES } from '@/lib/api/types';
+import { PLAN_NAMES, planLabel } from '@/lib/api/types';
 import {
   generateRecoveryCode as apiGenerateRecoveryCode,
   requestEmailVerification as apiRequestEmailVerification,
@@ -1097,6 +1092,9 @@ import {
 } from '@/lib/api/account';
 import { createCheckoutSession, createPortalSession } from '@/lib/api/billing';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { localNoteCount } from '@/utils/notes/local-note-count.js';
+import { deviceDisplayName, devicePlatform } from '@/utils/device/device-label';
+import { whatUnlocksWhat } from '@/utils/i18n/secrets.js';
 import SubscriptionDialog from '@/components/billing/SubscriptionDialog.vue';
 import { useIapBilling } from '@/composable/useIapBilling';
 
@@ -1104,9 +1102,11 @@ export default {
   components: { SubscriptionDialog },
   setup() {
     const router = useRouter();
+    const route = useRoute();
     const dialog = useDialog();
     const { translations } = useTranslations();
     const tr = computed(() => translations.value?.account || {});
+    const whatUnlocks = computed(() => whatUnlocksWhat(translations.value));
     function fmt(key, params) {
       const raw = tr.value[key] ?? key;
       if (!params) return raw;
@@ -1117,6 +1117,77 @@ export default {
     }
     const accountStore = useAccountStore();
     const account = useSettingsAccount({ dialog, translations });
+
+    // One list for "your devices": registered devices plus active sessions,
+    // de-duplicated by device id. The raw id is only a tooltip; the visible
+    // label is always human (platform + last seen).
+    const unifiedDevices = computed(() => {
+      const rows = [];
+      const seen = new Set();
+      const push = (id, row) => {
+        if (id && seen.has(id)) return;
+        if (id) seen.add(id);
+        rows.push(row);
+      };
+      for (const device of accountStore.devices || []) {
+        push(device.deviceId, {
+          key: `device:${device.deviceId}`,
+          id: device.deviceId || null,
+          name: deviceDisplayName(device),
+          platform: devicePlatform(device),
+          lastSeen: device.lastSeen || null,
+          kind: 'device',
+          raw: device,
+        });
+      }
+      for (const session of account.sessions.value || []) {
+        push(session.deviceId || session.device_id || null, {
+          key: `session:${session.id}`,
+          id: session.deviceId || session.device_id || session.id || null,
+          name: deviceDisplayName(session),
+          platform: devicePlatform(session),
+          lastSeen: session.lastSeenAt || session.createdAt || null,
+          kind: 'session',
+          raw: session,
+        });
+      }
+      return rows;
+    });
+
+    function platformIcon(platform) {
+      if (platform === 'mobile') return 'riSmartphoneLine';
+      if (platform === 'tablet') return 'riTabletLine';
+      return 'riComputerLine';
+    }
+    function platformLabel(platform) {
+      if (platform === 'mobile') return 'Mobile';
+      if (platform === 'tablet') return 'Tablet';
+      return 'Desktop';
+    }
+    function fmtLastSeen(value) {
+      if (!value) return '';
+      try {
+        return new Date(value).toLocaleString();
+      } catch {
+        return '';
+      }
+    }
+    function revokeUnified(entry) {
+      if (entry.kind === 'session') account.revokeSession(entry.raw);
+      else account.handleRevokeDevice(entry.raw);
+    }
+
+    // Return to a join/invite link after signing in (e.g. the join page sends
+    // signed-out users here with `returnTo`).
+    watch(
+      () => accountStore.isAuthenticated,
+      (authed) => {
+        const returnTo = route.query?.returnTo;
+        if (authed && typeof returnTo === 'string' && returnTo.startsWith('/')) {
+          router.push(returnTo);
+        }
+      }
+    );
 
     const logCopied = ref(false);
     const seedRetrying = ref(false);
@@ -1270,43 +1341,42 @@ export default {
       }
     }
     const billingOptions = [
-      {
-        key: 'starter-monthly',
-        plan: 'starter',
-        interval: 'monthly',
-        label: 'Starter Monthly',
-      },
-      {
-        key: 'starter-yearly',
-        plan: 'starter',
-        interval: 'yearly',
-        label: 'Starter Yearly',
-      },
-      {
-        key: 'pro-monthly',
-        plan: 'pro',
-        interval: 'monthly',
-        label: 'Pro Monthly',
-      },
-      {
-        key: 'pro-yearly',
-        plan: 'pro',
-        interval: 'yearly',
-        label: 'Pro Yearly',
-      },
-      {
-        key: 'team-monthly',
-        plan: 'team',
-        interval: 'monthly',
-        label: 'Team Monthly',
-      },
-      {
-        key: 'team-yearly',
-        plan: 'team',
-        interval: 'yearly',
-        label: 'Team Yearly',
-      },
-    ];
+      { key: 'starter-monthly', plan: PLAN_NAMES.STARTER, interval: 'monthly' },
+      { key: 'starter-yearly', plan: PLAN_NAMES.STARTER, interval: 'yearly' },
+      { key: 'pro-monthly', plan: PLAN_NAMES.PRO, interval: 'monthly' },
+      { key: 'pro-yearly', plan: PLAN_NAMES.PRO, interval: 'yearly' },
+      { key: 'team-monthly', plan: PLAN_NAMES.TEAM, interval: 'monthly' },
+      { key: 'team-yearly', plan: PLAN_NAMES.TEAM, interval: 'yearly' },
+    ].map((opt) => ({
+      ...opt,
+      label: `${planLabel(opt.plan)} ${opt.interval === 'monthly' ? 'Monthly' : 'Yearly'}`,
+    }));
+    // Warn before the hard limit so the user can upgrade instead of hitting a
+    // silent sync failure. 85% leaves room to act.
+    const QUOTA_WARN_PERCENT = 85;
+    const storageUsedPercent = computed(() => {
+      const storage = accountStore.subscription?.storage;
+      if (storage?.quotaBytes) {
+        return (storage.usedBytes / storage.quotaBytes) * 100;
+      }
+      return accountStore.storageUsedPercent || 0;
+    });
+    const storageNearLimit = computed(
+      () =>
+        !!accountStore.subscription?.storage &&
+        storageUsedPercent.value >= QUOTA_WARN_PERCENT,
+    );
+    function openUpgrade() {
+      const ladder = [
+        PLAN_NAMES.STARTER,
+        PLAN_NAMES.PRO,
+        PLAN_NAMES.TEAM,
+        PLAN_NAMES.ENTERPRISE,
+      ];
+      const idx = ladder.indexOf(accountStore.plan);
+      handleCheckout(ladder[Math.min(idx + 1, ladder.length - 1)], 'monthly');
+    }
+
     // Server-supplied billing URLs are untrusted input: only open https links
     // on Stripe checkout/portal hosts or the configured sync server itself.
     const BILLING_HOSTS = new Set([
@@ -1440,6 +1510,15 @@ export default {
           }
         })
         .catch(() => {});
+      // Deep link from the Team settings upgrade gate: open checkout with the
+      // requested plan already chosen.
+      const requestedPlan = route.query?.upgrade;
+      if (
+        typeof requestedPlan === 'string' &&
+        Object.values(PLAN_NAMES).includes(requestedPlan)
+      ) {
+        handleCheckout(requestedPlan, 'monthly');
+      }
     });
     const emailVerifySending = ref(false);
     const emailVerifyCooldown = ref(0);
@@ -1501,24 +1580,25 @@ export default {
           translations.value?.account?.importVaultTitle ||
           'Import vault from sync',
         body:
-          translations.value?.account?.importVaultBody ||
-          "Importing will replace this device's encryption key. Notes encrypted with a different key may no longer be readable.",
+          `Importing merges this device's notes into the vault. ` +
+          `${localNoteCount()} local note(s) are re-encrypted with the vault key and kept on both devices. ` +
+          'A backup is saved before anything changes.',
         icon: 'riShieldKeyholeLine',
         okText: translations.value?.account?.importVault || 'Import',
         cancelText: translations.value.dialog?.cancel || 'Cancel',
         onConfirm: () => {
           dialog.prompt({
             title:
-              translations.value?.account?.vaultPasswordTitle ||
-              'Enter vault password',
+              translations.value?.account?.vaultKeyTitle ||
+              'Enter vault key',
             body:
-              translations.value?.account?.vaultPasswordBody ||
-              'Enter the password for the existing encrypted vault in your sync source.',
+              translations.value?.account?.vaultKeyBody ||
+              'Enter the vault key for the existing encrypted vault in your sync source.',
             icon: 'riLockLine',
             okText: translations.value?.account?.importVault || 'Import',
             cancelText: translations.value.dialog?.cancel || 'Cancel',
             placeholder:
-              translations.value.settings?.password || 'Vault password',
+              translations.value.settings?.vaultKeyPlaceholder || 'Vault key',
             password: true,
             onConfirm: async (pass) => {
               if (!pass) {
@@ -1526,7 +1606,7 @@ export default {
                   title: translations.value.settings?.alertTitle || 'Alert',
                   body:
                     translations.value.settings?.invalidPassword ||
-                    'Enter the vault password.',
+                    'Enter the vault key.',
                   okText: translations.value.dialog?.close || 'Close',
                 });
                 return;
@@ -1543,7 +1623,7 @@ export default {
                     title: translations.value.settings?.alertTitle || 'Alert',
                     body:
                       res.error ||
-                      'Failed to import the vault. Check the password.',
+                      'Failed to import the vault. Check the vault key.',
                     okText: translations.value.dialog?.close || 'Close',
                   });
                   return;
@@ -1586,8 +1666,10 @@ export default {
           recoveryClearTimer = null;
         }, 120000);
         dialog.alert({
-          title: 'Recovery code generated',
-          body: 'Store this code securely: it will not be shown again. Regenerating invalidates the old code. This restores ACCOUNT access only; E2E data needs vault passphrase.',
+          title: 'Account recovery code generated',
+          body:
+            'Store this code securely: it will not be shown again. Regenerating invalidates the old code. It restores account sign-in only; notes need the vault key.\n\n' +
+            whatUnlocksWhat(translations.value),
           okText: 'Close',
         });
         // enrollment offer: prompt to add passkey if missing
@@ -1603,7 +1685,7 @@ export default {
       } catch (e) {
         dialog.alert({
           title: 'Failed to generate',
-          body: e?.message || 'Failed to generate recovery code.',
+          body: e?.message || 'Failed to generate the account recovery code.',
           okText: 'Close',
         });
       } finally {
@@ -1634,8 +1716,10 @@ export default {
     return {
       translations,
       tr,
+      whatUnlocks,
       fmt,
       PLAN_NAMES,
+      planLabel,
       accountStore,
       seedPhaseLabel,
       seedProgressPercent,
@@ -1666,6 +1750,14 @@ export default {
       billingMessage,
       billingSuccess,
       billingOptions,
+      storageUsedPercent,
+      storageNearLimit,
+      openUpgrade,
+      unifiedDevices,
+      platformIcon,
+      platformLabel,
+      fmtLastSeen,
+      revokeUnified,
       handleCheckout,
       handleManageBilling,
       handleBillingReturn,

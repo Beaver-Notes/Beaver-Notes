@@ -17,8 +17,11 @@
       <ui-card v-for="row in rows" :key="row.key" hover>
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-sm font-medium capitalize">{{ row.plan }} {{ interval }}</p>
+            <p class="text-sm font-medium">{{ planLabel(row.plan) }} {{ interval }}</p>
             <p class="text-xs text-neutral-500">{{ priceFor(row) }}</p>
+            <p class="mt-0.5 text-xs text-neutral-400">
+              {{ planFeatures(row.plan) }}
+            </p>
           </div>
           <ui-button
             variant="primary"
@@ -31,7 +34,7 @@
       </ui-card>
     </template>
     <p v-else class="text-sm text-center text-neutral-600 dark:text-neutral-400">
-      You're on {{ currentPlan }}. You're all set.
+      You're on {{ planLabel(currentPlan) }}. You're all set.
     </p>
   </div>
 </template>
@@ -39,6 +42,7 @@
 <script>
 import { computed } from 'vue';
 import { MOBILE_PLANS } from '@/composable/useIapBilling';
+import { planLabel, planFeatures } from '@/lib/api/types';
 
 export default {
   name: 'SubscriptionPlans',
@@ -66,7 +70,7 @@ export default {
       );
       return match?.formattedPrice || '';
     }
-    return { rows, priceFor };
+    return { rows, priceFor, planLabel, planFeatures };
   },
 };
 </script>

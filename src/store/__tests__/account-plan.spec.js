@@ -1,8 +1,17 @@
 import { setActivePinia, createPinia } from 'pinia';
 import { beforeEach, test, expect } from 'vitest';
 import { useAccountStore } from '@/store/account';
+import { PLAN_NAMES, planLabel } from '@/lib/api/types';
 
 beforeEach(() => setActivePinia(createPinia()));
+
+test('plan labels come from one map; the entry tier is "Basic"', () => {
+  expect(planLabel(PLAN_NAMES.STARTER)).toBe('Basic');
+  expect(planLabel(PLAN_NAMES.PRO)).toBe('Pro');
+  expect(planLabel(PLAN_NAMES.TEAM)).toBe('Team');
+  expect(planLabel(PLAN_NAMES.ENTERPRISE)).toBe('Enterprise');
+  expect(planLabel('unknown')).toBe('Free');
+});
 
 test('canUseCloudSync true for paid org plan', () => {
   const store = useAccountStore();

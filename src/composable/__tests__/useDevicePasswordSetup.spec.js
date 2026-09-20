@@ -33,6 +33,9 @@ import {
 
 const DONE_KEY = 'devicePasswordSetupDone';
 
+// Secure storage is silent. The app never asks the user to invent a device
+// password: an OS keychain is used without UI, and when none exists the vault
+// key is requested at launch by the encryption gate instead of being persisted.
 describe('useDevicePasswordSetup', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -40,11 +43,7 @@ describe('useDevicePasswordSetup', () => {
     getSafeStorageBackendInfo.mockResolvedValue({});
   });
 
-  function lastPrompt() {
-    return promptMock.mock.calls[0][0];
-  }
-
-  it('does NOT prompt when a durable store is available, regardless of DONE_KEY', async () => {
+  it('never prompts when a keychain is available (Rust stores the key silently)', async () => {
     getSafeStorageBackendInfo.mockResolvedValue({
       available: true,
       devicePasswordRequired: false,
@@ -52,73 +51,13 @@ describe('useDevicePasswordSetup', () => {
 
     const { maybePrompt } = useDevicePasswordSetup();
     await maybePrompt();
+
     expect(promptMock).not.toHaveBeenCalled();
-
-    localStorage.setItem(DONE_KEY, '1');
-    await maybePrompt();
-    expect(promptMock).not.toHaveBeenCalled();
-  });
-
-  it('fires the RE-ENTRY prompt when devicePasswordRequired, even with DONE_KEY set, and re-supplies the password on confirm', async () => {
-    localStorage.setItem(DONE_KEY, '1');
-    getSafeStorageBackendInfo.mockResolvedValue({
-      available: false,
-      devicePasswordRequired: true,
-    });
-
-    const { maybePrompt, setupState } = useDevicePasswordSetup();
-    await maybePrompt();
-
-    expect(promptMock).toHaveBeenCalledTimes(1);
-    const opts = lastPrompt();
-    expect(opts.title).toBe('Enter your device password');
-    expect(opts.body).toBe('Enter your device password to unlock secure storage.');
-
-    await opts.onConfirm('secret');
-    expect(setDevicePassword).toHaveBeenCalledWith('secret');
+    expect(setDevicePassword).not.toHaveBeenCalled();
     expect(localStorage.getItem(DONE_KEY)).toBeNull();
-    expect(setupState.value).toBe('done');
   });
 
-  it('fires the CREATE prompt on a fresh daemon-less box (available=false, not password-gated, no DONE_KEY), then sets the password and DONE_KEY on confirm', async () => {
-    getSafeStorageBackendInfo.mockResolvedValue({
-      available: false,
-      devicePasswordRequired: false,
-    });
-
-    const { maybePrompt, setupState } = useDevicePasswordSetup();
-    await maybePrompt();
-
-    expect(promptMock).toHaveBeenCalledTimes(1);
-    const opts = lastPrompt();
-    expect(opts.title).toBe('Secure local storage');
-    expect(opts.body).toContain('create a device password');
-
-    await opts.onConfirm('secret');
-    expect(setDevicePassword).toHaveBeenCalledWith('secret');
-    expect(localStorage.getItem(DONE_KEY)).toBe('1');
-    expect(setupState.value).toBe('done');
-  });
-
-  it('shows an alert and enters error state when creating the device password fails', async () => {
-    getSafeStorageBackendInfo.mockResolvedValue({
-      available: false,
-      devicePasswordRequired: false,
-    });
-    setDevicePassword.mockRejectedValueOnce(new Error('boom'));
-
-    const { maybePrompt, setupState } = useDevicePasswordSetup();
-    await maybePrompt();
-    await lastPrompt().onConfirm('secret');
-
-    expect(alertMock).toHaveBeenCalledTimes(1);
-    expect(alertMock.mock.calls[0][0]).toMatchObject({ title: 'Could not set device password' });
-    expect(localStorage.getItem(DONE_KEY)).toBeNull();
-    expect(setupState.value).toBe('error');
-  });
-
-  it('does NOT prompt when available=false, not password-gated, but DONE_KEY is already set', async () => {
-    localStorage.setItem(DONE_KEY, '1');
+  it('never prompts on a keychain-less box and persists nothing (vault key asked at launch)', async () => {
     getSafeStorageBackendInfo.mockResolvedValue({
       available: false,
       devicePasswordRequired: false,
@@ -126,6 +65,25 @@ describe('useDevicePasswordSetup', () => {
 
     const { maybePrompt } = useDevicePasswordSetup();
     await maybePrompt();
+
     expect(promptMock).not.toHaveBeenCalled();
+    expect(alertMock).not.toHaveBeenCalled();
+    expect(setDevicePassword).not.toHaveBeenCalled();
+    expect(localStorage.getItem(DONE_KEY)).toBeNull();
+  });
+
+  it('never fires a re-entry prompt when the only key copy is the encrypted file', async () => {
+    localStorage.setItem(DONE_KEY, '1');
+    getSafeStorageBackendInfo.mockResolvedValue({
+      available: false,
+      devicePasswordRequired: true,
+    });
+
+    const { maybePrompt } = useDevicePasswordSetup();
+    await maybePrompt();
+
+    expect(promptMock).not.toHaveBeenCalled();
+    expect(setDevicePassword).not.toHaveBeenCalled();
+    expect(alertMock).not.toHaveBeenCalled();
   });
 });
