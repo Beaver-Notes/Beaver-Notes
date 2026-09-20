@@ -35,11 +35,11 @@ export function useNoteHistory() {
     }
   }
 
-  async function loadSnapshot(commitHash) {
+  async function loadSnapshot(commitHash, noteId = '') {
     loading.value = true;
     error.value = null;
     try {
-      selectedCommit.value = await getCommitSnapshot(commitHash);
+      selectedCommit.value = await getCommitSnapshot(commitHash, noteId);
     } catch (err) {
       error.value = err.message || 'Failed to load snapshot';
     } finally {

@@ -169,15 +169,53 @@
         </button>
       </template>
 
-      <button
+      <ui-popover
         v-if="canComment"
-        v-keep-focus
-        v-tooltip.group="translations.comments?.title || 'Comment'"
-        class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-        @click="createCommentOnSelection"
+        v-model:model-value="commentPopoverOpen"
+        @show="onCommentPopoverShow"
       >
-        <v-remixicon name="riChat3Line" class="size-6" />
-      </button>
+        <template #trigger>
+          <button
+            v-keep-focus
+            v-tooltip.group="translations.comments?.title || 'Comment'"
+            class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+          >
+            <v-remixicon name="riChat3Line" class="size-6" />
+          </button>
+        </template>
+
+        <div class="min-w-[260px]">
+          <div class="flex items-end gap-2">
+            <textarea
+              ref="commentInputRef"
+              v-model="commentInputValue"
+              :placeholder="
+                translations.comments?.placeholder || 'Add a comment…'
+              "
+              rows="2"
+              class="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 text-sm outline-none border border-transparent focus:border-primary transition-colors resize-none"
+              @keydown.enter.exact.prevent="saveCommentInput"
+            />
+            <button
+              v-keep-focus
+              class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
+              :title="translations.common?.cancel || 'Cancel'"
+              @click="closeCommentInput"
+            >
+              <v-remixicon name="riCloseLine" class="size-4" />
+            </button>
+            <button
+              v-keep-focus
+              class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
+              :title="translations.common?.save || 'Save'"
+              :disabled="!commentInputValue.trim()"
+              @click="saveCommentInput"
+            >
+              <v-remixicon name="riCheckLine" class="size-4" />
+            </button>
+          </div>
+        </div>
+      </ui-popover>
 
       <ui-popover
         v-model:model-value="linkPopoverOpen"
@@ -380,14 +418,51 @@ export default {
       return from !== to;
     });
 
-    function createCommentOnSelection() {
+    const commentInputValue = ref('');
+    const commentInputRef = ref(null);
+    const commentPopoverOpen = ref(false);
+    const commentRange = ref({ from: 0, to: 0 });
+
+    function onCommentPopoverShow() {
       const { editor } = props;
-      if (!editor || !accountStore.isAuthenticated) return;
-      const { from, to } = editor.state.selection;
-      if (from === to) return;
+      if (editor) {
+        const { from, to } = editor.state.selection;
+        commentRange.value = { from, to };
+      }
+      commentInputValue.value = '';
+      nextTick(() => commentInputRef.value?.focus());
+    }
+
+    async function saveCommentInput() {
+      const content = commentInputValue.value.trim();
+      const { editor } = props;
+      const { from, to } = commentRange.value;
+      if (!content || !editor || from === to) return;
       const threadId = crypto.randomUUID();
-      editor.chain().focus().setComment(threadId).run();
-      commentStore.setPendingThread(threadId, from, to);
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .setComment(threadId)
+        .run();
+      commentPopoverOpen.value = false;
+      commentInputValue.value = '';
+      try {
+        await commentStore.addComment(props.note.id, {
+          content,
+          threadId,
+          anchorFrom: from,
+          anchorTo: to,
+        });
+      } catch (err) {
+        console.warn('[comment] Failed to add comment:', err);
+      }
+    }
+
+    function closeCommentInput() {
+      commentInputValue.value = '';
+      commentPopoverOpen.value = false;
+      props.editor?.commands?.focus();
     }
 
     const linkInputValue = ref('');
@@ -622,6 +697,13 @@ export default {
       currentAlignmentIcon,
       alignmentOptions,
       canComment,
+      // Comment input
+      commentInputValue,
+      commentInputRef,
+      commentPopoverOpen,
+      onCommentPopoverShow,
+      saveCommentInput,
+      closeCommentInput,
       // Link input
       linkInputValue,
       linkInputRef,

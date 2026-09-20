@@ -1,5 +1,7 @@
 <template>
   <div v-if="note" class="flex flex-col">
+    <mobile-sync-strip v-if="isMobile" />
+
     <template v-if="editor && !isLocked">
       <div
         class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4"
@@ -31,16 +33,20 @@
             note,
             showSearch,
             goBack,
-            peers: presence.peers,
+            peers: presence.peers.value,
             localColor: presence.localColor?.value,
             localName: accountStore.profile?.username || 'Anonymous',
             showHistory,
             showComments,
-            isShared,
           }"
           @toggle-search="showSearch = !showSearch"
           @toggle-history="showHistory = !showHistory"
           @toggle-comments="toggleComments"
+          @restore="handleRestore"
+          @preview="enterVersionPreview"
+          @version-restore="handleRestore"
+          @version-exit="exitVersionPreview"
+          @review="enterChangeReview"
         />
       </div>
     </template>
@@ -106,14 +112,6 @@
         </div>
       </template>
       <div
-        v-if="pendingSetup"
-        class="flex items-center gap-2 mb-4 text-sm text-neutral-500 dark:text-neutral-400"
-      >
-        <span>{{
-          translations.note?.settingUpOnDevice || 'Setting up on this device…'
-        }}</span>
-      </div>
-      <div
         v-if="yjsError"
         class="flex flex-col items-center gap-3 mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-sm text-red-600 dark:text-red-400"
       >
@@ -122,12 +120,43 @@
           class="px-3 py-1 rounded bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-700 transition"
           @click="
             yjsError = null;
-            yjsLoad(id, note?.content, note?.title || '').catch((e) => {
+            yjsLoad(id, note?.content).catch((e) => {
               yjsError = e?.message || 'Retry failed';
             });
           "
         >
           {{ translations.common?.retry || 'Retry' }}
+        </button>
+      </div>
+      <div
+        v-if="
+          changeReview.mergeBannerVisible.value &&
+          !changeReview.active.value &&
+          !isLocked
+        "
+        class="merge-review-banner no-print flex items-center gap-3 mb-4 px-3 py-2 rounded-xl border border-emerald-300/60 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-100 text-sm"
+        role="status"
+      >
+        <span class="flex-1">
+          {{
+            translations.note?.mergedFromDevice ||
+            'Merged changes from another device'
+          }}
+        </span>
+        <button
+          type="button"
+          class="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors"
+          @click="reviewMergedChanges"
+        >
+          {{ translations.note?.reviewChanges || 'Review' }}
+        </button>
+        <button
+          type="button"
+          aria-label="Dismiss"
+          class="text-emerald-700/70 hover:text-emerald-900 dark:text-emerald-200/70 dark:hover:text-emerald-100 p-1"
+          @click="changeReview.dismissMergeBanner()"
+        >
+          <v-remixicon name="riCloseLine" class="w-4 h-4" />
         </button>
       </div>
       <div
@@ -160,13 +189,15 @@
           :body="
             appEncryptedLocked
               ? translations.settings?.unlockAppEncryptionBody ||
-                'Your notes are encrypted. Enter your encryption passphrase to unlock the app.'
+                'Your notes are encrypted. Enter your vault key to unlock the app.'
               : translations.card.unlockToEdit ||
-                'This note is locked. Enter your vault password or use biometrics to unlock it.'
+                'This note is locked. Enter your vault key or use biometrics to unlock it.'
           "
           :hint="'Encryption is always active: your notes and assets are protected at rest.'"
           :password="lockedPassword"
-          :placeholder="translations.settings?.password || 'Vault password'"
+          :placeholder="
+            translations.settings?.vaultKeyPlaceholder || 'Vault key'
+          "
           :error="lockedError"
           :busy="lockedBusy"
           :biometric-busy="lockedBiometricBusy"
@@ -213,6 +244,8 @@
           @init="editor = $event"
           @keyup.down="autoScroll"
           @comment-activated="onCommentActivated"
+          @review-exit="exitChangeReview"
+          @activity="handleActivity"
         />
         <div v-if="yjsReady && !editor" class="editor-skeleton">
           <div class="space-y-4 animate-pulse">
@@ -315,6 +348,9 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
 import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
+import { useChangeReview } from '@/composable/useChangeReview';
+import { useActivityLog } from '@/composable/useActivityLog';
+import { onRemoteApplied } from '@/lib/yjs/shared';
 import { getWsSync } from '@/lib/sync/ws-sync';
 import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
@@ -325,6 +361,8 @@ import { canEdit } from '@/utils/permissions';
 import { displayName } from '@/utils/displayName';
 import ReaderPill from '@/components/note/ReaderPill.vue';
 import { useReaderPrefs } from '@/composable/useReaderPrefs';
+import MobileSyncStrip from '@/components/app/MobileSyncStrip.vue';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
 
 export default {
   components: {
@@ -338,6 +376,7 @@ export default {
     CommentSidebar,
     UnlockCard,
     ReaderPill,
+    MobileSyncStrip,
   },
   inheritAttrs: false,
   setup() {
@@ -350,6 +389,7 @@ export default {
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
     const appStore = useAppStore();
+    const isMobile = isMobileRuntime();
 
     const editor = shallowRef(null);
     function exitReader() {
@@ -391,6 +431,11 @@ export default {
     const titleDiv = ref(null);
     const noteHistory = useNoteHistory();
     const sharing = useNoteSharing();
+    const changeReview = useChangeReview();
+    const activityLog = useActivityLog();
+    function handleActivity(payload) {
+      activityLog.record(payload);
+    }
 
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
@@ -466,7 +511,6 @@ export default {
     const {
       doc: ydoc,
       ready: yjsReady,
-      pendingSetup,
       load: yjsLoad,
       getTitle: yjsGetTitle,
       setTitle: yjsSetTitle,
@@ -544,7 +588,6 @@ export default {
       }
     });
 
-    const isShared = computed(() => sharing.collaborators.value.length > 0);
     watch(
       id,
       async (newId) => {
@@ -561,7 +604,7 @@ export default {
 
     function toggleComments() {
       showComments.value = !showComments.value;
-      if (showComments.value && isShared.value) {
+      if (showComments.value) {
         commentStore.fetchThreads(id.value, {
           baseUrl: accountStore.serverUrl,
         });
@@ -571,17 +614,6 @@ export default {
       showComments.value = false;
       commentStore.closeSidebar();
     }
-    watch(
-      () => [isShared.value, id.value],
-      async ([shared, noteId]) => {
-        if (shared && noteId && accountStore.isAuthenticated) {
-          commentStore.fetchThreads(noteId, {
-            baseUrl: accountStore.serverUrl,
-          });
-        }
-      },
-      { immediate: true },
-    );
     onUnmounted(() => {
       commentStore.reset();
     });
@@ -697,13 +729,13 @@ export default {
       try {
         const res = await verifyPassphrase(lockedPassword.value);
         if (!res.ok) {
-          lockedError.value = res.error || 'Wrong vault password.';
+          lockedError.value = res.error || 'Wrong vault key.';
           return;
         }
         lockedPassword.value = '';
         await noteStore.unlockNote(note.value.id);
       } catch (e) {
-        lockedError.value = e?.message || 'Wrong vault password.';
+        lockedError.value = e?.message || 'Wrong vault key.';
       } finally {
         lockedBusy.value = false;
       }
@@ -715,7 +747,7 @@ export default {
       try {
         const res = await verifyPassphrase(lockedPassword.value);
         if (!res.ok) {
-          lockedError.value = res.error || 'Wrong passphrase.';
+          lockedError.value = res.error || 'Wrong vault key.';
           return;
         }
         lockedPassword.value = '';
@@ -726,7 +758,7 @@ export default {
             noteStore.data[id.value] = hydrateNote(decrypted);
         }
       } catch (e) {
-        lockedError.value = e?.message || 'Wrong passphrase.';
+        lockedError.value = e?.message || 'Wrong vault key.';
       } finally {
         lockedBusy.value = false;
       }
@@ -738,7 +770,7 @@ export default {
         await authenticateWithBiometrics('Unlock note');
         const ok = await tryRestoreKeyFromSafeStorage();
         if (!ok) {
-          lockedError.value = 'Failed to retrieve stored passphrase.';
+          lockedError.value = 'Failed to retrieve the stored vault key.';
           return;
         }
         const current = noteStore.getById(id.value);
@@ -834,6 +866,123 @@ export default {
       return updateNote(id.value, { content });
     }
 
+    let previewActive = false;
+    let previewWasEditable = true;
+    let removeRemoteApplied = () => {};
+
+    function formatVersionLabel(createdAt) {
+      if (!createdAt) return 'Viewing an older version';
+      const when = new Date(createdAt).toLocaleString();
+      return Number.isNaN(new Date(createdAt).getTime())
+        ? 'Viewing an older version'
+        : `Viewing version from ${when}`;
+    }
+
+    function formatReviewLabel(payload) {
+      if (!payload || (!payload.authorName && !payload.createdAt)) {
+        return 'Reviewing changes';
+      }
+      const who = payload.authorName || 'another device';
+      const when = payload.createdAt
+        ? new Date(payload.createdAt).toLocaleString()
+        : '';
+      return when ? `Changes from ${who} · ${when}` : `Changes from ${who}`;
+    }
+
+    function enterChangeReview(payload) {
+      if (
+        !editor.value ||
+        typeof payload?.content !== 'string' ||
+        !payload.content
+      ) {
+        return;
+      }
+      exitVersionPreview();
+      const started = changeReview.start(editor.value, {
+        content: payload.content,
+        label: formatReviewLabel(payload),
+        meta: {
+          commit: payload.hash,
+          authorName: payload.authorName,
+          createdAt: payload.createdAt,
+        },
+      });
+      if (started) showHistory.value = false;
+    }
+
+    function exitChangeReview() {
+      changeReview.exit(editor.value);
+    }
+
+    async function reviewMergedChanges() {
+      changeReview.dismissMergeBanner();
+      if (!editor.value) return;
+      // The page's history instance is only loaded lazily, so fetch the newest
+      // commit as the baseline (the state before the merged changes).
+      if (!noteHistory.commits.value.length) {
+        await noteHistory.loadCommits('', id.value);
+      }
+      const commit = noteHistory.commits.value?.[0];
+      let content = null;
+      let payload = null;
+      if (commit?.hash) {
+        await noteHistory.loadSnapshot(commit.hash, id.value);
+        content = noteHistory.selectedCommit.value?.content || null;
+        payload = commit;
+      }
+      if (!content) {
+        // No baseline commit exists yet: diff against the current doc so the
+        // review is honestly empty ("No changes") rather than inventing one.
+        content = editor.value.getHTML();
+        payload = { createdAt: null, authorName: null };
+      }
+      enterChangeReview({ ...payload, content });
+    }
+
+    function enterVersionPreview(payload) {
+      if (!editor.value) return;
+      if (!payload?.content) {
+        exitVersionPreview();
+        return;
+      }
+      exitChangeReview();
+      if (!previewActive) previewWasEditable = editor.value.isEditable;
+      editor.value.commands.setVersionPreview(payload.content, {
+        content: payload.content,
+        title: payload.title,
+        label: formatVersionLabel(payload.createdAt),
+      });
+      editor.value.setEditable(false, false);
+      previewActive = true;
+    }
+
+    function exitVersionPreview() {
+      if (!editor.value || !previewActive) return;
+      previewActive = false;
+      editor.value.commands.clearVersionPreview();
+      editor.value.setEditable(previewWasEditable, false);
+    }
+
+    async function handleRestore(payload) {
+      const content = payload?.content;
+      const title = payload?.title;
+      if (typeof content !== 'string') return;
+      exitChangeReview();
+      exitVersionPreview();
+      // Replace the live editor content: the Collaboration extension writes the
+      // change into the note's Y.Doc, so it syncs and persists like a normal edit.
+      if (editor.value) {
+        editor.value.commands.setContent(content);
+      }
+      if (typeof title === 'string') {
+        yjsSetTitle(title);
+        if (titleDiv.value) titleDiv.value.textContent = title;
+        autoResizeTitle();
+        await updateNote(id.value, { title });
+      }
+      showHistory.value = false;
+    }
+
     function closeSearch() {
       showSearch.value = false;
     }
@@ -842,6 +991,8 @@ export default {
     watch(
       () => route.params.id,
       (noteId, oldNoteId) => {
+        previewActive = false;
+        exitChangeReview();
         // Flush on ANY leave (note-to-note AND note-to-home) so home never
         // renders a pre-edit preview while the debounced persist is pending.
         if (oldNoteId && noteStore.getById(oldNoteId)) {
@@ -868,9 +1019,8 @@ export default {
         // Read content at call time: decrypt watcher may have updated store since fire.
         const currentForLoad = noteStore.getById(noteId);
         const seedContent = currentForLoad?.content;
-        const seedTitle = currentForLoad?.title || '';
         yjsError.value = null;
-        yjsLoad(noteId, seedContent, seedTitle).catch((err) => {
+        yjsLoad(noteId, seedContent).catch((err) => {
           console.error('[yjs] Failed to load note:', err);
           yjsError.value = err?.message || 'Failed to load note';
         });
@@ -926,6 +1076,9 @@ export default {
         },
       });
       window.addEventListener('beforeunload', handleBeforeUnload);
+      removeRemoteApplied = onRemoteApplied((noteId) => {
+        changeReview.handleRemoteApplied(noteId, id.value);
+      });
 
       if (titleDiv.value) {
         const titleText = note.value?.title || yjsGetTitle() || '';
@@ -948,6 +1101,8 @@ export default {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
       removeEditorListeners();
+      removeRemoteApplied();
+      exitChangeReview();
     });
 
     onBeforeRouteLeave((to) => {
@@ -958,6 +1113,7 @@ export default {
         wait: false,
       });
       removeGlobalShortcuts();
+      exitChangeReview();
     });
 
     addCloseHandler(async () => {
@@ -1064,6 +1220,7 @@ export default {
 
     return {
       id,
+      isMobile,
       showBack,
       previousNote,
       titleDiv,
@@ -1090,6 +1247,14 @@ export default {
       showHistory,
       handleTitleInput,
       handleContentUpdate,
+      handleRestore,
+      handleActivity,
+      enterVersionPreview,
+      exitVersionPreview,
+      changeReview,
+      enterChangeReview,
+      exitChangeReview,
+      reviewMergedChanges,
       closeSearch,
       disallowedEnter,
       autoResizeTitle,
@@ -1097,16 +1262,15 @@ export default {
       isLocked,
       yjsReady,
       ydoc,
-      pendingSetup,
       awareness,
       presence,
-      isShared,
       accountStore,
       showComments,
       isDocked,
       isLargeScreen,
       hingeSegmentWidth,
       toggleComments,
+      closeComments,
       commentStore,
       onCommentActivated,
       noteRole,

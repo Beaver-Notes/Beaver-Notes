@@ -9,12 +9,22 @@ vi.mock('@/lib/native/yjs.js', () => ({
   appendUpdate: vi.fn().mockResolvedValue(),
   compactUpdates: vi.fn().mockResolvedValue(),
 }));
-vi.mock('@/lib/yjs/helpers.js', () => ({
-  getDeviceId: () => 'd1',
-  applyUpdatesToDoc: () => {},
-  toUint8Array: (x) => x,
-  ensureSchema: vi.fn(),
-}));
+vi.mock('@/lib/yjs/helpers.js', async () => {
+  const Y = await import('yjs');
+  return {
+    getDeviceId: () => 'd1',
+    applyUpdatesToDoc: () => {},
+    toUint8Array: (x) => x,
+    ensureSchema: vi.fn(),
+    // applyTitleDelta seeds an empty Y.Text through this helper.
+    seedDeterministically: (ydoc, seedKey, build, origin) => {
+      const temp = new Y.Doc();
+      build(temp);
+      Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(temp), origin);
+      temp.destroy();
+    },
+  };
+});
 vi.mock('@/store/workspace', () => ({ useWorkspaceStore: () => ({ activeId: 'w1' }) }));
 vi.mock('@/composable/useNoteSharing.js', () => ({
   useNoteSharing: () => ({ ensureNoteKey: vi.fn().mockResolvedValue(null) }),
@@ -33,7 +43,11 @@ import { useNoteYjs } from '@/composable/useNoteYjs.js';
 describe('title composition guard', () => {
   it('observer does not overwrite while focused (Y.Text stays, DOM guard skips)', async () => {
     const { load, getTitle, setTitle, observeTitle } = useNoteYjs();
-    await load('n3', null, 'hello');
+    await load('n3', null);
+    // load no longer seeds the store title into the collaborative Y.Text
+    // (two clients would merge it into a doubled title); the first edit does.
+    expect(getTitle()).toBe('');
+    setTitle('hello');
     expect(getTitle()).toBe('hello');
 
     // Simulate focused titleDiv: guard should prevent DOM overwrite.
@@ -80,7 +94,8 @@ describe('title composition guard', () => {
 
   it('composition guard prevents overwrite while composing', async () => {
     const { load, getTitle, setTitle, observeTitle } = useNoteYjs();
-    await load('n4', null, 'hello');
+    await load('n4', null);
+    setTitle('hello');
 
     const el = document.createElement('div');
     el.textContent = 'hello';

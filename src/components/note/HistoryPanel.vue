@@ -7,7 +7,7 @@
         class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full max-w-4xl mx-auto"
       >
         <!-- Desktop Layout -->
-        <div class="max-md:hidden">
+        <div v-if="tab === 'history'" class="max-md:hidden">
           <div class="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-700">
             <div class="flex items-center gap-3">
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -27,6 +27,12 @@
                 <option value="today">{{ tr.today || 'Today' }}</option>
                 <option value="week">{{ tr.thisWeek || 'This Week' }}</option>
               </select>
+              <button
+                @click="tab = 'activity'"
+                class="text-xs font-medium border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-1 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                {{ tr.activity || 'Activity' }}
+              </button>
               <button
                 @click="$emit('close')"
                 class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors p-1 rounded"
@@ -116,7 +122,7 @@
                       </p>
                     </div>
                     <button
-                      @click="history.clearSelection()"
+                      @click="history.clearSelection(); $emit('preview', null)"
                       class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-1"
                     >
                       <v-remixicon name="riCloseLine" class="w-3.5 h-3.5" />
@@ -165,12 +171,18 @@
                       {{ showPreview ? (tr.hide || 'Hide') : (tr.preview || 'Preview') }}
                     </button>
                     <button
-                      @click="$emit('restore', selectedCommitData)"
+                    @click="$emit('restore', { ...selectedCommitData, ...(history.selectedCommit.value || {}) })"
                       class="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
                     >
                       {{ tr.restore || 'Restore' }}
                     </button>
                   </div>
+                  <button
+                    @click="reviewCommit"
+                    class="w-full px-2 py-1.5 text-xs font-medium rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                  >
+                    {{ tr.reviewChanges || 'Review changes' }}
+                  </button>
                 </div>
                 <div
                   v-if="showPreview"
@@ -229,7 +241,7 @@
         </div>
 
         <!-- Mobile Layout -->
-        <div class="hidden max-md:block">
+        <div v-if="tab === 'history'" class="hidden max-md:block">
           <div class="flex items-center justify-between px-3 py-2 border-b border-neutral-200 dark:border-neutral-700">
             <div class="flex items-center gap-2">
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -250,6 +262,12 @@
                 <option value="today">{{ tr.today || 'Today' }}</option>
                 <option value="week">{{ tr.week || 'Week' }}</option>
               </select>
+              <button
+                @click="tab = 'activity'"
+                class="text-xs border border-neutral-200 dark:border-neutral-600 rounded px-1.5 py-0.5 text-neutral-700 dark:text-neutral-300"
+              >
+                {{ tr.activity || 'Activity' }}
+              </button>
               <button
                 @click="$emit('close')"
                 class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-1"
@@ -339,7 +357,7 @@
                     </div>
                   </div>
                   <button
-                    @click="history.clearSelection()"
+                    @click="history.clearSelection(); $emit('preview', null)"
                     class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-1"
                   >
                     <v-remixicon name="riCloseLine" class="w-3.5 h-3.5" />
@@ -359,12 +377,18 @@
                     {{ showPreview ? (tr.hide || 'Hide') : (tr.preview || 'Preview') }}
                   </button>
                   <button
-                    @click="$emit('restore', selectedCommitData)"
+                    @click="$emit('restore', { ...selectedCommitData, ...(history.selectedCommit.value || {}) })"
                     class="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white"
                   >
                     {{ tr.restore || 'Restore' }}
                   </button>
                 </div>
+                <button
+                  @click="reviewCommit"
+                  class="w-full px-2 py-1.5 text-xs font-medium rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-300"
+                >
+                  {{ tr.reviewChanges || 'Review changes' }}
+                </button>
                 <div
                   v-if="showPreview"
                   class="border-t border-neutral-200 dark:border-neutral-700 pt-2 max-h-[20vh] overflow-auto"
@@ -420,6 +444,111 @@
             </div>
           </div>
         </div>
+
+        <!-- Activity -->
+        <div v-else>
+          <div class="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-700">
+            <div class="flex items-center gap-3">
+              <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                {{ tr.activity || 'Activity' }}
+              </h3>
+              <span
+                v-if="activity.entries.value.length"
+                class="text-xs text-neutral-400 dark:text-neutral-500"
+              >
+                {{ activity.entries.value.length }}
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                v-if="activity.entries.value.length"
+                @click="confirmClearActivity"
+                class="text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-2 py-1 rounded transition-colors"
+              >
+                {{ tr.clearActivity || 'Clear activity' }}
+              </button>
+              <button
+                @click="tab = 'history'"
+                class="text-xs border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-1 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                {{ tr.history || 'History' }}
+              </button>
+              <button
+                @click="$emit('close')"
+                class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-1 rounded transition-colors"
+              >
+                <v-remixicon name="riCloseLine" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="activity.loading.value && !activity.entries.value.length"
+            class="flex items-center justify-center py-12"
+          >
+            <div class="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+
+          <div
+            v-else-if="activity.error.value"
+            class="flex items-center justify-center py-12 px-6"
+          >
+            <p class="text-sm text-red-600 dark:text-red-400 text-center">
+              {{ activity.error.value }}
+            </p>
+          </div>
+
+          <div
+            v-else-if="!activity.entries.value.length"
+            class="flex items-center justify-center py-12 px-6"
+          >
+            <p class="text-sm text-neutral-500">
+              {{ tr.noActivity || 'No activity yet' }}
+            </p>
+          </div>
+
+          <div v-else class="max-h-[45vh] overflow-auto px-4 py-2">
+            <template v-for="group in activityGroups" :key="group.day">
+              <p class="text-[11px] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-500 mt-2 mb-1">
+                {{ group.label }}
+              </p>
+              <div
+                v-for="entry in group.items"
+                :key="entry.id"
+                class="flex items-start gap-3 py-2 border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
+              >
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs text-neutral-700 dark:text-neutral-300">
+                    <span class="font-medium">{{ entry.actorLabel }}</span>
+                    {{ activityVerb(entry.kind) }}
+                    <span v-if="entry.summary" class="text-neutral-500 dark:text-neutral-400">
+                      &ldquo;{{ entry.summary }}&rdquo;
+                    </span>
+                  </p>
+                  <p class="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                    {{ relativeTime(new Date(entry.at).toISOString()) }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <button
+                    @click="jumpTo(entry)"
+                    :disabled="!canJump(entry)"
+                    class="text-[11px] font-medium px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-600 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >
+                    {{ tr.jumpTo || 'Jump to' }}
+                  </button>
+                  <button
+                    @click="undoActivity(entry)"
+                    :disabled="!activity.canUndo(entry)"
+                    class="text-[11px] font-medium px-2 py-1 rounded-md border border-emerald-500 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >
+                    {{ tr.undo || 'Undo' }}
+                  </button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
     </div>
   </transition>
@@ -428,18 +557,24 @@
 <script>
 import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue';
 import { useNoteHistory } from '@/composable/useNoteHistory';
+import { useActivityLog } from '@/composable/useActivityLog';
+import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: {
     noteId: { type: String, required: true },
     workspaceId: { type: String, default: '' },
+    editor: { type: Object, default: null },
   },
-  emits: ['close', 'restore'],
+  emits: ['close', 'restore', 'preview', 'review'],
   setup(props) {
     const history = useNoteHistory();
+    const activity = useActivityLog();
+    const dialog = useDialog();
     const { translations } = useTranslations();
     const tr = computed(() => translations.value?.history || {});
+    const tab = ref('history');
     function fmt(key, params) {
       const raw = tr.value[key] ?? key;
       if (!params) return raw;
@@ -484,7 +619,31 @@ export default {
 
     async function onDotClick(commit, idx) {
       history.selectCommit(idx);
-      await history.loadSnapshot(commit.hash);
+      await history.loadSnapshot(commit.hash, props.noteId);
+      const snapshot = history.selectedCommit.value;
+      $emit(
+        'preview',
+        snapshot?.content
+          ? { ...snapshot, hash: commit.hash, createdAt: commit.createdAt }
+          : null
+      );
+    }
+
+    // Hovering a dot only selects it, so hovering then clicking "Review changes"
+    // would still need the snapshot fetched. Load it here to guarantee a
+    // baseline before opening the review.
+    async function reviewCommit() {
+      const commit = selectedCommitData.value;
+      if (!commit?.hash) return;
+      await history.loadSnapshot(commit.hash, props.noteId);
+      const snapshot = history.selectedCommit.value;
+      if (!snapshot?.content) return;
+      $emit('review', {
+        ...commit,
+        ...snapshot,
+        hash: commit.hash,
+        createdAt: commit.createdAt,
+      });
     }
 
     // Inspector card
@@ -638,9 +797,102 @@ export default {
       return fmt('daysAgo', { count: days });
     }
 
+    // Activity log (plan Phase 1): newest first, grouped by day. "Jump to" and
+    // "Undo" act on the live editor and are disabled when the anchor no longer
+    // resolves or no in-session baseline exists.
+    const activityGroups = computed(() => {
+      const groups = [];
+      let current = null;
+      for (const entry of activity.entries.value) {
+        const day = new Date(entry.at).toDateString();
+        if (!current || current.day !== day) {
+          current = { day, label: formatActivityDay(entry.at), items: [] };
+          groups.push(current);
+        }
+        current.items.push(entry);
+      }
+      return groups;
+    });
+
+    function formatActivityDay(at) {
+      const d = new Date(at);
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+      if (d.toDateString() === today.toDateString()) return tr.value.today || 'Today';
+      if (d.toDateString() === yesterday.toDateString()) return tr.value.yesterday || 'Yesterday';
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function activityVerb(kind) {
+      if (kind === 'insert') return tr.value.activityAdded || 'added';
+      if (kind === 'delete') return tr.value.activityDeleted || 'deleted';
+      if (kind === 'replace') return tr.value.activityChanged || 'changed';
+      return tr.value.activityEdited || 'edited';
+    }
+
+    // A snippet is the stable-enough anchor: positions drift after later edits,
+    // so a miss disables the action instead of selecting the wrong range.
+    function findTextRange(doc, rawNeedle) {
+      const needle = String(rawNeedle || '').replace(/\s+/g, ' ').trim();
+      if (!doc || !needle) return null;
+      let found = null;
+      doc.descendants((node, pos) => {
+        if (found) return false;
+        if (!node.isText || !node.text) return true;
+        const idx = node.text.indexOf(needle);
+        if (idx >= 0) {
+          found = { from: pos + idx, to: pos + idx + needle.length };
+          return false;
+        }
+        return true;
+      });
+      return found;
+    }
+
+    function canJump(entry) {
+      return !!findTextRange(
+        props.editor?.state?.doc,
+        entry?.anchorHint || entry?.summary
+      );
+    }
+
+    function jumpTo(entry) {
+      const range = findTextRange(
+        props.editor?.state?.doc,
+        entry?.anchorHint || entry?.summary
+      );
+      if (!range) return false;
+      try {
+        props.editor.chain().focus().setTextSelection(range).scrollIntoView().run();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function undoActivity(entry) {
+      activity.undo(entry, props.editor);
+    }
+
+    function confirmClearActivity() {
+      dialog.confirm({
+        title: tr.value.clearActivityTitle || 'Clear activity?',
+        body:
+          tr.value.clearActivityBody ||
+          'This removes the activity log for this note. The note itself is not changed.',
+        icon: 'riDeleteBinLine',
+        okText: translations.value?.dialog?.confirm || 'Clear',
+        cancelText: translations.value?.dialog?.cancel || 'Cancel',
+        okVariant: 'danger',
+        onConfirm: () => activity.clear(),
+      });
+    }
+
     // Lifecycle
     onMounted(() => {
       history.loadCommits(props.workspaceId, props.noteId);
+      activity.loadIfNeeded(props.noteId);
     });
 
     onBeforeUnmount(() => {
@@ -671,6 +923,14 @@ export default {
     return {
       history,
       filteredCommits,
+      activity,
+      activityGroups,
+      tab,
+      activityVerb,
+      canJump,
+      jumpTo,
+      undoActivity,
+      confirmClearActivity,
       showPreview,
       previewEditorEl,
       rotaryContainer,
@@ -678,6 +938,7 @@ export default {
       dotPosition,
       dateRangeLabel,
       onDotClick,
+      reviewCommit,
       selectedCommitData,
       wordCount,
       wordDiff,
