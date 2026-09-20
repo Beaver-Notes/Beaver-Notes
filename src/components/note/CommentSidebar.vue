@@ -32,39 +32,37 @@
       </div>
 
       <div class="flex-1 overflow-y-auto overscroll-contain">
+        <p
+          v-if="actionError"
+          data-testid="comment-action-error"
+          role="alert"
+          class="m-3 rounded-lg bg-red-50 dark:bg-red-900/20 px-3 py-2 text-xs text-red-600 dark:text-red-400"
+        >
+          {{ actionError }}
+        </p>
+
         <div v-if="loading" class="py-16 flex flex-col items-center gap-3 text-neutral-400">
           <div class="w-5 h-5 border-2 border-neutral-300 border-t-neutral-900 dark:border-neutral-600 dark:border-t-white rounded-full animate-spin" />
           <span class="text-xs">Loading threads…</span>
         </div>
 
-        <template v-else>
-          <div v-if="pendingThreadId" class="p-3">
-            <div class="rounded-xl border border-dashed border-primary/30 bg-primary/[0.04] dark:bg-primary/10 p-3">
-              <p class="text-xs font-medium tracking-wide font-bold text-neutral-500 dark:text-neutral-400 mb-2">
-                {{ translationsComments.newComment || 'New thread' }}
-              </p>
-              <div class="flex gap-2 items-end">
-                <textarea
-                  v-model="pendingComment"
-                  :placeholder="translationsComments.placeholder || 'Add a comment...'"
-                  rows="1"
-                  class="flex-1 resize-none min-h-[36px] max-h-[96px] text-[13.5px] leading-5 px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:border-neutral-300 dark:focus:border-neutral-600 focus:ring-2 focus:ring-primary/10 transition"
-                  @keydown.enter.exact.prevent="submitPendingComment"
-                  @keydown.enter.shift.exact.stop
-                />
-                <button
-                  class="shrink-0 w-8 h-8 grid place-items-center rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-40 disabled:pointer-events-none transition"
-                  :disabled="!pendingComment.trim()"
-                  aria-label="Send"
-                  @click="submitPendingComment"
-                >
-                  <v-remixicon name="riSendPlaneFill" size="14" />
-                </button>
-              </div>
-              <p class="text-xs text-neutral-400 mt-1.5">↩︎ send · ⇧↩︎ new line</p>
-            </div>
+        <div
+          v-else-if="unavailable"
+          data-testid="comments-unavailable"
+          class="px-6 py-14 flex flex-col items-center text-center"
+        >
+          <div class="w-10 h-10 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 grid place-items-center text-neutral-400 mb-3">
+            <v-remixicon name="riChatOffLine" size="20" />
           </div>
+          <p class="text-[13px] font-medium text-neutral-900 dark:text-neutral-100">
+            {{ translationsComments.unavailable || 'Comments work on shared notes' }}
+          </p>
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-[26ch] leading-relaxed">
+            {{ translationsComments.unavailableHint || 'Invite someone to this note to turn comments on.' }}
+          </p>
+        </div>
 
+        <template v-else>
           <div v-if="unresolvedThreads.length" class="p-3 space-y-3">
             <div
               v-for="thread in unresolvedThreads"
@@ -203,7 +201,7 @@
           </div>
 
           <div
-            v-if="!unresolvedThreads.length && !resolvedThreads.length && !pendingThreadId"
+            v-if="!unresolvedThreads.length && !resolvedThreads.length"
             class="px-6 py-14 flex flex-col items-center text-center"
           >
             <div class="w-10 h-10 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 grid place-items-center text-neutral-400 mb-3">
@@ -217,7 +215,10 @@
         </template>
       </div>
 
-      <div class="shrink-0 p-3 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
+      <div
+        v-if="!unavailable"
+        class="shrink-0 p-3 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800"
+      >
         <div class="flex gap-2.5 items-end">
           <div
             class="hidden sm:grid shrink-0 w-7 h-7 rounded-full place-items-center text-xs font-semibold text-white"
@@ -272,9 +273,9 @@ export default {
     const { translations } = useTranslations();
 
     const newComment = ref('');
-    const pendingComment = ref('');
     const replyInputs = reactive({});
     const showResolved = ref(false);
+    const actionError = ref('');
 
     const translationsComments = computed(() => ({
       title: translations.value['comments.title'] || 'Comments',
@@ -286,11 +287,15 @@ export default {
       empty: translations.value['comments.empty'] || 'No comments yet',
       newComment: translations.value['comments.newComment'] || 'New thread',
       delete: translations.value['comments.delete'] || 'Delete',
+      unavailable: translations.value['comments.unavailable'] || 'Comments work on shared notes',
+      unavailableHint:
+        translations.value['comments.unavailableHint'] ||
+        'Invite someone to this note to turn comments on.',
     }));
 
     const loading = computed(() => commentStore.loading);
+    const unavailable = computed(() => commentStore.unavailable);
     const activeThreadId = computed(() => commentStore.activeThreadId);
-    const pendingThreadId = computed(() => commentStore.pendingThreadId);
     const unresolvedThreads = computed(() => commentStore.unresolvedThreads);
     const resolvedThreads = computed(() => commentStore.resolvedThreads);
     const totalThreads = computed(() => unresolvedThreads.value.length + resolvedThreads.value.length);
@@ -307,8 +312,8 @@ export default {
     function getInitials(name) {
       if (!name) return '?';
       const parts = name.trim().split(/\s+/);
-      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).tofont-bold();
-      return parts[0].slice(0, 2).tofont-bold();
+      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+      return parts[0].slice(0, 2).toUpperCase();
     }
 
     function formatRelative(dateStr) {
@@ -325,9 +330,16 @@ export default {
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     }
 
+    // A failed action must be visible: the old console-only catches made a
+    // rejected comment/reply/resolve look like nothing happened.
+    function reportActionError(err, fallback) {
+      actionError.value = err?.message || fallback;
+    }
+
     async function submitComment() {
       const content = newComment.value.trim();
       if (!content) return;
+      actionError.value = '';
       try {
         await commentStore.addComment(props.noteId, {
           content,
@@ -335,30 +347,15 @@ export default {
         });
         newComment.value = '';
       } catch (err) {
+        reportActionError(err, 'Could not send your comment.');
         console.error('[comment] Failed to add comment:', err);
-      }
-    }
-
-    async function submitPendingComment() {
-      const content = pendingComment.value.trim();
-      if (!content) return;
-      try {
-        await commentStore.addComment(props.noteId, {
-          content,
-          threadId: pendingThreadId.value,
-          anchorFrom: commentStore.pendingAnchorFrom,
-          anchorTo: commentStore.pendingAnchorTo,
-          baseUrl: accountStore.serverUrl,
-        });
-        pendingComment.value = '';
-      } catch (err) {
-        console.error('[comment] Failed to add pending comment:', err);
       }
     }
 
     async function submitReply(threadId) {
       const content = replyInputs[threadId]?.trim();
       if (!content) return;
+      actionError.value = '';
       try {
         await commentStore.addComment(props.noteId, {
           content,
@@ -368,27 +365,32 @@ export default {
         });
         replyInputs[threadId] = '';
       } catch (err) {
+        reportActionError(err, 'Could not send your reply.');
         console.error('[comment] Failed to reply:', err);
       }
     }
 
     async function toggleResolve(threadId) {
+      actionError.value = '';
       try {
         await commentStore.toggleResolve(threadId, {
           baseUrl: accountStore.serverUrl,
         });
       } catch (err) {
+        reportActionError(err, 'Could not update the thread.');
         console.error('[comment] Failed to toggle resolve:', err);
       }
     }
 
     async function deleteComment(commentId) {
       if (!commentId) return;
+      actionError.value = '';
       try {
         await commentStore.removeComment(commentId, {
           baseUrl: accountStore.serverUrl,
         });
       } catch (err) {
+        reportActionError(err, 'Could not delete the comment.');
         console.error('[comment] Failed to delete comment:', err);
       }
     }
@@ -404,21 +406,20 @@ export default {
     return {
       translationsComments,
       loading,
+      unavailable,
       activeThreadId,
-      pendingThreadId,
       unresolvedThreads,
       resolvedThreads,
       totalThreads,
       newComment,
-      pendingComment,
       replyInputs,
       showResolved,
+      actionError,
       accountStore,
       getAuthorColor,
       getInitials,
       formatRelative,
       submitComment,
-      submitPendingComment,
       submitReply,
       toggleResolve,
       deleteComment,

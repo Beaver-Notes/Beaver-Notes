@@ -11,11 +11,20 @@ import { useNoteSharing } from '@/composable/useNoteSharing';
 import { useCollaboratorStore } from '@/store/collaborator';
 import { useAccountStore } from '@/store/account';
 import { importCollabKey } from '@/utils/crypto/collab';
-import { encryptComment, decryptComment } from '@/utils/crypto/comment-crypto';
+import {
+  encryptComment,
+  decryptComment,
+  packComment,
+  unpackComment,
+} from '@/utils/crypto/comment-crypto';
 
 export const useCommentStore = defineStore('comment', () => {
   const comments = ref([]);
   const loading = ref(false);
+  // True when the note has no shared key (personal / never-shared note), so the
+  // server has no thread store for it. Surfaced inline instead of silently
+  // failing to the console.
+  const unavailable = ref(false);
   const activeThreadId = ref(null);
   const pendingThreadId = ref(null);
   const pendingAnchorFrom = ref(null);
@@ -81,19 +90,34 @@ export const useCommentStore = defineStore('comment', () => {
 
   async function fetchThreads(noteId, { baseUrl } = {}) {
     loading.value = true;
+    unavailable.value = false;
     try {
-      const data = await listComments(noteId, { baseUrl });
+      // Resolve (and bootstrap) the note key before listing: the first touch
+      // self-invites the owner as a collaborator, which the list endpoint requires.
       let key = null;
       try {
         key = await resolveNoteKey(noteId);
       } catch (err) {
         console.warn('[comment] No note key for decryption:', err);
       }
+      if (!key) {
+        // Personal / never-shared note: no key, so no thread store. Do not fire
+        // the request (it fails to the console and the empty sidebar looks like
+        // comments work). Let the sidebar explain why.
+        unavailable.value = true;
+        comments.value = [];
+        return;
+      }
+      const data = await listComments(noteId, { baseUrl });
       if (key) {
         for (const c of data) {
           if (c.contentEncrypted && c.contentIv) {
             try {
-              c.content = await decryptComment(key, c, noteId);
+              const plain = await decryptComment(key, c, noteId);
+              const { text, anchorFrom, anchorTo } = unpackComment(plain, c);
+              c.content = text;
+              c.anchorFrom = anchorFrom;
+              c.anchorTo = anchorTo;
             } catch (err) {
               console.warn('[comment] Failed to decrypt comment', c.id, err);
             }
@@ -121,18 +145,20 @@ export const useCommentStore = defineStore('comment', () => {
       const key = await importCollabKey(noteKeyHex);
       const { contentEncrypted, contentIv } = await encryptComment(
         key,
-        content,
+        packComment({ text: content, anchorFrom, anchorTo }),
         noteId
       );
       const mentions = resolveMentions(content);
       const response = await createComment(
         noteId,
-        { contentEncrypted, contentIv, mentions, threadId, anchorFrom, anchorTo, parentId },
+        { contentEncrypted, contentIv, mentions, threadId, parentId },
         { baseUrl }
       );
       const comment = response?.comment;
       if (comment) {
         comment.content = content;
+        comment.anchorFrom = anchorFrom ?? null;
+        comment.anchorTo = anchorTo ?? null;
         comment.authorName = useAccountStore().profile?.username || resolveAuthorName(comment.authorId);
         comments.value.push(comment);
       }
@@ -148,7 +174,8 @@ export const useCommentStore = defineStore('comment', () => {
 
   async function editComment(commentId, content, { baseUrl } = {}) {
     try {
-      const noteId = comments.value.find((x) => x.id === commentId)?.noteId;
+      const existing = comments.value.find((x) => x.id === commentId);
+      const noteId = existing?.noteId;
       const noteKeyHex = await useNoteSharing().ensureNoteKey(noteId);
       if (!noteKeyHex) {
         console.warn('[comment] No note key; refusing to send plaintext edit');
@@ -157,7 +184,11 @@ export const useCommentStore = defineStore('comment', () => {
       const key = await importCollabKey(noteKeyHex);
       const { contentEncrypted, contentIv } = await encryptComment(
         key,
-        content,
+        packComment({
+          text: content,
+          anchorFrom: existing?.anchorFrom,
+          anchorTo: existing?.anchorTo,
+        }),
         noteId
       );
       await updateComment(commentId, { contentEncrypted, contentIv }, { baseUrl });
@@ -223,6 +254,7 @@ export const useCommentStore = defineStore('comment', () => {
 
   function reset() {
     comments.value = [];
+    unavailable.value = false;
     activeThreadId.value = null;
     pendingThreadId.value = null;
     pendingAnchorFrom.value = null;
@@ -233,6 +265,7 @@ export const useCommentStore = defineStore('comment', () => {
   return {
     comments,
     loading,
+    unavailable,
     activeThreadId,
     pendingThreadId,
     pendingAnchorFrom,

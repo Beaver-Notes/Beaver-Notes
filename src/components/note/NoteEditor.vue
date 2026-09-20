@@ -1,13 +1,6 @@
 <template>
   <div class="note-editor mb-64">
     <slot v-bind="{ editor }" />
-    <presence-indicator
-      v-if="awareness"
-      :awareness="awareness"
-      :user-name="userName"
-      :user-id="userId"
-      class="mb-2"
-    />
     <drag-handle
       v-if="editor && showDragHandle"
       :editor="editor"
@@ -61,6 +54,8 @@ import {
   Commands,
 } from '@/lib/tiptap';
 import { canEdit } from '@/utils/permissions';
+import VersionPreview from '@/lib/tiptap/exts/version-preview';
+import LiveCollab from '@/lib/tiptap/exts/live-collab';
 import { NodeRangeSelection } from '@tiptap/extension-node-range';
 import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
@@ -72,7 +67,6 @@ import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
 import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
-import PresenceIndicator from './PresenceIndicator.vue';
 import { getColorFromId } from '@/composable/usePresence';
 
 export default {
@@ -83,7 +77,6 @@ export default {
     TableHandle,
     TableSelectionOverlay,
     TableExtendRowColumnButton,
-    PresenceIndicator,
   },
   props: {
     modelValue: { type: [String, Object], default: '' },
@@ -96,7 +89,17 @@ export default {
     userId: { type: String, default: '' },
     role: { type: String, default: 'editor' },
   },
-  emits: ['init', 'update', 'update:modelValue', 'comment-activated'],
+  emits: [
+    'init',
+    'update',
+    'update:modelValue',
+    'comment-activated',
+    'version-restore',
+    'version-exit',
+    'review-exit',
+    'review-action',
+    'activity',
+  ],
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
@@ -275,6 +278,23 @@ export default {
     // Always registered (mobile keeps its block picker as an extra affordance).
     exts.push(Commands.configure({ id: props.id }));
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
+    exts.push(
+      VersionPreview.configure({
+        onRestore: (meta) => emit('version-restore', meta),
+        onExit: () => emit('version-exit'),
+        onReviewExit: () => emit('review-exit'),
+        onReviewAction: (payload) => emit('review-action', payload),
+      })
+    );
+    // Live (Google-Docs-style) attribution for remote websocket edits. Stays
+    // editable and does NOT touch the async review/banner path.
+    exts.push(
+      LiveCollab.configure({
+        awareness: props.awareness,
+        noteId: props.id,
+        onActivity: (payload) => emit('activity', payload),
+      })
+    );
 
     if (isYjs.value && props.ydoc) {
       exts.push(
@@ -289,8 +309,14 @@ export default {
             CollaborationCursor.configure({
               provider: { awareness: props.awareness },
               user: {
+                // The cursor extension replaces the whole awareness `user`
+                // field with this object: the id must travel along or
+                // presence self-exclusion and ghost dedup stop working.
+                // Color is derived from the account id (not the name) so the
+                // inline caret matches the toolbar avatar.
+                id: props.userId || 'anonymous',
                 name: props.userName || 'Anonymous',
-                color: getColorFromId(props.userName || props.id || 'anon'),
+                color: getColorFromId(props.userId || 'anon'),
               },
             }),
           );
@@ -481,18 +507,6 @@ export default {
       },
     );
 
-    watch(
-      () => props.userName,
-      (name) => {
-        if (props.awareness && name) {
-          props.awareness.setLocalStateField('user', {
-            name,
-            color: getColorFromId(name),
-          });
-        }
-      },
-    );
-
     return {
       editor,
       computePositionConfig,
@@ -557,5 +571,171 @@ export default {
 }
 :root.dark .comment-highlight:hover {
   background: rgba(202, 138, 4, 0.32);
+}
+
+.version-preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid hsl(var(--twc-primary) / 0.35);
+  background: hsl(var(--twc-primary) / 0.08);
+  font-size: 0.8rem;
+  color: rgb(82 82 91);
+}
+.version-preview-banner__label {
+  flex: 1;
+  font-weight: 500;
+}
+.version-preview-banner__action {
+  border: 1px solid hsl(var(--twc-primary) / 0.4);
+  background: hsl(var(--twc-primary));
+  color: #fff;
+  border-radius: 7px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.version-preview-banner__exit {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+.version-review-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.version-review-banner__done {
+  background: hsl(var(--twc-primary));
+}
+.version-preview-chunk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px;
+  vertical-align: baseline;
+  user-select: none;
+}
+.version-preview-chunk__btn {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.version-preview-chunk__revert {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+}
+.version-preview-chunk__revert:hover {
+  background: rgba(239, 68, 68, 0.16);
+}
+.version-preview-chunk[data-stale='true'] {
+  opacity: 0.55;
+}
+.version-preview-added {
+  background: rgba(34, 197, 94, 0.18);
+  border-radius: 3px;
+}
+.version-preview-removed {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+  text-decoration: line-through;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+:root.dark .version-preview-banner {
+  color: rgb(212 212 216);
+}
+:root.dark .version-preview-banner__exit {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+:root.dark .version-preview-removed {
+  color: #fca5a5;
+}
+:root.dark .version-preview-chunk__revert {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+:root.dark .version-preview-chunk__btn {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Live collaboration attribution: translucent author tint + inline chip. */
+.live-collab-added {
+  background-color: color-mix(
+    in srgb,
+    var(--live-collab-color, #9ca3af) 20%,
+    transparent
+  );
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  animation: live-collab-fade 4s ease forwards;
+}
+.live-collab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px;
+  padding: 0 6px;
+  vertical-align: baseline;
+  border-radius: 9999px;
+  border: 1px solid
+    color-mix(in srgb, var(--live-collab-color, #9ca3af) 55%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--live-collab-color, #9ca3af) 14%,
+    transparent
+  );
+  color: color-mix(
+    in srgb,
+    var(--live-collab-color, #6b7280) 65%,
+    rgb(55 65 81)
+  );
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+  animation: live-collab-fade 4s ease forwards;
+}
+.live-collab-chip__undo {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.live-collab-chip__undo:hover {
+  text-decoration: none;
+}
+@keyframes live-collab-fade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-collab-added,
+  .live-collab-chip {
+    animation: none;
+  }
 }
 </style>
