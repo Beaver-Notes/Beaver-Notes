@@ -9,14 +9,21 @@ import {
   importCollabKey,
   isValidCollabKey,
 } from '@/utils/crypto/collab'
-import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
+import { clearUnwrappedKeyCache } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
-import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces'
+import { getCachedWorkspaceKey, recoverWorkspaceKeyHex } from '@/lib/api/workspaces'
 import { kickRustSync } from '@/utils/sync/rust-shim.js'
+import { registerSharedSyncKey, clearSharedSyncKeys } from '@/utils/sync/shared-keys.js'
 import { ROLES, canEdit } from '@/utils/permissions'
+import { createEncryptedWebSocket } from './encrypted-websocket.js'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
+
+// Room joins skipped because the key wasn't ready yet (roomName -> rejoin fn).
+// `setRoomKey` re-runs them once the key lands, so a room whose key is
+// provisioned after the first attempt self-heals instead of staying off.
+const pendingKeyJoins = new Map()
 
 // Text notification listeners per provider, tracked for cleanup.
 const notificationListeners = new WeakMap()
@@ -95,9 +102,29 @@ export async function setRoomKey(roomName, hexKey) {
   try {
     const key = await importCollabKey(hexKey)
     collabKeys.set(roomName, key)
+    const retry = pendingKeyJoins.get(roomName)
+    if (retry) {
+      pendingKeyJoins.delete(roomName)
+      Promise.resolve()
+        .then(() => retry())
+        .catch((err) =>
+          console.warn('[ws-sync] deferred room join failed:', err?.message || err),
+        )
+    }
   } catch (err) {
     console.error('[ws-sync] failed to import collab key:', err)
   }
+}
+
+/** Skip a room whose key isn't provisioned: no socket, no plaintext fallback.
+ * The durable Rust path still runs (the local changes still get pushed) and a
+ * later `setRoomKey` re-runs `rejoin`. */
+function skipUnkeyedRoom(roomName, rejoin, kind) {
+  pendingKeyJoins.set(roomName, rejoin)
+  console.warn(
+    `[ws-sync] no key for ${kind} ${roomName}; realtime skipped, durable sync continues`,
+  )
+  notifySyncNow()
 }
 
 export function getWebSocketUrl() {
@@ -182,30 +209,26 @@ function isAuthenticated() {
 
 export async function ensureMetaRoomKey(workspaceId) {
   if (!workspaceId) return
-  const cachedHex = getCachedWorkspaceKey(workspaceId)
-  if (cachedHex) {
-    await setRoomKey(buildMetaRoomName(workspaceId), cachedHex)
+  // Cache-first, then the Phase 1 recovery helper: device KEM envelopes first,
+  // then the legacy items-key envelope, so a legacy-only workspace's meta room
+  // is recovered too. Never prompts; recovery only reads and caches.
+  let workspaceKeyHex = getCachedWorkspaceKey(workspaceId)
+  if (!workspaceKeyHex) {
+    const identity = await loadOrCreateIdentity()
+    if (!identity?.privateKeyHex) {
+      console.warn('[ws-sync] missing encryption identity for meta key')
+      return
+    }
+    workspaceKeyHex = await recoverWorkspaceKeyHex(workspaceId, identity)
+  }
+  if (!workspaceKeyHex) {
+    console.warn('[ws-sync] no recoverable workspace key for this device', workspaceId)
     return
   }
-  const workspaceStore = useWorkspaceStore()
-  const ws =
-    workspaceStore.activeWorkspace ||
-    workspaceStore.workspaces?.find((w) => w.id === workspaceId)
-  let wrappedKey = ws?.wrappedKey ?? null
-  if (!wrappedKey) {
-    wrappedKey = await getWorkspaceKey(workspaceId)
-  }
-  if (!wrappedKey) {
-    console.warn('[ws-sync] no wrapped key available for workspace', workspaceId)
-    return
-  }
-  const identity = await loadOrCreateIdentity()
-  if (!identity?.privateKeyHex) {
-    console.warn('[ws-sync] missing encryption identity for meta key')
-    return
-  }
-  const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wrappedKey)
   await setRoomKey(buildMetaRoomName(workspaceId), workspaceKeyHex)
+  // The durable `meta` doc seals under the workspace key so every member can
+  // read folders/labels; without this it stays under the account items key.
+  await registerSharedSyncKey('meta', workspaceKeyHex)
 }
 
 export function useWsSync() {
@@ -259,7 +282,24 @@ export function useWsSync() {
     if (!workspaceId) return
 
     const roomName = buildRoomName(workspaceId, noteId)
-    if (activeProviders.has(roomName) || pendingRooms.has(roomName)) return
+    if (pendingRooms.has(roomName)) return
+    const existing = activeProviders.get(roomName)
+    if (existing) {
+      // Reuse only when the provider already broadcasts the caller's awareness;
+      // otherwise the UI reads one awareness while the server relays another
+      // (orphaned local presence shows up as phantom peers).
+      if (!externalAwareness || existing.awareness === externalAwareness) return
+      detachNotificationListener(existing)
+      existing.destroy()
+      activeProviders.delete(roomName)
+    }
+    // Realtime is an accelerator, never a prerequisite: without the room key
+    // there is nothing safe to send, so don't open a socket at all. The durable
+    // Rust path carries the changes; setRoomKey retries this join on arrival.
+    if (!collabKeys.has(roomName)) {
+      skipUnkeyedRoom(roomName, () => joinNoteRoom(noteId, doc, externalAwareness), 'note room')
+      return
+    }
     pendingRooms.add(roomName)
     try {
       const wsUrl = getWebSocketUrl()
@@ -273,6 +313,23 @@ export function useWsSync() {
         connect: true,
         params,
         awareness,
+        // y-websocket's same-origin BroadcastChannel path publishes awareness in
+        // the clear (it is separate from the encrypted WebSocket polyfill, which
+        // only wraps the socket transport). Beaver Notes has no cross-tab need,
+        // so disable that path entirely rather than patch y-websocket internals.
+        disableBc: true,
+        WebSocketPolyfill: createEncryptedWebSocket(roomName, () =>
+          collabKeys.get(roomName),
+        ),
+      })
+
+      // Mark the room's first-sync state on the shared awareness so the
+      // live-collab extension can ignore the opening catch-up (it would
+      // otherwise flash a highlight over the note's pre-existing content).
+      // `undefined` (no provider) is treated as ready by the extension.
+      awareness.liveCollabRoomReady = false
+      provider.on('sync', (synced) => {
+        if (synced) awareness.liveCollabRoomReady = true
       })
 
       // On connection/reconnection: re-attach notification listener and
@@ -300,6 +357,7 @@ export function useWsSync() {
     const workspaceId = getActiveWorkspaceId() || ''
     const roomName = buildRoomName(workspaceId, noteId)
     clearRejoin(roomName)
+    pendingKeyJoins.delete(roomName)
     const provider = activeProviders.get(roomName)
     if (provider) {
       detachNotificationListener(provider)
@@ -323,6 +381,16 @@ export function useWsSync() {
     pendingRooms.add(roomName)
     try {
       const doc = getWorkspaceDoc()
+      // Provision the room key before connecting: the encrypted provider drops
+      // sync frames until a key exists, so connect-after-key avoids a stall.
+      await ensureMetaRoomKey(workspaceId).catch((err) => {
+        console.warn('[ws-sync] meta room key not set:', err?.message || err)
+      })
+      // Same fail-closed gate as note rooms: no key, no socket.
+      if (!collabKeys.has(roomName)) {
+        skipUnkeyedRoom(roomName, () => joinMetaRoom(workspaceId), 'meta room')
+        return
+      }
       const wsUrl = getWebSocketUrl()
       const params = await getWsParams(workspaceId)
       if (leaveWhilePending.has(roomName)) {
@@ -333,6 +401,11 @@ export function useWsSync() {
         connect: true,
         params,
         awareness: new awarenessProtocol.Awareness(doc),
+        // Same reason as the note room: no plaintext same-origin presence.
+        disableBc: true,
+        WebSocketPolyfill: createEncryptedWebSocket(roomName, () =>
+          collabKeys.get(roomName),
+        ),
       })
 
       // On connection/reconnection: re-attach notification listener and
@@ -350,10 +423,6 @@ export function useWsSync() {
 
       activeProviders.set(roomName, provider)
       docToRoom.set(doc, roomName)
-
-      ensureMetaRoomKey(workspaceId).catch((err) => {
-        console.warn('[ws-sync] meta room key not set:', err?.message || err)
-      })
     } finally {
       pendingRooms.delete(roomName)
     }
@@ -375,12 +444,23 @@ export function useWsSync() {
     activeProviders.clear()
     docToRoom.clear()
     collabKeys.clear()
+    pendingKeyJoins.clear()
     clearUnwrappedKeyCache()
+    void clearSharedSyncKeys()
   }
 
   function start() {
     if (!isAuthenticated()) return
+    const workspaceId = getActiveWorkspaceId()
     connect()
+    // After a sign-out `stop()` all providers were dropped. Re-arm the meta room
+    // so realtime + presence recover on sign-in within the same session.
+    if (workspaceId) {
+      const metaRoom = buildMetaRoomName(workspaceId)
+      if (!activeProviders.has(metaRoom) && !pendingRooms.has(metaRoom)) {
+        joinMetaRoom(workspaceId)
+      }
+    }
   }
 
   function handleWorkspaceSwitch(workspaceId) {
@@ -393,6 +473,7 @@ export function useWsSync() {
       }
     }
     for (const room of pendingRooms) leaveWhilePending.add(room)
+    for (const room of pendingKeyJoins.keys()) pendingKeyJoins.delete(room)
     for (const [doc, roomName] of docToRoom) {
       if (roomName.startsWith('workspace:')) {
         docToRoom.delete(doc)

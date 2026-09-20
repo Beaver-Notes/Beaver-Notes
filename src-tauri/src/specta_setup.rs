@@ -9,6 +9,9 @@ pub fn generate_bindings() {
             let mut types = Types::default();
 
             let all_fns = vec![
+                specta::_fn_datatype!(crate::commands::activity::activity_append)(&mut types),
+                specta::_fn_datatype!(crate::commands::activity::activity_list)(&mut types),
+                specta::_fn_datatype!(crate::commands::activity::activity_clear)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::app_info)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::app_directory)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::migration_status)(&mut types),
@@ -114,6 +117,15 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::security::sync_encrypt_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_decrypt_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_key_ready)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::sync_register_shared_key)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::sync_expect_shared_note)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::sync_clear_shared_keys)(
+                    &mut types,
+                ),
                 specta::_fn_datatype!(crate::commands::security::encryption_reconcile_key_params)(
                     &mut types,
                 ),
@@ -199,6 +211,7 @@ pub fn generate_bindings() {
                 ),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_switch)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_rename)(&mut types),
+                specta::_fn_datatype!(crate::commands::workspace::workspace_detach)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_delete)(&mut types),
             ];
 

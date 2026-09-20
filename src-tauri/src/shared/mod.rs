@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
@@ -269,6 +269,24 @@ impl DbState {
 pub(crate) struct CryptoSession {
     /// Items data key (decrypted). Present only while the app is unlocked.
     pub(crate) app_data_key: Option<[u8; 32]>,
+    /// Per-note collaboration key ring (the current shared note key first, then
+    /// any previous keys still needed to decrypt older v6 rows), by note id.
+    /// Only set after the JS layer resolves a key that every collaborator
+    /// shares, so the durable cloud path encrypts shared note content with a key
+    /// peers can decrypt instead of the account-scoped items key. Sealing always
+    /// uses index 0; decryption tries each entry newest-first (fail closed).
+    /// Removing a collaborator rotates the key and archives the old one here.
+    /// In-memory only, cleared on lock.
+    pub(crate) shared_note_keys: HashMap<String, Vec<[u8; 32]>>,
+    /// Notes the client has told us are shared (cross-account collaborators)
+    /// but whose collaboration key has not been registered yet. The durable
+    /// cloud path must not silently seal these with the account items key:
+    /// that envelope would be undecryptable by every peer. They are deferred
+    /// until `sync_register_shared_key` moves the note into `shared_note_keys`.
+    /// `sync_expect_shared_note` sets/clears the mark; cleared on lock. Kept
+    /// separate from `shared_note_keys` so no consumer can mistake a mark for a
+    /// usable key.
+    pub(crate) expected_shared_notes: HashSet<String>,
     /// Items key ring (current plus previous) by key id: lazy rotation keeps old data decryptable.
     pub(crate) items_keys: HashMap<String, [u8; 32]>,
     /// ID of the current items key (empty when locked / unconfigured).
@@ -286,6 +304,11 @@ impl Drop for CryptoSession {
         }
         for key in self.items_keys.values_mut() {
             key.zeroize();
+        }
+        for keys in self.shared_note_keys.values_mut() {
+            for key in keys.iter_mut() {
+                key.zeroize();
+            }
         }
         if let Some(key) = self.master_key_cache.as_mut() {
             key.zeroize();
@@ -654,6 +677,21 @@ pub(crate) struct WorkspaceInfo {
     pub(crate) owner_id: Option<String>,
     #[serde(default)]
     pub(crate) cloud_sync: bool,
+}
+
+/// One durable edit-log row (see `db::activity_append`). `summary` is a short
+/// human snippet of the affected text, not the document body.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActivityEntry {
+    pub(crate) id: String,
+    pub(crate) note_id: String,
+    pub(crate) actor_id: Option<String>,
+    pub(crate) actor_label: String,
+    pub(crate) kind: String,
+    pub(crate) summary: String,
+    pub(crate) at: i64,
+    pub(crate) anchor_hint: Option<String>,
 }
 
 /// Internal shape of workspaces.json

@@ -2,6 +2,15 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 vi.mock('../commit-snapshot.js', () => ({
   captureNoteSnapshot: vi.fn(),
+  captureNoteSnapshotFromBytes: vi.fn(),
+}));
+
+vi.mock('@/lib/native/yjs.js', () => ({
+  getSnapshot: vi.fn(),
+}));
+
+vi.mock('@/lib/yjs/helpers.js', () => ({
+  toUint8Array: (d) => d,
 }));
 
 vi.mock('@/lib/api/history.js', () => ({
@@ -12,7 +21,11 @@ vi.mock('@/utils/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { captureNoteSnapshot } from '../commit-snapshot.js';
+import {
+  captureNoteSnapshot,
+  captureNoteSnapshotFromBytes,
+} from '../commit-snapshot.js';
+import { getSnapshot } from '@/lib/native/yjs.js';
 import { createCommit } from '@/lib/api/history.js';
 import { logger } from '@/utils/logger';
 import { recordPushedCommits } from '../record-commits.js';
@@ -23,7 +36,21 @@ describe('recordPushedCommits', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     captureNoteSnapshot.mockResolvedValue(snapshot);
+    captureNoteSnapshotFromBytes.mockResolvedValue(snapshot);
+    getSnapshot.mockResolvedValue(null);
     createCommit.mockResolvedValue();
+  });
+
+  it('records a commit for a background note from its stored bytes (L4)', async () => {
+    // No active doc: the note is closed, so only bytes from the DB can build
+    // its history. Without this path background notes never get a commit.
+    captureNoteSnapshot.mockResolvedValue(null);
+    getSnapshot.mockResolvedValue('stored-bytes');
+
+    await recordPushedCommits(['bg']);
+
+    expect(captureNoteSnapshotFromBytes).toHaveBeenCalledWith('bg', 'stored-bytes');
+    expect(createCommit).toHaveBeenCalledWith('bg', snapshot);
   });
 
   it('creates exactly one commit per pushed note', async () => {

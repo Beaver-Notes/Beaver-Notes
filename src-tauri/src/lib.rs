@@ -145,6 +145,9 @@ pub fn run() {
             tauri_plugin_app_icon::commands::get_name,
             tauri_plugin_app_icon::commands::change,
             tauri_plugin_app_icon::commands::reset,
+            commands::activity::activity_append,
+            commands::activity::activity_list,
+            commands::activity::activity_clear,
             commands::app::app_info,
             commands::app::app_directory,
             commands::app::migration_status,
@@ -226,6 +229,9 @@ pub fn run() {
             commands::security::sync_encrypt_batch,
             commands::security::sync_decrypt_batch,
             commands::security::sync_key_ready,
+            commands::security::sync_register_shared_key,
+            commands::security::sync_expect_shared_note,
+            commands::security::sync_clear_shared_keys,
             commands::security::encryption_reconcile_key_params,
             commands::security::encryption_adopt_key_params,
             commands::security::encryption_has_remote_key_params,
@@ -294,6 +300,7 @@ pub fn run() {
             commands::workspace::workspace_register_cloud,
             commands::workspace::workspace_switch,
             commands::workspace::workspace_rename,
+            commands::workspace::workspace_detach,
             commands::workspace::workspace_delete,
         ])
         .setup(move |app| {

@@ -6,4 +6,4 @@ pub mod merge;
 pub(crate) mod remote;
 pub mod scheduler;
 pub(crate) mod vault;
-pub(crate) use local::sync_local_cycle;
+pub(crate) use local::sync_local_cycle_unlocked;

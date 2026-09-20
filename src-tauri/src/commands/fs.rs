@@ -23,6 +23,9 @@ pub(crate) async fn fs_copy(app: AppHandle, path: String, dest: String) -> Resul
     let app = app.clone();
     tokio::task::spawn_blocking(move || {
         let state = app.state::<AppState>();
+        // Hold the migration read barrier across the key fetch and the sealed
+        // write so a concurrent key migration cannot swap the key in between.
+        let _barrier = write_barrier();
         let src_path = PathBuf::from(path);
         let dest_path = PathBuf::from(dest);
         assert_path_access(&app, &state, &src_path, "copy source")?;
@@ -190,15 +193,34 @@ pub(crate) async fn fs_write_file(
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
+        // Hold the migration read barrier across the key fetch and the sealed
+        // write so a concurrent key migration cannot swap the key in between.
+        let _barrier = write_barrier();
         let payload = encrypt_asset(&app, &state, &path, &data)?;
-        let mut file = fs::File::create(&path)?;
-        file.write_all(&payload)?;
-        #[cfg(unix)]
-        if let Some(mode) = mode {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
+        // Write to a hidden sibling then rename, so a crash or short write can
+        // never leave a truncated asset at the live path.
+        let tmp = path.with_file_name(format!(
+            ".{}.tmp-{}",
+            path.file_name().and_then(|n| n.to_str()).unwrap_or("file"),
+            std::process::id()
+        ));
+        let result: Result<(), AppError> = (|| {
+            let mut file = fs::File::create(&tmp)?;
+            file.write_all(&payload)?;
+            file.sync_all()?;
+            drop(file);
+            #[cfg(unix)]
+            if let Some(mode) = mode {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&tmp, fs::Permissions::from_mode(mode))?;
+            }
+            fs::rename(&tmp, &path)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&tmp);
         }
-        Ok(())
+        result
     })
     .await
     .map_err(|e| AppError::Other(e.to_string()))?
@@ -224,6 +246,10 @@ pub(crate) async fn fs_append_file(
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
+        // This call stages plaintext; the follow-up `fs_copy` seals it. Take the
+        // read barrier anyway so staged bytes cannot land between the migration
+        // swap and the sealing copy that reads the key.
+        let _barrier = write_barrier();
         let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)

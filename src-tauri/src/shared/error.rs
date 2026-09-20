@@ -7,6 +7,7 @@ pub(crate) enum AppError {
     Serialization(String),
     WrongPassword,
     EncryptionLocked,
+    VaultKeyRequired,
     DevicePasswordRequired,
     WrongDevicePassword,
     SecureStorageUnavailable,
@@ -23,6 +24,9 @@ impl fmt::Display for AppError {
             AppError::EncryptionLocked => {
                 f.write_str("App encryption is locked. Unlock before reading assets.")
             }
+            AppError::VaultKeyRequired => f.write_str(
+                "This backup was made with a different vault key. Enter the vault key it was made with to import.",
+            ),
             AppError::DevicePasswordRequired => {
                 f.write_str("Device password required to unlock secure storage.")
             }
@@ -43,6 +47,7 @@ impl AppError {
             AppError::Serialization(_) => "Serialization",
             AppError::WrongPassword => "WrongPassword",
             AppError::EncryptionLocked => "EncryptionLocked",
+            AppError::VaultKeyRequired => "VaultKeyRequired",
             AppError::DevicePasswordRequired => "DevicePasswordRequired",
             AppError::WrongDevicePassword => "WrongDevicePassword",
             AppError::SecureStorageUnavailable => "SecureStorageUnavailable",

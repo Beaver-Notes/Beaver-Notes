@@ -81,6 +81,10 @@ pub(crate) fn workspace_create(
     save_workspace_registry(&app, &state, &registry)?;
 
     save_active_workspace_id(&app, &state, &id)?;
+    // Stop the running scheduler before the data pool is swapped: its cached
+    // config still names the old workspace, and the JS side re-`sync_start`s
+    // with the new identity after the switch (finding C10).
+    crate::sync::scheduler::stop_for_workspace_change();
     swap_data_pool(&app, &state, &id)?;
     swap_settings_pool(&app, &state, &id)?;
 
@@ -163,6 +167,9 @@ pub(crate) fn workspace_switch(
         )));
     }
     save_active_workspace_id(&app, &state, &id)?;
+    // See `workspace_create`: the scheduler must not keep running with the old
+    // workspace's cached identity against the newly swapped pool (finding C10).
+    crate::sync::scheduler::stop_for_workspace_change();
     swap_data_pool(&app, &state, &id)?;
     swap_settings_pool(&app, &state, &id)?;
     Ok(())
@@ -182,6 +189,27 @@ pub(crate) fn workspace_rename(
         .find(|w| w.id == id)
         .ok_or_else(|| AppError::Other(format!("Workspace not found: {id}")))?;
     ws.name = name;
+    save_workspace_registry(&app, &state, &registry)?;
+    Ok(())
+}
+
+/// Detach a workspace from cloud sync without touching its data. Used when a
+/// workspace is missing from a server list: a list miss is not proof of
+/// deletion, so the directory and notes are preserved. The workspace stays in
+/// the registry and becomes readable as a local-only workspace; it re-attaches
+/// automatically if the backend lists it again.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_detach(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), AppError> {
+    validate_workspace_id(&id)?;
+    let mut registry = load_workspace_registry(&app, &state)?;
+    if let Some(ws) = registry.iter_mut().find(|w| w.id == id) {
+        ws.cloud_sync = false;
+    }
     save_workspace_registry(&app, &state, &registry)?;
     Ok(())
 }

@@ -78,6 +78,18 @@ fn cloud_enabled(transport: Option<&str>) -> bool {
     transport != Some("folder")
 }
 
+/// Status to report when the folder transport's local cycle fails: a
+/// non-complete status for folder-only transports, so sync does not look
+/// healthy while nothing transfers (finding F3). Cloud transports surface
+/// their own errors through the cloud arms.
+fn folder_failed_status(transport: Option<&str>) -> Option<&'static str> {
+    if cloud_enabled(transport) {
+        None
+    } else {
+        Some("folder-failed")
+    }
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum KickKind {
     Kick,
@@ -121,6 +133,39 @@ fn sched() -> &'static Mutex<SchedState> {
 /// the JS authority, which re-probes on every pull) and reset on `sync_stop`.
 static SEED_ATTEMPTED: AtomicBool = AtomicBool::new(false);
 static BOOTSTRAP_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+
+/// Serializes whole sync cycles. The 30s loop, a manual `sync_tick`, and a
+/// dirty push can otherwise overlap and race the same cursors/rows; whichever
+/// starts first wins and the rest no-op until it finishes.
+static CYCLE_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Test-only lock serializing the handful of unit tests that mutate the
+/// process-global [`CYCLE_RUNNING`] flag directly (`local_cycle_guard_*`,
+/// `backup_import_refuses_*`). Without it, parallel `cargo test` threads see
+/// each other's held guard and the guard assertions turn flaky. Production
+/// never touches this.
+#[cfg(test)]
+pub(crate) static CYCLE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+/// Clears [`CYCLE_RUNNING`] on every exit path, including panics.
+pub(crate) struct CycleGuard;
+
+impl Drop for CycleGuard {
+    fn drop(&mut self) {
+        CYCLE_RUNNING.store(false, Ordering::Release);
+    }
+}
+
+/// `Some(guard)` when this call acquired the cycle; `None` when another cycle
+/// is already running. Shared by the 30s loop, `run_tick`, dirty pushes and the
+/// folder-only `sync:localCycle` command so none can overlap (findings F8/F12).
+pub(crate) fn begin_cycle() -> Option<CycleGuard> {
+    if CYCLE_RUNNING.swap(true, Ordering::AcqRel) {
+        None
+    } else {
+        Some(CycleGuard)
+    }
+}
 
 /// Watches the active folder transport's commits directory and kicks the
 /// scheduler on any change, so a peer's writes are noticed in well under the
@@ -339,12 +384,6 @@ fn should_bootstrap(has_checkpoints: bool) -> bool {
     !has_checkpoints && !BOOTSTRAP_ATTEMPTED.load(Ordering::Relaxed)
 }
 
-/// A bootstrap probe may stop repeating only once it applied something; after
-/// that checkpoints exist and the guard is redundant anyway.
-fn bootstrap_applied_anything(applied: usize) -> bool {
-    applied > 0
-}
-
 /// Cheap DB read feeding `should_seed`/`should_bootstrap`; `None` (pool or
 /// local state unavailable) skips both. Failures are logged, never silently
 /// dropped.
@@ -395,6 +434,9 @@ fn absorb_cloud_fail(
 }
 
 async fn run_tick(app: &AppHandle, force: bool) -> Result<SyncStatus, AppError> {
+    let Some(_cycle) = begin_cycle() else {
+        return Ok(SyncStatus::with_status("syncing"));
+    };
     let start = Instant::now();
     let out = run_tick_inner(app, force).await;
     if let Ok(s) = &out {
@@ -430,7 +472,7 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
 
     // Local folder first (Task 2 driver, reused as a command).
     if let Some(folder) = cfg.folder_id.clone() {
-        match super::sync_local_cycle(app.clone(), folder.clone()).await {
+        match super::sync_local_cycle_unlocked(app.clone(), folder.clone()).await {
             Ok(stats) => {
                 pushed += stats.pushed;
                 pulled += stats.pulled;
@@ -448,6 +490,12 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
             }
             Err(e) => {
                 crate::rs_log!("[sync] local cycle failed: {e}; continuing with cloud");
+                // A folder-transport failure must not end the tick `complete`,
+                // or sync looks healthy while nothing transfers (finding F3).
+                if let Some(failed) = folder_failed_status(cfg.transport.as_deref()) {
+                    emit_error(app, &format!("sync: folder cycle failed: {e}"));
+                    status = failed;
+                }
             }
         }
     }
@@ -492,9 +540,8 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
             match bootstrap_from_snapshots(app, &cfg.workspace_id, &cfg.server_url, &cfg.token)
                 .await
             {
-                Ok(ids) => {
-                    if bootstrap_applied_anything(ids.len()) {
-                        BOOTSTRAP_ATTEMPTED.store(true, Ordering::Relaxed);
+                Ok((ids, complete)) => {
+                    if !ids.is_empty() {
                         crate::rs_log!("[sync] bootstrap applied {} snapshots", ids.len());
                         pulled += ids.len() as u64;
                         // Surface them to the renderer like any applied note.
@@ -502,8 +549,15 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
                         let n = ids.len() as u64;
                         emit_progress(app, "bootstrap", n, n);
                     }
-                    // Empty result: leave the guard clear so the cheap probe
-                    // re-runs next tick if the server gets seeded meanwhile.
+                    // Latch only on a complete pass; a partial one leaves the
+                    // guard clear so the failed notes retry next tick.
+                    if complete {
+                        BOOTSTRAP_ATTEMPTED.store(true, Ordering::Relaxed);
+                    } else {
+                        crate::rs_log!(
+                            "[sync] bootstrap incomplete; will retry remaining snapshots"
+                        );
+                    }
                 }
                 Err(fail) => absorb_cloud_fail(app, fail, &mut status)?,
             }
@@ -608,6 +662,11 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
 /// to). Failures stay silent here — the next tick surfaces persistent
 /// problems.
 async fn run_dirty_push(app: &AppHandle) {
+    // Share the cycle guard with full ticks so a dirty push never overlaps the
+    // loop's tick or a manual one.
+    let Some(_cycle) = begin_cycle() else {
+        return;
+    };
     let cfg = sched().lock().map(|s| s.config.clone()).unwrap_or(None);
     let Some(cfg) = cfg else { return };
     if !cloud_enabled(cfg.transport.as_deref()) {
@@ -620,7 +679,7 @@ async fn run_dirty_push(app: &AppHandle) {
         if is_locked(app) {
             return;
         }
-        match super::sync_local_cycle(app.clone(), folder).await {
+        match super::sync_local_cycle_unlocked(app.clone(), folder).await {
             Ok(stats) if !stats.pulled_notes.is_empty() => {
                 emit_applied(app, &stats.pulled_notes)
             }
@@ -750,6 +809,31 @@ fn ensure_loop(
     Ok(tx)
 }
 
+/// The active cloud workspace id, when the scheduler has been configured.
+/// Used to stamp local note-deletion tombstones so asset pruning stays
+/// workspace-scoped; `None` (offline / not yet configured) records an
+/// unknown-workspace tombstone that still prunes safely by unique note id.
+pub(crate) fn active_workspace_id() -> Option<String> {
+    sched().lock().ok().and_then(|s| {
+        s.config
+            .as_ref()
+            .map(|c| c.workspace_id.clone())
+            .filter(|w| !w.trim().is_empty())
+    })
+}
+
+/// Request a tick from the already-running scheduler (no-op when it has not
+/// been started). Used after registering a shared note key so assets that were
+/// skipped while the key was missing download on the next pass instead of
+/// waiting for the 30s interval.
+pub(crate) fn kick_if_running() {
+    if let Ok(s) = sched().lock() {
+        if let Some(tx) = &s.tx {
+            let _ = tx.send(KickKind::Kick);
+        }
+    }
+}
+
 /// One full sync cycle: local folder (Task 2) + cloud pull/push, emitting
 /// `sync:status` and `sync:applied { noteIds }`.
 #[tauri::command]
@@ -790,6 +874,24 @@ pub(crate) async fn sync_stop() -> Result<(), AppError> {
         let _ = tx.send(KickKind::Shutdown);
     }
     Ok(())
+}
+
+/// Stop the scheduler when the active workspace is about to change. Clears the
+/// cached config so no later tick can push/pull the old workspace's identity
+/// against the newly swapped data pool (finding C10); the JS side re-issues
+/// `sync_start` with the new workspace's identity, which spawns a fresh loop.
+pub(crate) fn stop_for_workspace_change() {
+    let tx = sched().lock().map(|s| s.tx.clone()).unwrap_or(None);
+    if let Ok(mut s) = sched().lock() {
+        s.running = false;
+        s.config = None;
+    }
+    SEED_ATTEMPTED.store(false, Ordering::Relaxed);
+    BOOTSTRAP_ATTEMPTED.store(false, Ordering::Relaxed);
+    drop_folder_watcher();
+    if let Some(tx) = tx {
+        let _ = tx.send(KickKind::Shutdown);
+    }
 }
 
 /// WS-notify path: coalesced (500ms) full tick, force-pushing past the idle
@@ -843,6 +945,18 @@ mod tests {
         assert!(cloud_enabled(None));
     }
 
+    /// F3: a failed folder cycle must surface a non-complete status for a
+    /// folder-only transport, and never override a cloud transport's own arms.
+    #[test]
+    fn folder_failure_yields_non_complete_status() {
+        assert_eq!(
+            super::folder_failed_status(Some("folder")),
+            Some("folder-failed")
+        );
+        assert_eq!(super::folder_failed_status(Some("cloud")), None);
+        assert_eq!(super::folder_failed_status(None), None);
+    }
+
     #[test]
     fn backoff_grows_then_resets() {
         let mut b = super::RetryBudget::new();
@@ -868,7 +982,42 @@ mod tests {
 
     #[test]
     fn bootstrap_probe_stays_open_until_snapshots_apply() {
-        assert!(!super::bootstrap_applied_anything(0));
-        assert!(super::bootstrap_applied_anything(3));
+        use super::super::bootstrap::bootstrap_complete;
+        // Partial passes must not latch the retry guard.
+        assert!(!bootstrap_complete(0, 3));
+        assert!(!bootstrap_complete(2, 3));
+        // A complete pass (or nothing outstanding) latches.
+        assert!(bootstrap_complete(3, 3));
+        // Nothing needed means the probe is done.
+        assert!(!bootstrap_complete(0, 0));
+    }
+
+    /// C10: a workspace switch must clear the cached config so the next tick
+    /// cannot push/pull the old workspace against the newly swapped data pool.
+    #[test]
+    fn workspace_change_clears_cached_config() {
+        {
+            let mut s = super::sched().lock().expect("sched");
+            s.config = Some(super::StoredConfig {
+                workspace_id: "workspace-a".into(),
+                server_url: "https://example.test".into(),
+                token: "token".into(),
+                folder_id: None,
+                transport: None,
+            });
+            s.running = true;
+        }
+        assert_eq!(
+            super::active_workspace_id().as_deref(),
+            Some("workspace-a")
+        );
+
+        super::stop_for_workspace_change();
+
+        assert!(
+            super::active_workspace_id().is_none(),
+            "cached workspace config must be cleared on a workspace change"
+        );
+        assert!(!super::is_running(), "the scheduler must stop for the swap");
     }
 }

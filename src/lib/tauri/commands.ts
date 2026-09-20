@@ -74,6 +74,9 @@ const commandAliases = {
   'sync:stop': 'sync_stop',
   'sync:kick': 'sync_kick',
   'sync:kick-dirty': 'sync_kick_dirty',
+  'sync:registerSharedKey': 'sync_register_shared_key',
+  'sync:expectSharedNote': 'sync_expect_shared_note',
+  'sync:clearSharedKeys': 'sync_clear_shared_keys',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
   'encryption:adoptKeyParams': 'encryption_adopt_key_params',
   'encryption:hasRemoteKeyParams': 'encryption_has_remote_key_params',
@@ -132,12 +135,16 @@ const commandAliases = {
   'yjs:compact': 'yjs_compact',
   'yjs:compactBatch': 'yjs_compact_batch',
   'yjs:delete': 'yjs_delete',
+  'activity:append': 'activity_append',
+  'activity:list': 'activity_list',
+  'activity:clear': 'activity_clear',
   'workspace:list': 'workspace_list',
   'workspace:getActive': 'workspace_get_active',
   'workspace:create': 'workspace_create',
   'workspace:registerCloud': 'workspace_register_cloud',
   'workspace:switch': 'workspace_switch',
   'workspace:rename': 'workspace_rename',
+  'workspace:detach': 'workspace_detach',
   'workspace:delete': 'workspace_delete',
   'fetch_page_html': 'fetch_page_html',
   'get_pending_shares': 'get_pending_shares',
@@ -339,7 +346,19 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       };
     case 'sync:keyReady':
     case 'sync:stop':
+    case 'sync:clearSharedKeys':
       return {};
+    case 'sync:registerSharedKey':
+      return {
+        ...withKeyVariants('note_id', payload?.noteId ?? payload?.note_id),
+        ...withKeyVariants('key_hex', payload?.keyHex ?? payload?.key_hex),
+        ...withKeyVariants('previous_keys', payload?.previousKeys ?? payload?.previous_keys),
+      };
+    case 'sync:expectSharedNote':
+      return {
+        ...withKeyVariants('note_id', payload?.noteId ?? payload?.note_id),
+        ...withKeyVariants('expected', payload?.expected),
+      };
     case 'sync:start':
     case 'sync:kick':
     case 'sync:kick-dirty':
@@ -440,6 +459,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('name', payload?.name),
       };
     case 'workspace:delete':
+      return withKeyVariants('id', payload?.id ?? payload);
+    case 'workspace:detach':
       return withKeyVariants('id', payload?.id ?? payload);
     default:
       return payload ?? {};
