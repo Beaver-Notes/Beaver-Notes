@@ -1,9 +1,11 @@
 mod assets;
+mod key_migration;
 mod keys;
 mod legacy;
 mod master_key;
 
 pub(crate) use assets::*;
+pub(crate) use key_migration::*;
 pub(crate) use keys::*;
 pub(crate) use legacy::*;
 pub(crate) use master_key::*;

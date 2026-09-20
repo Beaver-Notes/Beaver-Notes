@@ -3,13 +3,66 @@ import { importCollabKey, isValidCollabKey } from './collab.js';
 
 // Cache unwrapped note keys: avoids repeated ML-KEM decap plus unwrap.
 const unwrappedKeyCache = new Map();
+// Older generations of a rotated note key, recovered from a keyring envelope.
+// Registered with the Rust session alongside the current key so pre-rotation
+// history stays decryptable on a fresh device.
+const previousKeysCache = new Map();
 
 export function clearUnwrappedKeyCache(noteId) {
   if (noteId) {
     unwrappedKeyCache.delete(noteId);
+    previousKeysCache.delete(noteId);
   } else {
     unwrappedKeyCache.clear();
+    previousKeysCache.clear();
   }
+}
+
+/** Already-unwrapped note key, or null. Lets hot paths (commit snapshots) skip the ML-KEM unwrap. */
+export function getCachedNoteKey(noteId) {
+  return noteId ? (unwrappedKeyCache.get(noteId) ?? null) : null;
+}
+
+/** Older generations of the note key recovered from a keyring envelope (may be empty). */
+export function getPreviousNoteKeys(noteId) {
+  return noteId ? (previousKeysCache.get(noteId) ?? []) : [];
+}
+
+/** Record the current key plus any previous generations for a note. */
+export function rememberNoteKeyring(noteId, currentHex, previousHexes = []) {
+  if (!noteId || !currentHex) return;
+  unwrappedKeyCache.set(noteId, currentHex);
+  if (previousHexes.length) previousKeysCache.set(noteId, previousHexes);
+  else previousKeysCache.delete(noteId);
+}
+
+/** A fresh 32-byte note key as hex. */
+export async function generateNoteKeyHex() {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+/**
+ * A wrapped note-key envelope holds either a bare 64-hex key (legacy) or, after
+ * a rotation, a keyring `{v:1, cur, prev:[...]}` so a fresh device of a
+ * remaining collaborator can still read pre-rotation history.
+ */
+export function buildNoteKeyPayload(currentHex, previousHexes = []) {
+  return JSON.stringify({ v: 1, cur: currentHex, prev: previousHexes.filter(Boolean) });
+}
+
+export function parseNoteKeyPayload(payload) {
+  if (typeof payload !== 'string' || !payload) return null;
+  if (isValidCollabKey(payload)) return { current: payload, previous: [] };
+  try {
+    const obj = JSON.parse(payload);
+    if (obj && typeof obj === 'object' && isValidCollabKey(obj.cur)) {
+      const previous = Array.isArray(obj.prev) ? obj.prev.filter(isValidCollabKey) : [];
+      return { current: obj.cur, previous };
+    }
+  } catch {
+    // Not a keyring payload.
+  }
+  return null;
 }
 
 async function bytesToHex(buf) { return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join(''); }
@@ -49,9 +102,10 @@ export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _
     if (!wrappedKey) continue;
     try {
       const k = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
-      if (k && isValidCollabKey(k)) {
-        if (noteId) unwrappedKeyCache.set(noteId, k);
-        return k;
+      const parsed = parseNoteKeyPayload(k);
+      if (parsed) {
+        if (noteId) rememberNoteKeyring(noteId, parsed.current, parsed.previous);
+        return parsed.current;
       }
     } catch {
       // Envelope not for this device: try next.

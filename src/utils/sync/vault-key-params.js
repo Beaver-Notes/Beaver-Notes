@@ -11,6 +11,7 @@ import { useWorkspaceStore } from '@/store/workspace.ts';
 
 const KEY_PARAMS_SUBDIR = 'BeaverNotesSync';
 let fetchedCloudKeyParams = null;
+let cloudKeyParamsMissing = false;
 
 function keyParamsPath(syncPath) {
   return path.join(syncPath, KEY_PARAMS_SUBDIR, 'keyParams.json');
@@ -71,6 +72,7 @@ export function cloudKeyParamsReachable({ force = false } = {}) {
 
 export async function fetchCloudKeyParams({ force = false, timeoutMs } = {}) {
   fetchedCloudKeyParams = null;
+  cloudKeyParamsMissing = false;
   if (!cloudKeyParamsReachable({ force })) return null;
   const workspaceStore = useWorkspaceStore();
   const workspaceId = workspaceStore.activeId;
@@ -89,22 +91,75 @@ export async function fetchCloudKeyParams({ force = false, timeoutMs } = {}) {
     return null;
   }
 
+  const accountStore = useAccountStore();
+  const client = getApiClient({ baseUrl: accountStore.serverUrl });
+
+  // Phase 2: one vault key per ACCOUNT. The account-scoped row is the source of
+  // truth, so the fetched params do not depend on which workspace is active and
+  // switching/joining a workspace never re-derives or re-prompts. A 404 falls
+  // back to the legacy per-workspace scope (older server or an account that has
+  // not published yet — the server adopts account params from exactly these).
+  let result = null;
   try {
-    const accountStore = useAccountStore();
-    const client = getApiClient({ baseUrl: accountStore.serverUrl });
-    const result = await client.getVaultKeyParams(workspaceId);
-    const raw = result?.keyParams;
-    if (!raw) return null;
-    const p = await localKeyParamsPath();
-    if (!p) return null;
-    await ensureDir(p.slice(0, p.lastIndexOf('/'))).catch(() => {});
-    const decoded = decodeKeyParams(raw);
-    if (!decoded || !isValidKeyParamsShape(decoded)) return null;
-    await writeFile(p, decoded);
-    fetchedCloudKeyParams = { proofBlob: raw, paramsBlob: decoded };
+    result = await client.getAccountVaultKeyParams();
   } catch (e) {
-    if (e?.status === 404) return null;
-    throw e;
+    if (e?.status !== 404) throw e;
   }
+  let raw = result?.keyParams;
+  if (!raw && workspaceId) {
+    try {
+      const legacy = await client.getVaultKeyParams(workspaceId);
+      raw = legacy?.keyParams;
+    } catch (e) {
+      if (e?.status !== 404) throw e;
+    }
+  }
+  if (!raw) {
+    cloudKeyParamsMissing = true;
+    return null;
+  }
+
+  const p = await localKeyParamsPath();
+  if (!p) return null;
+  await ensureDir(p.slice(0, p.lastIndexOf('/'))).catch(() => {});
+  const decoded = decodeKeyParams(raw);
+  if (!decoded || !isValidKeyParamsShape(decoded)) return null;
+  await writeFile(p, decoded);
+  fetchedCloudKeyParams = { proofBlob: raw, paramsBlob: decoded };
+  return true;
+}
+
+/**
+ * True when the last {@link fetchCloudKeyParams} reached the server and the
+ * workspace had no key params (clean 404). False when the fetch never ran or
+ * failed for any other reason, so callers can safely mint+publish without
+ * risking an overwrite of the vault owner's keys.
+ */
+export function cloudKeyParamsAbsent() {
+  return cloudKeyParamsMissing;
+}
+
+/**
+ * Publish this device's local key params so other devices can adopt them.
+ * Only meaningful for the vault owner at setup: previously only the Rust seed
+ * path published, so a brand-new workspace with no notes never propagated its
+ * password. Call only after {@link cloudKeyParamsAbsent} confirmed a 404.
+ */
+export async function publishCloudKeyParams() {
+  if (!cloudKeyParamsReachable()) return false;
+
+  const [{ localKeyParamsJson }, { getApiClient }] = await Promise.all([
+    import('@/lib/native/security.js'),
+    import('@/lib/api/client'),
+  ]);
+  const json = await localKeyParamsJson().catch(() => null);
+  if (!json) return false;
+
+  // Account scope: the row is the caller's own and the blob is opaque, so no
+  // workspace challenge/proof is needed (the server refuses to rewrite an
+  // existing different account vault with 409).
+  const accountStore = useAccountStore();
+  const client = getApiClient({ baseUrl: accountStore.serverUrl });
+  await client.publishAccountVaultKeyParams({ keyParams: json });
   return true;
 }

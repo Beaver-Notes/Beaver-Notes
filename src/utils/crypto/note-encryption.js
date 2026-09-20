@@ -46,10 +46,10 @@ export function useNoteEncryption({ noteId }) {
       title: t.settings?.unlock || 'Unlock',
       body:
         t.settings?.unlockAppEncryption ||
-        'Enter your encryption passphrase to unlock this note.',
+        'Enter your vault key to unlock this note.',
       okText: t.settings?.unlock || 'Unlock',
       cancelText: t.dialog?.close || 'Close',
-      placeholder: t.settings?.password || 'Passphrase',
+      placeholder: t.settings?.vaultKeyPlaceholder || 'Vault key',
       password: true,
       onConfirm: async (passphrase) => {
         try {
@@ -57,7 +57,7 @@ export function useNoteEncryption({ noteId }) {
           if (!result.ok) {
             dialog.alert({
               title: t.settings?.alertTitle || 'Alert',
-              body: result.error || 'Wrong passphrase.',
+              body: result.error || 'Wrong vault key.',
               okText: t.dialog?.close || 'Close',
             });
             return;
@@ -72,7 +72,7 @@ export function useNoteEncryption({ noteId }) {
         } catch {
           dialog.alert({
             title: t.settings?.alertTitle || 'Alert',
-            body: t.card?.wrongPasswd || 'Wrong passphrase.',
+            body: t.card?.wrongPasswd || 'Wrong vault key.',
             okText: t.dialog?.close || 'Close',
           });
         }

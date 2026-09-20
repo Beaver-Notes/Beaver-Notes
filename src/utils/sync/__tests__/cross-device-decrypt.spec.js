@@ -195,6 +195,24 @@ vi.mock('@/lib/yjs/meta-doc.js', () => ({
   onWorkspaceDocDestroy: vi.fn(),
 }));
 
+// This suite talks to a live sync backend, so it can skip for two independent
+// reasons: no backend is listening, or a backend is reachable but its account
+// cannot use cloud workspaces (free plan -> HTTP 403 plan_upgrade_required).
+// Reachability is cheap to check here, but the plan can only be learned once
+// the backend answers a real API call, so that decision happens inside the
+// test (a listening server does not imply a cloud-capable account).
+const NO_BACKEND_REASON = `skipping: no sync backend at ${API}`;
+const NO_CLOUD_PLAN_REASON = 'skipping: account has no cloud plan';
+
+function isNoCloudPlanError(err) {
+  if (!err) return false;
+  if (err.code === 'plan_upgrade_required') return true;
+  if (err.status === 402) return true;
+  return /plan[- ]upgrade[- ]required|requires? a paid plan/i.test(
+    `${err.message || ''}`
+  );
+}
+
 let reachable = false;
 try {
   const r = await fetch(`${API}/health`);
@@ -202,12 +220,16 @@ try {
 } catch {
   reachable = false;
 }
-const d = reachable ? describe : describe.skip;
 
-d('cross-device decrypt through the real sync path (live backend)', () => {
-  const report = { fetchKeyParams: null };
+describe('cross-device decrypt through the real sync path (live backend)', () => {
+  const report = {
+    fetchKeyParams: null,
+    skipReason: reachable ? null : NO_BACKEND_REASON,
+  };
 
   beforeAll(async () => {
+    if (report.skipReason) return;
+
     const auth = await import('@/lib/api/auth.js');
     const email = `cross-${Date.now()}-${Math.floor(Math.random() * 1e6)}@test.local`;
     const reg = await auth.passwordRegister(email, 'password123456', { baseUrl: API });
@@ -239,7 +261,19 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
       orgId: ctx.orgId,
     };
 
-    const res = await client.post('/workspaces', payload, { timeoutMs: 20000 });
+    let res;
+    try {
+      res = await client.post('/workspaces', payload, { timeoutMs: 20000 });
+    } catch (err) {
+      // A reachable backend can still refuse cloud workspaces on a free plan.
+      // That is an environment limitation, not a regression, so skip cleanly
+      // rather than failing the suite.
+      if (isNoCloudPlanError(err)) {
+        report.skipReason = NO_CLOUD_PLAN_REASON;
+        return;
+      }
+      throw err;
+    }
     ctx.workspaceId =
       res?.id || res?.workspaceId || res?.workspace?.id || reg.workspace?.id;
     expect(ctx.workspaceId).toBeTruthy();
@@ -254,7 +288,8 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
   }, 120000);
 
   test('vault key-params are fetched across devices via the backend', async (t) => {
-    if (!ctx.workspaceId) return t.skip();
+    if (report.skipReason) return t.skip(report.skipReason);
+    if (!ctx.workspaceId) return t.skip('skipping: workspace was not provisioned');
 
     const { fetchCloudKeyParams, getFetchedCloudKeyParams } = await import(
       '@/utils/sync/vault-key-params.js'
@@ -278,7 +313,8 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
     expect(fetched.paramsBlob).toBe(ctx.keyParams);
   }, 30000);
 
-  test('report', () => {
+  test('report', (t) => {
+    if (report.skipReason) return t.skip(report.skipReason);
     // Surface what was proven / skipped for the human-readable summary.
     // oxlint-disable-next-line no-console -- deliberate human-readable summary
     console.log('[cross-device] keyParams reconcile:', JSON.stringify(report));

@@ -1,5 +1,5 @@
 use serde_json::{Map, Value};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::shared::{RawJson, *};
 
@@ -7,6 +7,21 @@ fn key_segments(key: &str) -> Vec<&str> {
     key.split('.')
         .filter(|segment| !segment.is_empty())
         .collect()
+}
+
+/// Fetch the data-store key and key id. Must be called while holding the
+/// key-migration read barrier (`write_barrier`), so a concurrent migration
+/// cannot swap the key between the fetch and the write it seals.
+fn keyed_write(state: &AppState) -> Result<(Option<[u8; 32]>, String), AppError> {
+    let app_key = current_app_key(state)?;
+    let key_id = state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
+    Ok((app_key, key_id))
 }
 
 // Nested-value helpers
@@ -508,19 +523,15 @@ pub(crate) async fn storage_get_store(
     state: State<'_, AppState>,
 ) -> Result<RawJson, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let app_key = current_app_key(state.inner())?;
-    let key_id = state
-        .inner()
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
-    let root =
-        tokio::task::spawn_blocking(move || load_store_root_inner(&pool, &name, &app_key, &key_id))
-            .await
-            .map_err(|e| AppError::Other(e.to_string()))??;
+    let app = app.clone();
+    let root = tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let (app_key, key_id) = keyed_write(state.inner())?;
+        load_store_root_inner(&pool, &name, &app_key, &key_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(root.into())
 }
 
@@ -556,19 +567,16 @@ pub(crate) async fn storage_replace(
     }
     let pool = pick_pool(&name, &app, &state)?;
     let is_settings = name == SETTINGS_STORE;
-    let app_key = current_app_key(state.inner())?;
-    let key_id = state
-        .inner()
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
+    let app = app.clone();
 
-    tokio::task::spawn_blocking(move || storage_replace_value(pool, name, data.0, app_key, key_id))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))??;
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let (app_key, key_id) = keyed_write(state.inner())?;
+        storage_replace_value(pool, name, data.0, app_key, key_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
 
     if is_settings {
         invalidate_settings_cache(state.inner());
@@ -588,17 +596,12 @@ pub(crate) async fn storage_get(
     state: State<'_, AppState>,
 ) -> Result<RawJson, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let app_key = current_app_key(state.inner())?;
-    let key_id = state
-        .inner()
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
+    let app = app.clone();
 
     let value = tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let (app_key, key_id) = keyed_write(state.inner())?;
         storage_get_value(pool, name, key, def.0, app_key, key_id)
     })
     .await
@@ -615,25 +618,81 @@ pub(crate) async fn storage_reencrypt_legacy_rows(
     state: State<'_, AppState>,
 ) -> Result<usize, AppError> {
     let pool = pick_pool(DATA_STORE, &app, &state)?;
-    let app_key = current_app_key(state.inner())?
-        .ok_or_else(|| AppError::Other("App encryption is locked.".into()))?;
-    let key_id = state
-        .inner()
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
+    let app = app.clone();
 
-    tokio::task::spawn_blocking(move || reencrypt_legacy_store_rows(pool, app_key, key_id))
-        .await
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let (app_key, key_id) = keyed_write(state.inner())?;
+        reencrypt_legacy_store_rows(
+            pool,
+            app_key.ok_or_else(|| AppError::Other("App encryption is locked.".into()))?,
+            key_id,
+        )
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
+}
+
+/// Retired Electron-era app-password key. Current builds neither read nor write
+/// it, but an upgraded install can still hold it as plaintext in `settings.db`.
+pub(crate) const LEGACY_SECRET_SETTINGS_KEYS: &[&str] = &["sharedKey"];
+
+/// One-time: move retired plaintext credentials in `settings.db` onto the
+/// encrypted KV path used by `windowStateMain`/`autoUpdateEnabled` (`BNY1`
+/// blob). The value is re-written, never deleted. Idempotent: already-sealed
+/// and empty rows are skipped, so a retry cannot lose or re-encrypt a value.
+pub(crate) fn seal_legacy_settings_secrets(
+    pool: crate::db::DbPool,
+    key: [u8; 32],
+) -> Result<usize, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM kv")
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let rows = stmt
+        .query_map([], |row| {
+            let k: String = row.get(0)?;
+            let v = {
+                if let Ok(b) = row.get::<_, Vec<u8>>(1) {
+                    b
+                } else {
+                    row.get::<_, String>(1)?.into_bytes()
+                }
+            };
+            Ok((k, v))
+        })
         .map_err(|e| AppError::Other(e.to_string()))?
+        .collect::<Result<Vec<(String, Vec<u8>)>, _>>()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    drop(stmt);
+    drop(conn);
+
+    let mut sealed = 0;
+    for (k, stored) in rows {
+        if !LEGACY_SECRET_SETTINGS_KEYS.contains(&k.as_str()) || is_encrypted_yjs_blob(&stored) {
+            continue;
+        }
+        let Ok(text) = String::from_utf8(stored) else {
+            continue;
+        };
+        // Empty JSON string / empty value carries no secret; leave it untouched.
+        if text.is_empty() || text == "\"\"" {
+            continue;
+        }
+        crate::db::db_set(&pool, &k, &text, Some(key))?;
+        sealed += 1;
+    }
+    if sealed > 0 {
+        crate::rs_log!("[storage] seal_legacy_settings_secrets: sealed {sealed} legacy secret(s)");
+    }
+    Ok(sealed)
 }
 
 /// One-time repair: settings.db rows that were sealed with the content key
 /// (added by the kv-sealing refactor) are decrypted and rewritten plaintext
-/// so boot can read `onboardingCompleted` before unlock. Idempotent.
+/// so boot can read `onboardingCompleted` before unlock. Idempotent. Legacy
+/// secret keys are skipped: a credential must stay sealed.
 pub(crate) fn repair_sealed_settings(
     pool: crate::db::DbPool,
     key: [u8; 32],
@@ -664,6 +723,10 @@ pub(crate) fn repair_sealed_settings(
         if !crate::shared::is_encrypted_yjs_blob(&stored) {
             continue;
         }
+        // Never unseal a retired credential: repair is for non-secret rows.
+        if LEGACY_SECRET_SETTINGS_KEYS.contains(&k.as_str()) {
+            continue;
+        }
         // Decrypt with the content key, then rewrite plaintext (enc_key=None).
         let plain = crate::shared::decrypt_yjs_blob(&key, &stored)?;
         let text = String::from_utf8(plain).map_err(|e| AppError::Other(e.to_string()))?;
@@ -683,11 +746,18 @@ pub(crate) async fn storage_repair_settings(
     state: State<'_, AppState>,
 ) -> Result<usize, AppError> {
     let pool = pick_pool(SETTINGS_STORE, &app, &state)?;
-    let app_key = current_app_key(state.inner())?
-        .ok_or_else(|| AppError::Other("App encryption is locked.".into()))?;
-    tokio::task::spawn_blocking(move || repair_sealed_settings(pool, app_key))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))?
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let (app_key, _) = keyed_write(state.inner())?;
+        let key = app_key.ok_or_else(|| AppError::Other("App encryption is locked.".into()))?;
+        let fixed = repair_sealed_settings(pool.clone(), key)?;
+        let sealed = seal_legacy_settings_secrets(pool, key)?;
+        Ok(fixed + sealed)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Set one value by dot-separated key: single INSERT OR REPLACE for
@@ -721,17 +791,12 @@ pub(crate) async fn storage_set(
     }
     let pool = pick_pool(&name, &app, &state)?;
     let is_settings = name == SETTINGS_STORE;
-    let app_key = current_app_key(state.inner())?;
-    let key_id = state
-        .inner()
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
+    let app = app.clone();
 
     tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let (app_key, key_id) = keyed_write(state.inner())?;
         storage_set_value(pool, name, key, value.0, app_key, key_id)
     })
     .await
@@ -755,19 +820,16 @@ pub(crate) async fn storage_delete(
 ) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let is_settings = name == SETTINGS_STORE;
-    let app_key = current_app_key(state.inner())?;
-    let key_id = state
-        .inner()
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
+    let app = app.clone();
 
-    tokio::task::spawn_blocking(move || storage_delete_value(pool, name, key, app_key, key_id))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))??;
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let (app_key, key_id) = keyed_write(state.inner())?;
+        storage_delete_value(pool, name, key, app_key, key_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
 
     if is_settings {
         invalidate_settings_cache(state.inner());
@@ -785,19 +847,16 @@ pub(crate) async fn storage_has(
     state: State<'_, AppState>,
 ) -> Result<bool, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let app_key = current_app_key(state.inner())?;
-    let key_id = state
-        .inner()
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
+    let app = app.clone();
 
-    tokio::task::spawn_blocking(move || storage_has_value(pool, name, key, app_key, key_id))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))?
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let (app_key, key_id) = keyed_write(state.inner())?;
+        storage_has_value(pool, name, key, app_key, key_id)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[tauri::command]
@@ -915,6 +974,65 @@ mod tests {
         let decrypted =
             decrypt_store_row_with_key("notes.note-2", encrypted, &app_key).expect("dec");
         assert_eq!(decrypted, value);
+    }
+
+    #[test]
+    fn legacy_settings_secret_round_trips_through_encrypted_kv() {
+        let root = unique_temp_dir("beaver-notes-secret-seal");
+        let _ = fs::create_dir_all(&root);
+        let pool = crate::db::open_pool(&root.join("settings.db")).expect("pool");
+
+        // Electron-era shape: the retired app password as a plaintext JSON string.
+        crate::db::db_set(&pool, "sharedKey", "\"old-master-password\"", None)
+            .expect("seed plaintext secret");
+
+        let key = [11u8; 32];
+        assert_eq!(
+            seal_legacy_settings_secrets(pool.clone(), key).expect("seal"),
+            1
+        );
+
+        // The secret survives, but only through the encrypted path.
+        assert_eq!(
+            crate::db::db_get(&pool, "sharedKey", Some(key)).expect("decrypt"),
+            Some("\"old-master-password\"".to_string())
+        );
+        // A plaintext read is now refused: the row is a sealed BNY1 blob.
+        assert!(crate::db::db_get(&pool, "sharedKey", None).is_err());
+
+        // Idempotent: nothing left to seal.
+        assert_eq!(
+            seal_legacy_settings_secrets(pool.clone(), key).expect("reseal"),
+            0
+        );
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn sealing_legacy_secrets_leaves_other_plaintext_readable() {
+        let root = unique_temp_dir("beaver-notes-secret-seal-pref");
+        let _ = fs::create_dir_all(&root);
+        let pool = crate::db::open_pool(&root.join("settings.db")).expect("pool");
+
+        crate::db::db_set(&pool, "theme", "\"dark\"", None).expect("seed pref");
+        crate::db::db_set(&pool, "sharedKey", "\"\"", None).expect("seed empty legacy key");
+
+        let key = [12u8; 32];
+        assert_eq!(seal_legacy_settings_secrets(pool.clone(), key).expect("seal"), 0);
+
+        // Non-secret preference is untouched and still readable plaintext.
+        assert_eq!(
+            crate::db::db_get(&pool, "theme", None).expect("read pref"),
+            Some("\"dark\"".to_string())
+        );
+        // An empty legacy credential carries no value: left as-is, never lost.
+        assert_eq!(
+            crate::db::db_get(&pool, "sharedKey", None).expect("read empty"),
+            Some("\"\"".to_string())
+        );
+
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

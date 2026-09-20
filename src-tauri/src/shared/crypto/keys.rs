@@ -1,4 +1,5 @@
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -25,7 +26,9 @@ use serde_json::Value;
 use sha2::Sha256;
 use tauri::AppHandle;
 
-use super::super::{app_encryption_manifest_path, get_settings_value, AppError, AppState};
+use super::super::{
+    app_encryption_manifest_path, get_settings_value, AppError, AppState,
+};
 
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
 pub(crate) const ARGON2_MEMORY_KIB: u32 = 131_072; // 128 MiB (Amendment 1)
@@ -44,6 +47,11 @@ pub(crate) const PROTOCOL_VERSION: u8 = 4;
 /// Envelope version for binary sync payloads. v5 encrypts raw bytes directly;
 /// v4 (JSON number arrays) still decrypted for compat.
 pub(crate) const SYNC_PAYLOAD_VERSION: u8 = 5;
+/// Envelope version for sync payloads sealed with a note's shared collaboration
+/// key (the per-note key, or the workspace key for the `meta` doc) rather than
+/// the account-scoped items key. Same JSON shape as v5; the version field tells
+/// the reader which key to load, so v5 rows stay items-key readable forever.
+pub(crate) const SHARED_PAYLOAD_VERSION: u8 = 6;
 pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
 /// AAD binding for note-content encryption. Bound to note identity to prevent
 /// cross-note ciphertext transplantation.
@@ -486,6 +494,22 @@ pub(crate) fn key_params_from_manifest(
     })
 }
 
+/// Whether `publish_key_params` may replace `existing` with the local
+/// manifest's params. Writing unconditionally let two devices mint divergent
+/// vaults: the second writer clobbered the first's `keyParams.json`, and every
+/// peer commit then failed `decrypt_commit` and was skipped forever (finding
+/// F2). Overwriting is allowed only when there is no file yet or the file wraps
+/// the same items key (same vault).
+fn key_params_overwrite_allowed(
+    existing: Option<&KeyParams>,
+    manifest: &EncryptionManifest,
+) -> bool {
+    match existing {
+        None => true,
+        Some(params) => !remote_params_differ(params, Some(manifest)),
+    }
+}
+
 pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let Some(path) = sync_key_params_path(app, state)? else {
         return Ok(());
@@ -494,6 +518,15 @@ pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<()
     let manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Crypto("Encryption manifest is missing".into()))?;
     let params = key_params_from_manifest(&manifest)?;
+    // Refuse to clobber a different vault's params (finding F2); surface the
+    // conflict instead of silently overwriting.
+    if let Some(existing) = read_key_params(app, state)? {
+        if !key_params_overwrite_allowed(Some(&existing), &manifest) {
+            return Err(AppError::Crypto(
+                "sync: keyParams.json already holds a different vault — refusing to overwrite".into(),
+            ));
+        }
+    }
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -582,10 +615,19 @@ pub(crate) fn adopt_key_params(
 ) -> Result<(), AppError> {
     let (key, kek) = derive_items_key_from_params(params, passphrase)?;
 
-    {
-        let mut s = state.crypto.session.write().map_err(AppError::from)?;
-        s.app_data_key = Some(key);
-        s.current_items_key_id = params.wrapped_items_key.nonce[..8].to_string();
+    // Joining replaces the local items key. Re-encrypt everything this device
+    // stored under the old key first, otherwise its local notes become
+    // undecryptable (no key-id fallback exists for note/content/asset payloads).
+    // Read the old key before taking the migration barrier: `current_app_key`
+    // takes the session read lock, and the lock order is barrier → session.
+    let old_key = current_app_key(state)?;
+    if old_key.is_none() && app_encryption_manifest_path(app, state)?.exists() {
+        return Err(AppError::EncryptionLocked);
+    }
+
+    fn set_adopted_key(session: &mut crate::shared::CryptoSession, key: [u8; 32], key_id: &str) {
+        session.app_data_key = Some(key);
+        session.current_items_key_id = key_id.to_string();
     }
 
     let key_id = generate_key_id();
@@ -604,8 +646,38 @@ pub(crate) fn adopt_key_params(
         previous_keys: Vec::new(),
         recovery_kek: None,
     };
+
+    // The migration write barrier covers re-encryption, the in-memory swap and
+    // manifest persistence. Sealing writers take the barrier read guard across
+    // key fetch + ciphertext write, so none can observe the old key after the
+    // swap; the post-manifest sweep catches any writer that bypassed the
+    // barrier.
+    let mut backups: Vec<std::path::PathBuf> = Vec::new();
+    match old_key {
+        Some(old) if old != key => {
+            let (_, created) = super::migrate_app_data_key(
+                app,
+                state,
+                &old,
+                &key,
+                &manifest,
+                |session| set_adopted_key(session, key, &key_id),
+            )?;
+            backups = created;
+        }
+        _ => {
+            let mut session = state.crypto.session.write().map_err(AppError::from)?;
+            set_adopted_key(&mut session, key, &key_id);
+            drop(session);
+            write_encryption_manifest(&app_encryption_manifest_path(app, state)?, &manifest)?;
+        }
+    }
     populate_key_ring(state, &manifest, &kek)?;
-    write_encryption_manifest(&app_encryption_manifest_path(app, state)?, &manifest)?;
+    // The key swap is persisted, so the pre-migration backups have done their
+    // job — don't leave hundreds of MB of `*.pre-join-backup` files on disk.
+    for path in backups {
+        let _ = std::fs::remove_file(path);
+    }
     Ok(())
 }
 
@@ -742,6 +814,65 @@ pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, AppE
         .app_data_key)
 }
 
+/// Snapshot the whole shared-key ring for a sync cycle. Cloning 32-byte keys is
+/// cheap and avoids holding the session read lock across network I/O. Each value
+/// is newest-first: index 0 seals, all entries decrypt.
+pub(crate) fn shared_note_keys(
+    state: &AppState,
+) -> Result<HashMap<String, Vec<[u8; 32]>>, AppError> {
+    Ok(state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .shared_note_keys
+        .clone())
+}
+
+/// The key a shared note seals under: the newest in its ring. `None` for an
+/// unregistered note (personal notes fall back to the items key).
+pub(crate) fn current_shared_key(
+    shared: &HashMap<String, Vec<[u8; 32]>>,
+    note_id: &str,
+) -> Option<[u8; 32]> {
+    shared.get(note_id).and_then(|keys| keys.first().copied())
+}
+
+/// Merge a newly-registered note key with any previous keys. The result is
+/// newest-first and deduplicated: `new_key` is current, then `previous_keys`,
+/// then whatever `existing` current was (archived automatically when a rotation
+/// registers a genuinely new key). Capped so repeated rotations cannot grow the
+/// in-memory ring without bound.
+pub(crate) fn merge_shared_note_keys(
+    existing: Option<&[[u8; 32]]>,
+    new_key: [u8; 32],
+    previous_keys: &[[u8; 32]],
+) -> Vec<[u8; 32]> {
+    const MAX_KEYS: usize = 16;
+    let mut keys: Vec<[u8; 32]> = Vec::with_capacity(3);
+    keys.push(new_key);
+    for &key in previous_keys.iter().chain(existing.unwrap_or(&[]).iter()) {
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    keys.truncate(MAX_KEYS);
+    keys
+}
+
+/// Notes the client knows are shared but whose collaboration key is not
+/// registered yet. The cloud push defers sealing these rather than fall back to
+/// the account items key (see `CryptoSession::expected_shared_notes`).
+pub(crate) fn expected_shared_notes(state: &AppState) -> Result<HashSet<String>, AppError> {
+    Ok(state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .expected_shared_notes
+        .clone())
+}
+
 /// KV at-rest key. None only pre-onboarding (plaintext correct). Locked returns EncryptionLocked: fail closed.
 /// Blocks writing plaintext among encrypted rows or reading ciphertext as garbage.
 pub(crate) fn kv_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
@@ -796,8 +927,9 @@ pub(crate) fn populate_key_ring(
 }
 
 /// Rotate the items key: archive the old key (manifest `previous_keys` +
-/// in-memory ring, so old notes stay decryptable via `key_for_id`) and wrap a
-/// fresh random key with the cached KEK. Requires the app to be unlocked.
+/// in-memory ring, so old notes stay decryptable via `key_for_id`), re-encrypt
+/// existing payloads to a fresh random key, and wrap it with the cached KEK.
+/// Requires the app to be unlocked.
 pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("keys.rotate_items_key");
     // Copy key material out so the lock releases before disk I/O / crypto.
@@ -828,30 +960,38 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
         cipher: wrapped_old.cipher,
     });
 
-    // Keep the old key in the in-memory ring for lookups this session.
-    state
-        .crypto
-        .session
-        .write()
-        .map_err(AppError::from)?
-        .items_keys
-        .insert(current_key_id, current_key);
-
     let new_key = random_key();
     let new_key_id = generate_key_id();
-
     let wrapped_new = encrypt_bytes_with_key(&kek, &new_key)?;
-
     manifest.wrapped_key = wrapped_new;
     manifest.current_key_id = new_key_id.clone();
 
-    {
-        let mut s = state.crypto.session.write().map_err(AppError::from)?;
-        s.app_data_key = Some(new_key);
-        s.current_items_key_id = new_key_id;
-    }
+    // Same migration barrier as the join path: it is held across
+    // re-encryption, the in-memory swap and manifest persistence, so no
+    // barrier-aware writer can observe the old key mid-rotation or interleave
+    // old-key data after the swap. The post-manifest sweep catches a writer
+    // that bypassed the barrier.
+    let backups: Vec<std::path::PathBuf> = {
+        let (_, created) = super::migrate_app_data_key(
+            app,
+            state,
+            &current_key,
+            &new_key,
+            &manifest,
+            |session| {
+                // Keep the old key in the in-memory ring for lookups this session.
+                session.items_keys.insert(current_key_id.clone(), current_key);
+                session.app_data_key = Some(new_key);
+                session.current_items_key_id = new_key_id.clone();
+            },
+        )?;
+        created
+    };
 
-    write_encryption_manifest(&manifest_path, &manifest)?;
+    // The swap is persisted, so the pre-migration backups have done their job.
+    for path in backups {
+        let _ = std::fs::remove_file(path);
+    }
 
     Ok(())
 }
@@ -1031,6 +1171,27 @@ mod tests {
         (params, data_key)
     }
 
+    /// L8: registering a rotated key keeps the previous generation available
+    /// (newest first), archives the old current, and deduplicates.
+    #[test]
+    fn merge_shared_note_keys_keeps_previous_generations_newest_first() {
+        let old = [1u8; 32];
+        let new = [2u8; 32];
+        let older = [3u8; 32];
+
+        // Rotation with an explicit previous key: new, then explicit prev, then
+        // the archived existing current.
+        let merged = merge_shared_note_keys(Some(&[old]), new, &[older]);
+        assert_eq!(merged, vec![new, older, old]);
+
+        // Re-registering the same key does not duplicate or reorder.
+        let same = merge_shared_note_keys(Some(&merged), new, &[]);
+        assert_eq!(same, vec![new, older, old]);
+
+        // No history: just the new key.
+        assert_eq!(merge_shared_note_keys(None, new, &[old]), vec![new, old]);
+    }
+
     #[test]
     fn derive_items_key_with_correct_passphrase_matches_manifest_key() {
         let (params, data_key) = sample_params("correct horse battery staple");
@@ -1072,5 +1233,29 @@ mod tests {
             wrapped_items_key: manifest.wrapped_key.clone(),
         };
         assert!(!remote_params_differ(&params, Some(&manifest)));
+    }
+
+    /// F2: a device must not overwrite an existing `keyParams.json` that
+    /// belongs to a different vault. Same-vault params (or no file) still write.
+    #[test]
+    fn key_params_overwrite_refuses_a_foreign_vault() {
+        let (manifest_a, _, _) =
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, "pw-a")
+                .expect("manifest a");
+        let (manifest_b, _, _) =
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, "pw-b")
+                .expect("manifest b");
+        let params_a = key_params_from_manifest(&manifest_a).expect("params a");
+        let params_b = key_params_from_manifest(&manifest_b).expect("params b");
+
+        // No existing file: always allowed.
+        assert!(key_params_overwrite_allowed(None, &manifest_a));
+        // Same vault: allowed (idempotent republish).
+        assert!(key_params_overwrite_allowed(Some(&params_a), &manifest_a));
+        // Foreign vault: refused so its wrapped items key is not clobbered.
+        assert!(!key_params_overwrite_allowed(
+            Some(&params_b),
+            &manifest_a
+        ));
     }
 }

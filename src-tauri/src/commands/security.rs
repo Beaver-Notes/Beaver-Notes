@@ -8,7 +8,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::shared::{RawJson, *};
 use rand::RngCore;
@@ -434,17 +434,28 @@ struct V5Envelope<'a, M> {
     enc: &'a str,
 }
 
-pub(crate) fn serialize_v5_envelope<M: Serialize>(
+/// Serialize a sync envelope with an explicit version, `v` first. Callers that
+/// seal with a shared collaboration key pass `SHARED_PAYLOAD_VERSION` (6).
+pub(crate) fn serialize_sync_envelope<M: Serialize>(
+    version: u8,
     meta: &M,
     iv: &str,
     enc: &str,
 ) -> Result<String, AppError> {
     Ok(serde_json::to_string(&V5Envelope {
-        v: SYNC_PAYLOAD_VERSION,
+        v: version,
         meta,
         iv,
         enc,
     })?)
+}
+
+pub(crate) fn serialize_v5_envelope<M: Serialize>(
+    meta: &M,
+    iv: &str,
+    enc: &str,
+) -> Result<String, AppError> {
+    serialize_sync_envelope(SYNC_PAYLOAD_VERSION, meta, iv, enc)
 }
 
 /// Encrypt sync payload (commit/snapshot/genesis) with items key (XChaCha20-Poly1305). AAD binds identity, blocks swapping.
@@ -731,6 +742,113 @@ pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
         .unwrap_or(false)
 }
 
+/// Register the collaboration key the durable sync path should seal a note
+/// under: the per-note shared key for a note, or the workspace key for the
+/// `meta` doc. The server and Rust never see plaintext; only this device's
+/// session holds the raw key, so it is in-memory and dropped on lock.
+///
+/// `previous_keys` carries older generations recovered from a rotated note's
+/// envelope keyring (a fresh device after a collaborator was removed). The
+/// existing current key for the note is archived automatically, so a rotation
+/// that registers a genuinely new key keeps the old one decryptable.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn sync_register_shared_key(
+    state: State<AppState>,
+    note_id: String,
+    key_hex: String,
+    previous_keys: Option<Vec<String>>,
+) -> Result<(), AppError> {
+    if note_id.is_empty() {
+        return Err(AppError::Other("note id required".into()));
+    }
+    let key = decode_shared_key(&key_hex)?;
+    let previous = decode_shared_keys(previous_keys.as_deref())?;
+    let mut session = state.crypto.session.write().map_err(AppError::from)?;
+    // The real key is now known: drop the "expected shared, no key" mark so the
+    // note seals v6 instead of being deferred.
+    session.expected_shared_notes.remove(&note_id);
+    let merged = merge_shared_note_keys(
+        session.shared_note_keys.get(&note_id).map(|k| k.as_slice()),
+        key,
+        &previous,
+    );
+    session.shared_note_keys.insert(note_id, merged);
+    drop(session);
+    // Nudge the running scheduler: assets of this note that were skipped while
+    // the key was unregistered can now be decrypted.
+    crate::sync::scheduler::kick_if_running();
+    Ok(())
+}
+
+/// Decode one 32-byte hex shared key.
+fn decode_shared_key(key_hex: &str) -> Result<[u8; 32], AppError> {
+    let bytes =
+        hex::decode(key_hex.trim()).map_err(|_| AppError::Crypto("shared key must be hex".into()))?;
+    if bytes.len() != 32 {
+        return Err(AppError::Crypto("shared key must be 32 bytes".into()));
+    }
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&bytes);
+    Ok(key)
+}
+
+/// Decode an optional list of previous 32-byte hex shared keys.
+fn decode_shared_keys(keys: Option<&[String]>) -> Result<Vec<[u8; 32]>, AppError> {
+    let mut out = Vec::new();
+    for key_hex in keys.unwrap_or(&[]) {
+        let key = decode_shared_key(key_hex)?;
+        if !out.contains(&key) {
+            out.push(key);
+        }
+    }
+    Ok(out)
+}
+
+/// Mark (or unmark) a note as expected to be shared with cross-account
+/// collaborators. The durable cloud path defers sealing a marked note with the
+/// account items key until [`sync_register_shared_key`] lands, so a push that
+/// races key resolution can never strand peers on an items-key envelope.
+/// `expected = false` restores the exact v5 items-key behaviour for a note
+/// confirmed personal.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn sync_expect_shared_note(
+    state: State<AppState>,
+    note_id: String,
+    expected: bool,
+) -> Result<(), AppError> {
+    if note_id.is_empty() {
+        return Err(AppError::Other("note id required".into()));
+    }
+    let mut session = state.crypto.session.write().map_err(AppError::from)?;
+    if expected {
+        session.expected_shared_notes.insert(note_id);
+    } else {
+        session.expected_shared_notes.remove(&note_id);
+    }
+    drop(session);
+    if expected {
+        // A mark does not change ciphertext; no kick needed. Unmarking does:
+        // rows deferred under the mark become eligible for the next push.
+        return Ok(());
+    }
+    crate::sync::scheduler::kick_if_running();
+    Ok(())
+}
+
+/// Forget every registered collaboration key (account/workspace switch, lock).
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn sync_clear_shared_keys(state: State<AppState>) -> Result<(), AppError> {
+    let mut session = state.crypto.session.write().map_err(AppError::from)?;
+    session.shared_note_keys.clear();
+    // Drop the expected-shared marks too: they belong to the same session and a
+    // stale mark joined to a cleared key set would defer a note forever.
+    session.expected_shared_notes.clear();
+    Ok(())
+}
+
 /// Rotate the items key: archive the current key, generate a fresh one,
 /// persist. Old notes stay decryptable via the in-memory ring loaded from
 /// `previous_keys`. Requires an unlocked app (KEK cached).
@@ -802,9 +920,9 @@ pub(crate) fn encryption_recover_with_code(
 /// a joining device; it is never written out.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn encryption_reconcile_key_params(
+pub(crate) async fn encryption_reconcile_key_params(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     passphrase: Option<String>,
 ) -> Result<(), AppError> {
     if !state.crypto.session.read()?.active {
@@ -821,29 +939,36 @@ pub(crate) fn encryption_reconcile_key_params(
         }
     }
     let params = read_key_params(&app, state.inner())?;
-    match params {
-        Some(params) => {
-            let already_adopted = app_encryption_manifest_path(&app, state.inner())
-                .ok()
-                .and_then(|p| load_encryption_manifest(&p).ok().flatten())
-                .is_some_and(|m| {
-                    m.wrapped_key.nonce == params.wrapped_items_key.nonce
-                        && m.wrapped_key.cipher == params.wrapped_items_key.cipher
-                });
-            if !already_adopted {
-                match passphrase {
-                    Some(pw) => adopt_key_params(&app, state.inner(), &params, &pw)?,
-                    None => {
-                        // No passphrase yet; a later sync (which supplies it
-                        // from secure storage) will retry.
+    // Adoption may re-encrypt every local payload, so run it off the main
+    // thread like the other heavy crypto commands in this module.
+    let task_app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = task_app.state::<AppState>();
+        match params {
+            Some(params) => {
+                let already_adopted = app_encryption_manifest_path(&task_app, state.inner())
+                    .ok()
+                    .and_then(|p| load_encryption_manifest(&p).ok().flatten())
+                    .is_some_and(|m| {
+                        m.wrapped_key.nonce == params.wrapped_items_key.nonce
+                            && m.wrapped_key.cipher == params.wrapped_items_key.cipher
+                    });
+                if !already_adopted {
+                    if let Some(pw) = passphrase {
+                        adopt_key_params(&task_app, state.inner(), &params, &pw)?;
                     }
+                    // No passphrase yet: a later sync (which supplies it from
+                    // secure storage) will retry.
                 }
             }
+            None => {
+                publish_key_params(&task_app, state.inner())?;
+            }
         }
-        None => {
-            publish_key_params(&app, state.inner())?;
-        }
-    }
+        Ok::<(), AppError>(())
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(())
 }
 
@@ -851,9 +976,9 @@ pub(crate) fn encryption_reconcile_key_params(
 /// Wrong passphrase returns WrongPassword, touches no vault state.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn encryption_adopt_key_params(
+pub(crate) async fn encryption_adopt_key_params(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     passphrase: String,
     key_params: Option<String>,
 ) -> Result<EncryptionSubmitResult, AppError> {
@@ -872,16 +997,25 @@ pub(crate) fn encryption_adopt_key_params(
             AppError::Other("No shared key params found in the sync source.".into())
         })?,
     };
-    adopt_key_params(&app, state.inner(), &params, &passphrase)?;
-    {
-        let mut s = state.crypto.session.write()?;
-        s.active = true;
-    }
-    {
-        let mut f = state.security.failure_count.lock()?;
-        *f = 0;
-        *state.security.lockout_until.lock()? = None;
-    }
+    // Adoption re-encrypts every local payload (potentially hundreds of MB of
+    // assets and rows), so keep it off the main thread.
+    let task_app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = task_app.state::<AppState>();
+        adopt_key_params(&task_app, state.inner(), &params, &passphrase)?;
+        {
+            let mut s = state.crypto.session.write()?;
+            s.active = true;
+        }
+        {
+            let mut f = state.security.failure_count.lock()?;
+            *f = 0;
+            *state.security.lockout_until.lock()? = None;
+        }
+        Ok::<(), AppError>(())
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(EncryptionSubmitResult {
         ok: true,
         error: None,
