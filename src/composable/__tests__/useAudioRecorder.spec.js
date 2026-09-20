@@ -124,14 +124,16 @@ describe('useAudioRecorder singleton', () => {
     expect(startRecording).not.toHaveBeenCalled();
   });
 
-  it('removes the orphaned file when no handler consumes the stop payload', async () => {
+  it('keeps the file even when no handler consumes the stop payload', async () => {
+    // A missed listener (navigation race) must not vaporize the recording;
+    // the next stop for the same note overwrites it instead.
     const rec = await freshRecorder();
     rec.onStopped(() => {});
 
     await rec.start('n1', 0);
     const payload = await rec.stop();
 
-    expect(removePath).toHaveBeenCalledWith('/app/assets/n1/abc.wav');
+    expect(removePath).not.toHaveBeenCalled();
     expect(payload.consumed).toBe(false);
   });
 

@@ -16,6 +16,9 @@ vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: { card: { untitledNote: 'Untitled' } } }),
 }));
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+// link-note.js (pulled in transitively) imports the app router singleton;
+// stub it so the spec doesn't need the real vue-router factory functions.
+vi.mock('@/router', () => ({ default: { push: vi.fn() } }));
 vi.mock('@/composable/useGroupTooltip', () => ({ useGroupTooltip: () => {} }));
 vi.mock('@/composable/useSounds', () => ({ useSounds: () => ({ play: vi.fn() }) }));
 vi.mock('../FolderTree.vue', () => ({ default: { template: '<div />' } }));

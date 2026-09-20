@@ -2,12 +2,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
 const apiGetWorkspaces = vi.fn();
+const apiDeleteWorkspace = vi.fn();
 const normalizeWorkspaceList = vi.fn((raw) => raw);
 
 vi.mock('@/lib/api/workspaces', () => ({
   getWorkspaces: (...args) => apiGetWorkspaces(...args),
   createWorkspace: vi.fn(),
-  deleteWorkspace: vi.fn(),
+  deleteWorkspace: (...args) => apiDeleteWorkspace(...args),
   addMember: vi.fn(),
   removeMember: vi.fn(),
   joinWorkspace: vi.fn(),
@@ -33,6 +34,7 @@ const native = vi.hoisted(() => ({
   switchLocalWorkspace: vi.fn(),
   deleteLocalWorkspace: vi.fn(),
   registerLocalWorkspace: vi.fn(),
+  detachLocalWorkspace: vi.fn(),
 }));
 
 vi.mock('@/lib/native/workspaces', () => native);
@@ -44,12 +46,14 @@ describe('register + reconcile cloud workspaces', () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     apiGetWorkspaces.mockResolvedValue([]);
+    apiDeleteWorkspace.mockResolvedValue({});
     normalizeWorkspaceList.mockImplementation((raw) => raw);
     native.listLocalWorkspaces.mockResolvedValue([]);
     native.getActiveLocalWorkspace.mockResolvedValue({ id: 'default' });
     native.registerLocalWorkspace.mockResolvedValue({});
     native.switchLocalWorkspace.mockResolvedValue({});
     native.deleteLocalWorkspace.mockResolvedValue({});
+    native.detachLocalWorkspace.mockResolvedValue({});
   });
 
   it('registers shared workspaces as shared and personal ones as personal', async () => {
@@ -69,7 +73,7 @@ describe('register + reconcile cloud workspaces', () => {
     );
   });
 
-  it('deletes a removed shared workspace and never a personal one', async () => {
+  it('never deletes local data when a shared workspace is missing from one successful list', async () => {
     apiGetWorkspaces.mockResolvedValue([
       { id: 'personal-cloud', name: 'Mine', orgId: 'org-personal', ownerId: 'u1' },
     ]);
@@ -81,15 +85,51 @@ describe('register + reconcile cloud workspaces', () => {
 
     const cloud = useCloudWorkspaces();
     await cloud.fetchWorkspaces();
-    await vi.waitFor(() => expect(native.deleteLocalWorkspace).toHaveBeenCalled());
+    await vi.waitFor(() => expect(native.detachLocalWorkspace).toHaveBeenCalledWith('shared-1'));
 
-    expect(native.deleteLocalWorkspace).toHaveBeenCalledWith('shared-1');
-    expect(native.deleteLocalWorkspace).not.toHaveBeenCalledWith('default');
-    expect(native.deleteLocalWorkspace).not.toHaveBeenCalledWith('personal-cloud');
+    expect(native.deleteLocalWorkspace).not.toHaveBeenCalled();
+    expect(native.detachLocalWorkspace).not.toHaveBeenCalledWith('default');
+    expect(native.detachLocalWorkspace).not.toHaveBeenCalledWith('personal-cloud');
   });
 
-  it('switches away from an active removed shared workspace before deleting', async () => {
+  it('converges: an already-detached workspace is never reprocessed or deleted', async () => {
+    const local = [
+      { id: 'default', workspaceType: 'personal', cloudSync: false },
+      { id: 'shared-1', workspaceType: 'shared', cloudSync: true },
+    ];
     apiGetWorkspaces.mockResolvedValue([]);
+    native.listLocalWorkspaces.mockImplementation(async () => local.map((w) => ({ ...w })));
+    native.detachLocalWorkspace.mockImplementation(async (id) => {
+      const ws = local.find((w) => w.id === id);
+      if (ws) ws.cloudSync = false;
+    });
+
+    const cloud = useCloudWorkspaces();
+    await cloud.fetchWorkspaces();
+    await vi.waitFor(() => expect(native.detachLocalWorkspace).toHaveBeenCalledTimes(1));
+
+    await cloud.fetchWorkspaces();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(native.detachLocalWorkspace).toHaveBeenCalledTimes(1);
+    expect(native.deleteLocalWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('removes the local mirror on an intentional user-initiated deletion', async () => {
+    native.listLocalWorkspaces.mockResolvedValue([
+      { id: 'default', workspaceType: 'personal', cloudSync: false },
+      { id: 'shared-1', workspaceType: 'shared', cloudSync: true },
+    ]);
+    native.getActiveLocalWorkspace.mockResolvedValue({ id: 'default' });
+
+    const cloud = useCloudWorkspaces();
+    await cloud.deleteWorkspace('shared-1');
+
+    expect(apiDeleteWorkspace).toHaveBeenCalledWith('shared-1', expect.anything());
+    expect(native.deleteLocalWorkspace).toHaveBeenCalledWith('shared-1');
+  });
+
+  it('switches away from the active workspace before an intentional delete', async () => {
     native.listLocalWorkspaces.mockResolvedValue([
       { id: 'default', workspaceType: 'personal', cloudSync: false },
       { id: 'shared-1', workspaceType: 'shared', cloudSync: true },
@@ -97,14 +137,13 @@ describe('register + reconcile cloud workspaces', () => {
     native.getActiveLocalWorkspace.mockResolvedValue({ id: 'shared-1' });
 
     const cloud = useCloudWorkspaces();
-    await cloud.fetchWorkspaces();
-    await vi.waitFor(() => expect(native.deleteLocalWorkspace).toHaveBeenCalled());
+    await cloud.deleteWorkspace('shared-1');
 
     expect(native.switchLocalWorkspace).toHaveBeenCalledWith('default');
     expect(native.deleteLocalWorkspace).toHaveBeenCalledWith('shared-1');
   });
 
-  it('does not hold loading while reconciliation deletes in the background', async () => {
+  it('does not hold loading while reconciliation detaches in the background', async () => {
     apiGetWorkspaces.mockResolvedValue([
       { id: 'personal-cloud', name: 'Mine', orgId: 'org-personal', ownerId: 'u1' },
     ]);
@@ -117,6 +156,6 @@ describe('register + reconcile cloud workspaces', () => {
     await cloud.fetchWorkspaces();
 
     expect(cloud.loading.value).toBe(false);
-    await vi.waitFor(() => expect(native.deleteLocalWorkspace).toHaveBeenCalled());
+    await vi.waitFor(() => expect(native.detachLocalWorkspace).toHaveBeenCalled());
   });
 });

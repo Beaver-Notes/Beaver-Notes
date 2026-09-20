@@ -37,7 +37,7 @@
           />
           <ui-button
             variant="primary"
-            :disabled="!inviteInput.trim() || inviting || !isEmailVerified"
+            :disabled="!inviteInput.trim() || inviting"
             :loading="inviting"
             :title="!isEmailVerified ? verifyTooltip : undefined"
             @click="handleInvite"
@@ -49,6 +49,14 @@
 
         <p v-if="sharing.error.value" role="alert" class="text-sm text-red-500">
           {{ sharing.error.value }}
+        </p>
+
+        <p
+          v-if="inviteMessage"
+          role="status"
+          class="text-sm text-amber-600 dark:text-amber-400"
+        >
+          {{ inviteMessage }}
         </p>
 
         <div v-if="sharing.collaborators.value.length" class="space-y-2">
@@ -70,13 +78,13 @@
                   {{ displayName(collab) }}
                 </p>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                  {{ collab.role }}
+                  {{ roleLabel(collab.role, translations) }}
                 </p>
               </div>
               <button
                 class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
                 title="Remove collaborator"
-                @click="handleRemove(collab.userId)"
+                @click="handleRemove(collab)"
               >
                 <v-remixicon name="riCloseLine" size="16" />
               </button>
@@ -95,6 +103,43 @@
           {{ translations.share?.noCollaborators || 'No collaborators yet. Invite someone to start collaborating.' }}
         </p>
 
+        <div v-if="joinRequests.length" class="space-y-2">
+          <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            {{ translations.share?.pendingRequests || 'Pending requests' }}
+          </p>
+          <ui-list class="space-y-1">
+            <ui-list-item
+              v-for="req in joinRequests"
+              :key="req.id"
+              class="gap-2"
+            >
+              <ui-user-avatar :name="req.username || req.accountId" :size="32" />
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  {{ req.username || req.accountId }}
+                </p>
+                <p class="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  {{ translations.share?.pending || 'Pending' }} · {{ roleLabel(req.role, translations) }}
+                </p>
+              </div>
+              <button
+                class="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                title="Approve"
+                @click="handleApproveRequest(req)"
+              >
+                {{ translations.share?.approve || 'Approve' }}
+              </button>
+              <button
+                class="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                title="Deny"
+                @click="handleDenyRequest(req)"
+              >
+                {{ translations.share?.deny || 'Deny' }}
+              </button>
+            </ui-list-item>
+          </ui-list>
+        </div>
+
         <div class="flex gap-2">
           <ui-select
             v-model="linkRole"
@@ -112,7 +157,6 @@
           variant="primary"
           class="w-full"
           :loading="linkLoading"
-          :disabled="!isEmailVerified"
           :title="!isEmailVerified ? verifyTooltip : undefined"
           @click="createLink"
         >
@@ -134,7 +178,7 @@
                 {{ getInviteUrl(link.token) }}
               </p>
               <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                {{ link.role }} ·
+                {{ roleLabel(link.role, translations) }} ·
                 {{ link.expiresAt ? 'Expires ' + formatDate(link.expiresAt) : 'No expiry' }}
               </p>
             </div>
@@ -151,7 +195,7 @@
             <button
               class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
               title="Revoke link"
-              @click="handleRevokeLink(link.id)"
+              @click="handleRevokeLink(link)"
             >
               <v-remixicon name="riDeleteBinLine" size="16" />
             </button>
@@ -191,9 +235,12 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useNoteSharing } from '@/composable/useNoteSharing';
 import { useClipboard } from '@/composable/clipboard';
 import { useAccountStore } from '@/store/account';
+import { useWorkspaceStore } from '@/store/workspace';
 import { useTranslations } from '@/composable/useTranslations';
+import { useDialog } from '@/lib/dialog';
 import { backend } from '@/lib/tauri-bridge';
 import { displayName } from '@/utils/displayName';
+import { roleLabel } from '@/utils/roleLabel';
 
 const INVITE_ROLE_OPTIONS = [
   { value: 'editor', text: 'Editor' },
@@ -222,13 +269,26 @@ export default {
   setup(props) {
     const sharing = useNoteSharing();
     const accountStore = useAccountStore();
+    const workspaceStore = useWorkspaceStore();
     const { translations } = useTranslations();
+    const dialog = useDialog();
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const isMobile = backend.isMobileRuntime();
     const inviteInput = ref('');
     const inviteRole = ref('editor');
     const inviting = ref(false);
-    const { inviteLinks, linkLoading, fetchLinks, generateLink, revokeLink } = sharing;
+    const inviteMessage = ref('');
+    const {
+      inviteLinks,
+      linkLoading,
+      fetchLinks,
+      generateLink,
+      revokeLink,
+      joinRequests,
+      fetchJoinRequests,
+      approveJoinRequest,
+      denyJoinRequest,
+    } = sharing;
     const linkRole = ref('editor');
     const linkExpiry = ref('never');
     const linkError = ref('');
@@ -244,6 +304,13 @@ export default {
       return `beaver-notes://join/${token}`;
     }
 
+    function tpl(raw, params) {
+      return Object.entries(params).reduce(
+        (s, [k, v]) => s.replace(`{${k}}`, String(v)),
+        raw,
+      );
+    }
+
     async function createLink() {
       linkLoading.value = true;
       linkError.value = '';
@@ -251,6 +318,7 @@ export default {
         await generateLink(props.noteId, {
           role: linkRole.value,
           expiresIn: linkExpiry.value === 'never' ? null : parseInt(linkExpiry.value, 10),
+          workspaceId: workspaceStore.activeId,
         });
       } catch (err) {
         linkError.value = err?.message || 'Failed to create invite link';
@@ -267,8 +335,29 @@ export default {
       }
     }
 
-    function handleRevokeLink(linkId) {
-      revokeLink(props.noteId, linkId);
+    function handleRevokeLink(link) {
+      const share = translations.value?.share;
+      dialog.confirm({
+        title: tpl(share?.revokeLinkTitle || 'Revoke invite link {url}?', {
+          url: getInviteUrl(link.token),
+        }),
+        body:
+          share?.revokeLinkBody ||
+          'Anyone who already has this link will no longer be able to join this note.',
+        icon: 'riDeleteBinLine',
+        okText: translations.value?.dialog?.confirm || 'Revoke',
+        cancelText: translations.value?.dialog?.cancel || 'Cancel',
+        okVariant: 'danger',
+        onConfirm: async () => {
+          linkError.value = '';
+          try {
+            await revokeLink(props.noteId, link.id);
+          } catch (err) {
+            linkError.value = err?.message || 'Failed to revoke invite link';
+            console.error('[ShareModal] revokeLink failed:', err);
+          }
+        },
+      });
     }
 
     function formatDate(dateStr) {
@@ -289,6 +378,11 @@ export default {
           } catch {
             // Link fetch errors are non-critical
           }
+          try {
+            await fetchJoinRequests(props.noteId);
+          } catch {
+            // Join-request fetch errors are non-critical
+          }
         }
       }
     );
@@ -296,16 +390,44 @@ export default {
     onMounted(() => {
       if (props.noteId) {
         fetchLinks(props.noteId);
+        fetchJoinRequests(props.noteId);
       }
     });
+
+    async function handleApproveRequest(req) {
+      try {
+        await approveJoinRequest(req.id);
+      } catch {
+        // error is set in composable
+      }
+    }
+
+    async function handleDenyRequest(req) {
+      try {
+        await denyJoinRequest(req.id);
+      } catch {
+        // error is set in composable
+      }
+    }
 
     async function handleInvite() {
       const identifier = inviteInput.value.trim();
       if (!identifier || inviting.value) return;
       inviting.value = true;
+      inviteMessage.value = '';
       try {
-        await sharing.invite(props.noteId, identifier, inviteRole.value);
+        const result = await sharing.invite(
+          props.noteId,
+          identifier,
+          inviteRole.value,
+          { workspaceId: workspaceStore.activeId },
+        );
         inviteInput.value = '';
+        if (result?.alreadyInvited) {
+          inviteMessage.value =
+            translations.value?.share?.alreadyCollaborator ||
+            'Already a collaborator';
+        }
       } catch {
         // error is set in composable
       } finally {
@@ -313,12 +435,28 @@ export default {
       }
     }
 
-    async function handleRemove(userId) {
-      try {
-        await sharing.remove(props.noteId, userId);
-      } catch {
-        // error is set in composable
-      }
+    function handleRemove(collab) {
+      const name = displayName(collab);
+      const share = translations.value?.share;
+      dialog.confirm({
+        title: tpl(share?.removeCollaboratorTitle || 'Remove {name}?', { name }),
+        body: tpl(
+          share?.removeCollaboratorBody ||
+            '{name} loses access to future changes to this note. The note key is rotated so they cannot read anything new.',
+          { name },
+        ),
+        icon: 'riUserUnfollowLine',
+        okText: translations.value?.dialog?.confirm || 'Remove',
+        cancelText: translations.value?.dialog?.cancel || 'Cancel',
+        okVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            await sharing.remove(props.noteId, collab.userId);
+          } catch {
+            // error is set in composable
+          }
+        },
+      });
     }
 
     return {
@@ -332,11 +470,16 @@ export default {
       inviteInput,
       inviteRole,
       inviting,
+      inviteMessage,
+      roleLabel,
       inviteLinks,
       linkLoading,
       linkError,
       linkRole,
       linkExpiry,
+      joinRequests,
+      handleApproveRequest,
+      handleDenyRequest,
       copyState,
       copiedToken,
       isEmailVerified,

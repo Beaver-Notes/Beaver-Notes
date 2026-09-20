@@ -5,6 +5,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 
 const mobileFlag = vi.hoisted(() => ({ value: false }));
 const iapCtl = vi.hoisted(() => ({ buyImpl: null, restoreImpl: null, paid: true, authed: true }));
+const seedCtl = vi.hoisted(() => ({ triggerSeed: null, seedStatus: 'idle' }));
 
 vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: ref({}) }),
@@ -54,6 +55,10 @@ vi.mock('@/store/account', () => ({
     status: 'authenticated',
     subscription: { plan: 'team' },
     profile: { id: 'u1' },
+    get seedStatus() {
+      return seedCtl.seedStatus;
+    },
+    seedError: 'boom',
     seedProgress: {},
     setProfile: vi.fn(),
     setSubscription: vi.fn(),
@@ -87,6 +92,7 @@ vi.mock('@/composable/useAccountAuth', () => ({
 
 vi.mock('@/utils/onboarding/sync-policy.js', () => ({
   getOnboardingSyncTransport: vi.fn(() => 'remote'),
+  getOnboardingSyncLocation: vi.fn(() => 'cloud'),
 }));
 
 vi.mock('@/utils/sync/path.js', () => ({
@@ -201,7 +207,7 @@ vi.mock('@/composable/useSettingsAccount', () => ({
     cancelDeleteAccount: vi.fn(),
     confirmDeleteAccount: vi.fn(),
     clearError: vi.fn(),
-    triggerSeed: vi.fn(),
+    triggerSeed: (...a) => seedCtl.triggerSeed(...a),
     editingUsername: ref(false),
     draftUsername: ref(''),
     startEditUsername: vi.fn(),
@@ -305,9 +311,9 @@ describe('onboarding plans gating (mocked runtime)', () => {
     iapCtl.paid = false;
     expect(makeFlow().trackedSteps.value).toEqual([
       'account',
+      'sync',
       'password',
       'import',
-      'sync',
       'customize',
     ]);
     iapCtl.authed = true;
@@ -348,6 +354,8 @@ describe('onboarding plans handlers (mounted)', () => {
     iapCtl.paid = true;
     iapCtl.buyImpl = async () => 'pro';
     iapCtl.restoreImpl = async () => {};
+    seedCtl.triggerSeed = vi.fn(() => Promise.resolve());
+    seedCtl.seedStatus = 'idle';
   });
 
   const mountOnboarding = () =>
@@ -357,7 +365,7 @@ describe('onboarding plans handlers (mounted)', () => {
           'ui-button': { template: '<button><slot /></button>' },
           'ui-input': true,
           'ui-card': true,
-          'ui-modal': true,
+          'ui-modal': { template: '<div><slot /></div>' },
           'v-remixicon': true,
           SubscriptionPlans: { template: '<div />' },
         },
@@ -408,5 +416,34 @@ describe('onboarding plans handlers (mounted)', () => {
     await w.vm.handlePlansRestore();
     expect(w.vm.state.error).toBe('');
     expect(w.vm.plansBusy).toBe(false);
+  });
+
+  it('offers an inline Retry that re-runs the seed from the failure state', async () => {
+    seedCtl.seedStatus = 'error';
+    const w = mountOnboarding();
+    await flushPromises();
+    w.vm.step = 'account';
+    await flushPromises();
+
+    const retry = w.findAll('button').find((b) => b.text().includes('Retry'));
+    expect(retry).toBeTruthy();
+    expect(w.text()).toMatch(/Copy log path/);
+
+    await w.vm.retrySeed();
+    await flushPromises();
+
+    expect(seedCtl.triggerSeed).toHaveBeenCalledTimes(1);
+    expect(w.vm.seedRetrying).toBe(false);
+  });
+
+  it('releases the retry loading state even when seeding throws', async () => {
+    seedCtl.triggerSeed = vi.fn(() => Promise.reject(new Error('still down')));
+    seedCtl.seedStatus = 'error';
+    const w = mountOnboarding();
+    await flushPromises();
+
+    await w.vm.retrySeed();
+
+    expect(w.vm.seedRetrying).toBe(false);
   });
 });

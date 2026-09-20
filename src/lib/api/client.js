@@ -222,6 +222,17 @@ export function createApiClient({
       }),
     delete: (path, options) =>
       request('DELETE', path, { ...options, auth: options?.auth !== false }),
+    getAccountVaultKeyParams: (options) =>
+      request('GET', '/vault/account/key-params', {
+        ...options,
+        auth: options?.auth !== false,
+      }),
+    publishAccountVaultKeyParams: (body, options) =>
+      request('PUT', '/vault/account/key-params', {
+        ...options,
+        body,
+        auth: options?.auth !== false,
+      }),
     getVaultKeyParams: (workspaceId, options) =>
       request('GET', `/vault/${encodeURIComponent(workspaceId)}/key-params`, {
         ...options,

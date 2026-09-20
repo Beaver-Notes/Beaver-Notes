@@ -751,6 +751,11 @@
                           'Signed in'
                         }}
                       </p>
+                      <p
+                        class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+                      >
+                        {{ syncLocationCopy }}
+                      </p>
                     </div>
 
                     <!-- Email verification lives inside this step, not in a global pill -->
@@ -850,7 +855,9 @@
                       v-else-if="accountStore.seedStatus === 'error'"
                       class="mt-4 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                     >
-                      <div class="flex items-center gap-2 justify-center">
+                      <div
+                        class="flex flex-wrap items-center justify-center gap-2 text-center"
+                      >
                         <v-remixicon
                           name="riErrorWarningLine"
                           class="text-red-600 dark:text-red-400"
@@ -859,8 +866,23 @@
                         <p
                           class="text-sm font-medium text-red-700 dark:text-red-300"
                         >
-                          Sync setup failed. You can retry from Settings.
+                          {{ accountStore.seedError || 'Sync setup failed.' }}
                         </p>
+                        <ui-button
+                          size="sm"
+                          :loading="seedRetrying"
+                          :disabled="seedRetrying"
+                          @click="retrySeed"
+                        >
+                          {{ tr.retrySyncSetup || 'Retry' }}
+                        </ui-button>
+                        <ui-button size="sm" @click="copyLogPath">
+                          {{
+                            logCopied
+                              ? tr.logPathCopied || 'Log path copied'
+                              : tr.copyLogPath || 'Copy log path'
+                          }}
+                        </ui-button>
                       </div>
                     </div>
                   </template>
@@ -1174,7 +1196,7 @@
                           {{
                             trAuth.recoverPrompt ||
                             tr.recoverAccount ||
-                            'Have a recovery code?'
+                            'Have an account recovery code?'
                           }}
                         </p>
                         <ui-input
@@ -1192,7 +1214,7 @@
                           class="w-full font-mono text-xs"
                           :placeholder="
                             trAuth.recoveryCodePlaceholder ||
-                            '64-char recovery code'
+                            '64-char account recovery code'
                           "
                         />
                         <p
@@ -1200,7 +1222,7 @@
                         >
                           {{
                             trAccount.recoveryHint ||
-                            'Restores ACCOUNT access only. E2E data needs vault passphrase.'
+                            'Restores account sign-in only. Notes need the vault key.'
                           }}
                         </p>
                         <ui-button
@@ -1332,16 +1354,16 @@
                       {{
                         vaultJoinMode
                           ? 'Join existing vault'
-                          : translations.settings?.encryptionPassphrase ||
-                            'Encryption passphrase'
+                          :                         translations.settings?.encryptionPassphrase ||
+                            'Vault key'
                       }}
                     </h2>
                     <p class="text-neutral-600 dark:text-neutral-400">
                       {{
                         vaultJoinMode
-                          ? 'This sync source has an existing encrypted vault. Enter its password to join.'
+                          ? 'This sync source has an existing encrypted vault. Enter its vault key to join.'
                           : translations.onboarding?.passwordDescription ||
-                            'Encryption is built into Beaver Notes. Set a passphrase to protect every note and asset on this device.'
+                            'Encryption is built into Beaver Notes. Set a vault key to protect every note and asset on this device.'
                       }}
                     </p>
                   </div>
@@ -1351,7 +1373,7 @@
                       v-model="encryptionPassword"
                       password
                       :placeholder="
-                        translations.settings?.password || 'Passphrase'
+                        translations.settings?.vaultKeyPlaceholder || 'Vault key'
                       "
                     />
 
@@ -1373,14 +1395,14 @@
                       password
                       :placeholder="
                         translations.onboarding?.confirmPassword ||
-                        'Confirm passphrase'
+                        'Confirm vault key'
                       "
                     />
 
                     <p class="text-sm">
                       {{
                         translations.onboarding?.passwordWarning ||
-                        'This passphrase cannot be recovered if forgotten. Store it in a password manager.'
+                        'This vault key cannot be recovered if forgotten. Store it in a password manager.'
                       }}
                     </p>
                   </template>
@@ -1391,7 +1413,7 @@
                       password
                       data-testid="vault-join-password"
                       :placeholder="
-                        translations.settings?.password || 'Vault password'
+                        translations.settings?.vaultKeyPlaceholder || 'Vault key'
                       "
                       autofocus
                     />
@@ -1401,7 +1423,7 @@
                       type="button"
                       data-testid="vault-start-fresh"
                       :disabled="encryptionPasswordLoading"
-                      @click="startFreshVault"
+                      @click="confirmStartFreshVault"
                     >
                       {{
                         translations.onboarding?.startFresh ||
@@ -1698,6 +1720,36 @@ export default {
       if (!total) return 0;
       return Math.min(100, Math.round((uploaded / total) * 100));
     });
+
+    // Inline recovery for a failed seed: same retry + log-path affordances as
+    // Settings → Account, surfaced on the step so the user is not sent away.
+    const seedRetrying = ref(false);
+    const logCopied = ref(false);
+    async function retrySeed() {
+      seedRetrying.value = true;
+      try {
+        await account.triggerSeed();
+      } catch {
+        // The store's seedStatus/seedError drive the visible state.
+      } finally {
+        seedRetrying.value = false;
+      }
+    }
+    async function copyLogPath() {
+      try {
+        const { backend } = await import('@/lib/tauri-bridge');
+        const path = await backend.invoke('log_file_path');
+        await navigator.clipboard.writeText(
+          path || 'Log file not initialized yet',
+        );
+        logCopied.value = true;
+        setTimeout(() => {
+          logCopied.value = false;
+        }, 2000);
+      } catch {
+        logCopied.value = false;
+      }
+    }
 
     async function ensureServerUrl() {
       const url = (account.draftServerUrl.value || '').trim();
@@ -2159,6 +2211,10 @@ export default {
       footerButtons,
       seedPhaseLabel,
       seedProgressPercent,
+      seedRetrying,
+      retrySeed,
+      logCopied,
+      copyLogPath,
       iapBilling,
       plansInterval,
       plansBusy,

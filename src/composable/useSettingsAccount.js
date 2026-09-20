@@ -1,9 +1,11 @@
 import { onMounted, ref } from 'vue';
 import { useAccountStore } from '@/store/account';
+import { PLAN_NAMES } from '@/lib/api/types';
 import { setSetting } from '@/lib/settings';
 import { useAccountAuth } from '@/composable/useAccountAuth';
 import { updateUsername as apiUpdateUsername, getAccountExport } from '@/lib/api/account';
 import { logger } from '@/utils/logger';
+import { localNoteCount } from '@/utils/notes/local-note-count.js';
 
 export function useSettingsAccount({ dialog, translations }) {
   const accountStore = useAccountStore();
@@ -35,6 +37,13 @@ export function useSettingsAccount({ dialog, translations }) {
 
   function clearError() {
     accountStore.setError('');
+  }
+
+  function tpl(raw, params) {
+    return Object.entries(params).reduce(
+      (s, [k, v]) => s.replace(`{${k}}`, String(v)),
+      raw,
+    );
   }
 
   async function saveServerUrl() {
@@ -159,24 +168,24 @@ export function useSettingsAccount({ dialog, translations }) {
       if (hasVault) {
         dialog.confirm({
           title: translations.value.account?.vaultDetected || 'Vault detected',
-          body: translations.value.account?.vaultDetectedBody || 'A vault was found in your sync source. Import it to unlock your notes.',
+          body: `A vault was found in your sync source. Importing merges this device's notes into it: ${localNoteCount()} local note(s) are re-encrypted with the vault key and kept. A backup is saved first.`,
           icon: 'riShieldKeyholeLine',
           okText: translations.value.account?.importVault || 'Import',
           cancelText: translations.value.dialog?.cancel || 'Cancel',
           onConfirm: () => {
             dialog.prompt({
-              title: translations.value.account?.vaultPasswordTitle || 'Enter vault password',
-              body: translations.value.account?.vaultPasswordBody || 'Enter the password for the existing encrypted vault in your sync source.',
+              title: translations.value.account?.vaultKeyTitle || 'Enter vault key',
+              body: translations.value.account?.vaultKeyBody || 'Enter the vault key for the existing encrypted vault in your sync source.',
               icon: 'riLockLine',
               okText: translations.value.account?.importVault || 'Import',
               cancelText: translations.value.dialog?.cancel || 'Cancel',
-              placeholder: translations.value.settings?.password || 'Vault password',
+              placeholder: translations.value.settings?.vaultKeyPlaceholder || 'Vault key',
               password: true,
               onConfirm: async (pass) => {
                 if (!pass) {
                   dialog.alert({
                     title: translations.value.settings?.alertTitle || 'Alert',
-                    body: translations.value.settings?.invalidPassword || 'Enter the vault password.',
+                    body: translations.value.settings?.invalidPassword || 'Enter the vault key.',
                     okText: translations.value.dialog?.close || 'Close',
                   });
                   return;
@@ -261,11 +270,31 @@ export function useSettingsAccount({ dialog, translations }) {
 
   async function handleSignOut() {
     clearError();
+    // Team accounts: local-data isolation is an owner-controlled default, so
+    // the per-user confirmation is skipped and sign-out proceeds directly.
+    const isTeamAccount =
+      accountStore.plan === PLAN_NAMES.TEAM ||
+      accountStore.plan === PLAN_NAMES.ENTERPRISE;
+    if (isTeamAccount) {
+      try {
+        await auth.signOut();
+      } catch {
+        // error already on the store
+      }
+      return;
+    }
+
+    const localNotes = localNoteCount();
+    const body =
+      localNotes > 0
+        ? translations.value.account?.signOutClearBody ||
+          `Signing out clears this device's local copy of ${localNotes} note(s) from this account. Sign back in to sync them again.`
+        : translations.value.account?.signOutBody ||
+          'You can sign back in at any time. Local notes stay on this device.';
+
     dialog.confirm({
       title: translations.value.account?.signOutTitle || 'Sign out?',
-      body:
-        translations.value.account?.signOutBody ||
-        'You can sign back in at any time. Local notes stay on this device.',
+      body,
       okText: translations.value.account?.signOut || 'Sign out',
       cancelText: translations.value.dialog?.cancel || 'Cancel',
       okVariant: 'danger',
@@ -306,13 +335,29 @@ export function useSettingsAccount({ dialog, translations }) {
     });
   }
 
-  async function handleRevokeDevice(deviceId) {
+  function handleRevokeDevice(device) {
     clearError();
-    try {
-      await auth.revokeDevice(deviceId);
-    } catch {
-      // error already on the store
-    }
+    const label = device?.label || device?.deviceId || 'this device';
+    dialog.confirm({
+      title: tpl(
+        translations.value.account?.revokeDeviceTitle || 'Revoke {device}?',
+        { device: label },
+      ),
+      body:
+        translations.value.account?.revokeDeviceBody ||
+        'The device is signed out and must sign in again. Notes stored locally on it are not deleted.',
+      icon: 'riComputerLine',
+      okText: translations.value.account?.revokeDevice || 'Revoke',
+      cancelText: translations.value.dialog?.cancel || 'Cancel',
+      okVariant: 'danger',
+      onConfirm: async () => {
+        try {
+          await auth.revokeDevice(device.deviceId);
+        } catch {
+          // error already on the store
+        }
+      },
+    });
   }
 
   function openDeleteAccount() {
@@ -378,13 +423,33 @@ export function useSettingsAccount({ dialog, translations }) {
     }
   }
 
-  async function revokeSession(id) {
-    try {
-      await auth.revokeActiveSession(id);
-      await loadSessions();
-    } catch {
-      // error already on the store
-    }
+  function revokeSession(session) {
+    const label =
+      session?.deviceInfo?.label ||
+      session?.userAgent ||
+      translations.value.account?.unknownSession ||
+      'Unknown session';
+    dialog.confirm({
+      title: tpl(
+        translations.value.account?.revokeSessionTitle || 'Revoke {device}?',
+        { device: label },
+      ),
+      body:
+        translations.value.account?.revokeSessionBody ||
+        'The session is signed out. Signing in again on that device creates a new session.',
+      icon: 'riShieldKeyholeLine',
+      okText: translations.value.account?.revokeSession || 'Revoke',
+      cancelText: translations.value.dialog?.cancel || 'Cancel',
+      okVariant: 'danger',
+      onConfirm: async () => {
+        try {
+          await auth.revokeActiveSession(session.id);
+          await loadSessions();
+        } catch {
+          // error already on the store
+        }
+      },
+    });
   }
 
   async function exportAccountData() {

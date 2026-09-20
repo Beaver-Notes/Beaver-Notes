@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed, reactive } from 'vue';
 import { useAccountStore } from '@/store/account';
 import {
   getWorkspaces as apiGetWorkspaces,
@@ -9,7 +9,10 @@ import {
   addMember as apiAddMember,
   removeMember as apiRemoveMember,
   joinWorkspace as apiJoinWorkspace,
-  getWorkspaceMembers as apiGetWorkspaceMembers,
+  listMyPendingWorkspaceRequests as apiListMyPendingWorkspaceRequests,
+  getWorkspacePublicKeys as apiGetWorkspacePublicKeys,
+  recoverWorkspaceKeyHex as apiRecoverWorkspaceKeyHex,
+  recoverWorkspaceKeyFromRecord as apiRecoverWorkspaceKeyFromRecord,
   provisionWorkspaceKey as apiProvisionWorkspaceKey,
   getCachedWorkspaceKey,
 } from '@/lib/api/workspaces';
@@ -19,8 +22,15 @@ const workspaces = ref([]);
 const activeId = ref(null);
 const loading = ref(false);
 const error = ref('');
-// ponytail: Set tracks terminal unwrap/provision failures to prevent infinite retry; cleared on success or new workspace list
-const provisionFailures = new Set();
+// The caller's own outstanding require-approval join requests, so the switcher
+// can show "Awaiting owner approval" rows.
+const pendingRequests = ref([]);
+// ponytail: Set tracks terminal unwrap/provision failures to prevent infinite retry; cleared on success, retry, or new workspace list. Reactive so the settings notice can surface it.
+const provisionFailures = reactive(new Set());
+// Devices whose public key changed since we first saw it (TOFU). We refuse to
+// share the workspace key with them; persisted so the settings notice can say
+// so instead of only logging.
+const refusedDeviceKeys = reactive(new Set());
 
 let fetchController = null;
 let fetchInFlight = null;
@@ -34,6 +44,38 @@ export function computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspace
 
 async function reconcileRemovedSharedWorkspaces(backendWorkspaces) {
   try {
+    const { listLocalWorkspaces, detachLocalWorkspace } = await import('@/lib/native/workspaces');
+    const localWorkspaces = (await listLocalWorkspaces().catch(() => [])) || [];
+    const removed = computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspaces);
+    if (removed.length === 0) return;
+
+    // A list miss is not proof of deletion: a partial or transient `/workspaces`
+    // response (org change, plan blip, pagination) must never destroy local
+    // notes. Detach instead of delete — the workspace keeps its directory and
+    // notes, just stops being treated as a cloud mirror, and re-attaches
+    // automatically if the backend lists it again. Intentional user deletion
+    // goes through `deleteWorkspace`, which removes the local mirror only after
+    // the server confirms the delete.
+    for (const id of removed) {
+      try {
+        await detachLocalWorkspace(id);
+      } catch (err) {
+        console.warn(
+          `[useCloudWorkspaces] could not detach removed shared workspace ${id}:`,
+          err?.message || err
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[useCloudWorkspaces] local workspace reconciliation skipped:', err);
+  }
+}
+
+// Remove the local mirror of a workspace only after the server has confirmed
+// its deletion. Switches away first if it is the active workspace, since the
+// native delete refuses to remove the active one.
+async function removeLocalWorkspace(id) {
+  try {
     const {
       listLocalWorkspaces,
       getActiveLocalWorkspace,
@@ -41,31 +83,21 @@ async function reconcileRemovedSharedWorkspaces(backendWorkspaces) {
       deleteLocalWorkspace,
     } = await import('@/lib/native/workspaces');
     const localWorkspaces = (await listLocalWorkspaces().catch(() => [])) || [];
-    const removed = computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspaces);
-    if (removed.length === 0) return;
+    if (!localWorkspaces.some((w) => w.id === id)) return;
 
     const active = await getActiveLocalWorkspace().catch(() => null);
-    const activeId = active?.id;
-    const remainingPersonal = localWorkspaces.find(
-      (w) => w.workspaceType === 'personal' && !removed.includes(w.id)
-    );
-    const fallbackId = remainingPersonal?.id ?? 'default';
-
-    for (const id of removed) {
-      try {
-        if (id === activeId) {
-          await switchLocalWorkspace(fallbackId);
-        }
-        await deleteLocalWorkspace(id);
-      } catch (err) {
-        console.warn(
-          `[useCloudWorkspaces] could not delete removed shared workspace ${id}:`,
-          err?.message || err
-        );
-      }
+    if (active?.id === id) {
+      const fallback =
+        localWorkspaces.find((w) => w.id !== id && w.workspaceType === 'personal')?.id ??
+        'default';
+      await switchLocalWorkspace(fallback);
     }
+    await deleteLocalWorkspace(id);
   } catch (err) {
-    console.warn('[useCloudWorkspaces] local workspace reconciliation skipped:', err);
+    console.warn(
+      `[useCloudWorkspaces] could not remove local workspace ${id}:`,
+      err?.message || err
+    );
   }
 }
 
@@ -127,6 +159,7 @@ export function useCloudWorkspaces() {
           activeId.value = workspaces.value[0].id;
         }
         await registerCloudWorkspaces(workspaces.value, accountStore);
+        await recoverDeviceWorkspaceKeys();
         void autoProvisionPendingKeys();
         // Removal reconciliation must not hold `loading` during the delete loop.
         void reconcileRemovedSharedWorkspaces(workspaces.value);
@@ -180,6 +213,9 @@ export function useCloudWorkspaces() {
       error.value = err?.message || 'Failed to delete workspace';
       throw err;
     }
+    // Server confirmed the deletion, so it is now safe to drop the local mirror.
+    // This is the only destructive path; a list miss only detaches.
+    await removeLocalWorkspace(id);
   }
 
   async function renameWorkspace(id, newName) {
@@ -196,13 +232,10 @@ export function useCloudWorkspaces() {
     let workspaceKeyHex = getCachedWorkspaceKey(id);
     if (!workspaceKeyHex) {
       const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
-      const { unwrapNoteKey } = await import('@/utils/crypto/note-key');
       const identity = await loadOrCreateIdentity();
       if (!identity?.privateKeyHex) throw new Error('Missing encryption identity');
-      const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
-      const wsData = raw.find((w) => w.id === id);
-      if (!wsData?.wrappedKey) throw new Error('Cannot decrypt workspace key');
-      workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wsData.wrappedKey);
+      workspaceKeyHex = await apiRecoverWorkspaceKeyHex(id, identity, { baseUrl: activeBaseUrl() });
+      if (!workspaceKeyHex) throw new Error('Cannot decrypt workspace key');
     }
     const key = await importCollabKey(workspaceKeyHex);
     const nameEncrypted = await encryptName(key, newName);
@@ -235,7 +268,9 @@ export function useCloudWorkspaces() {
 
   async function addMember(workspaceId, identifier, role = 'editor') {
     if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
-    return apiAddMember(workspaceId, identifier, role, { baseUrl: activeBaseUrl() });
+    const result = await apiAddMember(workspaceId, identifier, role, { baseUrl: activeBaseUrl() });
+    void retryProvisioning();
+    return result;
   }
 
   async function removeMember(workspaceId, userId) {
@@ -243,71 +278,151 @@ export function useCloudWorkspaces() {
     return apiRemoveMember(workspaceId, userId, { baseUrl: activeBaseUrl() });
   }
 
+  async function fetchMyPendingRequests() {
+    if (!isAuthenticated.value) {
+      pendingRequests.value = [];
+      return pendingRequests.value;
+    }
+    try {
+      pendingRequests.value = await apiListMyPendingWorkspaceRequests({ baseUrl: activeBaseUrl() });
+    } catch (err) {
+      console.warn('[useCloudWorkspaces] failed to load pending join requests:', err?.message || err);
+      pendingRequests.value = [];
+    }
+    return pendingRequests.value;
+  }
+
   async function joinWorkspace(token) {
     if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
     const raw = await apiJoinWorkspace(token, { baseUrl: activeBaseUrl() });
+    // A require-approval invite returns `{ pending: true }` and grants nothing.
+    // Do not reload the workspace list or provision keys as if the join landed;
+    // surface the pending state to the caller instead.
+    if (raw?.pending) {
+      await fetchMyPendingRequests();
+      return raw;
+    }
     await fetchWorkspaces();
+    // Retry provisioning on demand: clear terminal markers so a joiner whose
+    // device still lacks an envelope can be re-wrapped by any online key holder.
+    void retryProvisioning();
     return raw;
   }
 
-  async function provisionKeysForMember(workspaceId, memberUserId) {
+  // On-demand retry: clear the terminal failure markers and re-run provisioning
+  // for every workspace this client holds a key for (a key-holding member can
+  // re-wrap for members/devices still missing one).
+  async function retryProvisioning() {
+    provisionFailures.clear();
+    refusedDeviceKeys.clear();
+    await autoProvisionPendingKeys();
+  }
+
+  // UI-facing summary of provisioning problems (console-only before):
+  //   'key-changed' -> a device's key changed; we refused to share (TOFU)
+  //   'not-synced'  -> this device has no usable envelope / provisioning failed
+  //   null          -> nothing actionable
+  const provisioningIssue = computed(() => {
+    if (refusedDeviceKeys.size > 0) return 'key-changed';
+    if (provisionFailures.size > 0) return 'not-synced';
+    return null;
+  });
+
+  // Wrap the workspace key for every (user, device) the server reports as
+  // missing one. Only a device that already holds the plaintext key can wrap
+  // it, so this runs on a key-holding member (owner/admin/editor).
+  async function provisionMissingDevices(workspaceId, missing) {
+    const targets = (missing || []).filter((c) => c?.kemPublicKey);
+    if (targets.length === 0) return 0;
+
     const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
-    const { unwrapNoteKey, wrapNoteKeyForRecipient } = await import('@/utils/crypto/note-key');
+    const { wrapNoteKeyForRecipient } = await import('@/utils/crypto/note-key');
 
     const identity = await loadOrCreateIdentity();
-    if (!identity?.privateKeyHex || !identity?.publicKeyHex) return false;
+    if (!identity?.privateKeyHex) return 0;
 
-    // Prefer cached raw workspace key (seeded at creation/join) to avoid network + unwrap
-    let workspaceKeyHex = getCachedWorkspaceKey(workspaceId);
+    const workspaceKeyHex = await apiRecoverWorkspaceKeyHex(workspaceId, identity, {
+      baseUrl: activeBaseUrl(),
+    });
     if (!workspaceKeyHex) {
-      const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
-      const list = Array.isArray(raw) ? raw : (raw?.workspaces ?? []);
-      const ws = list.find((w) => w.id === workspaceId);
-      if (!ws?.wrappedKey) return false;
-      workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, ws.wrappedKey);
+      // No envelope this device can unwrap: unrecoverable until a key-holder
+      // re-wraps or the vault key recovers the key. Mark terminal.
+      provisionFailures.add(`ws:${workspaceId}`);
+      console.warn(`[useCloudWorkspaces] no usable workspace-key envelope for ${workspaceId}`);
+      return 0;
     }
 
-    // Fetch target member kemPublicKey: prefer members list if it carries the key, else fallback to GET /auth/keypair?userId=
-    let memberPubKey = null;
-    try {
-      const { members } = await apiGetWorkspaceMembers(workspaceId, { baseUrl: activeBaseUrl() });
-      const member = (members || []).find((m) => m.userId === memberUserId);
-      if (member?.kemPublicKey) memberPubKey = member.kemPublicKey;
-    } catch {
-      // fall through to direct fetch
-    }
-    if (!memberPubKey) {
+    const recipients = [];
+    for (const c of targets) {
+      // TOFU pin per (user, device): warn if a device key changes. Full
+      // transparency needs a server-signed key directory (follow-up).
       try {
-        const { getApiClient } = await import('@/lib/api/client');
-        const client = getApiClient({ baseUrl: activeBaseUrl() });
-        const res = await client.get('/auth/keypair', { query: { userId: memberUserId } });
-        memberPubKey = res?.kemPublicKey || res?.publicKey || null;
+        const pinKey = `kem-pin:${c.userId}:${c.deviceId || 'default'}`;
+        const pinned = localStorage.getItem(pinKey);
+        if (pinned && pinned !== c.kemPublicKey) {
+          refusedDeviceKeys.add(`${c.userId}:${c.deviceId || 'default'}`);
+          console.warn(`[useCloudWorkspaces] device key changed for ${c.userId}/${c.deviceId}; refusing to provision until re-verified`);
+          continue;
+        }
+        if (!pinned) localStorage.setItem(pinKey, c.kemPublicKey);
       } catch {
-        return false;
+        // Pin storage unavailable: provision anyway, server remains authoritative.
       }
-    }
-    if (!memberPubKey) return false;
-
-    // TOFU pin: warn if a member's key differs from the first one seen.
-    // Full transparency needs a server-signed key directory (follow-up).
-    try {
-      const pinKey = `kem-pin:${memberUserId}`;
-      const pinned = localStorage.getItem(pinKey);
-      if (pinned && pinned !== memberPubKey) {
-        console.warn(`[useCloudWorkspaces] member key changed for ${memberUserId}; refusing to provision until re-verified`);
-        return false;
-      }
-      if (!pinned) localStorage.setItem(pinKey, memberPubKey);
-    } catch {
-      // Pin storage unavailable: provision anyway, server remains authoritative.
+      const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, workspaceKeyHex);
+      recipients.push({ userId: c.userId, deviceId: c.deviceId || 'default', wrappedKey });
     }
 
-    const wrappedForTarget = await wrapNoteKeyForRecipient(memberPubKey, workspaceKeyHex);
-    await apiProvisionWorkspaceKey(workspaceId, memberUserId, wrappedForTarget, { baseUrl: activeBaseUrl() });
-    // success clears any prior terminal marker for this member
-    provisionFailures.delete(`${workspaceId}:${memberUserId}`);
+    if (recipients.length === 0) return 0;
+    await apiProvisionWorkspaceKey(workspaceId, recipients, { baseUrl: activeBaseUrl() });
+    for (const r of recipients) {
+      provisionFailures.delete(`${workspaceId}:${r.userId}:${r.deviceId}`);
+    }
     provisionFailures.delete(`ws:${workspaceId}`);
-    return true;
+    return recipients.length;
+  }
+
+  async function provisionKeysForMember(workspaceId, memberUserId) {
+    const collaborators = await apiGetWorkspacePublicKeys(workspaceId, { baseUrl: activeBaseUrl() });
+    const missing = collaborators.filter(
+      (c) => c?.userId === memberUserId && c?.kemPublicKey && c?.hasEnvelope === false
+    );
+    return provisionMissingDevices(workspaceId, missing);
+  }
+
+  // Silently cache the workspace key for every workspace this device can read
+  // from one of its own envelopes: device KEM first, then the legacy items-key
+  // (session AEK) envelope. No password is ever requested. A workspace with no
+  // usable envelope stays uncached; the key-holder provisioning loop re-wraps
+  // it later and SyncProvisioningNotice surfaces it instead of blocking.
+  async function recoverDeviceWorkspaceKeys() {
+    // Never let silent recovery break workspace loading: a key that cannot be
+    // read here is surfaced by the provisioning notice, not an error screen.
+    try {
+      const candidates = workspaces.value.filter(
+        (ws) =>
+          !getCachedWorkspaceKey(ws.id) &&
+          (ws.wrappedKeys?.length || ws.wrappedKey || ws.vaultWrappedKeys)
+      );
+      if (candidates.length === 0) return;
+      const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
+      const identity = await loadOrCreateIdentity().catch(() => null);
+      if (!identity?.privateKeyHex) return;
+      for (const ws of candidates) {
+        try {
+          await apiRecoverWorkspaceKeyFromRecord(ws, identity);
+        } catch (err) {
+          console.warn(
+            `[useCloudWorkspaces] silent workspace-key recovery failed for ${ws.id}:`,
+            err?.message || err
+          );
+        }
+      }
+    } catch (err) {
+      console.warn(
+        '[useCloudWorkspaces] silent workspace-key recovery skipped:',
+        err?.message || err
+      );
+    }
   }
 
   async function autoProvisionPendingKeys() {
@@ -316,34 +431,35 @@ export function useCloudWorkspaces() {
     if (!userId) return;
 
     for (const ws of workspaces.value) {
-      if (ws.role !== 'owner' && ws.role !== 'admin') continue;
-      if (!ws.wrappedKey) continue;
+      // Any member who holds the workspace key can re-wrap it for a member or
+      // device still missing one (server accepts owner/admin/editor).
+      if (!['owner', 'admin', 'editor'].includes(ws.role)) continue;
       if (provisionFailures.has(`ws:${ws.id}`)) continue;
 
       try {
-        const { members } = await apiGetWorkspaceMembers(ws.id, { baseUrl: activeBaseUrl() });
-        const pending = (members || []).filter(
-          (m) => m.userId !== userId && m.hasKeyPair && !m.hasWrappedKey
+        const collaborators = await apiGetWorkspacePublicKeys(ws.id, { baseUrl: activeBaseUrl() });
+        // `hasEnvelope === false` only: an older server omits the field and we
+        // no-op rather than wrap every device on every open.
+        const pending = (collaborators || []).filter(
+          (c) => c?.kemPublicKey
+            && c?.hasEnvelope === false
+            && !provisionFailures.has(`${ws.id}:${c.userId}:${c.deviceId || 'default'}`)
         );
-        for (const member of pending) {
-          const key = `${ws.id}:${member.userId}`;
-          if (provisionFailures.has(key)) continue;
-          try {
-            await provisionKeysForMember(ws.id, member.userId);
-          } catch (err) {
-            const msg = err?.message || String(err);
-            console.warn(`[useCloudWorkspaces] failed to provision key for ${member.userId} in ${ws.id}:`, msg);
-            provisionFailures.add(key);
-            // unwrap failure is unrecoverable for this workspace until manual re-key; mark ws terminal
-            if (msg.toLowerCase().includes('unwrap') || msg.toLowerCase().includes('decap') || msg.toLowerCase().includes('decrypt')) {
-              provisionFailures.add(`ws:${ws.id}`);
-            }
-            // also log terminal marker to avoid infinite retry
-            console.warn(`[useCloudWorkspaces] terminal provision failure for ${key}; will not retry until restart`);
+        if (pending.length === 0) continue;
+        try {
+          await provisionMissingDevices(ws.id, pending);
+        } catch (err) {
+          const msg = err?.message || String(err);
+          console.warn(`[useCloudWorkspaces] failed to provision keys for ${ws.id}:`, msg);
+          for (const c of pending) {
+            provisionFailures.add(`${ws.id}:${c.userId}:${c.deviceId || 'default'}`);
+          }
+          if (msg.toLowerCase().includes('unwrap') || msg.toLowerCase().includes('decap') || msg.toLowerCase().includes('decrypt')) {
+            provisionFailures.add(`ws:${ws.id}`);
           }
         }
       } catch (err) {
-        console.warn(`[useCloudWorkspaces] failed to check members for ${ws.id}:`, err?.message);
+        console.warn(`[useCloudWorkspaces] failed to check devices for ${ws.id}:`, err?.message);
       }
     }
   }
@@ -365,7 +481,11 @@ export function useCloudWorkspaces() {
     addMember,
     removeMember,
     joinWorkspace,
+    pendingRequests,
+    fetchMyPendingRequests,
     provisionKeysForMember,
     autoProvisionPendingKeys,
+    retryProvisioning,
+    provisioningIssue,
   };
 }

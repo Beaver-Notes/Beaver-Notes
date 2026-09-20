@@ -15,6 +15,9 @@
         <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
           {{ tr.upgradeToManage || 'Upgrade to manage members, devices and sessions for your workspace.' }}
         </p>
+        <ui-button class="mt-3" variant="primary" @click="goToUpgrade">
+          {{ tr.upgrade || 'Upgrade' }}
+        </ui-button>
       </div>
     </section>
 
@@ -58,7 +61,7 @@
             </ui-select>
             <ui-button
               variant="primary"
-              :disabled="addingMember || !isEmailVerified"
+              :disabled="addingMember"
               :title="!isEmailVerified ? verifyTooltip : undefined"
               @click="handleAddMember"
             >
@@ -74,14 +77,21 @@
 
           <div v-for="m in members" :key="m.userId" class="flex items-center gap-3 px-4 py-3.5">
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">{{ m.userId }}</p>
-              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ fmt('roleLabel', { role: m.role, count: m.deviceCount }) }}</p>
+              <p
+                class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate"
+                :title="m.userId"
+              >
+                {{ memberLabel(m) }}
+              </p>
+              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                {{ fmt('roleLabel', { role: displayRole(m.role), count: m.deviceCount }) }}
+              </p>
             </div>
             <ui-select
               :model-value="m.role"
               class="w-32"
               :disabled="m.userId === currentUserId && m.role === 'owner'"
-              :aria-label="fmt('roleFor', { user: m.userId })"
+              :aria-label="fmt('roleFor', { user: memberLabel(m) })"
               @change="($event) => handleChangeRole(m.userId, $event)"
             >
               <option value="owner">{{ tr.owner || 'Owner' }}</option>
@@ -92,8 +102,8 @@
             <ui-button
               icon
               variant="danger"
-              :aria-label="fmt('removeUser', { user: m.userId })"
-              @click="handleRemoveMember(m.userId)"
+              :aria-label="fmt('removeUser', { user: memberLabel(m) })"
+              @click="handleRemoveMember(m)"
             >
               <v-remixicon name="riDeleteBin6Line" />
             </ui-button>
@@ -101,6 +111,35 @@
           <p v-if="error" class="px-4 py-3">
             <span class="text-sm text-red-500" role="alert">{{ error }}</span>
           </p>
+        </div>
+      </section>
+
+      <!-- Pending join requests -->
+      <section v-if="joinRequests.length" class="space-y-2">
+        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+          {{ tr.pendingRequests || 'Pending requests' }}
+        </p>
+        <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
+          <div
+            v-for="req in joinRequests"
+            :key="`${req.type}:${req.id}`"
+            class="flex items-center gap-3 px-4 py-3.5"
+          >
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                {{ req.username || req.accountId }}
+              </p>
+              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                {{ requestLabel(req) }}
+              </p>
+            </div>
+            <ui-button variant="primary" @click="handleApproveRequest(req)">
+              {{ tr.approve || 'Approve' }}
+            </ui-button>
+            <ui-button variant="danger" @click="handleDenyRequest(req)">
+              {{ tr.deny || 'Deny' }}
+            </ui-button>
+          </div>
         </div>
       </section>
 
@@ -127,8 +166,8 @@
             <ui-button
               icon
               variant="danger"
-              :aria-label="fmt('revokeSession', { id: s.idHash })"
-              @click="handleRevoke(s.idHash)"
+              :aria-label="fmt('revokeSession', { id: sessionLabel(s) })"
+              @click="handleRevoke(s)"
             >
               <v-remixicon name="riShieldKeyholeLine" />
             </ui-button>
@@ -266,23 +305,46 @@
 
 <script>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAccountStore } from '@/store/account';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useTeamAdmin } from '@/composable/useTeamAdmin';
 import { getPlans } from '@/lib/api/plans';
 import { listSsoConfigs, createSsoConfig, updateSsoConfig, deleteSsoConfig } from '@/lib/api/sso';
 import { useTranslations } from '@/composable/useTranslations';
+import { useDialog } from '@/lib/dialog';
+import { roleLabel } from '@/utils/roleLabel';
 
 export default {
   setup() {
     const accountStore = useAccountStore();
     const workspaceStore = useWorkspaceStore();
+    const router = useRouter();
     const { translations } = useTranslations();
+    const dialog = useDialog();
     const tr = computed(() => translations.value?.teamAdmin || {});
     function fmt(key, params) {
       const raw = tr.value[key] ?? key;
       if (!params) return raw;
       return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
+    // Same as fmt, but with an English fallback that still carries the name.
+    function copy(key, fallback, params) {
+      const raw = tr.value[key] || fallback;
+      if (!params) return raw;
+      return Object.entries(params).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), raw);
+    }
+    // Never show an admin a bare account UUID, and never a member's email: the
+    // server no longer sends it. Prefer the username, keep the raw id only as a
+    // tooltip / fallback detail.
+    function memberLabel(m) {
+      return m?.username || m?.userId;
+    }
+    function displayRole(role) {
+      return roleLabel(role, translations.value);
+    }
+    function sessionLabel(s) {
+      return s?.deviceLabel || s?.deviceId || tr.value.unknownDevice || 'Unknown device';
     }
 
     const workspaceId = computed(
@@ -434,6 +496,12 @@ export default {
       }
     }
 
+    // Reuse the Account billing flow, preselecting Team so the gate leads
+    // straight to the plan that unlocks this dashboard.
+    function goToUpgrade() {
+      router.push({ path: '/settings/account', query: { upgrade: 'team' } });
+    }
+
     async function handleAddMember() {
       inviteSuccess.value = '';
       addingMember.value = true;
@@ -450,6 +518,29 @@ export default {
       }
     }
 
+    function requestLabel(req) {
+      const kind = req.type === 'note'
+        ? (tr.value.noteLink || 'Note link')
+        : (tr.value.workspace || 'Workspace');
+      return `${kind} · ${displayRole(req.role || 'editor')}`;
+    }
+
+    async function handleApproveRequest(req) {
+      try {
+        await admin.approveJoinRequest(req);
+      } catch (err) {
+        admin.error.value = err?.message || 'Failed to approve request.';
+      }
+    }
+
+    async function handleDenyRequest(req) {
+      try {
+        await admin.denyJoinRequest(req);
+      } catch (err) {
+        admin.error.value = err?.message || 'Failed to deny request.';
+      }
+    }
+
     async function handleChangeRole(userId, role) {
       try {
         await admin.changeRole(userId, role);
@@ -458,20 +549,50 @@ export default {
       }
     }
 
-    async function handleRemoveMember(userId) {
-      try {
-        await admin.removeMember(userId);
-      } catch (err) {
-        admin.error.value = err?.message || 'Failed to remove member.';
-      }
+    function handleRemoveMember(member) {
+      const label = memberLabel(member);
+      dialog.confirm({
+        title: copy('removeMemberTitle', 'Remove {user}?', { user: label }),
+        body: copy(
+          'removeMemberBody',
+          '{user} loses access to this workspace and its shared notes.',
+          { user: label },
+        ),
+        icon: 'riDeleteBin6Line',
+        okText: tr.value.remove || 'Remove',
+        cancelText: translations.value?.dialog?.cancel || 'Cancel',
+        okVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            await admin.removeMember(member.userId);
+          } catch (err) {
+            admin.error.value = err?.message || 'Failed to remove member.';
+          }
+        },
+      });
     }
 
-    async function handleRevoke(sessionHash) {
-      try {
-        await admin.revoke(sessionHash);
-      } catch (err) {
-        admin.error.value = err?.message || 'Failed to revoke session.';
-      }
+    function handleRevoke(session) {
+      const label = sessionLabel(session);
+      dialog.confirm({
+        title: copy('revokeSessionTitle', 'Revoke session for {device}?', { device: label }),
+        body: copy(
+          'revokeSessionBody',
+          '{device} is signed out. They can sign in again on that device.',
+          { device: label },
+        ),
+        icon: 'riShieldKeyholeLine',
+        okText: tr.value.revoke || 'Revoke',
+        cancelText: translations.value?.dialog?.cancel || 'Cancel',
+        okVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            await admin.revoke(session.idHash);
+          } catch (err) {
+            admin.error.value = err?.message || 'Failed to revoke session.';
+          }
+        },
+      });
     }
 
     async function handleLoadDevices() {
@@ -492,7 +613,11 @@ export default {
 
     async function refreshAdmin() {
       if (!workspaceId.value) return;
-      await Promise.allSettled([admin.loadMembers(), admin.loadDevices()]);
+      await Promise.allSettled([
+        admin.loadMembers(),
+        admin.loadDevices(),
+        admin.loadJoinRequests(),
+      ]);
     }
 
     onMounted(async () => {
@@ -526,6 +651,10 @@ export default {
       verifyTooltip,
       tr,
       fmt,
+      memberLabel,
+      sessionLabel,
+      displayRole,
+      goToUpgrade,
       admin,
       inviteInput,
       inviteRole,
@@ -535,7 +664,11 @@ export default {
       devices: admin.devices,
       sessions: admin.sessions,
       auditLogs: admin.auditLogs,
+      joinRequests: admin.joinRequests,
       error: admin.error,
+      requestLabel,
+      handleApproveRequest,
+      handleDenyRequest,
       handleAddMember,
       handleChangeRole,
       handleRemoveMember,

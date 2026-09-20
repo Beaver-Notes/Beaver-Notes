@@ -100,7 +100,7 @@
           class="text-xs text-neutral-400 dark:text-neutral-500 text-center leading-tight"
           >{{
             translations.card.unlockToEdit ||
-            'Tap to unlock: Face ID / vault password'
+            'Tap to unlock: Face ID / vault key'
           }}</span
         >
       </div>

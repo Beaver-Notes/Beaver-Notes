@@ -21,6 +21,27 @@
         </button>
       </div>
 
+      <div v-else-if="pending" class="py-4">
+        <div class="w-10 h-10 mx-auto mb-3 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+          <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p class="text-sm text-neutral-700 dark:text-neutral-300 mb-1">
+          Request sent — awaiting approval
+        </p>
+        <p class="text-xs text-neutral-500 mb-4">
+          A note editor must approve you before you can open this note.
+        </p>
+        <button
+          @click="join"
+          :disabled="loading"
+          class="px-4 py-2 text-xs font-medium rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+        >
+          Check again
+        </button>
+      </div>
+
       <div v-else-if="success" class="py-4">
         <div class="w-10 h-10 mx-auto mb-3 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
           <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -46,10 +67,18 @@
           You've been invited to collaborate on a note.
         </p>
         <button
+          v-if="isAuthenticated"
           @click="join"
           class="px-4 py-2 text-xs font-medium rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
         >
           Join Note
+        </button>
+        <button
+          v-else
+          @click="goToSignIn"
+          class="px-4 py-2 text-xs font-medium rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+        >
+          Sign in to accept
         </button>
       </div>
     </div>
@@ -57,7 +86,7 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { joinViaInviteLink } from '@/lib/api/collaboration';
 import { useAccountStore } from '@/store/account';
@@ -70,7 +99,10 @@ export default {
     const loading = ref(false);
     const error = ref(null);
     const success = ref(false);
+    const pending = ref(false);
     const result = ref(null);
+
+    const isAuthenticated = computed(() => accountStore.isAuthenticated);
 
     async function join() {
       loading.value = true;
@@ -79,7 +111,15 @@ export default {
         result.value = await joinViaInviteLink(route.params.token, {
           baseUrl: accountStore.serverUrl,
         });
-        success.value = true;
+        // A require-approval link answers 202 { pending: true } and grants
+        // nothing: never claim success, and let the user retry after approval.
+        if (result.value?.pending) {
+          pending.value = true;
+          success.value = false;
+        } else {
+          pending.value = false;
+          success.value = true;
+        }
       } catch (err) {
         error.value = err.response?.data?.message || 'Failed to join. The link may be invalid or expired.';
       } finally {
@@ -87,7 +127,13 @@ export default {
       }
     }
 
-    return { loading, error, success, result, join };
+    // Signed-out users need a way forward: sign in, then come back to this
+    // token. The account settings surface honours `returnTo` after sign-in.
+    function goToSignIn() {
+      router.push({ name: 'Settings-Account', query: { returnTo: route.fullPath } });
+    }
+
+    return { loading, error, success, pending, result, isAuthenticated, join, goToSignIn };
   },
 };
 </script>

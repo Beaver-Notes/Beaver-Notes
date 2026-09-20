@@ -8,6 +8,7 @@ import {
   isPaidPlan,
   PLAN_NAMES,
   SYNC_TRANSPORT,
+  planFeatures,
 } from '@/lib/api/types';
 
 describe('normalizeProfile', () => {
@@ -48,6 +49,18 @@ describe('normalizeSyncTransport', () => {
 
   it('the BOTH constant is gone from the enum', () => {
     expect(SYNC_TRANSPORT).not.toHaveProperty('BOTH');
+  });
+});
+
+describe('planFeatures', () => {
+  it('gives every plan a non-empty differentiator', () => {
+    for (const plan of Object.values(PLAN_NAMES)) {
+      expect(planFeatures(plan)).toBeTruthy();
+    }
+  });
+
+  it('falls back to the free line for an unknown plan', () => {
+    expect(planFeatures('nonsense')).toBe(planFeatures(PLAN_NAMES.FREE));
   });
 });
 

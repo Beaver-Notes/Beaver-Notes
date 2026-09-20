@@ -2,7 +2,7 @@
   <Transition name="command-prompt-shell">
     <div
       v-if="uiState.showPrompt"
-      class="command-prompt-shell fixed left-1/2 -translate-x-1/2 top-16 z-[60] w-full max-w-4xl px-4"
+      class="command-prompt-shell fixed left-1/2 -translate-x-1/2 top-4 sm:top-16 z-[60] w-full max-w-3xl px-3 sm:px-4"
       :style="shellOffsetStyle"
       role="combobox"
       aria-haspopup="listbox"
@@ -10,7 +10,7 @@
       @keydown.escape="onShellEscape"
     >
       <div
-        class="command-prompt-panel flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 shadow-xl"
+        class="command-prompt-panel flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 shadow-xl"
       >
         <v-remixicon
           name="riSearch2Line"
@@ -21,7 +21,7 @@
           v-model="state.query"
           v-autofocus
           type="text"
-          class="flex-1 bg-transparent text-sm text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 outline-none"
+          class="flex-1 min-w-0 bg-transparent text-sm text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 outline-none py-2"
           :placeholder="
             translations.commandPrompt.placeholder ||
             'Search notes, folders, or type › for commands…'
@@ -40,13 +40,17 @@
         >
           <div
             v-if="!isCommand"
-            class="flex items-center gap-2 px-2 py-2 border-b border-neutral-100 dark:border-neutral-800 overflow-x-auto no-scrollbar"
+            class="flex items-center gap-2 px-2 py-2 border-neutral-100 dark:border-neutral-800 overflow-x-auto no-scrollbar"
           >
-            <ui-button type="button" @click="toggleTitleOnly">
+            <ui-button type="button" class="shrink-0" @click="toggleTitleOnly">
               <v-remixicon name="riHeading" size="20" class="mr-2 rtl:ml-2" />
               {{ translations.commandPrompt.titleOnly || 'Title only' }}
             </ui-button>
-            <ui-button type="button" @click="toggleFoldersOnly">
+            <ui-button
+              type="button"
+              class="shrink-0"
+              @click="toggleFoldersOnly"
+            >
               <v-remixicon
                 name="riFolderLine"
                 size="20"
@@ -57,13 +61,15 @@
             <ui-select
               v-model="state.folderScope"
               :options="folderOptions"
-              class="shrink-0 max-w-40"
+              class="shrink-0 max-w-32 sm:max-w-40"
               menu-class="!z-[70]"
               @update:modelValue="resetSelection"
             />
           </div>
 
-          <div class="flex min-h-0 max-h-[340px]">
+          <div
+            class="flex flex-col sm:flex-row min-h-0 max-h-[70vh] sm:max-h-[340px] eio-fade-y-4"
+          >
             <div
               class="flex-1 min-w-0 overflow-y-auto no-scrollbar scroll-py-2"
             >
@@ -164,7 +170,7 @@
 
             <div
               v-if="previewItem && previewItem.type === 'note'"
-              class="hidden lg:flex flex-col w-80 shrink-0 border-l overflow-hidden"
+              class="hidden lg:flex flex-col w-80 shrink-0 overflow-hidden border m-6 rounded-xl"
             >
               <div class="flex-1 overflow-y-auto no-scrollbar px-4 py-3">
                 <p
@@ -202,9 +208,9 @@
           </div>
 
           <div
-            class="flex items-center justify-between px-4 py-1.5 border-t border-neutral-100 dark:border-neutral-800 text-xs text-neutral-400"
+            class="flex items-center justify-between px-3 sm:px-4 py-1.5 text-xs text-neutral-400"
           >
-            <span class="flex items-center gap-3">
+            <span class="hidden sm:flex items-center gap-3">
               <span class="flex items-center gap-1">
                 <kbd class="font-sans">↑↓</kbd> navigate
               </span>
@@ -215,7 +221,7 @@
                 <kbd class="font-sans">⌘↵</kbd> new tab
               </span>
             </span>
-            <span v-if="!isCommand" class="tabular-nums">
+            <span v-if="!isCommand" class="tabular-nums ml-auto">
               {{ items.length }} {{ items.length === 1 ? 'result' : 'results' }}
             </span>
           </div>
@@ -233,6 +239,7 @@ import {
   ref,
   nextTick,
   onMounted,
+  onUnmounted,
 } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
@@ -258,8 +265,26 @@ const folderStore = useFolderStore();
 const uiState = useUiState();
 const { expanded: sidebarExpanded } = useSidebar();
 
+// Tracked reactively so the offset recalculates on resize/orientation
+// change, not just on mount — a plain matchMedia() call inside a
+// computed() won't re-run since Vue can't detect that dependency.
+const viewportWidth = ref(
+  typeof window !== 'undefined' ? window.innerWidth : Infinity,
+);
+let _unregResize;
+const updateViewportWidth = () => {
+  viewportWidth.value = window.innerWidth;
+};
+
+const isNarrowViewport = computed(() => viewportWidth.value < 640);
+
 const shellOffsetStyle = computed(() => {
-  if (backend.isMobileRuntime() || uiState.inReaderMode) return undefined;
+  if (
+    backend.isMobileRuntime() ||
+    uiState.inReaderMode ||
+    isNarrowViewport.value
+  )
+    return undefined;
   return { left: `calc(50% + ${sidebarExpanded.value ? '8rem' : '2rem'})` };
 });
 
@@ -392,9 +417,6 @@ const previewBlocks = computed(() => {
 const previewMeta = computed(() => {
   const cp = previewNote.value?.cardPreview;
   if (!cp) return '';
-  return cp.hasMore || cp.mediaCount > 1
-    ? `+${(cp.mediaCount || 0) > 1 ? cp.mediaCount - 1 : ''} more`
-    : '';
 });
 
 const previewText = computed(() => {
@@ -525,6 +547,15 @@ onMounted(() => {
     'mod+shift+p': togglePrompt,
     'mod+k': togglePrompt,
   });
+
+  window.addEventListener('resize', updateViewportWidth);
+  _unregResize = () =>
+    window.removeEventListener('resize', updateViewportWidth);
+});
+
+onUnmounted(() => {
+  _unregPromptShortcuts?.();
+  _unregResize?.();
 });
 </script>
 

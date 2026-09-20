@@ -11,6 +11,7 @@ vi.mock('@/utils/crypto/encryption.js', () => ({
   tryRestoreKeyFromSafeStorage: vi.fn(async () => true),
   encryptionIsConfigured: vi.fn(async () => true),
   isKeyLoaded: vi.fn(() => false),
+  reconcileFolderVault: vi.fn(async () => true),
 }));
 
 import {

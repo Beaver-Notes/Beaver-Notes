@@ -12,10 +12,10 @@ import {
 } from './meta-doc.js';
 import { getWsSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/ws-sync';
 import { useWorkspaceStore } from '@/store/workspace';
-import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
+import { getCachedWorkspaceKey, recoverWorkspaceKeyHex } from '@/lib/api/workspaces';
 import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
-import { unwrapNoteKey } from '@/utils/crypto/note-key';
+import { registerSharedSyncKey } from '@/utils/sync/shared-keys';
 
 // Re-export store hydration so consumers keep a single import path
 export {
@@ -233,30 +233,27 @@ export async function loadWorkspaceDoc() {
 /** Derive workspace key and register on Hocuspocus meta room. Cache to store wrapped key to API fetch. */
 export async function ensureMetaRoomKey(wsId) {
   if (!wsId) return;
+  // Cache-first, then the Phase 1 recovery helper: device KEM envelopes first,
+  // then the legacy items-key envelope, so a workspace whose key predates
+  // per-device envelopes still recovers its meta room. Never prompts; recovery
+  // only reads and caches.
   let workspaceKeyHex = getCachedWorkspaceKey(wsId);
-  if (workspaceKeyHex) {
-    await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
+  if (!workspaceKeyHex) {
+    const identity = await loadOrCreateIdentity();
+    if (!identity?.privateKeyHex) {
+      console.warn('[meta-yjs] missing encryption identity for meta key');
+      return;
+    }
+    workspaceKeyHex = await recoverWorkspaceKeyHex(wsId, identity);
+  }
+  if (!workspaceKeyHex) {
+    console.warn('[meta-yjs] no recoverable workspace key for this device', wsId);
     return;
   }
-  const workspaceStore = useWorkspaceStore();
-  const ws =
-    workspaceStore.activeWorkspace ||
-    workspaceStore.workspaces?.find((w) => w.id === wsId);
-  let wrappedKey = ws?.wrappedKey ?? null;
-  if (!wrappedKey) {
-    wrappedKey = await getWorkspaceKey(wsId);
-  }
-  if (!wrappedKey) {
-    console.warn('[meta-yjs] no wrapped key available for workspace', wsId);
-    return;
-  }
-  const identity = await loadOrCreateIdentity();
-  if (!identity?.privateKeyHex) {
-    console.warn('[meta-yjs] missing encryption identity for meta key');
-    return;
-  }
-  workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
   await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
+  // Durable `meta` doc seals under the shared workspace key, not the account
+  // items key, so every member can read folders/labels.
+  await registerSharedSyncKey(META_DOC_ID, workspaceKeyHex);
 }
 
 let observerTimer = null;
@@ -369,6 +366,42 @@ export function syncLabelColor(name, color) {
   });
 }
 
+function metaValuesEqual(a, b) {
+  if (a === b) return true;
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  return false;
+}
+
+function makeLabelArray(labels) {
+  const arr = new Y.Array();
+  if (Array.isArray(labels) && labels.length > 0) arr.push(labels);
+  return arr;
+}
+
+// Labels are a Y.Array so concurrent add/remove on two clients merge per
+// element. A plain JS array stored under the key would be whole-array
+// last-write-wins (one client's labels would clobber the other's).
+function reconcileLabels(yNote, desired) {
+  const next = Array.isArray(desired)
+    ? desired.filter((label) => typeof label === 'string')
+    : [];
+  const current = yNote.get('labels');
+  if (!(current instanceof Y.Array)) {
+    yNote.set('labels', makeLabelArray(next));
+    return;
+  }
+  const present = current.toArray();
+  for (let i = present.length - 1; i >= 0; i--) {
+    if (!next.includes(present[i])) current.delete(i, 1);
+  }
+  const after = current.toArray();
+  for (const label of next) {
+    if (!after.includes(label)) current.push([label]);
+  }
+}
+
 export function syncNoteMeta(note) {
   if (!note || !note.id) return;
   const notesMap = getWorkspaceDoc().getMap('notes');
@@ -388,7 +421,38 @@ export function syncNoteMeta(note) {
         meta[field] = note[field];
       }
     }
-    notesMap.set(note.id, objToYMap(meta));
+
+    const existing = notesMap.get(note.id);
+    if (!(existing instanceof Y.Map)) {
+      // First write (or legacy plain-object entry): claim the key as a Y.Map.
+      const yNote = objToYMap(meta);
+      // Claim labels as a Y.Array from the very first write, else two devices
+      // creating the note concurrently start from plain arrays and never merge.
+      if (Array.isArray(meta.labels)) {
+        yNote.set('labels', makeLabelArray(meta.labels));
+      }
+      notesMap.set(note.id, yNote);
+      return;
+    }
+
+    // Update fields in place. Replacing the whole nested map (the old
+    // `notesMap.set(id, objToYMap(meta))`) made every local change rewrite all
+    // fields, so concurrent edits on two clients clobbered each other
+    // (whole-object last-write-wins). Per-key writes merge independently.
+    for (const [key, value] of Object.entries(meta)) {
+      if (key === 'labels') {
+        reconcileLabels(existing, value);
+        continue;
+      }
+      const prev = existing.get(key);
+      const prevVal = prev instanceof Y.Map ? prev.toJSON() : prev;
+      if (metaValuesEqual(prevVal, value)) continue;
+      const next =
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? objToYMap(value)
+          : value;
+      existing.set(key, next);
+    }
   });
 }
 

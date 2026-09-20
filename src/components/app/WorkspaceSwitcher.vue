@@ -122,6 +122,26 @@
           </button>
         </div>
 
+        <template v-if="pendingRequests.length">
+          <div
+            class="px-2.5 pb-1.5 pt-2 text-xs font-semibold font-bold text-neutral-500 dark:text-neutral-400 select-none"
+          >
+            Awaiting approval
+          </div>
+          <div
+            v-for="req in pendingRequests"
+            :key="req.id"
+            class="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-neutral-500 dark:text-neutral-400"
+          >
+            <span
+              class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center bg-amber-100 dark:bg-amber-900/30 text-amber-500"
+            >
+              <v-remixicon name="riTimeLine" size="14" />
+            </span>
+            <span class="truncate flex-1 min-w-0">Awaiting owner approval</span>
+          </div>
+        </template>
+
         <div
           v-if="isPaid"
           class="border-t border-neutral-200 dark:border-neutral-700 my-1"
@@ -159,7 +179,7 @@
       v-model:show="formDialogShow"
       :mode="formDialogMode"
       :workspace="formDialogWorkspace"
-      @confirm="handleFormConfirm"
+      :submit-handler="handleFormConfirm"
       @close="() => (formDialogShow = false)"
     />
   </div>
@@ -172,35 +192,10 @@ import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useAccountStore } from '@/store/account';
 import { getPlans } from '@/lib/api/plans';
+import { normalizeInviteToken } from '@/lib/api/collaboration';
+import { useDialog } from '@/lib/dialog';
+import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 import WorkspaceFormDialog from './WorkspaceFormDialog.vue';
-
-function clearSettingsLocalStorage() {
-  const settingsKeys = [
-    'theme',
-    'selectedLanguage',
-    'directionPreference',
-    'color-scheme',
-    'zoomLevel',
-    'selected-font',
-    'selected-font-code',
-    'selected-dark-text',
-    'visibility-menubar',
-    'spellcheckEnabled',
-    'reducedMotion',
-    'highContrast',
-    'advanced-settings',
-    'todayDateFormat',
-    'timeFormat',
-    'collapsibleHeading',
-    'openLastEdited',
-    'openAfterCreation',
-    'soundsEnabled',
-    'spotlightEnabled',
-    'toolbarConfig',
-    'onboardingCompleted',
-  ];
-  settingsKeys.forEach((k) => localStorage.removeItem(k));
-}
 
 export default {
   components: {
@@ -212,6 +207,7 @@ export default {
   setup() {
     const workspaceStore = useWorkspaceStore();
     const accountStore = useAccountStore();
+    const cloud = useCloudWorkspaces();
     const router = useRouter();
     const triggerEl = ref(null);
     const popoverOpen = ref(false);
@@ -221,6 +217,7 @@ export default {
     const formDialogWorkspace = ref(null);
 
     const workspaces = computed(() => workspaceStore.workspaces);
+    const pendingRequests = cloud.pendingRequests;
     const activeId = computed(() => workspaceStore.activeId);
     const activeName = computed(
       () => workspaceStore.activeWorkspace?.name ?? 'Default',
@@ -250,15 +247,51 @@ export default {
           .catch(() => {
             /* plans optional */
           });
+        cloud.fetchMyPendingRequests().catch(() => {
+          /* pending list is non-critical */
+        });
       }
       await nextTick();
     });
 
+    // A workspace switch re-boots the app: the Yjs workspace doc, note store and
+    // sync engine are all initialised from the active workspace at startup and
+    // there is no in-place switch path (only a full teardown for sign-out).
+    // Replacing that safely is a larger change, so warn before the reload
+    // instead of doing it silently. Global settings are NOT cleared any more:
+    // only the active workspace changes.
+    function reloadForWorkspace(name) {
+      const dialog = useDialog();
+      dialog.confirm({
+        title: 'Switch workspace?',
+        body: `The app reloads to open ${
+          name ? `"${name}"` : 'this workspace'
+        }. Your settings stay as they are.`,
+        okText: 'Switch',
+        cancelText: 'Cancel',
+        icon: 'riFolderLine',
+        onConfirm: () => window.location.reload(),
+      });
+    }
+
     async function switchWorkspace(id) {
       if (id === activeId.value) return;
-      await workspaceStore.switchTo(id);
-      clearSettingsLocalStorage();
-      window.location.reload();
+      popoverOpen.value = false;
+      const target = workspaces.value.find((w) => w.id === id);
+      const dialog = useDialog();
+      dialog.confirm({
+        title: 'Switch workspace?',
+        body: `The app reloads to open ${
+          target?.name ? `"${target.name}"` : 'this workspace'
+        }. Your settings stay as they are.`,
+        okText: 'Switch',
+        cancelText: 'Cancel',
+        icon: 'riFolderLine',
+        onConfirm: async () => {
+          await workspaceStore.switchTo(id);
+          window.location.reload();
+        },
+      });
     }
 
     function promptCreate() {
@@ -267,46 +300,40 @@ export default {
       formDialogShow.value = true;
     }
 
+    // Awaited by WorkspaceFormDialog: it keeps the button loading until this
+    // settles and shows any thrown error inline, so we deliberately let errors
+    // propagate instead of swallowing them into a separate alert.
     async function handleFormConfirm({ name, emoji, color }) {
-      if (!name.trim()) return;
-      try {
-        if (formDialogMode.value === 'create') {
-          const ws = await workspaceStore.create(name.trim(), {
-            copySettings: true,
-            emoji,
-            color,
-          });
-          await workspaceStore.switchTo(ws.id);
-        } else {
-          const wsId = formDialogWorkspace.value?.id;
-          if (wsId) {
-            const cloud = await import('@/composable/useCloudWorkspaces');
-            await cloud
-              .useCloudWorkspaces()
-              .updateWorkspaceDecoration(wsId, { emoji, color });
-            if (name !== formDialogWorkspace.value.name) {
-              await workspaceStore.rename(wsId, name);
-            } else {
-              const ws = workspaceStore.workspaces.find((w) => w.id === wsId);
-              if (ws) {
-                ws.emoji = emoji;
-                ws.color = color;
-              }
+      if (!name.trim()) throw new Error('Workspace name is required.');
+      const wasCreate = formDialogMode.value === 'create';
+      if (wasCreate) {
+        const ws = await workspaceStore.create(name.trim(), {
+          copySettings: true,
+          emoji,
+          color,
+        });
+        await workspaceStore.switchTo(ws.id);
+      } else {
+        const wsId = formDialogWorkspace.value?.id;
+        if (wsId) {
+          const cloud = await import('@/composable/useCloudWorkspaces');
+          await cloud
+            .useCloudWorkspaces()
+            .updateWorkspaceDecoration(wsId, { emoji, color });
+          if (name !== formDialogWorkspace.value.name) {
+            await workspaceStore.rename(wsId, name);
+          } else {
+            const ws = workspaceStore.workspaces.find((w) => w.id === wsId);
+            if (ws) {
+              ws.emoji = emoji;
+              ws.color = color;
             }
           }
         }
-        formDialogShow.value = false;
-        clearSettingsLocalStorage();
-        window.location.reload();
-      } catch (err) {
-        emitter.emit('show-dialog', 'alert', {
-          title:
-            formDialogMode.value === 'create'
-              ? 'Create Failed'
-              : 'Update Failed',
-          description: err?.message || 'Failed to update workspace.',
-        });
       }
+      // Renaming/re-decorating updates in place; only a new workspace needs
+      // the reload to load its data.
+      if (wasCreate) reloadForWorkspace(name.trim());
     }
 
     function promptRename(ws) {
@@ -323,19 +350,26 @@ export default {
     function promptJoin() {
       emitter.emit('show-dialog', 'prompt', {
         title: 'Join Workspace',
-        placeholder: 'Paste invite token',
+        placeholder: 'Paste invite link or token',
         okText: 'Join',
         password: false,
         async onConfirm(token) {
-          if (!token || !token.trim()) return;
+          const inviteToken = normalizeInviteToken(token);
+          if (!inviteToken) return;
           try {
-            const { useCloudWorkspaces } =
-              await import('@/composable/useCloudWorkspaces');
-            const cloud = useCloudWorkspaces();
-            await cloud.joinWorkspace(token.trim());
+            const raw = await cloud.joinWorkspace(inviteToken);
+            // A require-approval invite grants nothing yet: show the pending
+            // state instead of reloading as if the join succeeded.
+            if (raw?.pending) {
+              emitter.emit('show-dialog', 'alert', {
+                title: 'Awaiting approval',
+                description:
+                  'Your request was sent. A workspace owner must approve you before you can join.',
+              });
+              return;
+            }
             await workspaceStore.retrieve();
-            clearSettingsLocalStorage();
-            window.location.reload();
+            reloadForWorkspace();
           } catch (err) {
             emitter.emit('show-dialog', 'alert', {
               title: 'Join Failed',
@@ -350,6 +384,7 @@ export default {
       triggerEl,
       popoverOpen,
       workspaces,
+      pendingRequests,
       activeId,
       activeName,
       activeEmoji,

@@ -1,5 +1,7 @@
 <template>
   <div>
+    <mobile-sync-strip v-if="isMobile" />
+
     <div class="container pt-5">
       <div class="flex flex-col gap-2 mb-6">
         <div class="flex items-center gap-3 min-w-0">
@@ -243,6 +245,8 @@ import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
 import { useNoteMove } from '@/composable/useNoteMove';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 import EmptyState from '@/components/app/EmptyState.vue';
+import MobileSyncStrip from '@/components/app/MobileSyncStrip.vue';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
 
 export default {
   components: {
@@ -252,9 +256,11 @@ export default {
     HomeFolderCard,
     FolderTree,
     Actions,
+    MobileSyncStrip,
   },
   setup() {
     const { translations } = useTranslations();
+    const isMobile = isMobileRuntime();
     const highlightedFolderIds = ref(new Set());
     const route = useRoute();
     const router = useRouter();
@@ -460,6 +466,7 @@ export default {
       childFolders,
       notesInFolder,
       folderPath,
+      isMobile,
       ...noteMove,
       resolveMoveModalParams,
       ...pageController,
