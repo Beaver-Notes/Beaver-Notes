@@ -81,6 +81,24 @@ export function useNoteSharing() {
   // server's ownership check (mapped to friendly copy).
   async function resolveWorkspaceId(explicit) {
     if (explicit) return explicit;
+
+    // The server needs the CLOUD workspace id (`workspaces.id` from
+    // useCloudWorkspaces' module state). The Pinia workspace store only mirrors
+    // it after the cloud list has loaded, so consult the cloud source first and
+    // refresh it when empty: otherwise we send a local vault id (or nothing) and
+    // the server refuses with `note_ownership_required`.
+    try {
+      const { useCloudWorkspaces } = await import('@/composable/useCloudWorkspaces');
+      const cloud = useCloudWorkspaces();
+      if (cloud.activeId?.value) return cloud.activeId.value;
+      await cloud.fetchWorkspaces?.();
+      if (cloud.activeId?.value) return cloud.activeId.value;
+      const firstCloud = cloud.workspaces?.value?.[0]?.id;
+      if (firstCloud) return firstCloud;
+    } catch (err) {
+      logger.debug?.('[notes] cloud workspace refresh before share failed:', err?.message || err);
+    }
+
     const workspaceStore = useWorkspaceStore();
     if (workspaceStore.activeId) return workspaceStore.activeId;
     try {
@@ -88,9 +106,9 @@ export function useNoteSharing() {
     } catch (err) {
       logger.debug?.('[notes] workspace refresh before share failed:', err?.message || err);
     }
-    // Fall back to any known workspace: a just-created personal vault may not
-    // have `activeId` set yet, and the note-key bootstrap needs a workspace to
-    // attribute an unpushed note.
+    // Fall back to any known local workspace: a just-created personal vault may
+    // not have `activeId` set yet, and the note-key bootstrap needs a workspace
+    // to attribute an unpushed note.
     return (
       workspaceStore.activeId ||
       workspaceStore.workspaces?.[0]?.id ||
