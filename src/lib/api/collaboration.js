@@ -4,9 +4,10 @@ function getClient(baseUrl) {
   return getApiClient(baseUrl ? { baseUrl } : undefined);
 }
 
-export async function createCollaborationKey(noteId, { baseUrl, signal } = {}) {
+export async function createCollaborationKey(noteId, { baseUrl, signal, workspaceId } = {}) {
   const client = getClient(baseUrl);
-  return client.post(`/collaboration/keys/${encodeURIComponent(noteId)}`, {}, { signal });
+  const body = workspaceId ? { workspaceId } : {};
+  return client.post(`/collaboration/keys/${encodeURIComponent(noteId)}`, body, { signal });
 }
 
 export async function getCollaborationKey(noteId, { baseUrl, signal } = {}) {

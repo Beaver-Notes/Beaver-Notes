@@ -44,8 +44,6 @@
           @toggle-comments="toggleComments"
           @restore="handleRestore"
           @preview="enterVersionPreview"
-          @version-restore="handleRestore"
-          @version-exit="exitVersionPreview"
           @review="enterChangeReview"
         />
       </div>
@@ -244,6 +242,8 @@
           @init="editor = $event"
           @keyup.down="autoScroll"
           @comment-activated="onCommentActivated"
+          @version-restore="handleRestore"
+          @version-exit="exitVersionPreview"
           @review-exit="exitChangeReview"
           @activity="handleActivity"
         />
