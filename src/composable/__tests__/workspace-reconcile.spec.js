@@ -21,4 +21,10 @@ describe('workspace removal reconciliation', () => {
     const toDelete = computeRemovedSharedWorkspaces(local, []);
     expect(toDelete).toEqual([]);
   });
+
+  it('does not re-flag an already-detached shared workspace', () => {
+    const local = [{ id: 'shared-1', workspaceType: 'shared', cloudSync: false }];
+    const toDelete = computeRemovedSharedWorkspaces(local, []);
+    expect(toDelete).toEqual([]);
+  });
 });

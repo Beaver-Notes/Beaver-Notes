@@ -168,10 +168,7 @@ export default {
     const mainRef = ref(null);
     const accountStore = useAccountStore();
     const cloudWorkspaces = useCloudWorkspaces();
-    const {
-      setupState: devicePasswordSetupState,
-      maybePrompt: maybePromptDevicePassword,
-    } = useDevicePasswordSetup();
+    const { maybePrompt: maybePromptDevicePassword } = useDevicePasswordSetup();
     const route = useRoute();
 
     watch(
@@ -183,46 +180,6 @@ export default {
       },
       { immediate: true },
     );
-
-    // Device-password re-entry makes master key readable, but startup hydration already failed: re-run minimal hydration.
-    const hydrateAccountSessionAfterDeviceUnlock = async () => {
-      if (accountStore.isAuthenticated) return;
-      const { loadSessionToken } = await import('@/lib/account-storage');
-      const token = await loadSessionToken().catch(() => null);
-      if (!token) return;
-      accountStore.setToken(token);
-      accountStore.setStatus('authenticated');
-      import('@/lib/api/account')
-        .then(({ getAccount }) =>
-          getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
-            if (!data) return;
-            accountStore.setProfile(data.profile);
-            accountStore.setSubscription(data.subscription);
-            accountStore.setDevices(data.devices || []);
-          }),
-        )
-        .catch(() => {});
-      const { useWorkspaceStore } = await import('@/store/workspace.ts');
-      useWorkspaceStore()
-        .retrieve()
-        .catch((err) =>
-          console.warn(
-            '[app] workspace hydrate after device unlock failed:',
-            err,
-          ),
-        );
-    };
-
-    watch(devicePasswordSetupState, async (state) => {
-      if (state !== 'done') return;
-      await hydrateAccountSessionAfterDeviceUnlock();
-      // Keychain blob may be decryptable now: retry auto-unlock so gate hides.
-      try {
-        await shell.restoreEncryptionKeys();
-      } catch (e) {
-        console.warn('[app] encryption restore after device unlock failed:', e);
-      }
-    });
 
     // When onboarding completes and we leave the Onboarding route, flip the
     // reactive flag. This triggers the watcher below which starts init + ws-sync.

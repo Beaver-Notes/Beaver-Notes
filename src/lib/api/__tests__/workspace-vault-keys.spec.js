@@ -172,6 +172,21 @@ describe('vault-wrapped workspace keys', () => {
     expect(await unwrapWorkspaceKeysFromVault('{}')).toBeNull();
   });
 
+  // The vault-wrapped-keys blob is a session-AEK envelope; `decryptJSON` accepts
+  // the legacy v4 protocol shape and the v5 raw shape. v6 (shared-note payload)
+  // is a different envelope class, decrypted by Rust `syncDecryptPayload` and
+  // covered by the Rust suite (cargo test --lib, cloud.rs version tests).
+  test('v4/v5 workspace-key envelopes still decrypt (backward compatibility)', async () => {
+    const env = await buildVaultWrappedKeys(HEX);
+    for (const v of [4, 5]) {
+      const parsed = JSON.parse(env);
+      parsed.v = v;
+      expect(await unwrapWorkspaceKeysFromVault(JSON.stringify(parsed))).toEqual({
+        workspaceKeyHex: HEX,
+      });
+    }
+  });
+
   test('createWorkspace posts vaultWrappedKeys in the create body and seeds the cache', async () => {
     clientMock.post.mockResolvedValue({ id: 'ws-create' });
 

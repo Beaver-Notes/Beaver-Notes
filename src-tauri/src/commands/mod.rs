@@ -1,3 +1,4 @@
+pub(crate) mod activity;
 pub(crate) mod app;
 pub(crate) mod backup;
 pub(crate) mod debug;

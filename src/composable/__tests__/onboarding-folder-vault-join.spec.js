@@ -5,6 +5,17 @@ vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: ref({}) }),
 }));
 
+const dialogState = vi.hoisted(() => ({ confirm: [] }));
+vi.mock('@/lib/dialog', () => ({
+  useDialog: () => ({
+    confirm: (opts) => dialogState.confirm.push(opts),
+    alert: vi.fn(),
+    prompt: vi.fn(),
+    auth: vi.fn(),
+    select: vi.fn(),
+  }),
+}));
+
 vi.mock('@/composable/useTheme', () => ({
   useTheme: () => ({ loadTheme: vi.fn() }),
 }));
@@ -144,6 +155,7 @@ import { useOnboardingFlow } from '../useOnboardingFlow.js';
 describe('useOnboardingFlow.completeSyncStep with an existing folder vault', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dialogState.confirm.length = 0;
     hasRemoteVaultKeyParamsMock.mockResolvedValue(false);
   });
 
@@ -194,6 +206,27 @@ describe('useOnboardingFlow.completeSyncStep with an existing folder vault', () 
 
     expect(flow.vaultJoinMode.value).toBe(false);
     expect(flow.step.value).toBe('password');
+  });
+
+  it('confirms before starting a fresh vault and explains the consequence', async () => {
+    const { setDeclinedVaultJoin } = await import(
+      '@/utils/crypto/encryption.js'
+    );
+    const flow = makeFlow();
+    flow.fresh.syncPath = '/existing-vault';
+
+    flow.confirmStartFreshVault();
+
+    expect(dialogState.confirm).toHaveLength(1);
+    expect(dialogState.confirm[0].body).toMatch(/new vault/i);
+    expect(dialogState.confirm[0].body).toMatch(/existing|stops using/i);
+    // Nothing happens until the user confirms.
+    expect(setDeclinedVaultJoin).not.toHaveBeenCalled();
+
+    dialogState.confirm[0].onConfirm();
+
+    expect(flow.vaultJoinMode.value).toBe(false);
+    expect(setDeclinedVaultJoin).toHaveBeenCalledWith('/existing-vault');
   });
 
   it('persists the decline marker on start-fresh so the engine pauses', async () => {

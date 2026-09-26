@@ -8,10 +8,11 @@ import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
-import { saveNote } from '@/store/note/index';
+import { saveNote, syncSearchIndex } from '@/store/note/index';
 import { yMapToObj, toUint8Array, getDeviceId } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from './meta-doc.js';
 import { mergeNoteEntry, diffRemovedNoteIds } from './meta-merge.js';
+import { isPendingNoteMeta } from './shared.js';
 
 function buildNotePreviewFromContent(merged, content) {
   return buildNotePreview({
@@ -61,6 +62,16 @@ export async function readNoteContents(noteIds) {
   return contents;
 }
 
+/** Evict store notes absent from the doc, except those whose meta write is
+ * still in flight (store.add): the note exists in Pinia before its Yjs meta. */
+function evictRemovedNotes(noteStore, docIds) {
+  const removed = diffRemovedNoteIds(Object.keys(noteStore.data), docIds);
+  for (const id of removed) {
+    if (isPendingNoteMeta(id)) continue;
+    delete noteStore.data[id];
+  }
+}
+
 /** Push workspace-doc changes into Pinia (one-way doc to store). Idempotent, Y.Doc is metadata truth, content lives per-note. */
 export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   const doc = getWorkspaceDoc();
@@ -108,15 +119,12 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
       const { note: merged, needsSnapshot } = mergeNoteEntry(existing, meta);
       if (needsSnapshot) pendingPreviews.push(id);
       noteStore.data[id] = merged;
+      // Remote/peered notes only reached the store here; without this they stay
+      // unsearchable until the next launch rebuilds the index.
+      syncSearchIndex(merged);
     }
 
-    const removed = diffRemovedNoteIds(
-      Object.keys(noteStore.data),
-      new Set(yNotes.keys()),
-    );
-    for (const id of removed) {
-      delete noteStore.data[id];
-    }
+    evictRemovedNotes(noteStore, new Set(yNotes.keys()));
   } else {
     for (const [id, yNote] of yNotes.entries()) {
       const meta = yMapToObj(yNote);
@@ -124,15 +132,10 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
       const { note: merged, needsSnapshot } = mergeNoteEntry(existing, meta);
       if (needsSnapshot) pendingPreviews.push(id);
       noteStore.data[id] = merged;
+      syncSearchIndex(merged);
     }
 
-    const removed = diffRemovedNoteIds(
-      Object.keys(noteStore.data),
-      new Set(yNotes.keys()),
-    );
-    for (const id of removed) {
-      delete noteStore.data[id];
-    }
+    evictRemovedNotes(noteStore, new Set(yNotes.keys()));
   }
 
   // Batch-load snapshots for notes with no in-memory content source.
@@ -308,8 +311,10 @@ export async function backfillNotePreviews() {
 }
 
 /** One-time repair: legacy imports once seeded meta without a Yjs doc, stranding
- * unopenable, undeletable cards. Notes with a title get a valid empty doc;
- * untitled and id-less notes are dropped. Locked notes are left alone. */
+ * unopenable, undeletable cards. Any note missing a snapshot gets a valid empty
+ * doc (never deleted: an absent snapshot may just not have arrived yet, and
+ * deleting the meta would orphan the content permanently). Only id-less entries,
+ * which can never own a doc, are dropped. Locked notes are left alone. */
 export async function repairStrandedNotes() {
   let removeNoteMeta;
   try {
@@ -321,7 +326,6 @@ export async function repairStrandedNotes() {
   const yNotes = getWorkspaceDoc().getMap('notes');
   const dropIds = [];
   const checkIds = [];
-  const titles = {};
   for (const [id, yNote] of yNotes.entries()) {
     if (!id) {
       // Id-less meta can never own a doc (the converter skips no-id notes
@@ -331,8 +335,6 @@ export async function repairStrandedNotes() {
     }
     if (!yNote || typeof yNote.get !== 'function') continue;
     if (yNote.get('isLocked')) continue;
-    const title = yNote.get('title');
-    titles[id] = typeof title === 'string' ? title : '';
     checkIds.push(id);
   }
   let snapshots = {};
@@ -348,8 +350,7 @@ export async function repairStrandedNotes() {
   for (const id of checkIds) {
     const snapshot = snapshots?.[id];
     if (snapshot && snapshot.length > 0) continue;
-    if (titles[id]?.trim()) repairIds.push(id);
-    else dropIds.push(id);
+    repairIds.push(id);
   }
   let repaired = 0;
   let failed = 0;

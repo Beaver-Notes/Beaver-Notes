@@ -50,3 +50,4 @@ tests/
 docs/superpowers/
 docs/*.md
 docs/**/*.md
+.duo/*

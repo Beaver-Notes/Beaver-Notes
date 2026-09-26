@@ -8,7 +8,11 @@ vi.mock('@/utils/crypto/codec.js', () => ({
 }));
 
 vi.mock('@/lib/settings', () => ({
+  DEFAULT_UI_FONT_STACK:
+    "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif",
+  getSetting: vi.fn(async () => null),
   getSettingSync: vi.fn(() => null),
+  invalidateSettingMirrors: vi.fn(),
   setSetting: vi.fn(async () => {}),
 }));
 
@@ -43,6 +47,7 @@ vi.mock('@/lib/tauri/errors', () => ({
 vi.mock('@/lib/tauri-bridge', () => ({
   path: { join: (...p) => p.join('/') },
   backend: { invoke: vi.fn(async () => {}) },
+  addCloseHandler: vi.fn(),
 }));
 
 vi.mock('@/lib/native/fs', () => ({

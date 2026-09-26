@@ -1,4 +1,6 @@
-import { captureNoteSnapshot } from './commit-snapshot.js';
+import { captureNoteSnapshot, captureNoteSnapshotFromBytes } from './commit-snapshot.js';
+import { getSnapshot } from '@/lib/native/yjs.js';
+import { toUint8Array } from '@/lib/yjs/helpers.js';
 import { createCommit } from '@/lib/api/history.js';
 import { logger } from '@/utils/logger';
 
@@ -11,7 +13,15 @@ async function runWorker(queue) {
   while (queue.length) {
     const noteId = queue.shift();
     try {
-      const snapshot = await captureNoteSnapshot(noteId);
+      let snapshot = await captureNoteSnapshot(noteId);
+      if (!snapshot) {
+        // Note is closed (no active Y.Doc): build history from the stored
+        // snapshot bytes so background edits get commits too.
+        const bytes = await getSnapshot(noteId);
+        if (bytes && bytes.length > 0) {
+          snapshot = await captureNoteSnapshotFromBytes(noteId, toUint8Array(bytes));
+        }
+      }
       if (!snapshot) continue;
       await createCommit(noteId, snapshot);
     } catch (err) {

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::shared::*;
 
@@ -72,8 +72,13 @@ pub(crate) async fn yjs_append(
 ) -> Result<(), AppError> {
     let update = BASE64.decode(update)?;
     let pool = data_pool(&app, &state)?;
-    let key = yjs_encryption_key(&state)?;
+    let app = app.clone();
     tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        // Barrier held across key fetch + ciphertext write so a concurrent key
+        // migration cannot swap the key in between.
+        let _barrier = write_barrier();
+        let key = yjs_encryption_key(state.inner())?;
         crate::db::yjs_append(&pool, &note_id, &update, &device, key)
     })
     .await
@@ -95,8 +100,11 @@ pub(crate) async fn yjs_append_batch(
         .map(|u| BASE64.decode(u))
         .collect::<Result<Vec<_>, _>>()?;
     let pool = data_pool(&app, &state)?;
-    let key = yjs_encryption_key(&state)?;
+    let app = app.clone();
     tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let key = yjs_encryption_key(state.inner())?;
         crate::db::yjs_append_batch(&pool, &note_ids, &updates, &devices, key)
     })
     .await
@@ -195,10 +203,15 @@ pub(crate) async fn yjs_compact(
 ) -> Result<(), AppError> {
     let snapshot = BASE64.decode(snapshot)?;
     let pool = data_pool(&app, &state)?;
-    let key = yjs_encryption_key(&state)?;
-    tokio::task::spawn_blocking(move || crate::db::yjs_compact(&pool, &note_id, &snapshot, key))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))?
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let key = yjs_encryption_key(state.inner())?;
+        crate::db::yjs_compact(&pool, &note_id, &snapshot, key)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Merge updates into one snapshot (y-octo), replace rows and sync cache in one SQLite transaction.
@@ -210,10 +223,15 @@ pub(crate) async fn yjs_compact_batch(
     note_id: String,
 ) -> Result<(), AppError> {
     let pool = data_pool(&app, &state)?;
-    let key = yjs_encryption_key(&state)?;
-    tokio::task::spawn_blocking(move || crate::db::yjs_compact_batch(&pool, &note_id, key))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))?
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let _barrier = write_barrier();
+        let key = yjs_encryption_key(state.inner())?;
+        crate::db::yjs_compact_batch(&pool, &note_id, key)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Delete all Yjs updates for a note on note delete.
@@ -225,7 +243,11 @@ pub(crate) async fn yjs_delete(
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let pool = data_pool(&app, &state)?;
-    tokio::task::spawn_blocking(move || crate::db::yjs_delete(&pool, &note_id))
+    // Stamp the tombstone with the active cloud workspace when sync is
+    // configured; an empty id still prunes (note ids are unique) and keeps the
+    // deletion durable for an offline device.
+    let workspace_id = crate::sync::scheduler::active_workspace_id().unwrap_or_default();
+    tokio::task::spawn_blocking(move || crate::db::yjs_delete(&pool, &note_id, &workspace_id))
         .await
         .map_err(|e| AppError::Other(e.to_string()))?
 }

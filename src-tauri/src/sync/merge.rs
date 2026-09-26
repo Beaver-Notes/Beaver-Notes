@@ -51,10 +51,10 @@ pub(crate) fn covered_by_vector(candidates: &[Vec<u8>], stored_vector: &[u8]) ->
                     return false;
                 }
             }
-            // Same fail-closed posture as before: undecodable bytes contribute
-            // nothing, so they stay covered (proven live data always decodes;
-            // revisit only with evidence of corrupt-but-authentic rows).
-            Err(_) => {}
+            // Undecodable bytes must NOT be treated as covered: an
+            // authentic-but-corrupt candidate would otherwise be skipped and
+            // its checkpoint advanced, losing it permanently (finding C11).
+            Err(_) => return false,
         }
     }
     true
@@ -239,6 +239,24 @@ mod tests {
         assert_eq!(merged, merge_updates(std::slice::from_ref(&a)));
 
         assert!(StateVector::decode_v1(&encode_vector(&[a])).is_ok());
+    }
+
+    /// C11: an authentic-but-corrupt candidate (bytes that decrypt fine but are
+    /// not a valid yjs update) must not be treated as already covered, or the
+    /// pull skips it and advances the checkpoint, losing it forever.
+    #[test]
+    fn undecodable_candidate_is_not_covered() {
+        let stored = encode_vector(&[seed_update("hello")]);
+        assert!(!covered_by_vector(
+            &[b"authentic but corrupt bytes".to_vec()],
+            &stored
+        ));
+        // A valid, already-covered update still reports covered.
+        let update = seed_update("world");
+        assert!(covered_by_vector(
+            std::slice::from_ref(&update),
+            &encode_vector(std::slice::from_ref(&update))
+        ));
     }
 
     /// Regression: an incremental diff whose base structs are missing from an

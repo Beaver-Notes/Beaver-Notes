@@ -13,15 +13,15 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use yrs::{updates::decoder::Decode, Doc, Transact, Update};
 
-use super::assets::{encode_asset_key, list_remote_assets, seed_batch_upload_assets};
-use super::cloud::{CloudFail, META_DOC_ID, valid_note_id};
+use super::assets::{encode_asset_key, live_note_ids, list_remote_assets, seed_batch_upload_assets};
+use super::cloud::{valid_note_id, CloudFail, META_DOC_ID, WriterKey};
 use super::local::get_or_create_device_id;
 use super::remote::CloudClient;
 use crate::db::{self, DbPool};
 use crate::shared::{
-    aead_decrypt_bytes, aead_decrypt_json, aead_encrypt_bytes, app_storage_dir,
-    publish_key_params, sync_key_params_path, AppError, AppState, SyncEnvelope,
-    PROTOCOL_VERSION, SYNC_PAYLOAD_VERSION,
+    aead_decrypt_bytes, aead_decrypt_json, aead_encrypt_bytes, app_storage_dir, data_pool,
+    publish_key_params, sync_key_params_path, write_barrier, AppError, AppState, SyncEnvelope,
+    PROTOCOL_VERSION, SHARED_PAYLOAD_VERSION, SYNC_PAYLOAD_VERSION,
 };
 
 /// Local asset root (`ASSET_TYPES` in `src/utils/sync/constants.js`); mirrors
@@ -55,15 +55,42 @@ fn seed_snapshot_envelope(
     ts: u64,
     update: &[u8],
 ) -> Result<Vec<u8>, AppError> {
+    seed_snapshot_envelope_versioned(key, SYNC_PAYLOAD_VERSION, device, note_id, ts, update)
+}
+
+/// Same envelope with an explicit `v`: v5 (items key) for personal notes, v6
+/// (shared note/workspace key) for collaborative ones, so a seeded shared
+/// workspace is readable by every member, not just the seeding account.
+fn seed_snapshot_envelope_versioned(
+    key: &[u8; 32],
+    version: u8,
+    device: &str,
+    note_id: &str,
+    ts: u64,
+    update: &[u8],
+) -> Result<Vec<u8>, AppError> {
     let aad = format!("{note_id}-{ts}");
     let (iv, enc) = aead_encrypt_bytes(key, update, &aad)?;
     let envelope = serde_json::json!({
-        "v": SYNC_PAYLOAD_VERSION,
+        "v": version,
         "meta": { "device": device, "ts": ts as i64, "sequence": 0, "noteId": note_id },
         "iv": iv,
         "enc": enc,
     });
     Ok(serde_json::to_vec(&envelope)?)
+}
+
+/// Key + envelope version to seal a snapshot with: a registered shared key
+/// (per-note key, or workspace key for `meta`) yields v6, else v5 + items key.
+fn snapshot_seal(
+    app_key: &[u8; 32],
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
+    note_id: &str,
+) -> ([u8; 32], u8) {
+    match shared_keys.get(note_id).and_then(|keys| keys.first().copied()) {
+        Some(k) => (k, SHARED_PAYLOAD_VERSION),
+        None => (*app_key, SYNC_PAYLOAD_VERSION),
+    }
 }
 
 fn json_truthy(v: &serde_json::Value) -> bool {
@@ -141,11 +168,25 @@ async fn state_gate(client: &CloudClient, workspace_id: &str) -> Result<Gate, Cl
             "cloud sync is initialized but its encryption parameters are missing",
         ));
     }
-    let empty = status == "empty" && documents.is_empty();
-    let stalled = status == "initializing" && documents.is_empty();
+    let initialization_expired = obj
+        .get("initializationExpired")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    // `documents` is non-empty as soon as the workspace has any yjs updates
+    // (see `listDocuments`' UNION with `yjs_doc_updates`), so requiring an
+    // empty document set would skip a never-initialized workspace forever.
+    // Claiming from `empty` is always allowed; contention is resolved by the
+    // claim itself (a losing device yields on 409).
+    let empty = status == "empty";
+    // A completed-but-never-finished init must wait for its claim to expire
+    // before the server lets this device re-claim it.
+    let stalled = status == "initializing"
+        && (documents.is_empty() || initialization_expired);
     if empty || stalled {
+        crate::rs_log!("[sync::bootstrap] state gate: proceed (status={status})");
         Ok(Gate::Proceed)
     } else {
+        crate::rs_log!("[sync::bootstrap] state gate: skip (status={status})");
         Ok(Gate::Skip)
     }
 }
@@ -213,16 +254,23 @@ fn distinct_note_ids(pool: &DbPool) -> Result<Vec<String>, AppError> {
 /// encrypt failure is logged and skipped (`cloud.js:995`).
 async fn assemble_snapshots(
     pool: &DbPool,
-    key: &[u8; 32],
+    key: WriterKey,
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     now_ms: u64,
 ) -> Result<Vec<SeedSnapshot>, CloudFail> {
-    let (pool, key) = (pool.clone(), *key);
+    let (pool, shared_keys) = (pool.clone(), shared_keys.clone());
     tokio::task::spawn_blocking(move || -> Result<Vec<SeedSnapshot>, AppError> {
+        // Resolve the items key and seal every snapshot under the migration
+        // read barrier (finding C2): one guarded span for key read + seal.
+        let _barrier = write_barrier();
+        let key = key.resolve()?;
         let device = get_or_create_device_id(&pool)?;
         let mut out: Vec<SeedSnapshot> = Vec::new();
         let meta = db::yjs_get_snapshot(&pool, META_DOC_ID, Some(key))?;
         if !meta.is_empty() {
-            let bytes = seed_snapshot_envelope(&key, &device, META_DOC_ID, now_ms, &meta)?;
+            let (seal, version) = snapshot_seal(&key, &shared_keys, META_DOC_ID);
+            let bytes =
+                seed_snapshot_envelope_versioned(&seal, version, &device, META_DOC_ID, now_ms, &meta)?;
             out.push(SeedSnapshot {
                 note_id: META_DOC_ID.to_string(),
                 ts: now_ms,
@@ -233,7 +281,8 @@ async fn assemble_snapshots(
             match db::yjs_get_snapshot(&pool, &note, Some(key)) {
                 Ok(state) if !state.is_empty() => {
                     let note_ts = now_ms + out.len() as u64;
-                    match seed_snapshot_envelope(&key, &device, &note, note_ts, &state) {
+                    let (seal, version) = snapshot_seal(&key, &shared_keys, &note);
+                    match seed_snapshot_envelope_versioned(&seal, version, &device, &note, note_ts, &state) {
                         Ok(bytes) => out.push(SeedSnapshot {
                             note_id: note,
                             ts: note_ts,
@@ -255,7 +304,11 @@ async fn assemble_snapshots(
     .map_err(CloudFail::Fatal)
 }
 
-fn enumerate_assets(base: &Path) -> Vec<(String, PathBuf)> {
+fn enumerate_assets(
+    base: &Path,
+    workspace_id: &str,
+    live: &HashSet<String>,
+) -> Vec<(String, String, PathBuf)> {
     let mut out = Vec::new();
     let note_dirs = match std::fs::read_dir(base) {
         Ok(rd) => rd,
@@ -266,6 +319,11 @@ fn enumerate_assets(base: &Path) -> Vec<(String, PathBuf)> {
             continue;
         };
         if note_id.starts_with('.') || !entry.path().is_dir() {
+            continue;
+        }
+        // Liveness filter, same as the steady-state asset differ: never seed
+        // files under notes that no longer exist in this workspace.
+        if !live.contains(&note_id) {
             continue;
         }
         let files = match std::fs::read_dir(entry.path()) {
@@ -282,8 +340,8 @@ fn enumerate_assets(base: &Path) -> Vec<(String, PathBuf)> {
             if filename.starts_with('.') || !file.path().is_file() {
                 continue;
             }
-            match encode_asset_key(ASSET_DIR, &note_id, &filename) {
-                Ok(flat) => out.push((flat, file.path())),
+            match encode_asset_key(ASSET_DIR, workspace_id, &note_id, &filename) {
+                Ok(flat) => out.push((flat, note_id.clone(), file.path())),
                 Err(e) => {
                     crate::rs_log!("[sync::bootstrap] skipping invalid asset key {note_id}/{filename}: {e}")
                 }
@@ -293,7 +351,9 @@ fn enumerate_assets(base: &Path) -> Vec<(String, PathBuf)> {
     out
 }
 
-fn seed_asset_batches(entries: Vec<(String, Vec<u8>)>) -> Vec<Vec<(String, Vec<u8>)>> {
+fn seed_asset_batches(
+    entries: Vec<(String, String, Vec<u8>)>,
+) -> Vec<Vec<(String, String, Vec<u8>)>> {
     seed_asset_batches_with(entries, SEED_BATCH_MAX_ITEMS, SEED_BATCH_MAX_BYTES)
 }
 
@@ -301,16 +361,16 @@ fn seed_asset_batches(entries: Vec<(String, Vec<u8>)>) -> Vec<Vec<(String, Vec<u
 /// oversized items become their own batch, otherwise pack while item count and
 /// byte total stay within the caps.
 fn seed_asset_batches_with(
-    mut entries: Vec<(String, Vec<u8>)>,
+    mut entries: Vec<(String, String, Vec<u8>)>,
     max_items: usize,
     max_bytes: usize,
-) -> Vec<Vec<(String, Vec<u8>)>> {
-    entries.sort_by_key(|(_, data)| data.len());
-    let mut batches: Vec<Vec<(String, Vec<u8>)>> = Vec::new();
-    let mut current: Vec<(String, Vec<u8>)> = Vec::new();
+) -> Vec<Vec<(String, String, Vec<u8>)>> {
+    entries.sort_by_key(|(_, _, data)| data.len());
+    let mut batches: Vec<Vec<(String, String, Vec<u8>)>> = Vec::new();
+    let mut current: Vec<(String, String, Vec<u8>)> = Vec::new();
     let mut current_bytes = 0usize;
     for entry in entries {
-        let size = entry.1.len();
+        let size = entry.2.len();
         if size > max_bytes {
             if !current.is_empty() {
                 batches.push(std::mem::take(&mut current));
@@ -339,7 +399,9 @@ fn seed_asset_batches_with(
 async fn seed_assets(
     app: &AppHandle,
     client: &CloudClient,
-    key: &[u8; 32],
+    key: &WriterKey,
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
+    workspace_id: &str,
 ) -> Result<Vec<String>, CloudFail> {
     let base = {
         let state = app.state::<AppState>();
@@ -347,8 +409,14 @@ async fn seed_assets(
             .map_err(CloudFail::Fatal)?
             .join(ASSET_DIR)
     };
-    let local = enumerate_assets(&base);
-    let required: Vec<String> = local.iter().map(|(k, _)| k.clone()).collect();
+    let local: Vec<(String, String, PathBuf)> = {
+        // Liveness filter, same as the steady-state asset differ: never seed
+        // files under notes that no longer exist in this workspace.
+        let pool = data_pool(app, app.state::<AppState>().inner()).map_err(CloudFail::Fatal)?;
+        let live = live_note_ids(&pool).map_err(CloudFail::Fatal)?;
+        enumerate_assets(&base, workspace_id, &live)
+    };
+    let required: Vec<String> = local.iter().map(|(k, _, _)| k.clone()).collect();
     if local.is_empty() {
         return Ok(required);
     }
@@ -363,13 +431,15 @@ async fn seed_assets(
             None
         }
     };
-    let mut to_upload: Vec<(String, Vec<u8>)> = Vec::new();
-    for (flat_key, path) in &local {
+    let mut to_upload: Vec<(String, String, Vec<u8>)> = Vec::new();
+    for (flat_key, note_id, path) in &local {
         if remote.as_ref().is_some_and(|r| r.contains(flat_key)) {
             continue;
         }
         match std::fs::read(path) {
-            Ok(data) if !data.is_empty() => to_upload.push((flat_key.clone(), data)),
+            Ok(data) if !data.is_empty() => {
+                to_upload.push((flat_key.clone(), note_id.clone(), data))
+            }
             Ok(_) => crate::rs_log!("[sync::bootstrap] skipping empty asset {flat_key}"),
             Err(e) => {
                 crate::rs_log!("[sync::bootstrap] skipping unreadable asset {flat_key}: {e}")
@@ -379,7 +449,7 @@ async fn seed_assets(
 
     let batches = seed_asset_batches(to_upload);
     for (idx, batch) in batches.iter().enumerate() {
-        if let Err(e) = seed_batch_upload_assets(client, key, batch).await {
+        if let Err(e) = seed_batch_upload_assets(client, key, shared_keys, batch).await {
             crate::rs_log!(
                 "[sync::bootstrap] asset batch {}/{} failed: {}",
                 idx + 1,
@@ -410,7 +480,11 @@ pub(crate) async fn seed_cloud_workspace(
         Gate::Proceed => {}
     }
 
-    let (key, pool) = super::cloud::unlock_gate(app)?;
+    // Fail fast while locked; the sealing key is read under the migration
+    // barrier inside each sealing closure (`WriterKey::Session`, C2).
+    let pool = super::cloud::writer_gate(app)?;
+    let shared = crate::shared::shared_note_keys(app.state::<AppState>().inner())
+        .map_err(CloudFail::Fatal)?;
 
     // Claim. Any failure re-probes the state: if another device initialized
     // meanwhile, this device simply yields (`cloud.js:894-907`).
@@ -450,7 +524,8 @@ pub(crate) async fn seed_cloud_workspace(
     publish_seed_key_params(app, &client, workspace_id).await?;
 
     let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    let snapshots = assemble_snapshots(&pool, &key, now_ms).await?;
+    let snapshots =
+        assemble_snapshots(&pool, WriterKey::Session(app.clone()), &shared, now_ms).await?;
     if snapshots.is_empty() {
         return Err(seed_fail("snapshot", "nothing to push"));
     }
@@ -490,7 +565,8 @@ pub(crate) async fn seed_cloud_workspace(
         }));
     }
 
-    let required_assets = seed_assets(app, &client, &key).await?;
+    let required_assets =
+        seed_assets(app, &client, &WriterKey::Session(app.clone()), &shared, workspace_id).await?;
 
     let _: serde_json::Value = client
         .post_json(
@@ -636,16 +712,37 @@ fn decrypt_snapshot_envelope(
     note_ts: Option<u64>,
     raw: &[u8],
 ) -> Option<Vec<u8>> {
+    decrypt_snapshot_envelope_shared(key, &[], note_id, snapshot_ts, note_ts, raw)
+}
+
+/// Same as [`decrypt_snapshot_envelope`], plus v6 support: a v6 snapshot was
+/// sealed with the note's shared collaboration key (per-note key, or the
+/// workspace key for `meta`), so a non-seeding member can bootstrap it.
+fn decrypt_snapshot_envelope_shared(
+    key: &[u8; 32],
+    shared_keys: &[[u8; 32]],
+    note_id: &str,
+    snapshot_ts: Option<u64>,
+    note_ts: Option<u64>,
+    raw: &[u8],
+) -> Option<Vec<u8>> {
     let env: serde_json::Value = serde_json::from_slice(raw).ok()?;
     let v = env.get("v").and_then(|v| v.as_u64())? as u8;
-    if v != SYNC_PAYLOAD_VERSION && v != PROTOCOL_VERSION {
+    if v != SYNC_PAYLOAD_VERSION && v != PROTOCOL_VERSION && v != SHARED_PAYLOAD_VERSION {
         return None;
     }
     let iv = env.get("iv")?.as_str()?;
     let enc = env.get("enc")?.as_str()?;
     for ts in candidate_aad_suffixes(snapshot_ts, note_ts) {
         let aad = format!("{note_id}-{ts}");
-        if v == SYNC_PAYLOAD_VERSION {
+        if v == SHARED_PAYLOAD_VERSION {
+            if let Some(bytes) = shared_keys
+                .iter()
+                .find_map(|shared| aead_decrypt_bytes(shared, iv, enc, &aad).ok())
+            {
+                return Some(bytes);
+            }
+        } else if v == SYNC_PAYLOAD_VERSION {
             if let Ok(bytes) = aead_decrypt_bytes(key, iv, enc, &aad) {
                 return Some(bytes);
             }
@@ -705,11 +802,13 @@ pub(crate) async fn bootstrap_from_snapshots(
     workspace_id: &str,
     server_url: &str,
     token: &str,
-) -> Result<Vec<String>, CloudFail> {
+) -> Result<(Vec<String>, bool), CloudFail> {
     if workspace_id.trim().is_empty() || token.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), false));
     }
     let (key, pool) = super::cloud::unlock_gate(app)?;
+    let shared = crate::shared::shared_note_keys(app.state::<AppState>().inner())
+        .map_err(CloudFail::Fatal)?;
     let client = CloudClient::new(server_url, token).map_err(CloudFail::Fatal)?;
 
     let state = match client
@@ -717,11 +816,11 @@ pub(crate) async fn bootstrap_from_snapshots(
         .await?
     {
         Some(state) => state,
-        None => return Ok(Vec::new()),
+        None => return Ok((Vec::new(), false)),
     };
     let docs = parse_bootstrap_docs(&state);
     if docs.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), false));
     }
 
     // Cached local snapshots decide which notes actually need a download. A
@@ -746,7 +845,8 @@ pub(crate) async fn bootstrap_from_snapshots(
         .filter(|d| snapshot_needs_bootstrap(cached.get(&d.note_id).map(Vec::as_slice)))
         .collect();
     if needs.is_empty() {
-        return Ok(Vec::new());
+        // Nothing outstanding: the device already has every snapshot.
+        return Ok((Vec::new(), true));
     }
     crate::rs_log!(
         "[sync::bootstrap] {} notes need snapshot download",
@@ -771,14 +871,14 @@ pub(crate) async fn bootstrap_from_snapshots(
                     "[sync::bootstrap] snapshot download urls failed: {}",
                     fail_str(&e)
                 );
-                return Ok(Vec::new());
+                return Ok((Vec::new(), false));
             }
         };
         urls.extend(resp.urls.unwrap_or_default());
     }
     if urls.is_empty() {
         crate::rs_log!("[sync::bootstrap] no snapshot urls returned");
-        return Ok(Vec::new());
+        return Ok((Vec::new(), false));
     }
 
     // Download with bounded concurrency; a per-note failure logs and skips.
@@ -831,14 +931,15 @@ pub(crate) async fn bootstrap_from_snapshots(
     }
     if downloaded.is_empty() {
         crate::rs_log!("[sync::bootstrap] no snapshots downloaded");
-        return Ok(Vec::new());
+        return Ok((Vec::new(), false));
     }
 
     // Decrypt each snapshot, trying both AAD forms; fail closed per note.
     let mut decrypted: Vec<(String, Vec<u8>)> = Vec::new();
     for item in &downloaded {
-        match decrypt_snapshot_envelope(
+        match decrypt_snapshot_envelope_shared(
             &key,
+            shared.get(&item.note_id).map(|v| v.as_slice()).unwrap_or(&[]),
             &item.note_id,
             item.snapshot_ts,
             item.note_ts,
@@ -852,11 +953,16 @@ pub(crate) async fn bootstrap_from_snapshots(
         }
     }
     if decrypted.is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), false));
     }
 
     // Append + compact + advance vector, per-note log-and-continue.
+    let writer = WriterKey::Session(app.clone());
     let applied = tokio::task::spawn_blocking(move || -> Result<Vec<String>, AppError> {
+        // Resolve the items key under the migration read barrier and keep it
+        // for the whole append/compact/vector span (finding C2).
+        let _barrier = write_barrier();
+        let key = writer.resolve()?;
         let device = get_or_create_device_id(&pool)?;
         let mut applied = Vec::new();
         for (note_id, update) in decrypted {
@@ -883,7 +989,16 @@ pub(crate) async fn bootstrap_from_snapshots(
         applied.len(),
         downloaded.len()
     );
-    Ok(applied)
+    // Latch the retry guard only when every needed note applied; a partial
+    // pass leaves the guard clear so the failed notes retry next tick (the
+    // successful ones now have a local snapshot and drop out of `needs`).
+    let complete = bootstrap_complete(applied.len(), needs.len());
+    Ok((applied, complete))
+}
+
+/// Bootstrap may latch its retry guard only once every needed snapshot applied.
+pub(crate) fn bootstrap_complete(applied: usize, needed: usize) -> bool {
+    needed > 0 && applied >= needed
 }
 
 #[cfg(test)]
@@ -928,8 +1043,8 @@ mod tests {
 
     #[test]
     fn seed_asset_batches_respect_item_cap() {
-        let entries: Vec<(String, Vec<u8>)> = (0..51)
-            .map(|i| (format!("k{i}"), vec![0u8; 1]))
+        let entries: Vec<(String, String, Vec<u8>)> = (0..51)
+            .map(|i| (format!("k{i}"), "n".to_string(), vec![0u8; 1]))
             .collect();
         let batches = seed_asset_batches(entries);
         assert_eq!(batches.len(), 2);
@@ -940,9 +1055,9 @@ mod tests {
     #[test]
     fn seed_asset_batches_respect_byte_cap_and_oversized() {
         let entries = vec![
-            ("a".to_string(), vec![0u8; 6]),
-            ("b".to_string(), vec![0u8; 6]),
-            ("c".to_string(), vec![0u8; 11]),
+            ("a".to_string(), "n".to_string(), vec![0u8; 6]),
+            ("b".to_string(), "n".to_string(), vec![0u8; 6]),
+            ("c".to_string(), "n".to_string(), vec![0u8; 11]),
         ];
         let batches = seed_asset_batches_with(entries, 50, 10);
         // 6+6 would exceed 10, and 11 alone exceeds the cap -> three batches.
@@ -955,13 +1070,13 @@ mod tests {
     #[test]
     fn seed_asset_batches_packs_ascending_by_size() {
         let entries = vec![
-            ("big".to_string(), vec![0u8; 4]),
-            ("small".to_string(), vec![0u8; 1]),
-            ("mid".to_string(), vec![0u8; 2]),
+            ("big".to_string(), "n".to_string(), vec![0u8; 4]),
+            ("small".to_string(), "n".to_string(), vec![0u8; 1]),
+            ("mid".to_string(), "n".to_string(), vec![0u8; 2]),
         ];
         let batches = seed_asset_batches_with(entries, 50, 100);
         assert_eq!(batches.len(), 1);
-        let order: Vec<&str> = batches[0].iter().map(|(k, _)| k.as_str()).collect();
+        let order: Vec<&str> = batches[0].iter().map(|(k, _, _)| k.as_str()).collect();
         assert_eq!(order, vec!["small", "mid", "big"]);
     }
 

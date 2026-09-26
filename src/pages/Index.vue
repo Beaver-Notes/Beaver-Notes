@@ -1,5 +1,7 @@
 <template>
   <div>
+    <mobile-sync-strip v-if="isMobile" />
+
     <div class="container pt-6">
       <h1 class="text-4xl mb-6 font-bold">
         {{
@@ -181,6 +183,8 @@ import FolderCustomizeModal from '../components/home/FolderCustomizeModal.vue';
 import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
+import MobileSyncStrip from '../components/app/MobileSyncStrip.vue';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {
@@ -192,9 +196,11 @@ export default {
     FolderCustomizeModal,
     Actions,
     EmptyState,
+    MobileSyncStrip,
   },
   setup() {
     const { translations } = useTranslations();
+    const isMobile = isMobileRuntime();
     const highlightedFolderIds = ref(new Set());
     const route = useRoute();
     const router = useRouter();
@@ -399,6 +405,7 @@ export default {
       translations,
       folders,
       highlightedFolderIds,
+      isMobile,
       showCustomizeModal,
       customizeFolder,
       openCustomizeFor,

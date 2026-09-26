@@ -8,6 +8,15 @@ import {
 } from '@/lib/native/security';
 
 const SESSION_BLOB_KEY = 'beaverAccountSession';
+// Duo/dev isolation: two app instances on one machine share the WebKit
+// localStorage, so a fresh instance would resurrect the other instance's
+// session through the mirror fallback. VITE_DUO_SUFFIX namespaces the
+// mirror key per instance (secure blobs are already per-instance via
+// BEAVER_NOTES_DATA_DIR). Empty in prod: key unchanged.
+const SESSION_MIRROR_KEY =
+  SESSION_BLOB_KEY +
+  ((typeof import.meta !== 'undefined' && import.meta.env?.VITE_DUO_SUFFIX) ||
+    '');
 const DEVICE_BLOB_KEY = 'beaverAccountDeviceId';
 const PROFILE_BLOB_KEY = 'beaverAccountProfile';
 
@@ -48,7 +57,7 @@ export async function saveSessionToken(token) {
   // Always save to localStorage as backup
   try {
     const cipher = await encryptString(toBase64(token));
-    localStorage.setItem(SESSION_BLOB_KEY, cipher);
+    localStorage.setItem(SESSION_MIRROR_KEY, cipher);
   } catch {
     // Encryption failed: never persist plaintext backup.
   }
@@ -83,7 +92,7 @@ export async function loadSessionToken() {
       }
     }
     // Try localStorage with decryption
-    const cipher = localStorage.getItem(SESSION_BLOB_KEY);
+    const cipher = localStorage.getItem(SESSION_MIRROR_KEY);
     if (cipher) {
       try {
         const plain = await decryptString(cipher);
@@ -102,7 +111,7 @@ export async function loadSessionToken() {
 export async function clearSessionToken() {
   try {
     await clearSecureBlob(SESSION_BLOB_KEY);
-    localStorage.removeItem(SESSION_BLOB_KEY);
+    localStorage.removeItem(SESSION_MIRROR_KEY);
     localStorage.removeItem(SESSION_BLOB_KEY + '_plain');
   } catch (err) {
     console.error('[accountStorage] clearSessionToken failed:', err);

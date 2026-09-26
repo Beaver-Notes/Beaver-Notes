@@ -89,7 +89,6 @@ mod characterization {
             create_encryption_manifest, derive_items_key_from_params,
             derive_kek_argon2id_with_params, encrypt_bytes_with_key, KeyParams, PROTOCOL_VERSION,
         };
-        use base64::Engine;
 
         let passphrase = "test-passphrase";
         let (manifest, data_key, _) =
@@ -97,7 +96,8 @@ mod characterization {
 
         // Simulate a 128 MiB vault: derive a 128 MiB KEK and wrap the same key.
         let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
-        let kek_16mb = derive_kek_argon2id_with_params(passphrase, &salt, 128 * 1024, 3, 4).unwrap();
+        let kek_16mb =
+            derive_kek_argon2id_with_params(passphrase, &salt, 128 * 1024, 3, 4).unwrap();
         let wrapped_16mb = encrypt_bytes_with_key(&kek_16mb, &data_key).unwrap();
 
         let params = KeyParams {
@@ -301,7 +301,10 @@ mod vault_join {
         let raw = serde_json::to_string(&params).unwrap();
         let back: KeyParams = serde_json::from_str(&raw).unwrap();
         assert_eq!(back.wrapped_items_key.nonce, params.wrapped_items_key.nonce);
-        assert_eq!(back.wrapped_items_key.cipher, params.wrapped_items_key.cipher);
+        assert_eq!(
+            back.wrapped_items_key.cipher,
+            params.wrapped_items_key.cipher
+        );
         assert_eq!(back.salt_hex, params.salt_hex);
         let (joined, _) = derive_items_key_from_params(&back, PW).unwrap();
         let (direct, _) = derive_items_key_from_params(&params, PW).unwrap();

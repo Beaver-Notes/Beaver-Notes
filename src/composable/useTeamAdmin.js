@@ -8,7 +8,18 @@ import {
   memberLookup,
   changeMemberRole,
 } from '@/lib/api/admin';
-import { addMember as apiAddMember, removeMember as apiRemoveMember } from '@/lib/api/workspaces';
+import {
+  addMember as apiAddMember,
+  removeMember as apiRemoveMember,
+  listAllWorkspaceJoinRequests,
+  approveWorkspaceJoinRequest,
+  denyWorkspaceJoinRequest,
+} from '@/lib/api/workspaces';
+import {
+  listAllNoteJoinRequests,
+  approveNoteJoinRequest,
+  denyNoteJoinRequest,
+} from '@/lib/api/collaboration';
 
 export function useTeamAdmin(workspaceId) {
   const accountStore = useAccountStore();
@@ -27,6 +38,9 @@ export function useTeamAdmin(workspaceId) {
   const devices = ref([]);
   const sessions = ref([]);
   const auditLogs = ref([]);
+  // Pending require-approval join requests the caller can act on, from both
+  // workspace links (`type: 'workspace'`) and note links (`type: 'note'`).
+  const joinRequests = ref([]);
   const loading = ref(false);
   const error = ref('');
 
@@ -99,10 +113,10 @@ export function useTeamAdmin(workspaceId) {
     // The add-member endpoint provisions a token invite the invitee accepts via
     // `beaver-notes://join/<token>` (see the backend invite/join flow). The
     // workspace key envelope for the new member is NOT wrapped client-side here:
-    // `POST /workspaces/:id/members` accepts no wrapped key/recipients and
-    // `member-lookup` returns only `hasKemPublicKey`, not the target's public
-    // key, so the workspace key cannot be re-wrapped for the invitee. Wrapping
-    // for the target is deferred to the backend invite/join key handoff.
+    // `POST /workspaces/:id/members` accepts no wrapped key/recipients, so there
+    // is no target device set yet. Once the invitee joins, a key-holding member's
+    // next workspace fetch re-wraps for every device `/workspaces/:id/public-keys`
+    // reports `hasEnvelope: false` (see autoProvisionPendingKeys).
     return apiAddMember(resolveWorkspaceId(), identifier, role, { baseUrl: activeBaseUrl() });
   }
 
@@ -134,6 +148,54 @@ export function useTeamAdmin(workspaceId) {
     }
   }
 
+  async function loadJoinRequests() {
+    error.value = '';
+    try {
+      const [workspaceRequests, noteRequests] = await Promise.all([
+        listAllWorkspaceJoinRequests({ baseUrl: activeBaseUrl() }),
+        listAllNoteJoinRequests({ baseUrl: activeBaseUrl() }),
+      ]);
+      joinRequests.value = [
+        ...workspaceRequests.map((r) => ({ ...r, type: 'workspace' })),
+        ...noteRequests.map((r) => ({ ...r, type: 'note' })),
+      ];
+    } catch (err) {
+      error.value = err?.message || 'Failed to load join requests';
+      throw err;
+    }
+  }
+
+  async function approveJoinRequest(request) {
+    error.value = '';
+    try {
+      if (request.type === 'note') {
+        await approveNoteJoinRequest(request.id, { baseUrl: activeBaseUrl() });
+      } else {
+        await approveWorkspaceJoinRequest(request.id, { baseUrl: activeBaseUrl() });
+        await loadMembers();
+      }
+      joinRequests.value = joinRequests.value.filter((r) => r.id !== request.id);
+    } catch (err) {
+      error.value = err?.message || 'Failed to approve request';
+      throw err;
+    }
+  }
+
+  async function denyJoinRequest(request) {
+    error.value = '';
+    try {
+      if (request.type === 'note') {
+        await denyNoteJoinRequest(request.id, { baseUrl: activeBaseUrl() });
+      } else {
+        await denyWorkspaceJoinRequest(request.id, { baseUrl: activeBaseUrl() });
+      }
+      joinRequests.value = joinRequests.value.filter((r) => r.id !== request.id);
+    } catch (err) {
+      error.value = err?.message || 'Failed to deny request';
+      throw err;
+    }
+  }
+
   async function removeMember(userId) {
     error.value = '';
     try {
@@ -161,11 +223,15 @@ export function useTeamAdmin(workspaceId) {
     devices,
     sessions,
     auditLogs,
+    joinRequests,
     loading,
     error,
     loadMembers,
     loadDevices,
     loadAudit,
+    loadJoinRequests,
+    approveJoinRequest,
+    denyJoinRequest,
     addMemberByEmail,
     generateInviteLink,
     changeRole,

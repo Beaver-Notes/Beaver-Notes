@@ -96,6 +96,27 @@
               p.label
             }}</ui-checkbox>
           </div>
+          <div
+            v-if="state.type === 'select'"
+            class="w-full flex flex-col gap-2"
+          >
+            <ui-checkbox
+              :model-value="allSelected"
+              @update:model-value="toggleAll"
+            >
+              {{ state.options.allLabel || 'All' }}
+            </ui-checkbox>
+            <div class="w-full flex flex-col gap-2 max-h-60 overflow-auto">
+              <ui-checkbox
+                v-for="choice in state.options.choices"
+                :key="choice.value"
+                :model-value="state.selections.includes(choice.value)"
+                @update:model-value="(checked) => toggleChoice(choice.value, checked)"
+              >
+                {{ choice.label }}
+              </ui-checkbox>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -127,7 +148,7 @@
 </template>
 
 <script>
-import { reactive, watch, ref } from 'vue';
+import { reactive, watch, ref, computed } from 'vue';
 import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 
@@ -144,6 +165,9 @@ const defaultOptions = {
   onConfirm: null,
   onCancel: null,
   icon: '',
+  choices: [],
+  defaultValues: null,
+  allLabel: '',
 };
 
 export default {
@@ -154,6 +178,7 @@ export default {
       input: '',
       options: defaultOptions,
       reentered: false,
+      selections: [],
     });
 
     const isEmpty = ref(false);
@@ -166,6 +191,9 @@ export default {
         ...options,
       };
 
+      state.selections = Array.isArray(state.options.defaultValues)
+        ? [...state.options.defaultValues]
+        : (state.options.choices || []).map((choice) => choice.value);
       state.input = options.defaultValue ?? '';
       state.show = true;
       // A new show-dialog emit while a callback runs means a nested dialog
@@ -183,6 +211,8 @@ export default {
           ? {
               name: state.input,
             }
+          : state.type === 'select'
+          ? [...state.selections]
           : true;
       let hide = true;
 
@@ -229,6 +259,25 @@ export default {
       }
     }
 
+    const allSelected = computed(
+      () =>
+        state.options.choices.length > 0 &&
+        state.selections.length === state.options.choices.length
+    );
+
+    function toggleChoice(value, checked) {
+      const selected = new Set(state.selections);
+      if (checked) selected.add(value);
+      else selected.delete(value);
+      state.selections = [...selected];
+    }
+
+    function toggleAll(checked) {
+      state.selections = checked
+        ? state.options.choices.map((choice) => choice.value)
+        : [];
+    }
+
     watch(
       () => state.show,
       (value) => {
@@ -245,6 +294,9 @@ export default {
       fireCallback,
       isEmpty,
       translations,
+      allSelected,
+      toggleChoice,
+      toggleAll,
     };
   },
 };

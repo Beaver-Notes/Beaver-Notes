@@ -13,6 +13,34 @@ export const PAID_PLANS = Object.freeze([
   PLAN_NAMES.ENTERPRISE,
 ]);
 
+// Single source of truth for user-facing plan labels. Plan ids stay stable in
+// PLAN_NAMES; the entry tier (`starter`) is marketed as "Basic".
+export const PLAN_LABELS = Object.freeze({
+  [PLAN_NAMES.FREE]: 'Free',
+  [PLAN_NAMES.STARTER]: 'Basic',
+  [PLAN_NAMES.PRO]: 'Pro',
+  [PLAN_NAMES.TEAM]: 'Team',
+  [PLAN_NAMES.ENTERPRISE]: 'Enterprise',
+});
+
+export function planLabel(plan) {
+  return PLAN_LABELS[plan] || PLAN_LABELS[PLAN_NAMES.FREE];
+}
+
+// Compact differentiators shown on the plan chooser. Kept here next to the
+// labels so the copy stays in one place; the limits themselves live server-side.
+export const PLAN_FEATURES = Object.freeze({
+  [PLAN_NAMES.FREE]: 'Local notes',
+  [PLAN_NAMES.STARTER]: 'Cloud sync · Basic history',
+  [PLAN_NAMES.PRO]: 'Cloud sync · Extended history',
+  [PLAN_NAMES.TEAM]: 'Team dashboard · Pooled storage · Unlimited history',
+  [PLAN_NAMES.ENTERPRISE]: 'Team dashboard · Unlimited history · SSO & audit',
+});
+
+export function planFeatures(plan) {
+  return PLAN_FEATURES[plan] || PLAN_FEATURES[PLAN_NAMES.FREE];
+}
+
 export const SYNC_TRANSPORT = Object.freeze({
   FOLDER: 'folder',
   REMOTE: 'remote',
@@ -231,6 +259,7 @@ export function normalizeWorkspace(raw) {
     storageUsedBytes: Number(raw.storageUsedBytes) || 0,
     createdAt: raw.createdAt || null,
     wrappedKey: raw.wrappedKey || null,
+    wrappedKeys: Array.isArray(raw.wrappedKeys) && raw.wrappedKeys.length ? raw.wrappedKeys : null,
     vaultWrappedKeys: raw.vaultWrappedKeys || null,
     nameEncrypted: raw.nameEncrypted || null,
     orgId: raw.orgId || null,

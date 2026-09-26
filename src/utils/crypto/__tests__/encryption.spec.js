@@ -20,6 +20,8 @@ vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
 
 vi.mock('@/utils/sync/vault-key-params.js', () => ({
   fetchCloudKeyParams: vi.fn(() => Promise.resolve(null)),
+  cloudKeyParamsAbsent: vi.fn(() => false),
+  publishCloudKeyParams: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock('@/lib/tauri/scoped-storage.js', () => ({
@@ -54,7 +56,11 @@ import {
 import { adoptKeyParams, hasRemoteKeyParams, getEncryptionState, submitEncryptionPassword } from '@/lib/native/security.js';
 import { getSettingSync } from '@/lib/settings';
 import { getSyncPath } from '@/utils/sync/path.js';
-import { fetchCloudKeyParams } from '@/utils/sync/vault-key-params.js';
+import {
+  fetchCloudKeyParams,
+  cloudKeyParamsAbsent,
+  publishCloudKeyParams,
+} from '@/utils/sync/vault-key-params.js';
 
 describe('adoptVaultKey', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -101,23 +107,38 @@ describe('hasRemoteVaultKeyParams', () => {
 });
 
 describe('cloud key params on encryption lifecycle', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cloudKeyParamsAbsent.mockReturnValue(false);
+  });
 
   // setup/verify must fetch server params (so reconcile adopts the vault
-  // owner's keys) but NEVER publish: publishing here could overwrite the
+  // owner's keys). Publishing only happens after a clean 404 (server
+  // confirmed it has no params): anything else could overwrite the vault
   // owner's keys with this device's fresh key.
-  it('fetches server key params and does not auto-publish after setupEncryption', async () => {
+  it('fetches server key params and does not publish after setupEncryption when the fetch was inconclusive', async () => {
     submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });
     const res = await setupEncryption('a-passphrase');
     expect(res.ok).toBe(true);
     await vi.waitFor(() => expect(fetchCloudKeyParams).toHaveBeenCalled());
+    expect(publishCloudKeyParams).not.toHaveBeenCalled();
   });
 
-  it('fetches server key params and does not auto-publish after verifyPassphrase', async () => {
+  it('publishes after setupEncryption only when the server confirmed no params exist (clean 404)', async () => {
     submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });
+    cloudKeyParamsAbsent.mockReturnValue(true);
+    const res = await setupEncryption('a-passphrase');
+    expect(res.ok).toBe(true);
+    await vi.waitFor(() => expect(publishCloudKeyParams).toHaveBeenCalled());
+  });
+
+  it('fetches server key params and never publishes after verifyPassphrase', async () => {
+    submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });
+    cloudKeyParamsAbsent.mockReturnValue(true);
     const res = await verifyPassphrase('a-passphrase');
     expect(res.ok).toBe(true);
     await vi.waitFor(() => expect(fetchCloudKeyParams).toHaveBeenCalled());
+    expect(publishCloudKeyParams).not.toHaveBeenCalled();
   });
 });
 

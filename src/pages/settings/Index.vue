@@ -199,7 +199,7 @@
             :disabled="encryptionBusy"
             @click="changeEncryptionPassphrase"
             >{{
-              translations.settings.changePassphrase || 'Change Passphrase'
+              translations.settings.changePassphrase || 'Change vault key'
             }}</ui-button
           >
           <details>
@@ -215,7 +215,8 @@
                 :disabled="encryptionBusy || !keyLoaded"
                 @click="showRecoveryCode"
                 >{{
-                  translations.settings.showRecoveryCode || 'Recovery code'
+                  translations.settings.showRecoveryCode ||
+                  'Vault recovery code'
                 }}</ui-button
               >
             </div>
@@ -226,6 +227,7 @@
 
     <!-- Sync & Backup (merged Data) -->
     <settings-group
+      id="settings-sync"
       :title="translations.settings.dataSecurity || 'Sync & Backup'"
     >
       <div class="flex flex-col gap-3 px-4 py-3.5">
@@ -275,17 +277,14 @@
           <div
             v-for="opt in cloudSync.options"
             :key="opt.value"
-            class="flex items-center gap-3 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors"
+            class="flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors"
             :class="[
               cloudSync.transport.transport.value === opt.value
                 ? 'border-primary bg-primary/5'
                 : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600',
-              (opt.value !== SYNC_TRANSPORT.FOLDER && !cloudSync.isPaid) ||
-              (opt.value !== SYNC_TRANSPORT.REMOTE && !state.syncPath)
-                ? 'opacity-50 pointer-events-none'
-                : '',
+              isTransportDisabled(opt) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
             ]"
-            @click="cloudSync.selectTransport(opt.value)"
+            @click="!isTransportDisabled(opt) && cloudSync.selectTransport(opt.value)"
           >
             <div
               class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
@@ -306,6 +305,17 @@
               <p class="text-xs text-neutral-500 dark:text-neutral-400">
                 {{ opt.description }}
               </p>
+              <p
+                v-if="transportRequirement(opt)"
+                class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ transportRequirement(opt).text }} —
+                <button
+                  type="button"
+                  class="font-medium text-primary hover:underline"
+                  @click.stop="transportRequirement(opt).onClick()"
+                >{{ transportRequirement(opt).action }}</button>
+              </p>
             </div>
             <div
               v-if="cloudSync.transport.transport.value === opt.value"
@@ -319,18 +329,50 @@
 
       <div
         v-if="syncProgressStore.attention?.tone === 'action'"
-        class="mx-4 mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm flex items-center justify-between gap-2"
+        class="mx-4 mb-3 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm"
         role="alert"
       >
-        <span>{{ syncProgressStore.attention.text }}</span>
-        <button
-          class="shrink-0 opacity-70 hover:opacity-100"
-          :aria-label="translations.app?.dismiss || 'Dismiss'"
-          @click="syncProgressStore.dismissError()"
-        >
-          <v-remixicon name="riCloseLine" size="16" />
-        </button>
+        <div class="flex items-center justify-between gap-2">
+          <span>{{ syncProgressStore.attention.text }}</span>
+          <button
+            class="shrink-0 opacity-70 hover:opacity-100"
+            :aria-label="translations.app?.dismiss || 'Dismiss'"
+            @click="syncProgressStore.dismissError()"
+          >
+            <v-remixicon name="riCloseLine" size="16" />
+          </button>
+        </div>
+        <div class="mt-1.5 flex flex-wrap items-center gap-2">
+          <ui-button
+            v-if="attentionPrimary"
+            size="sm"
+            @click="attentionPrimary.onClick()"
+          >
+            {{ attentionPrimary.label }}
+          </ui-button>
+          <details v-if="syncProgressStore.attention.detail" class="text-xs">
+            <summary class="cursor-pointer opacity-80 hover:opacity-100">
+              {{ translations.settings?.details || 'Details' }}
+            </summary>
+            <p class="mt-1 break-words font-mono text-[11px] opacity-90">
+              {{ syncProgressStore.attention.detail }}
+            </p>
+            <button
+              type="button"
+              class="mt-1 underline opacity-80 hover:opacity-100"
+              @click="copyLogPath"
+            >
+              {{
+                logCopied
+                  ? translations.settings?.logPathCopied || 'Log path copied'
+                  : translations.settings?.copyLogPath || 'Copy log path'
+              }}
+            </button>
+          </details>
+        </div>
       </div>
+
+      <sync-provisioning-notice />
 
       <div
         v-if="state.syncPath || (cloudSync.isAuthenticated && cloudSync.isPaid)"
@@ -644,7 +686,8 @@
 </template>
 
 <script>
-import { computed, onMounted, ref, reactive } from 'vue';
+import { computed, onMounted, ref, reactive, nextTick, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/lib/dialog';
 import { useNoteStore } from '@/store/note';
@@ -652,8 +695,10 @@ import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/lib/storage';
 import { useAccountStore } from '@/store/account';
 import { useSyncProgressStore } from '@/store/sync-progress';
+import { useSyncControl } from '@/composable/useSyncControl';
 import { useSettingsData } from '@/composable/useSettingsData';
-import { useSettingsCloudSync } from '@/utils/sync/settings-cloud-sync';
+import { whatUnlocksWhat } from '@/utils/i18n/secrets.js';
+import { useSettingsCloudSync, transportRequirement as transportRequirementBase } from '@/utils/sync/settings-cloud-sync';
 import { useImportExport } from '@/utils/import/import-export';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync.js';
@@ -662,7 +707,6 @@ import { getAccount } from '@/lib/api/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 import { clipboard } from '@/lib/tauri-bridge';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
-import { kickRustSync } from '@/utils/sync/rust-shim.js';
 import {
   isKeyLoaded,
   setupEncryption,
@@ -671,9 +715,10 @@ import {
 } from '@/utils/crypto/encryption.js';
 import SettingsGroup from '@/components/settings/SettingsGroup.vue';
 import SettingsRow from '@/components/settings/SettingsRow.vue';
+import SyncProvisioningNotice from '@/components/settings/SyncProvisioningNotice.vue';
 
 export default {
-  components: { SettingsGroup, SettingsRow },
+  components: { SettingsGroup, SettingsRow, SyncProvisioningNotice },
   setup() {
     const isDebugMode = import.meta.env.DEV;
     const { translations } = useTranslations();
@@ -693,31 +738,85 @@ export default {
       translations,
     });
     const syncProgressStore = useSyncProgressStore();
+    const { lastSyncAt, lastSyncLabel, syncNow: onSyncNow } = useSyncControl();
     const cloudSync = useSettingsCloudSync();
     const isMacOS = computed(() => isMacOSRuntime());
+    const route = useRoute();
+    const router = useRouter();
 
-    const lastSyncAt = ref(Number(localStorage.getItem('sync:lastRunAt') || 0));
-    const lastSyncLabel = computed(() => {
-      if (!lastSyncAt.value)
-        return translations.value.settings?.neverSynced || 'Never synced yet';
-      const secs = Math.floor((Date.now() - lastSyncAt.value) / 1000);
-      if (secs < 60)
-        return translations.value.settings?.syncedJustNow || 'Synced just now';
-      if (secs < 3600) {
-        const min = Math.floor(secs / 60);
-        return `${translations.value.settings?.syncedMinAgo || 'Synced {n} min ago'}`.replace(
-          '{n}',
-          String(min),
+    const logCopied = ref(false);
+    async function copyLogPath() {
+      try {
+        const path = await backend.invoke('log_file_path');
+        await navigator.clipboard.writeText(
+          path || 'Log file not initialized yet',
         );
+        logCopied.value = true;
+        setTimeout(() => {
+          logCopied.value = false;
+        }, 2000);
+      } catch {
+        logCopied.value = false;
       }
-      return new Date(lastSyncAt.value).toLocaleString();
-    });
-    function onSyncNow() {
-      if (syncProgressStore.isSyncing) return;
-      if (!kickRustSync()) return;
-      lastSyncAt.value = Date.now();
-      localStorage.setItem('sync:lastRunAt', String(lastSyncAt.value));
     }
+
+    function focusPassphrasePrompt() {
+      document
+        .querySelector('#app-encryption-gate-passphrase input')
+        ?.focus();
+    }
+
+    // A greyed-out transport option confuses: say what is missing and offer the
+    // one action that fixes it, right on the row.
+    function isTransportDisabled(opt) {
+      return (
+        (opt.value !== SYNC_TRANSPORT.FOLDER && !cloudSync.isPaid) ||
+        (opt.value !== SYNC_TRANSPORT.REMOTE && !dataSettings.state.syncPath)
+      );
+    }
+    function transportRequirement(opt) {
+      const unmet = transportRequirementBase(opt, {
+        isPaid: cloudSync.isPaid,
+        hasSyncPath: dataSettings.state.syncPath,
+      });
+      if (!unmet) return null;
+      return {
+        ...unmet,
+        onClick:
+          unmet.kind === 'plan'
+            ? () => router.push('/settings/account')
+            : dataSettings.chooseDefaultPath,
+      };
+    }
+
+    const attentionPrimary = computed(() => {
+      const status = syncProgressStore.attention?.status;
+      if (status === 'plan-upgrade-required')
+        return { label: 'Upgrade', onClick: () => router.push('/settings/account') };
+      if (status === 'authorization-failed')
+        return {
+          label: 'Sign in again',
+          onClick: () => router.push('/settings/account'),
+        };
+      if (status === 'unlock-required')
+        return { label: 'Unlock', onClick: focusPassphrasePrompt };
+      if (status === 'decrypt-failed' || status === 'workspace-reset')
+        return { label: 'Get support', onClick: copyLogPath };
+      if (status === 'sync-failed')
+        return { label: 'Retry sync', onClick: onSyncNow };
+      return null;
+    });
+
+    function scrollToSyncSection() {
+      if (route.query.section !== 'sync') return;
+      nextTick(() => {
+        document
+          .getElementById('settings-sync')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+    onMounted(scrollToSyncSection);
+    watch(() => route.query.section, scrollToSyncSection);
 
     onMounted(() => {
       if (accountStore.isAuthenticated && !accountStore.subscription) {
@@ -871,62 +970,61 @@ export default {
       encryptionError.value = '';
       dialog.prompt({
         title:
-          translations.value.settings.changePassphrase ||
-          'Change Encryption Passphrase',
+          translations.value.settings.changePassphrase || 'Change vault key',
         body:
           translations.value.settings.changePassphraseDesc ||
-          'Enter your current passphrase to change it. The encryption key will be re-wrapped. Your notes stay as they are.',
+          'Enter your current vault key to change it. Your notes stay as they are.',
         icon: 'riLockLine',
         okText: translations.value.settings.next || 'Next',
         cancelText: translations.value.settings.cancel || 'Cancel',
         placeholder:
-          translations.value.settings.currentPassphrase || 'Current passphrase',
+          translations.value.settings.currentPassphrase || 'Current vault key',
         password: true,
         onConfirm: async (currentPass) => {
           if (!currentPass) return;
           try {
             const result = await verifyPassphrase(currentPass);
             if (!result.ok) {
-              encryptionError.value = result.error || 'Incorrect passphrase.';
+              encryptionError.value = result.error || 'Incorrect vault key.';
               return;
             }
             dialog.prompt({
               title:
                 translations.value.settings.enterNewPassphrase ||
-                'Enter New Passphrase',
+                'Enter new vault key',
               body:
                 translations.value.settings.newPassphraseDesc ||
-                'Choose a new passphrase. This will re-wrap your encryption key.',
+                'Choose a new vault key.',
               icon: 'riLockLine',
               okText:
-                translations.value.settings.setPassword || 'Set passphrase',
+                translations.value.settings.setPassword || 'Set vault key',
               cancelText: translations.value.settings.cancel || 'Cancel',
               placeholder:
-                translations.value.settings.newPassphrase || 'New passphrase',
+                translations.value.settings.newPassphrase || 'New vault key',
               password: true,
               onConfirm: async (newPass) => {
                 if (!newPass) return;
                 if (newPass.length < 8) {
                   encryptionError.value =
                     translations.value.settings.passwordTooShort ||
-                    'Passphrase must be at least 8 characters.';
+                    'Vault key must be at least 8 characters.';
                   return;
                 }
                 dialog.prompt({
                   title:
                     translations.value.settings.confirmPassphrase ||
-                    'Confirm Passphrase',
+                    'Confirm vault key',
                   icon: 'riLockLine',
                   okText:
-                    translations.value.settings.setPassword || 'Set passphrase',
+                    translations.value.settings.setPassword || 'Set vault key',
                   cancelText: translations.value.settings.cancel || 'Cancel',
                   placeholder:
                     translations.value.settings.confirmPassphrasePlaceholder ||
-                    'Confirm passphrase',
+                    'Confirm vault key',
                   password: true,
                   onConfirm: async (confirmPass) => {
                     if (newPass !== confirmPass) {
-                      encryptionError.value = 'Passphrases do not match.';
+                      encryptionError.value = 'Vault keys do not match.';
                       return;
                     }
                     try {
@@ -934,17 +1032,17 @@ export default {
                       const setupResult = await setupEncryption(newPass);
                       if (!setupResult.ok) {
                         encryptionError.value =
-                          setupResult.error || 'Failed to change passphrase.';
+                          setupResult.error || 'Failed to change the vault key.';
                         return;
                       }
                       encryptionError.value = '';
                       dialog.alert({
                         title:
                           translations.value.settings.passphraseChanged ||
-                          'Passphrase Changed',
+                          'Vault key changed',
                         body:
                           translations.value.settings.passphraseChangedDesc ||
-                          'Your encryption passphrase has been updated.',
+                          'Your vault key has been updated.',
                         okText: translations.value.dialog?.close || 'Close',
                       });
                     } catch (e) {
@@ -965,21 +1063,21 @@ export default {
     async function showRecoveryCode() {
       const t = translations.value;
       dialog.prompt({
-        title: t.settings.confirmPassphrase || 'Confirm Passphrase',
+        title: t.settings.confirmPassphrase || 'Confirm vault key',
         body:
           t.settings.recoveryCodeConfirm ||
-          'Enter your passphrase to reveal the recovery code.',
+          'Enter your vault key to reveal the vault recovery code.',
         icon: 'riLockLine',
         okText: t.settings.next || 'Next',
         cancelText: t.settings.cancel || 'Cancel',
         password: true,
-        onConfirm: async (passphrase) => {
-          if (!passphrase) return;
-          const result = await verifyPassphrase(passphrase);
+        onConfirm: async (vaultKey) => {
+          if (!vaultKey) return;
+          const result = await verifyPassphrase(vaultKey);
           if (!result.ok) {
             dialog.alert({
               title: t.settings.alertTitle || 'Alert',
-              body: result.error || 'Incorrect passphrase.',
+              body: result.error || 'Incorrect vault key.',
               okText: t.dialog?.close || 'Close',
             });
             return;
@@ -991,17 +1089,19 @@ export default {
                 title: t.settings.alertTitle || 'Alert',
                 body:
                   t.settings.recoveryCodeError ||
-                  'Failed to generate recovery code.',
+                  'Failed to generate the vault recovery code.',
                 okText: t.dialog?.close || 'Close',
               });
               return;
             }
             dialog.alert({
-              title: t.settings.recoveryCode || 'Recovery Code',
+              title: t.settings.recoveryCode || 'Vault recovery code',
               body:
                 (t.settings.recoveryCodeBody ||
-                  'Store this code somewhere safe. It can unlock the app if you forget your passphrase.\n\n') +
-                code,
+                  'Store this code somewhere safe. It can restore your notes if you forget the vault key.\n\n') +
+                code +
+                '\n\n' +
+                whatUnlocksWhat(t),
               okText: t.dialog?.close || 'Close',
             });
           } catch (e) {
@@ -1042,6 +1142,8 @@ export default {
       syncProgressStore,
       cloudSync,
       SYNC_TRANSPORT,
+      isTransportDisabled,
+      transportRequirement,
       exportOptions,
       showExportModal,
       selectedExportKey,
@@ -1064,6 +1166,9 @@ export default {
       lastSyncAt,
       lastSyncLabel,
       onSyncNow,
+      logCopied,
+      copyLogPath,
+      attentionPrimary,
       keyLoaded,
       encryptionBusy,
       encryptionProgress,

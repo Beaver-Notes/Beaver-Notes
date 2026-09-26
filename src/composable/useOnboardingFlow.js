@@ -17,6 +17,8 @@ import {
   setSetting,
 } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
+import { useDialog } from '@/lib/dialog';
+import { localNoteCount } from '@/utils/notes/local-note-count.js';
 import {
   applyOnboardingSyncPreferences,
   getOnboardingMigrationStatus,
@@ -39,7 +41,10 @@ import {
   setDeclinedVaultJoin,
 } from '@/utils/crypto/encryption.js';
 import { logger } from '@/utils/logger';
-import { getOnboardingSyncTransport } from '@/utils/onboarding/sync-policy.js';
+import {
+  getOnboardingSyncLocation,
+  getOnboardingSyncTransport,
+} from '@/utils/onboarding/sync-policy.js';
 import { setSyncPath } from '@/utils/sync/path.js';
 import { kickRustSync } from '@/utils/sync/rust-shim.js';
 import {
@@ -197,13 +202,36 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     }
   }
 
-  async function adoptVaultPassword() {
+  const dialog = useDialog();
+  const vaultJoinConfirmed = ref(false);
+
+  function adoptVaultPassword() {
+    const count = localNoteCount();
+    if (count > 0 && !vaultJoinConfirmed.value) {
+      const t = translations.value;
+      dialog.confirm({
+        title: t?.account?.vaultDetected || 'Vault detected',
+        body: `Joining this vault merges this device's notes into it: ${count} local note(s) are re-encrypted with the vault key and kept. A backup is saved first.`,
+        icon: 'riShieldKeyholeLine',
+        okText: t?.common?.continue || 'Continue',
+        cancelText: t?.dialog?.cancel || 'Cancel',
+        onConfirm: () => {
+          vaultJoinConfirmed.value = true;
+          performVaultJoin();
+        },
+      });
+      return;
+    }
+    return performVaultJoin();
+  }
+
+  async function performVaultJoin() {
     encryptionPasswordError.value = '';
     const t = translations.value;
     const pw = encryptionPassword.value;
     if (!pw) {
       encryptionPasswordError.value =
-        t?.settings?.invalidPassword || 'Please enter the vault password.';
+        t?.settings?.invalidPassword || 'Please enter the vault key.';
       return;
     }
     encryptionPasswordLoading.value = true;
@@ -283,6 +311,22 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     encryptionPasswordError.value = '';
   }
 
+  // Starting fresh is destructive to this device's link to the existing vault,
+  // so ask first and spell out what happens to the vault that stays behind.
+  function confirmStartFreshVault() {
+    const t = translations.value;
+    dialog.confirm({
+      title: t?.onboarding?.startFreshTitle || 'Start a new vault?',
+      body:
+        t?.onboarding?.startFreshBody ||
+        'A new vault key is created for this device. Your existing vault stays as it is, so notes shared under the old vault will not be readable here.',
+      icon: 'riShieldKeyholeLine',
+      okText: t?.onboarding?.startFresh || 'Start fresh',
+      cancelText: t?.dialog?.cancel || 'Cancel',
+      onConfirm: () => startFreshVault(),
+    });
+  }
+
   async function setupEncryptionPassword() {
     encryptionPasswordError.value = '';
     const t = translations.value;
@@ -338,6 +382,20 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   const showPlansStep = computed(
     () => accountStore.isAuthenticated && !accountStore.isPaidPlan,
   );
+
+  // One honest line about where notes will live, derived from the exact policy
+  // that sets `syncTransport` in completeAccountStep. Inform, don't ask.
+  const syncLocationCopy = computed(() => {
+    const t = translations.value;
+    return getOnboardingSyncLocation({
+      isAuthenticated: accountStore.isAuthenticated,
+      isPaidPlan: accountStore.isPaidPlan,
+    }) === 'cloud'
+      ? t?.onboarding?.syncLocationCloud ||
+          'Syncing to Beaver Cloud — end-to-end encrypted.'
+      : t?.onboarding?.syncLocationLocal ||
+          'Local only — turn on sync in Settings.';
+  });
 
   const activeFlow = computed(() => {
     const flow = [
@@ -1115,6 +1173,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     goToPreviousStep,
     goToNextStep,
     completeAccountStep,
+    syncLocationCopy,
     handlePrimaryContinue,
     skipImport,
     backToPick,
@@ -1139,6 +1198,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     detectVaultJoin,
     adoptVaultPassword,
     startFreshVault,
+    confirmStartFreshVault,
 
     trackedSteps,
     showStepProgress,

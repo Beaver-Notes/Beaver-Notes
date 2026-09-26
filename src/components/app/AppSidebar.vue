@@ -587,7 +587,7 @@ export default {
     }
 
     function openSyncSettings() {
-      router.push('/settings');
+      router.push({ path: '/settings', query: { section: 'sync' } });
     }
 
     const recentItems = computed(() => {

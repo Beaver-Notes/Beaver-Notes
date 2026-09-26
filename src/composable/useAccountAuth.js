@@ -175,6 +175,14 @@ export function useAccountAuth() {
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
     await fetchProfile();
+    // Re-arm realtime: a prior sign-out called `stop()`, which dropped every
+    // provider. Without this, rooms stay dead until an app restart (L7).
+    try {
+      const { getWsSync } = await import('@/lib/sync/ws-sync.js');
+      getWsSync().start();
+    } catch (err) {
+      console.warn('[auth] ws re-arm failed:', err?.message || err);
+    }
     // E2E identity: ensure a keypair exists and the server knows its public key
     try {
       const identity = await loadOrCreateIdentity();
@@ -320,18 +328,73 @@ export function useAccountAuth() {
     }
   }
 
+  // Tear down everything owned by the signed-in account so the next account
+  // cannot read or write the previous account's doc, store, or live rooms.
+  async function teardownLocalAccountState() {
+    // Persist buffered per-note Yjs deltas first: an edit inside the 300ms/2s
+    // debounce window would otherwise be dropped when the store/doc are cleared.
+    try {
+      const { flushAllNoteYjsPending } = await import('@/composable/useNoteYjs.js');
+      await flushAllNoteYjsPending();
+    } catch (err) {
+      console.warn('[auth] note delta flush failed:', err);
+    }
+
+    // Stop realtime providers first: no further remote updates land on a doc
+    // that is about to be destroyed. Also clears room keys / unwrapped cache.
+    try {
+      const { getWsSync } = await import('@/lib/sync/ws-sync.js');
+      getWsSync().stop();
+    } catch (err) {
+      console.warn('[auth] ws teardown failed:', err);
+    }
+
+    // Flush buffered meta writes before destroying the workspace doc singleton.
+    try {
+      const [{ flushPendingMetaUpdates }, { destroyWorkspaceDoc }] =
+        await Promise.all([
+          import('@/lib/yjs/workspace-doc.js'),
+          import('@/lib/yjs/meta-doc.js'),
+        ]);
+      await flushPendingMetaUpdates();
+      destroyWorkspaceDoc();
+    } catch (err) {
+      console.warn('[auth] workspace doc teardown failed:', err);
+    }
+
+    // Drop the previous account's notes from the in-memory store; the next
+    // account hydrates its own from the workspace doc.
+    try {
+      const { useNoteStore } = await import('@/store/note');
+      const noteStore = useNoteStore();
+      noteStore.data = {};
+      noteStore.syncInProgress = false;
+    } catch (err) {
+      console.warn('[auth] note store teardown failed:', err);
+    }
+
+    // Drop the previous account's search index so search can't surface it.
+    try {
+      const { clearSearchIndex } = await import('@/utils/note/search.js');
+      clearSearchIndex();
+    } catch (err) {
+      console.warn('[auth] search index teardown failed:', err);
+    }
+  }
+
   async function signOut() {
     try {
       await authApi.logout({ baseUrl: activeBaseUrl() });
     } catch (err) {
       console.warn('[auth] logout server call failed:', err);
     }
-    await clearAllAccountStorage();
-    resetApiClient();
     try {
       const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
       await stopRustSync();
     } catch {}
+    await teardownLocalAccountState();
+    await clearAllAccountStorage();
+    resetApiClient();
     setStatus('anonymous');
     accountStore.setToken(null);
     accountStore.setProfile(null);
@@ -398,6 +461,11 @@ export function useAccountAuth() {
     accountStore.setBusy(true);
     try {
       await accountApi.deleteAccount(password, { baseUrl: activeBaseUrl() });
+      try {
+        const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
+        await stopRustSync();
+      } catch {}
+      await teardownLocalAccountState();
       await clearAllAccountStorage();
       resetApiClient();
       accountStore.removeAccount(accountStore.activeAccountId);

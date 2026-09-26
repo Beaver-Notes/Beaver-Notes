@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const noteKeyCtl = vi.hoisted(() => ({ key: null }));
+
+vi.mock('@/composable/useNoteSharing', () => ({
+  useNoteSharing: () => ({ ensureNoteKey: async () => noteKeyCtl.key }),
+}));
+
 vi.mock('@/lib/api/client', () => ({
   getApiClient: vi.fn(() => ({
     get: vi.fn(),
@@ -18,11 +24,13 @@ vi.mock('@/utils/sync/crypto', () => ({
   }),
   decryptJSON: vi.fn(async (raw) => {
     if (typeof raw === 'string') {
-      return { content: '<p>Envelope snapshot</p>', title: 'Envelope Note' };
-    }
-    if (raw?.cipher) {
-      const bytes = Uint8Array.from(atob(raw.cipher), (c) => c.charCodeAt(0));
-      return { noteId: 'test-note', ts: 1000, update: bytes };
+      return {
+        noteId: 'note-abc',
+        ts: 1000,
+        update: new TextEncoder().encode(
+          JSON.stringify({ content: '<p>Envelope snapshot</p>', title: 'Envelope Note' })
+        ),
+      };
     }
     return raw;
   }),
@@ -31,6 +39,7 @@ vi.mock('@/utils/sync/crypto', () => ({
 describe('history API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    noteKeyCtl.key = null;
   });
 
   it('createCommit encrypts and POSTs to /commits', async () => {
@@ -52,20 +61,20 @@ describe('history API', () => {
     expect(opts.headers['X-Note-Id']).toBe('note-abc');
   });
 
-  it('getCommitSnapshot decrypts the server response', async () => {
+  it('getCommitSnapshot decrypts the server response and binds noteId as AAD', async () => {
     const { getCommitSnapshot } = await import('@/lib/api/history');
     const { getApiClient } = await import('@/lib/api/client');
+    const { decryptJSON } = await import('@/utils/sync/crypto');
 
-    const snapshot = { content: '<p>Hello world</p>', title: 'Test' };
-    const cipher = btoa(JSON.stringify(snapshot));
-
+    const envelope = JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' });
     getApiClient.mockReturnValue({
-      get: vi.fn().mockResolvedValue({ data: { v: 3, nonce: 'n', cipher } }),
+      get: vi.fn().mockResolvedValue({ data: envelope }),
       post: vi.fn(),
     });
 
     const result = await getCommitSnapshot('commit-123', 'note-abc');
-    expect(result).toEqual(snapshot);
+    expect(decryptJSON).toHaveBeenCalledWith(envelope, 'note-abc');
+    expect(result).toEqual({ content: '<p>Envelope snapshot</p>', title: 'Envelope Note' });
   });
 
   it('getCommitSnapshot returns null when decryption fails', async () => {
@@ -75,8 +84,9 @@ describe('history API', () => {
 
     decryptJSON.mockRejectedValueOnce(new Error('KEY_LOCKED'));
 
+    const envelope = JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' });
     getApiClient.mockReturnValue({
-      get: vi.fn().mockResolvedValue({ data: { v: 3, nonce: 'n', cipher: 'x' } }),
+      get: vi.fn().mockResolvedValue({ data: envelope }),
       post: vi.fn(),
     });
 
@@ -111,5 +121,54 @@ describe('history API', () => {
 
     const commits = await listCommits('ws', 'note-abc');
     expect(commits[0].hash).toBe('1700000000000-dev-1');
+  });
+
+  it('createCommit encrypts with the shared note key (v6) when one exists', async () => {
+    const { createCommit } = await import('@/lib/api/history');
+    const { getApiClient } = await import('@/lib/api/client');
+
+    noteKeyCtl.key = 'ab'.repeat(32);
+    const mockPost = vi.fn().mockResolvedValue({ commitId: '123' });
+    getApiClient.mockReturnValue({ get: vi.fn(), post: mockPost });
+
+    await createCommit('note-abc', { content: '<p>Hello v6</p>', title: 'V6' });
+
+    const [, body] = mockPost.mock.calls[0];
+    const parsed = JSON.parse(body.payload);
+    expect(parsed.v).toBe(6);
+    expect(parsed.k).toBe('note');
+    expect(parsed.noteId).toBe('note-abc');
+    expect(parsed.device).toBe('test-device-001');
+    expect(typeof parsed.data).toBe('string');
+  });
+
+  it('getCommitSnapshot decrypts a v6 note-key envelope with the per-note key', async () => {
+    const { createCommit, getCommitSnapshot } = await import('@/lib/api/history');
+    const { getApiClient } = await import('@/lib/api/client');
+
+    noteKeyCtl.key = 'cd'.repeat(32);
+    const mockPost = vi.fn().mockResolvedValue({ commitId: '123' });
+    const mockGet = vi.fn().mockResolvedValue({ data: null });
+    getApiClient.mockReturnValue({ get: mockGet, post: mockPost });
+
+    const snapshot = { content: '<p>Round trip</p>', title: 'RT' };
+    await createCommit('note-abc', snapshot);
+    mockGet.mockResolvedValue({ data: mockPost.mock.calls[0][1].payload });
+
+    await expect(getCommitSnapshot('commit-1', 'note-abc')).resolves.toEqual(snapshot);
+  });
+
+  it('getCommitSnapshot returns null for a v6 envelope when no note key is available', async () => {
+    const { getCommitSnapshot } = await import('@/lib/api/history');
+    const { getApiClient } = await import('@/lib/api/client');
+
+    noteKeyCtl.key = null;
+    const envelope = JSON.stringify({ v: 6, k: 'note', noteId: 'note-abc', data: 'AAAA' });
+    getApiClient.mockReturnValue({
+      get: vi.fn().mockResolvedValue({ data: envelope }),
+      post: vi.fn(),
+    });
+
+    await expect(getCommitSnapshot('commit-1', 'note-abc')).resolves.toBeNull();
   });
 });

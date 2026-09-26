@@ -1,5 +1,5 @@
 <template>
-  <div class="inline-block input-ui w-full">
+  <div class="inline-block w-full">
     <label class="relative w-full">
       <span
         v-if="label"
@@ -9,7 +9,7 @@
       </span>
 
       <div
-        :class="['flex items-center gap-2 w-full bg-input bg-transparent transition-[border-color,box-shadow] border-neutral-200 dark:border-neutral-800 focus-within:ring-2 focus-within:ring-secondary/40 focus-within:border-secondary/60 ring-secondary px-3 py-2', radiusClass, { 'opacity-75 pointer-events-none': disabled }]"
+        :class="['flex items-center gap-2 w-full bg-input bg-transparent transition-[border-color,box-shadow] focus-within:ring-2 focus-within:ring-secondary/40 focus-within:border-secondary/60 ring-secondary px-3 py-2', radiusClass, { 'opacity-75 pointer-events-none': disabled }]"
         @click="focusInput"
       >
         <slot name="prepend">

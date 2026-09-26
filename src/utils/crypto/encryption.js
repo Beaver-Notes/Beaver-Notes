@@ -109,15 +109,39 @@ export async function setupEncryption(passphrase) {
     state.loaded = !!result?.state?.unlocked;
     // Fetch server key params FIRST so reconcile adopts the vault owner's keys
     // instead of overwriting the server with this device's own.
-    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    const { fetchCloudKeyParams, cloudKeyParamsAbsent, publishCloudKeyParams } =
+      await import('@/utils/sync/vault-key-params.js');
     await fetchCloudKeyParams().catch(() => null);
     // Adopt server keys now, else writes use fresh local key until first reconcile.
     await reconcileSyncKeyParams(passphrase).catch((e) =>
       logger.warn('[encryption] sync key-params reconcile failed:', e)
     );
-    // NEVER auto-publish key params here.  If fetchCloudKeyParams returned null
-    // (workspace not loaded, network glitch, 404), publishing a freshly-generated
-    // local key would overwrite the vault owner's keys. Publish is owned by Rust.
+    // Publish only when the server confirmed it has NO params (a clean 404).
+    // An unreachable/unloaded/glitched fetch leaves `cloudKeyParamsAbsent()`
+    // false, so we never overwrite the vault owner's keys. Rust publishes on
+    // seed, but a workspace with no notes never seeds, so a fresh owner would
+    // otherwise never propagate the password to a second device.
+    if (cloudKeyParamsAbsent()) {
+      try {
+        // Account-scoped: publish once per account, independent of the active
+        // workspace, so a second workspace never prompts for a vault key.
+        await publishCloudKeyParams();
+      } catch (e) {
+        // Another device published a DIFFERENT vault for this workspace while
+        // this one was still being set up. Publishing here would replace its
+        // key and orphan that vault, so the server refuses (409). Surface it so
+        // the user is routed to the join flow with the existing vault key.
+        if (e?.status === 409) {
+          return {
+            ok: false,
+            error:
+              e?.data?.message ||
+              'A vault already exists for this workspace. Import it with its vault key instead.',
+          };
+        }
+        logger.warn('[encryption] sync key-params publish failed:', e);
+      }
+    }
     return { ok: true };
   } catch (err) {
     logger.error('[encryption] setup failed:', err);
@@ -127,13 +151,13 @@ export async function setupEncryption(passphrase) {
 
 export async function verifyPassphrase(passphrase) {
   if (!passphrase?.trim()) {
-    return { ok: false, error: 'Enter your passphrase.' };
+    return { ok: false, error: 'Enter your vault key.' };
   }
 
   try {
     const result = await submitEncryptionPassword(passphrase, false);
     if (!result?.ok) {
-      return { ok: false, error: result?.error || 'Wrong passphrase.' };
+      return { ok: false, error: result?.error || 'Wrong vault key.' };
     }
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
@@ -155,7 +179,7 @@ export async function verifyPassphrase(passphrase) {
 
 export async function adoptVaultKey(passphrase, keyParams) {
   if (!passphrase?.trim()) {
-    return { ok: false, error: 'Enter the vault passphrase.' };
+    return { ok: false, error: 'Enter the vault key.' };
   }
 
   try {
@@ -365,7 +389,7 @@ export async function generateRecoveryCode() {
 
 export async function recoverWithRecoveryCode(code) {
   if (!code || code.length !== 64) {
-    return { ok: false, error: 'Recovery code must be 64 hex characters.' };
+    return { ok: false, error: 'Vault recovery code must be 64 hex characters.' };
   }
   try {
     const result = await recoverWithCode(code);
@@ -374,7 +398,7 @@ export async function recoverWithRecoveryCode(code) {
       state.loaded = !!result?.state?.unlocked;
       return { ok: true };
     }
-    return { ok: false, error: result?.error || 'Recovery code is invalid.' };
+    return { ok: false, error: result?.error || 'Vault recovery code is invalid.' };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }

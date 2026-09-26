@@ -33,11 +33,46 @@ export function getDeviceId() {
   }
 }
 
+/**
+ * Stable 32-bit client id derived from a seed string (FNV-1a).
+ * Used so every device that seeds the same note authors identical structs
+ * under the same client id, letting Yjs merge them into one copy.
+ */
+export function deterministicClientId(seed) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  hash >>>= 0;
+  return hash === 0 ? 1 : hash;
+}
+
+/**
+ * Apply seed content built in a throwaway doc whose client id is derived from
+ * `seedKey`. Concurrent seeds of identical content merge into a single copy
+ * instead of concatenating (e.g. two clients opening a fresh note).
+ */
+export function seedDeterministically(ydoc, seedKey, build, origin = 'load') {
+  const temp = new Y.Doc();
+  temp.clientID = deterministicClientId(seedKey);
+  build(temp);
+  Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(temp), origin);
+  temp.destroy();
+}
+
+/** Yjs value -> plain JS value. Recurses into Y.Map and Y.Array (label lists). */
+function toPlainValue(value) {
+  if (value instanceof Y.Map) return yMapToObj(value);
+  if (value instanceof Y.Array) return value.toArray().map(toPlainValue);
+  return value;
+}
+
 export function yMapToObj(yMap) {
   if (!yMap || typeof yMap.get !== 'function') return yMap;
   const out = {};
   for (const [key, value] of yMap.entries()) {
-    out[key] = value instanceof Y.Map ? yMapToObj(value) : value;
+    out[key] = toPlainValue(value);
   }
   return out;
 }

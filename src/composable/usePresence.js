@@ -37,8 +37,8 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
   // collaborator. Anonymous/local-only has no stable id: never self-match,
   // so strangers are never hidden.
   function isSelfId(peerId) {
+    if (!peerId || peerId === 'anonymous' || peerId === 'local') return false;
     const localId = getLocalId();
-    if (!peerId || peerId === 'anonymous') return false;
     if (!localId || localId === 'anonymous' || localId === 'local')
       return false;
     return peerId === localId;
@@ -71,15 +71,19 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
       if (clientId === aw.clientID) return;
       const user = state?.user;
       if (!user) return;
+      const hasAccountId =
+        user.id && user.id !== 'anonymous' && user.id !== 'local';
       seen.push(`${clientId}=${user.id ?? '?'}:${user.name ?? '?'}`);
+      // Only authenticated accounts are collaborators. Entries with no account
+      // id are partial/stale awareness states (pre-login, dead reconnects) and
+      // were the source of phantom "N users" counts.
+      if (!hasAccountId) return;
       // Own other devices (same account, different client) are sync, not
       // collaboration: never count them as people.
       if (isSelfId(user.id)) return;
       // One avatar per human: stale reconnects share the user id, so the
       // second ghost entry collapses instead of inflating the count.
-      // Anonymous has no stable id: key by client so strangers stay distinct.
-      const key =
-        user.id && user.id !== 'anonymous' ? `u:${user.id}` : `c:${clientId}`;
+      const key = `u:${user.id}`;
       if (!byUser.has(key)) {
         byUser.set(key, {
           id: user.id,

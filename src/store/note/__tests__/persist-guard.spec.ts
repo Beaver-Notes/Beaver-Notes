@@ -28,6 +28,11 @@ vi.mock('@/lib/yjs/workspace-doc', () => ({
   syncNoteMeta: vi.fn(),
   removeNoteMeta: vi.fn(),
   syncDeletedNoteIds: vi.fn(),
+  transactWorkspace: vi.fn((fn: () => void) => fn()),
+}));
+
+vi.mock('@/utils/note/contentToYjs.js', () => ({
+  writeNotesContentToYjs: vi.fn(async () => {}),
 }));
 
 vi.mock('@/utils/note/search.js', () => ({
@@ -98,6 +103,8 @@ import { rebuildLinkIndexForNote } from '@/store/note/backlinks';
 import { syncNoteMeta } from '@/lib/yjs/workspace-doc';
 import { upsertSearchEntry } from '@/utils/note/search.js';
 import { indexNoteForSpotlight } from '@/utils/platform/spotlightSync.js';
+import { writeNotesContentToYjs } from '@/utils/note/contentToYjs.js';
+import { isPendingNoteMeta } from '@/lib/yjs/shared';
 
 describe('persist guard – dirty-signature optimization', () => {
   beforeEach(() => {
@@ -199,5 +206,36 @@ describe('persist guard – dirty-signature optimization', () => {
     expect(upsertSearchEntry).not.toHaveBeenCalled();
     expect(indexNoteForSpotlight).not.toHaveBeenCalled();
     expect(rebuildLinkIndexForNote).not.toHaveBeenCalled();
+  });
+});
+
+describe('addMany commits meta only after content is durable (L6)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+  });
+
+  const importNote = {
+    id: 'n1',
+    title: 'Imported',
+    content: { type: 'doc', content: [] },
+    labels: [],
+    createdAt: 1,
+    updatedAt: 1,
+    isBookmarked: false,
+    isArchived: false,
+    isLocked: false,
+    isFullWidth: false,
+    folderId: null,
+  };
+
+  it('keeps the pending guard and skips the meta commit when the content write fails', async () => {
+    vi.mocked(writeNotesContentToYjs).mockRejectedValueOnce(new Error('disk full'));
+
+    const store = useNoteStore();
+    await expect(store.addMany([importNote])).rejects.toThrow('disk full');
+
+    expect(syncNoteMeta).not.toHaveBeenCalled();
+    expect(isPendingNoteMeta('n1')).toBe(true);
   });
 });

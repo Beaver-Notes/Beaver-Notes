@@ -5,6 +5,9 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	activityAppend: (entries: ActivityEntry[]) => typedError<null, AppError>(__TAURI_INVOKE("activity_append", { entries })),
+	activityList: (noteId: string, limit: number | null, before: number | null) => typedError<ActivityEntry[], AppError>(__TAURI_INVOKE("activity_list", { noteId, limit, before })),
+	activityClear: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("activity_clear", { noteId })),
 	appInfo: () => typedError<AppInfo, AppError>(__TAURI_INVOKE("app_info")),
 	appDirectory: () => typedError<string, AppError>(__TAURI_INVOKE("app_directory")),
 	migrationStatus: () => typedError<LegacyMigrationStatus, AppError>(__TAURI_INVOKE("migration_status")),
@@ -28,16 +31,18 @@ export const commands = {
 	helperIsDarkTheme: () => typedError<boolean, AppError>(__TAURI_INVOKE("helper_is_dark_theme")),
 	showEditContextMenu: (x: number | null, y: number | null) => typedError<null, AppError>(__TAURI_INVOKE("show_edit_context_menu", { x, y })),
 	/**
-	 *  Export a full-state backup folder (clean DB copies + global assets):
-	 *  `<dir>/data.db`, `<dir>/settings.db`, `<dir>/assets/`
+	 *  Export a full-state backup folder. Each selected workspace's clean DB
+	 *  copies go under `<dir>/workspaces/<id>/`; the global `assets/` tree and
+	 *  manifest stay at the bundle root. `workspaces` defaults to the active
+	 *  workspace.
 	 */
-	backupExport: (dir: string) => typedError<null, AppError>(__TAURI_INVOKE("backup_export", { dir })),
+	backupExport: (dir: string, workspaces: string[] | null) => typedError<null, AppError>(__TAURI_INVOKE("backup_export", { dir, workspaces })),
 	/**
 	 *  Import a backup folder from `backup_export`: replaces every row of both
 	 *  live DBs and swaps the assets directory. Caller must relaunch afterwards so
 	 *  cached state rehydrates.
 	 */
-	backupImport: (dir: string) => typedError<null, AppError>(__TAURI_INVOKE("backup_import", { dir })),
+	backupImport: (dir: string, vaultKey: string | null) => typedError<null, AppError>(__TAURI_INVOKE("backup_import", { dir, vaultKey })),
 	openFileExternal: (src: string) => typedError<string, AppError>(__TAURI_INVOKE("open_file_external", { src })),
 	fsCopy: (path: string, dest: string) => typedError<null, AppError>(__TAURI_INVOKE("fs_copy", { path, dest })),
 	fsOutputJson: (path: string, data: RawJson) => typedError<null, AppError>(__TAURI_INVOKE("fs_output_json", { path, data })),
@@ -237,16 +242,39 @@ export const commands = {
 	/**  Switch the active workspace. The frontend must reload stores after this. */
 	workspaceSwitch: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_switch", { id })),
 	workspaceRename: (id: string, name: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_rename", { id, name })),
+	/**
+	 *  Detach a workspace from cloud sync without touching its data. Used when a
+	 *  workspace is missing from a server list: a list miss is not proof of
+	 *  deletion, so the directory and notes are preserved. The workspace stays in
+	 *  the registry and becomes readable as a local-only workspace; it re-attaches
+	 *  automatically if the backend lists it again.
+	 */
+	workspaceDetach: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_detach", { id })),
 	/**  Delete a workspace (never the active or default one); removes its directory. */
 	workspaceDelete: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_delete", { id })),
 };
 
 /* Types */
-export type AppError = ({ Io: string }) & { Crypto?: never; Other?: never; Serialization?: never } | ({ Crypto: string }) & { Io?: never; Other?: never; Serialization?: never } | ({ Serialization: string }) & { Crypto?: never; Io?: never; Other?: never } | "WrongPassword" | "EncryptionLocked" | "DevicePasswordRequired" | "WrongDevicePassword" | "SecureStorageUnavailable" | ({ Other: string }) & { Crypto?: never; Io?: never; Serialization?: never };
+export type AppError = ({ Io: string }) & { Crypto?: never; Other?: never; Serialization?: never } | ({ Crypto: string }) & { Io?: never; Other?: never; Serialization?: never } | ({ Serialization: string }) & { Crypto?: never; Io?: never; Other?: never } | "WrongPassword" | "EncryptionLocked" | "VaultKeyRequired" | "DevicePasswordRequired" | "WrongDevicePassword" | "SecureStorageUnavailable" | ({ Other: string }) & { Crypto?: never; Io?: never; Serialization?: never };
 
 export type AppInfo = {
 	name: string,
 	version: string,
+};
+
+/**
+ *  One durable edit-log row (see `db::activity_append`). `summary` is a short
+ *  human snippet of the affected text, not the document body.
+ */
+export type ActivityEntry = {
+	id: string,
+	noteId: string,
+	actorId: string | null,
+	actorLabel: string,
+	kind: string,
+	summary: string,
+	at: number,
+	anchorHint: string | null,
 };
 
 export type AssetMigrationResult = {

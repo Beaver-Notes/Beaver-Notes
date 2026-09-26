@@ -85,7 +85,7 @@
       </button>
 
       <button
-        v-if="isShared"
+        v-if="isAuthenticated"
         v-tooltip.group="translations.comments?.title || 'Comments'"
         :aria-label="translations.comments?.title || 'Comments'"
         :class="{ 'is-active': showComments }"
@@ -281,7 +281,7 @@
           <v-remixicon name="riHistoryLine" />
         </button>
         <button
-          v-if="isShared"
+          v-if="isAuthenticated"
           :aria-label="translations.comments?.title || 'Comments'"
           class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
           :class="showComments
@@ -330,7 +330,11 @@
   <history-panel
     v-if="showHistory"
     :note-id="id"
-    @close="$emit('toggle-history')"
+    :editor="editor"
+    @close="$emit('toggle-history'); $emit('preview', null)"
+    @restore="$emit('restore', $event)"
+    @preview="$emit('preview', $event)"
+    @review="$emit('review', $event)"
   />
 </template>
 
@@ -364,9 +368,15 @@ export default {
     localName: { type: String, default: 'Anonymous' },
     showHistory: { type: Boolean, default: false },
     showComments: { type: Boolean, default: false },
-    isShared: { type: Boolean, default: false },
   },
-  emits: ['toggle-search', 'toggle-history', 'toggle-comments'],
+  emits: [
+    'toggle-search',
+    'toggle-history',
+    'toggle-comments',
+    'restore',
+    'preview',
+    'review',
+  ],
   setup(props) {
     const menu = useNoteMenu(props);
     const noteStore = useNoteStore();
@@ -394,12 +404,12 @@ export default {
       const settings = translations.value.settings;
 
       dialog.prompt({
-        title: t.enterPasswd || 'Enter passphrase',
-        body: t.warning || 'Enter your workspace passphrase to lock this note.',
+        title: t.enterPasswd || 'Enter vault key',
+        body: t.warning || 'Enter your vault key to lock this note.',
         icon: 'riLockLine',
         okText: t.lock || 'Lock',
         cancelText: t.cancel || 'Cancel',
-        placeholder: t.password || 'Passphrase',
+        placeholder: t.password || 'Vault key',
         password: true,
         onConfirm: async (enteredPassword) => {
           const result = await verifyPassphrase(enteredPassword);
@@ -408,7 +418,7 @@ export default {
           } else {
             dialog.alert({
               title: settings?.alertTitle || 'Alert',
-              body: result.error || t.wrongPasswd || 'Wrong passphrase.',
+              body: result.error || t.wrongPasswd || 'Wrong vault key.',
               okText: dlg?.close || 'Close',
             });
           }

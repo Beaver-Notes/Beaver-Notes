@@ -92,7 +92,7 @@
 </template>
 
 <script>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import emitter from 'tiny-emitter/instance';
 
 const EMOJI_ALLOWLIST = Object.freeze([
@@ -130,6 +130,10 @@ export default {
     show: { type: Boolean, default: false },
     mode: { type: String, default: 'create' }, // 'create' or 'edit'
     workspace: { type: Object, default: null },
+    // Async submit handler. The dialog awaits it so it can keep the loading
+    // state honest: clear it on success AND on failure, and show the failure
+    // inline instead of stranding the button on "...".
+    submitHandler: { type: Function, default: null },
   },
   emits: ['close', 'confirm', 'update:show'],
   setup(props, { emit }) {
@@ -154,7 +158,7 @@ export default {
       submitting.value = false;
     }
 
-    function onConfirm() {
+    async function onConfirm() {
       if (!form.name.trim()) {
         error.value = 'Workspace name is required.';
         return;
@@ -162,11 +166,24 @@ export default {
       if (submitting.value) return;
       submitting.value = true;
       error.value = '';
-      emit('confirm', {
+      const payload = {
         name: form.name.trim(),
         emoji: form.emoji,
         color: form.color,
-      });
+      };
+      try {
+        if (props.submitHandler) {
+          await props.submitHandler(payload);
+          resetForm();
+          emit('close');
+          return;
+        }
+        emit('confirm', payload);
+      } catch (err) {
+        error.value = err?.message || 'Failed to save workspace.';
+      } finally {
+        submitting.value = false;
+      }
     }
 
     function onCancel() {
@@ -181,6 +198,16 @@ export default {
     function onUpdateShow(value) {
       emit('update:show', value);
     }
+
+    // Load the workspace (and clear any stale error/loading) whenever the
+    // dialog opens. Previously resetForm only ran on close, so a programmatic
+    // v-model close left `submitting` stuck true and the next open showed "...".
+    watch(
+      () => props.show,
+      (value) => {
+        if (value) resetForm();
+      }
+    );
 
     return {
       form,

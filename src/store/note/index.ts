@@ -35,6 +35,10 @@ import {
   removeNoteMeta,
   transactWorkspace,
 } from '@/lib/yjs/workspace-doc';
+import {
+  markPendingNoteMeta,
+  clearPendingNoteMeta,
+} from '@/lib/yjs/shared';
 
 export interface CardPreviewBlock {
   kind: string;
@@ -302,12 +306,19 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
 
     this.data[id] = hydrateNote(newNote);
     incrementFolderCount(this.data[id].folderId);
-    await saveNote(id, this.data[id]);
-    // Content lives in Yjs: write at creation so editor finds it immediately.
-    const { writeNoteContentToYjs } = await import('@/utils/note/contentToYjs.js');
-    await writeNoteContentToYjs(id, this.data[id].content);
-    rebuildLinkIndexForNote(id, this.data[id].content);
-    syncNoteMeta(this.data[id]);
+    // Guard against meta-doc observer eviction while the meta write is in
+    // flight: the note is in Pinia before it exists in the Yjs doc.
+    markPendingNoteMeta(id);
+    try {
+      await saveNote(id, this.data[id]);
+      // Content lives in Yjs: write at creation so editor finds it immediately.
+      const { writeNoteContentToYjs } = await import('@/utils/note/contentToYjs.js');
+      await writeNoteContentToYjs(id, this.data[id].content);
+      rebuildLinkIndexForNote(id, this.data[id].content);
+      syncNoteMeta(this.data[id]);
+    } finally {
+      clearPendingNoteMeta(id);
+    }
 
     return this.data[id];
   } catch (error) {
@@ -324,7 +335,14 @@ export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<v
   for (const note of notes) {
     this.data[note.id] = hydrateNote(note);
     incrementFolderCount(this.data[note.id].folderId);
+    markPendingNoteMeta(note.id);
   }
+
+  // Content must be durable before the meta lands: committing meta first and
+  // then failing the content write strands the card (and the pending guard was
+  // cleared in `finally`, so the observer could evict/repair it away).
+  const { writeNotesContentToYjs } = await import('@/utils/note/contentToYjs.js');
+  await writeNotesContentToYjs(notes);
 
   transactWorkspace(() => {
     for (const note of notes) {
@@ -332,9 +350,10 @@ export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<v
     }
   });
 
-  // Imports batch content to Yjs in one IPC, never stores content outside Yjs.
-  const { writeNotesContentToYjs } = await import('@/utils/note/contentToYjs.js');
-  await writeNotesContentToYjs(notes);
+  // Only now is it safe to drop the guard: meta exists for every note.
+  for (const note of notes) {
+    clearPendingNoteMeta(note.id);
+  }
 
   buildSearchIndex(this.data);
   rebuildLinkIndexFromAll(this.data);

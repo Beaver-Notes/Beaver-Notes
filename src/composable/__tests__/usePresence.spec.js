@@ -20,3 +20,34 @@ describe('usePresence null awareness', () => {
     expect(peers.value.size).toBe(0);
   });
 });
+
+describe('usePresence peer filtering', () => {
+  function state(aw, clientId, user) {
+    aw.getStates().set(clientId, { user });
+    aw.emit('change', []);
+  }
+
+  it('excludes the same account connected from another client', () => {
+    const aw = new Awareness(new Doc());
+    const { init, peers } = usePresence(aw, () => 'acct-1', () => 'Alice');
+    init();
+    state(aw, 999, { id: 'acct-1', name: 'Alice' });
+    expect(peers.value.size).toBe(0);
+  });
+
+  it('ignores identity-less anonymous states', () => {
+    const aw = new Awareness(new Doc());
+    const { init, peers } = usePresence(aw, () => 'acct-1', () => 'Alice');
+    init();
+    state(aw, 998, { id: 'anonymous', name: 'Anonymous' });
+    expect(peers.value.size).toBe(0);
+  });
+
+  it('counts a real remote collaborator once', () => {
+    const aw = new Awareness(new Doc());
+    const { init, peers } = usePresence(aw, () => 'acct-1', () => 'Alice');
+    init();
+    state(aw, 997, { id: 'acct-2', name: 'Bob' });
+    expect(peers.value.size).toBe(1);
+  });
+});

@@ -4,12 +4,15 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
+use unicode_normalization::UnicodeNormalization;
 use tauri_plugin_scoped_storage::{
     MkdirRequest, ReadDirRequest, ReadFileRequest, RemoveFileRequest, RenameRequest,
     ScopedStorageError, ScopedStorageExt, WriteFileRequest,
 };
 
-use super::merge::{covered_by_vector, describe_coverage, load_vector, refresh_vector};
+use super::merge::{
+    covered_by_vector, describe_coverage, load_vector, merge_updates, refresh_vector,
+};
 use crate::db::{self, DbPool};
 use crate::shared::{
     SyncEnvelope, PROTOCOL_VERSION, SYNC_PAYLOAD_VERSION, aead_decrypt_bytes, aead_decrypt_json,
@@ -26,12 +29,22 @@ const SCOPED_COMMITS_REL: &str = "BeaverNotesSync/commits";
 
 const DEVICE_ID_KEY: &str = "sync:local:device-id";
 
+/// Compact this device's own commit files for a note into a single snapshot
+/// once it has accumulated this many, bounding folder growth (finding F11).
+/// Peers consume snapshots (full state), so deleting superseded own files is
+/// data-safe; files authored by peers are never deleted.
+const COMMIT_COMPACT_THRESHOLD: usize = 32;
+
 #[derive(Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LocalStats {
     pub(crate) pulled: u64,
     pub(crate) pushed: u64,
     pub(crate) pending_icloud: u64,
+    /// Commits that were readable but could not be applied (bad JSON, foreign
+    /// vault, unknown envelope version). Counted and logged so a persistently
+    /// skipped commit is visible instead of silently retried forever (F5).
+    pub(crate) skipped: u64,
     /// Note ids newly applied by this cycle, so the scheduler can emit
     /// `sync:applied` and the renderer hydrates them (folder transport never
     /// runs the cloud pull that would otherwise supply ids).
@@ -227,10 +240,15 @@ fn pull_commits(
             stats.pending_icloud += 1;
             continue;
         };
-        let Some((note_id, from_device, update)) =
-            decrypt_commit(key, &raw, &note, ts, is_snapshot)
-        else {
-            continue;
+        let (note_id, from_device, update) = match decrypt_commit(key, &raw, &note, ts, is_snapshot)
+        {
+            Ok(v) => v,
+            Err(reason) => {
+                // Count and log instead of silently retrying every cycle (F5).
+                stats.skipped += 1;
+                crate::rs_log!("[sync::local] skipping commit {name}: {reason}");
+                continue;
+            }
         };
 
         if let Some(stored) = load_vector(pool, &note_id) {
@@ -314,61 +332,84 @@ pub(crate) async fn sync_device_id(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
+/// Compare note ids modulo Unicode normalization. macOS filesystems store
+/// filenames NFD while the payload's `noteId` is NFC, so a raw string compare
+/// drops every accented/emoji-note commit forever (finding F6).
+fn same_note(a: &str, b: &str) -> bool {
+    a == b || a.nfc().eq(b.nfc())
+}
+
 fn decrypt_commit(
     key: &[u8; 32],
     raw: &[u8],
     file_note: &str,
     ts: u64,
     is_snapshot: bool,
-) -> Option<(String, String, Vec<u8>)> {
-    let env: serde_json::Value = serde_json::from_slice(raw).ok()?;
-    let v = env.get("v")?.as_u64()? as u8;
+) -> Result<(String, String, Vec<u8>), &'static str> {
+    let env: serde_json::Value =
+        serde_json::from_slice(raw).map_err(|_| "invalid JSON envelope")?;
+    let v = env
+        .get("v")
+        .and_then(|v| v.as_u64())
+        .ok_or("missing envelope version")? as u8;
     let aad = if is_snapshot {
         format!("{file_note}-snapshot-{ts}")
     } else {
         format!("{file_note}-{ts}")
     };
     if v == SYNC_PAYLOAD_VERSION {
-        let update = aead_decrypt_bytes(key, env.get("iv")?.as_str()?, env.get("enc")?.as_str()?, &aad).ok()?;
-        let meta = env.get("meta")?;
-        let device = meta.get("device")?.as_str()?;
+        let iv = env.get("iv").and_then(|v| v.as_str()).ok_or("missing iv")?;
+        let enc = env.get("enc").and_then(|v| v.as_str()).ok_or("missing enc")?;
+        let update = aead_decrypt_bytes(key, iv, enc, &aad).map_err(|_| "decrypt failed")?;
+        let meta = env.get("meta").ok_or("missing meta")?;
+        let device = meta
+            .get("device")
+            .and_then(|v| v.as_str())
+            .ok_or("missing device")?;
         // Fail closed when the envelope names a different note than the file:
-        // appending under the wrong id would corrupt an unrelated note, and a
-        // legit writer always stamps both from the same note.
+        // appending under the wrong id would corrupt an unrelated note. Compare
+        // normalization-insensitively so NFD filenames still match (F6), and
+        // return the payload's canonical id.
         let note = meta
             .get("noteId")
             .and_then(|n| n.as_str())
             .filter(|n| !n.is_empty())
             .unwrap_or(file_note);
-        if note != file_note {
-            return None;
+        if !same_note(note, file_note) {
+            return Err("payload note id does not match filename");
         }
-        Some((note.to_string(), device.to_string(), update))
+        Ok((note.to_string(), device.to_string(), update))
     } else if v == PROTOCOL_VERSION {
+        let iv = env.get("iv").and_then(|v| v.as_str()).ok_or("missing iv")?;
+        let enc = env.get("enc").and_then(|v| v.as_str()).ok_or("missing enc")?;
         let legacy = SyncEnvelope {
             v,
-            iv: env.get("iv")?.as_str()?.to_string(),
-            enc: env.get("enc")?.as_str()?.to_string(),
+            iv: iv.to_string(),
+            enc: enc.to_string(),
         };
-        let value = aead_decrypt_json(key, &legacy, &aad).ok()?;
-        let device = value.get("device")?.as_str()?;
+        let value = aead_decrypt_json(key, &legacy, &aad).map_err(|_| "decrypt failed")?;
+        let device = value
+            .get("device")
+            .and_then(|v| v.as_str())
+            .ok_or("missing device")?;
         let note = value
             .get("noteId")
             .and_then(|n| n.as_str())
             .filter(|n| !n.is_empty())
             .unwrap_or(file_note);
-        if note != file_note {
-            return None;
+        if !same_note(note, file_note) {
+            return Err("payload note id does not match filename");
         }
         let bytes: Vec<u8> = value
-            .get("update")?
-            .as_array()?
+            .get("update")
+            .and_then(|v| v.as_array())
+            .ok_or("missing update")?
             .iter()
             .filter_map(|n| n.as_u64().map(|u| u as u8))
             .collect();
-        Some((note.to_string(), device.to_string(), bytes))
+        Ok((note.to_string(), device.to_string(), bytes))
     } else {
-        None
+        Err("unsupported envelope version")
     }
 }
 
@@ -386,7 +427,11 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static CTR: AtomicU64 = AtomicU64::new(0);
     let n = CTR.fetch_add(1, Ordering::Relaxed);
-    let tmp = target.with_extension(format!("tmp.{}-{n}", std::process::id()));
+    // Hidden (dot-prefixed) sibling: same directory for an atomic rename, and
+    // invisible to the asset walks that skip dot entries, so a concurrent walk
+    // never mistakes a half-written temp for a real file.
+    let name = target.file_name().and_then(|n| n.to_str()).unwrap_or("file");
+    let tmp = target.with_file_name(format!(".{name}.tmp-{}-{n}", std::process::id()));
     let res: std::io::Result<()> = (|| {
         let mut f = fs::File::create(&tmp)?;
         f.write_all(bytes)?;
@@ -567,6 +612,29 @@ impl CommitStore {
             CommitStore::Scoped { .. } => false,
         }
     }
+
+    fn remove(&self, name: &str) -> Result<(), AppError> {
+        match self {
+            CommitStore::Fs(dir) => {
+                fs::remove_file(dir.join(name))?;
+                Ok(())
+            }
+            CommitStore::Scoped { app, folder_id, rel } => app
+                .scoped_storage()
+                .remove_file(RemoveFileRequest {
+                    folder_id: folder_id.clone(),
+                    path: scoped_join(rel, name),
+                })
+                .map_err(scoped_err),
+        }
+    }
+}
+
+/// Folder asset mirroring walks raw filesystem paths; `scoped:` folders are
+/// mobile sandbox handles with no such path. Returns true when asset mirroring
+/// must be skipped (finding F9).
+fn scoped_folder_skips_assets(folder_id: &str) -> bool {
+    folder_id.starts_with(SCOPED_PREFIX)
 }
 
 fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
@@ -599,7 +667,7 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
     let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     push_commits(&pool, &store, &device, &key, now_ms, &mut stats)?;
 
-    if !folder_id.starts_with(SCOPED_PREFIX) {
+    if !scoped_folder_skips_assets(folder_id) {
         match super::assets::sync_folder_assets(app, state.inner(), folder_id) {
             Ok(n) if n > 0 => {
                 crate::rs_log!("[sync::local] folder assets transferred: {n}");
@@ -607,6 +675,14 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
             Ok(_) => {}
             Err(e) => crate::rs_log!("[sync::local] folder asset sync failed: {e}"),
         }
+    } else {
+        // Scoped (`scoped:`) folders are mobile sandbox handles with no raw
+        // filesystem path, so folder asset mirroring is not wired for them:
+        // commit sync still transfers note content, but media is not mirrored
+        // (finding F9). Logged, not silent.
+        crate::rs_log!(
+            "[sync::local] folder asset mirroring unsupported for scoped storage; note media is not mirrored"
+        );
     }
 
     stats.pulled_notes = pulled_notes;
@@ -661,8 +737,18 @@ fn push_commits(
             let update = match decrypt_yjs_blob(&key, &stored) {
                 Ok(u) => u,
                 Err(e) => {
-                    crate::rs_log!("[sync::local] skipping undecryptable row: {e}");
-                    continue;
+                    // Do NOT advance past this row: a later success would move
+                    // the cursor beyond it and the update would never be
+                    // published (F10). Count/log and stop this note; the row is
+                    // retried next cycle.
+                    // ponytail: a permanently-foreign row stalls this note's
+                    // push queue (visible via `skipped`); quarantine by row id
+                    // if that ever proves necessary.
+                    stats.skipped += 1;
+                    crate::rs_log!(
+                        "[sync::local] holding push cursor at undecryptable row {id} for {note}: {e}"
+                    );
+                    break;
                 }
             };
             if update.is_empty() {
@@ -702,13 +788,106 @@ fn push_commits(
             }
         }
         db::db_set(&pool, &pushed_key(&note), &since.to_string(), None)?;
+
+        if let Err(e) =
+            compact_own_commits(pool, store, device, key, &note, now_ms, COMMIT_COMPACT_THRESHOLD)
+        {
+            crate::rs_log!("[sync::local] commit compaction skipped for {note}: {e}");
+        }
     }
     Ok(())
+}
+
+/// Fold this device's own commit files for `note` into one snapshot-format
+/// file and delete the superseded files, but only once `threshold` is reached
+/// (finding F11: otherwise one file per row accumulates forever). A snapshot
+/// carries full state, so any peer that has not read the deleted files still
+/// converges from it; peer-owned files are left untouched.
+fn compact_own_commits(
+    pool: &DbPool,
+    store: &CommitStore,
+    device: &str,
+    key: &[u8; 32],
+    note: &str,
+    now_ms: u64,
+    threshold: usize,
+) -> Result<u64, AppError> {
+    let own: Vec<String> = store
+        .list()?
+        .into_iter()
+        .filter(|name| {
+            parse_sync_filename(name).is_some_and(|p| p.note == note && p.device == device)
+        })
+        .collect();
+    if own.len() < threshold {
+        return Ok(0);
+    }
+    let rows = db::yjs_get_updates(pool, note, Some(*key))?;
+    if rows.is_empty() {
+        return Ok(0);
+    }
+    let blobs: Vec<Vec<u8>> = rows.into_iter().map(|(_, b)| b).collect();
+    let merged = merge_updates(&blobs);
+    if merged.is_empty() {
+        return Ok(0);
+    }
+    let aad = format!("{note}-snapshot-{now_ms}");
+    let (iv, enc) = aead_encrypt_bytes(key, &merged, &aad)?;
+    let envelope = serde_json::json!({
+        "v": SYNC_PAYLOAD_VERSION,
+        "meta": {
+            "device": device,
+            "ts": now_ms as i64,
+            "sequence": 0i64,
+            "noteId": note,
+        },
+        "iv": iv,
+        "enc": enc,
+    });
+    let snapshot_name = format!("{note}{SEP}snapshot{SEP}{device}{SEP}{now_ms}{UPDATE_EXT}");
+    store.write(&snapshot_name, serde_json::to_string(&envelope)?.as_bytes())?;
+    // Every previous own file (snapshots included) is now superseded by the
+    // full-state snapshot just written.
+    let mut deleted = 0u64;
+    for name in own {
+        if name == snapshot_name {
+            continue;
+        }
+        if store.remove(&name).is_ok() {
+            deleted += 1;
+        }
+    }
+    Ok(deleted)
+}
+
+/// Acquire the shared cycle guard for an externally-invoked folder cycle.
+/// `None` when any cycle (tick, dirty push, another folder cycle) is already in
+/// flight, so the caller skips instead of racing the same cursors/rows
+/// (finding F12). The scheduler tick and dirty push hold the same guard.
+fn try_begin_local_cycle() -> Option<crate::sync::scheduler::CycleGuard> {
+    crate::sync::scheduler::begin_cycle()
 }
 
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn sync_local_cycle(
+    app: AppHandle,
+    folder_id: String,
+) -> Result<LocalStats, AppError> {
+    // Serialize with the scheduler's full cycles; a concurrent folder cycle
+    // races the same cursors/rows (finding F12). No-op (not an error) when a
+    // cycle is already in flight, matching the tick guard's posture.
+    let Some(_cycle) = try_begin_local_cycle() else {
+        crate::rs_log!("[sync::local] cycle already running; skipping sync:localCycle");
+        return Ok(LocalStats::default());
+    };
+    sync_local_cycle_unlocked(app, folder_id).await
+}
+
+/// Folder cycle body without the cycle guard: use from callers that already
+/// hold it (the scheduler tick and dirty push). External `sync:localCycle`
+/// invocations go through [`sync_local_cycle`], which acquires the guard.
+pub(crate) async fn sync_local_cycle_unlocked(
     app: AppHandle,
     folder_id: String,
 ) -> Result<LocalStats, AppError> {
@@ -1154,6 +1333,34 @@ mod tests {
         t.cleanup();
     }
 
+    /// F4 (a)/(b): a key migration clears the transport push cursors, so an
+    /// already-acked note is re-published exactly once; the following cycle is
+    /// quiet again (converges to steady state rather than looping).
+    #[test]
+    fn two_devices_republish_after_push_cursor_reset_then_converge() {
+        let t = TwoDev::setup("cursor-reset");
+        t.edit(&t.pool_a, "n1", "hello");
+        assert_eq!(t.push(&t.pool_a, &t.dev_a, 1000).pushed, 1);
+        assert_eq!(
+            t.push(&t.pool_a, &t.dev_a, 2000).pushed,
+            0,
+            "steady state: nothing new to push"
+        );
+        // Vault join/rotation resets the cursors as part of the key migration.
+        crate::db::reset_transport_push_cursors(&t.pool_a).expect("reset");
+        assert_eq!(
+            t.push(&t.pool_a, &t.dev_a, 3000).pushed,
+            1,
+            "the migrated note must re-publish under the adopted key"
+        );
+        assert_eq!(
+            t.push(&t.pool_a, &t.dev_a, 4000).pushed,
+            0,
+            "re-publish must converge, not loop"
+        );
+        t.cleanup();
+    }
+
     #[test]
     fn two_devices_marker_pruned_when_file_deleted() {
         let t = TwoDev::setup("prune");
@@ -1302,6 +1509,144 @@ mod tests {
         assert_eq!(t.push(&t.pool_a, &t.dev_a, 1000).pushed, 1);
         assert_eq!(t.pull(&t.pool_b, &t.dev_b), vec!["big".to_string()]);
         assert_eq!(t.snap(&t.pool_a, "big"), t.snap(&t.pool_b, "big"));
+        t.cleanup();
+    }
+
+    /// F5: a readable-but-unapplicable commit (unknown envelope version) must
+    /// be counted/logged instead of silently retried every cycle.
+    #[test]
+    fn unappliable_commit_is_counted() {
+        let t = TwoDev::setup("bad-counted");
+        let envelope = serde_json::json!({
+            "v": 999,
+            "meta": {"device": "devX", "ts": 1000i64, "sequence": 1i64, "noteId": "n1"},
+            "iv": "00", "enc": "00",
+        });
+        t.store
+            .write(
+                "n1~~devX~~1000~~1.yjs.json",
+                serde_json::to_string(&envelope).unwrap().as_bytes(),
+            )
+            .expect("write");
+        let mut stats = super::LocalStats::default();
+        super::pull_commits(&t.pool_a, &t.store, &t.dev_a, &t.key, &mut stats).expect("pull");
+        assert_eq!(stats.skipped, 1, "a bad commit must be counted (F5)");
+        assert_eq!(stats.pulled, 0);
+        t.cleanup();
+    }
+
+    /// F6: a commit whose filename is NFD (macOS) but whose payload names the
+    /// NFC note id must still match, not be dropped forever.
+    #[test]
+    fn two_devices_nfc_nfd_note_id_matches() {
+        use unicode_normalization::UnicodeNormalization;
+        let t = TwoDev::setup("nfc-nfd");
+        let nfc: String = "café".nfc().collect();
+        let nfd: String = "café".nfd().collect();
+        assert_ne!(nfc, nfd, "the two forms must differ to exercise the bug");
+        let (name, bytes) = write_envelope(&t, &nfd, &nfc, "devX", 1000, 1, &TwoDev::update("x"));
+        t.store.write(&name, &bytes).expect("write");
+        let pulled = t.pull(&t.pool_a, &t.dev_a);
+        assert_eq!(
+            pulled,
+            vec![nfc.clone()],
+            "NFD filename must still match its NFC payload note id"
+        );
+        assert_eq!(t.rows(&t.pool_a, &nfc), 1);
+        t.cleanup();
+    }
+
+    /// F10: an undecryptable row must not advance `pushed_key` past it, or a
+    /// later successful publish would skip that update permanently.
+    #[test]
+    fn push_cursor_holds_at_undecryptable_row() {
+        let t = TwoDev::setup("hold-cursor");
+        let foreign = [1u8; 32];
+        t.edit(&t.pool_a, "n1", "good-before");
+        crate::db::yjs_append(&t.pool_a, "n1", b"foreign row", "devX", Some(foreign))
+            .expect("append foreign");
+        t.edit(&t.pool_a, "n1", "good-after");
+
+        let mut stats = super::LocalStats::default();
+        super::push_commits(&t.pool_a, &t.store, &t.dev_a, &t.key, 1000, &mut stats).expect("push");
+        assert_eq!(stats.pushed, 1, "only the row before the bad one is published");
+        assert_eq!(stats.skipped, 1);
+        assert_eq!(
+            t.files().len(),
+            1,
+            "the row after the undecryptable one must not be published"
+        );
+
+        let cursor: i64 = crate::db::db_get(&t.pool_a, &super::pushed_key("n1"), None)
+            .unwrap()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let max_id: i64 = {
+            let conn = t.pool_a.get().expect("conn");
+            conn.query_row(
+                "SELECT MAX(id) FROM note_content WHERE note_id = 'n1'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("max id")
+        };
+        assert!(
+            cursor < max_id,
+            "cursor must not advance past the undecryptable row (F10)"
+        );
+        t.cleanup();
+    }
+
+    /// F9: scoped folders have no raw filesystem path, so folder asset
+    /// mirroring is explicitly skipped (and logged) rather than attempted.
+    #[test]
+    fn scoped_folders_skip_asset_mirroring() {
+        assert!(super::scoped_folder_skips_assets("scoped:folder-1"));
+        assert!(!super::scoped_folder_skips_assets("/plain/sync/dir"));
+    }
+
+    /// F12: the folder cycle shares the scheduler's cycle guard, so a second
+    /// concurrent cycle is rejected rather than racing cursors/rows.
+    #[test]
+    fn local_cycle_guard_rejects_a_concurrent_cycle() {
+        // The guard is process-global; serialize with the other guard test so
+        // parallel `cargo test` cannot observe its held guard.
+        let _serial = crate::sync::scheduler::CYCLE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let first = super::try_begin_local_cycle().expect("first cycle");
+        assert!(
+            super::try_begin_local_cycle().is_none(),
+            "a concurrent cycle must be rejected while one is running"
+        );
+        drop(first);
+        assert!(
+            super::try_begin_local_cycle().is_some(),
+            "a new cycle may start once the previous one finishes"
+        );
+    }
+
+    /// F11: repeated edit+push rounds must not multiply commit files; once a
+    /// note's own files reach the threshold they fold into one snapshot.
+    #[test]
+    fn repeated_rounds_bounded_by_commit_compaction() {
+        let t = TwoDev::setup("compact");
+        for i in 0..(super::COMMIT_COMPACT_THRESHOLD + 8) {
+            t.edit(&t.pool_a, "n1", &format!("edit-{i}"));
+            t.push(&t.pool_a, &t.dev_a, 1000 + i as u64);
+        }
+        let own = t
+            .files()
+            .into_iter()
+            .filter(|n| n.starts_with("n1~~") && n.contains(&t.dev_a))
+            .count();
+        assert!(
+            own <= super::COMMIT_COMPACT_THRESHOLD,
+            "own commit files must stay bounded by compaction, got {own}"
+        );
+        // A peer still converges from the compacted folder.
+        assert_eq!(t.pull(&t.pool_b, &t.dev_b), vec!["n1".to_string()]);
         t.cleanup();
     }
 }

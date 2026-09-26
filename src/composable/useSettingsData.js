@@ -3,6 +3,7 @@ import { hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
 import { logger } from '@/utils/logger';
+import { localNoteCount } from '@/utils/notes/local-note-count.js';
 
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import {
@@ -12,7 +13,11 @@ import {
   setSpellcheck,
 } from '@/lib/native/app';
 import { exportBackup, importBackup } from '@/lib/native/backup';
-import { errorMessage } from '@/lib/tauri/errors';
+import {
+  getActiveLocalWorkspace,
+  listLocalWorkspaces,
+} from '@/lib/native/workspaces';
+import { errorMessage, isError } from '@/lib/tauri/errors';
 import { path } from '@/lib/tauri-bridge';
 import {
   copyPath,
@@ -190,8 +195,67 @@ export function useSettingsData({
     return String(value || '').startsWith('scoped:');
   }
 
-  async function exportData() {
+  // Returns the workspace ids to include, `null` to let the backend export the
+  // active workspace, or `undefined` when the user cancelled the selector.
+  async function exportWorkspaceChoices() {
+    let workspaces = [];
     try {
+      const list = await listLocalWorkspaces();
+      if (Array.isArray(list)) workspaces = list.filter((w) => w?.id);
+    } catch {
+      workspaces = [];
+    }
+
+    if (workspaces.length <= 1) {
+      let active = workspaces[0]?.id;
+      if (!active) {
+        try {
+          active = (await getActiveLocalWorkspace())?.id;
+        } catch {
+          active = '';
+        }
+      }
+      return active ? [active] : null;
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (!settled) {
+          settled = true;
+          resolve(value);
+        }
+      };
+      dialog.select({
+        title:
+          translations.value.settings?.exportWorkspacesTitle || 'Export backup',
+        body:
+          translations.value.settings?.exportWorkspacesBody ||
+          'Choose which workspaces to include in this backup.',
+        choices: workspaces.map((w) => ({
+          value: w.id,
+          label: w.name || w.id,
+        })),
+        defaultValues: workspaces.map((w) => w.id),
+        allLabel:
+          translations.value.settings?.exportWorkspacesAll || 'All workspaces',
+        okText: translations.value.settings?.export || 'Export',
+        cancelText: translations.value.dialog?.cancel || 'Cancel',
+        onCancel: () => finish(undefined),
+        onConfirm: (selected) =>
+          finish(
+            Array.isArray(selected) && selected.length ? selected : undefined
+          ),
+      });
+    });
+  }
+
+  async function exportData(selectedWorkspaces) {
+    try {
+      const workspaces =
+        selectedWorkspaces ?? (await exportWorkspaceChoices());
+      if (workspaces === undefined) return;
+
       const { canceled, filePaths } = await openDialog({
         title: translations.value.settings.exportData,
         properties: ['openDirectory'],
@@ -207,14 +271,14 @@ export function useSettingsData({
       if (isScopedPath(filePaths[0])) {
         const staging = await makeBackupStaging();
         const stagedFolder = path.join(staging, folderName);
-        await exportBackup(stagedFolder);
+        await exportBackup(stagedFolder, workspaces);
         try {
           await copyPath(stagedFolder, folderPath);
         } finally {
           await removePath(staging).catch(() => {});
         }
       } else {
-        await exportBackup(folderPath);
+        await exportBackup(folderPath, workspaces);
       }
 
       if (!folderPath.includes('gvfs')) {
@@ -303,6 +367,57 @@ export function useSettingsData({
     }
   }
 
+  async function runBackupImport(dirPath, vaultKey) {
+    if (isScopedPath(dirPath)) {
+      const staging = await makeBackupStaging();
+      try {
+        await copyPath(dirPath, staging);
+        return vaultKey
+          ? await importBackup(staging, vaultKey)
+          : await importBackup(staging);
+      } finally {
+        await removePath(staging).catch(() => {});
+      }
+    }
+    return vaultKey ? importBackup(dirPath, vaultKey) : importBackup(dirPath);
+  }
+
+  // Shown only when the backup's payloads do not decrypt with this device's
+  // current vault key. The source vault key is the same kind of secret used
+  // everywhere else — never a separate "backup password".
+  function promptForBackupVaultKey(dirPath) {
+    dialog.prompt({
+      title: translations.value.settings?.password || 'Vault key',
+      body:
+        translations.value.settings?.backupDifferentVaultKey ||
+        'This backup was made with a different vault key — enter it to import.',
+      password: true,
+      placeholder: translations.value.settings?.vaultKeyPlaceholder || 'Vault key',
+      okText: translations.value.settings.import,
+      cancelText: translations.value.dialog?.cancel || 'Cancel',
+      onConfirm: async (vaultKey) => {
+        if (!vaultKey) {
+          showAlert(translations.value.settings.invalidPassword);
+          return false;
+        }
+        try {
+          await runBackupImport(dirPath, vaultKey);
+        } catch (error) {
+          console.error(error);
+          showAlert(
+            isError(error, 'WrongPassword')
+              ? translations.value.settings?.wrongBackupVaultKey ||
+                  'Wrong vault key. Enter the vault key this backup was made with.'
+              : errorMessage(error)
+          );
+          return false;
+        }
+        await relaunchApp();
+        return true;
+      },
+    });
+  }
+
   async function importData() {
     try {
       const appDirectory = await getEffectiveAppDirectory();
@@ -339,24 +454,18 @@ export function useSettingsData({
           okVariant: 'danger',
           onConfirm: async () => {
             try {
-              if (isScopedPath(dirPath)) {
-                const staging = await makeBackupStaging();
-                try {
-                  await copyPath(dirPath, staging);
-                  await importBackup(staging);
-                } finally {
-                  await removePath(staging).catch(() => {});
-                }
-              } else {
-                await importBackup(dirPath);
-              }
-              await relaunchApp();
-              return true;
+              await runBackupImport(dirPath);
             } catch (error) {
+              if (isError(error, 'VaultKeyRequired')) {
+                promptForBackupVaultKey(dirPath);
+                return true;
+              }
               console.error(error);
               showAlert(errorMessage(error));
               return false;
             }
+            await relaunchApp();
+            return true;
           },
         });
         return;
@@ -376,10 +485,14 @@ export function useSettingsData({
 
       dialog.prompt({
         title: translations.value.settings.inputPassword,
-        body: translations.value.settings.body,
+        body:
+          translations.value.settings?.backupPasswordPrompt ||
+          'This is a legacy backup. Enter the password set when it was exported.',
         okText: translations.value.settings.import,
         cancelText: translations.value.settings.cancel,
-        placeholder: translations.value.settings.password,
+        placeholder:
+          translations.value.settings?.backupPasswordPlaceholder ||
+          'Backup password',
         password: true,
         onConfirm: async (pass) => {
           if (!pass) {
@@ -479,8 +592,7 @@ export function useSettingsData({
         dialog.prompt({
           title: translations.value.settings?.vaultDetected || 'Vault detected',
           body:
-            translations.value.settings?.vaultDetectedBody ||
-            'This folder holds an existing encrypted vault. Enter its password to import it.',
+            `This folder holds an existing encrypted vault. Importing merges this device's notes into it: ${localNoteCount()} local note(s) are re-encrypted with the vault key and kept. A backup is saved first. Enter the vault key to import it.`,
           password: true,
           onConfirm: async (pass) => {
             if (!pass) return;

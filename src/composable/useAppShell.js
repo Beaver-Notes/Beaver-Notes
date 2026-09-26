@@ -524,7 +524,7 @@ export function useAppShell(onboardingCompleted = true) {
     await restoreEncryptionKeys();
     performance.mark('init:encryption');
 
-    // The vault passphrase is user-set during onboarding; startup never
+    // The vault key is user-set during onboarding; startup never
     // auto-creates encryption. The yjs layer fails closed if it is missing.
     if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
       // Key configured but unrestorable: defer to gate, remainder runs on unlock.

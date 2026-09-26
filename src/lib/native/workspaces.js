@@ -12,6 +12,10 @@ export async function deleteLocalWorkspace(workspaceId) {
   return backend.invoke('workspace:delete', workspaceId);
 }
 
+export async function detachLocalWorkspace(workspaceId) {
+  return backend.invoke('workspace:detach', workspaceId);
+}
+
 export async function registerLocalWorkspace({
   id,
   name,
