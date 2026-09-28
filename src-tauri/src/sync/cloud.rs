@@ -386,6 +386,33 @@ fn collect_dirty(
     device: &str,
     now_ms: u64,
 ) -> Result<DirtyBatch, AppError> {
+    collect_dirty_filtered(
+        pool,
+        app_key,
+        shared_keys,
+        expected_shared,
+        device,
+        now_ms,
+        None,
+        &HashSet::new(),
+    )
+}
+
+/// `only_note` restricts collection to one note (the shared-with-me single-note
+/// path). `skip_notes` excludes notes owned by another workspace: the
+/// active-workspace push must never copy a shared-with-me note into the
+/// caller's own workspace, whose member branch would silently accept it.
+#[allow(clippy::too_many_arguments)]
+fn collect_dirty_filtered(
+    pool: &DbPool,
+    app_key: &[u8; 32],
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
+    expected_shared: &HashSet<String>,
+    device: &str,
+    now_ms: u64,
+    only_note: Option<&str>,
+    skip_notes: &HashSet<String>,
+) -> Result<DirtyBatch, AppError> {
     let notes: Vec<String> = {
         let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
         let mut stmt = conn
@@ -397,6 +424,13 @@ fn collect_dirty(
         let notes: Result<Vec<String>, _> = rows.collect();
         notes.map_err(|e| AppError::Other(e.to_string()))?
     };
+    let notes: Vec<String> = notes
+        .into_iter()
+        .filter(|n| match only_note {
+            Some(only) => n.as_str() == only,
+            None => !skip_notes.contains(n),
+        })
+        .collect();
     let mut items = Vec::new();
     // Highest row id seen per note (even for skipped rows): on ack the cursor
     // advances past them, so deterministic skips never block the queue.
@@ -497,6 +531,7 @@ fn collect_dirty(
 /// spans the key read + encryption so a concurrent vault join/rotation cannot
 /// swap the key in between. `WriterKey::resolve` is called once, here, and the
 /// `db.rs` writers below take no further barrier (no nested read guard).
+#[allow(clippy::too_many_arguments)]
 fn collect_dirty_guarded(
     pool: &DbPool,
     key: WriterKey,
@@ -504,10 +539,21 @@ fn collect_dirty_guarded(
     expected_shared: &HashSet<String>,
     device: &str,
     now_ms: u64,
+    only_note: Option<&str>,
+    skip_notes: &HashSet<String>,
 ) -> Result<DirtyBatch, AppError> {
     let _barrier = write_barrier();
     let app_key = key.resolve()?;
-    collect_dirty(pool, &app_key, shared_keys, expected_shared, device, now_ms)
+    collect_dirty_filtered(
+        pool,
+        &app_key,
+        shared_keys,
+        expected_shared,
+        device,
+        now_ms,
+        only_note,
+        skip_notes,
+    )
 }
 
 struct PushReport {
@@ -800,6 +846,7 @@ async fn pull_all(
     workspace_id: &str,
     token: &str,
     pool: &DbPool,
+    only_note: Option<&str>,
 ) -> Result<
     (
         Vec<(String, RemoteUpdate)>,
@@ -808,59 +855,66 @@ async fn pull_all(
     ),
     CloudFail,
 > {
-    // Server-known note list first, mirroring JS `getRemoteState` before
-    // `pullUpdates`; a 404/403 is a brand-new or inaccessible workspace, so
-    // the pull is skipped this tick rather than failed.
-    let state_url = format!(
-        "{base}/sync/state?workspaceId={}",
-        urlencoding::encode(workspace_id)
-    );
-    let resp = client
-        .get(&state_url)
-        .header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"))
-        .header(reqwest::header::ACCEPT, "application/json")
-        .send()
-        .await
-        .map_err(|e| {
-            if is_offline(&e) {
-                CloudFail::Typed(SyncError::Offline)
-            } else {
-                CloudFail::Fatal(AppError::Other(format!("sync: state request: {e}")))
-            }
-        })?;
-    let status = resp.status();
-    if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
-        return Err(CloudFail::Typed(SyncError::Throttled));
-    }
-    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-        return Err(CloudFail::Unauthorized);
-    }
-    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::FORBIDDEN {
-        return Ok((Vec::new(), HashMap::new(), Vec::new()));
-    }
-    if !status.is_success() {
-        return Err(CloudFail::Fatal(AppError::Other(status_snapshot(status))));
-    }
-    let state: SyncStateResp = serde_json::from_str(&resp.text().await.map_err(|e| {
-        CloudFail::Fatal(AppError::Other(format!("sync: state response: {e}")))
-    })?)
-    .map_err(|_| CloudFail::Fatal(AppError::Other("sync: remote sync state payload is malformed".into())))?;
-    if !["empty", "initializing", "initialized", "recovering"].contains(&state.status.as_str())
-        || state.documents.is_none()
-    {
-        return Err(CloudFail::Fatal(AppError::Other(
-            "sync: remote sync state payload is malformed".into(),
-        )));
-    }
-    let mut docs: Vec<String> = state
-        .documents
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|d| d.note_id)
-        .filter(|n| !n.is_empty())
-        .collect();
-    docs.sort();
-    docs.dedup();
+    // A shared-with-me note syncs by known id and must not consult
+    // `/sync/state`, which is workspace-member scoped. The full path fetches the
+    // server-known note list first, mirroring JS `getRemoteState` before
+    // `pullUpdates`; a 404/403 is a brand-new or inaccessible workspace, so the
+    // pull is skipped this tick rather than failed.
+    let docs: Vec<String> = if let Some(note) = only_note {
+        vec![note.to_string()]
+    } else {
+        let state_url = format!(
+            "{base}/sync/state?workspaceId={}",
+            urlencoding::encode(workspace_id)
+        );
+        let resp = client
+            .get(&state_url)
+            .header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"))
+            .header(reqwest::header::ACCEPT, "application/json")
+            .send()
+            .await
+            .map_err(|e| {
+                if is_offline(&e) {
+                    CloudFail::Typed(SyncError::Offline)
+                } else {
+                    CloudFail::Fatal(AppError::Other(format!("sync: state request: {e}")))
+                }
+            })?;
+        let status = resp.status();
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+            return Err(CloudFail::Typed(SyncError::Throttled));
+        }
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+            return Err(CloudFail::Unauthorized);
+        }
+        if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::FORBIDDEN {
+            return Ok((Vec::new(), HashMap::new(), Vec::new()));
+        }
+        if !status.is_success() {
+            return Err(CloudFail::Fatal(AppError::Other(status_snapshot(status))));
+        }
+        let state: SyncStateResp = serde_json::from_str(&resp.text().await.map_err(|e| {
+            CloudFail::Fatal(AppError::Other(format!("sync: state response: {e}")))
+        })?)
+        .map_err(|_| CloudFail::Fatal(AppError::Other("sync: remote sync state payload is malformed".into())))?;
+        if !["empty", "initializing", "initialized", "recovering"].contains(&state.status.as_str())
+            || state.documents.is_none()
+        {
+            return Err(CloudFail::Fatal(AppError::Other(
+                "sync: remote sync state payload is malformed".into(),
+            )));
+        }
+        let mut docs: Vec<String> = state
+            .documents
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|d| d.note_id)
+            .filter(|n| !n.is_empty())
+            .collect();
+        docs.sort();
+        docs.dedup();
+        docs
+    };
     if docs.is_empty() {
         return Ok((Vec::new(), HashMap::new(), Vec::new()));
     }
@@ -1275,6 +1329,35 @@ pub(crate) async fn sync_cloud_pull_with_keys(
     server_url: &str,
     token: &str,
 ) -> Result<PullOutcome, CloudFail> {
+    sync_cloud_pull_impl(pool, key, shared_keys, workspace_id, None, server_url, token).await
+}
+
+/// Single-note pull for the shared-with-me path: exactly one note under the
+/// note's owning workspace id, skipping the member-scoped `/sync/state` list.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn sync_cloud_pull_note_with_keys(
+    pool: &DbPool,
+    key: WriterKey,
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
+    workspace_id: &str,
+    note_id: &str,
+    server_url: &str,
+    token: &str,
+) -> Result<PullOutcome, CloudFail> {
+    sync_cloud_pull_impl(pool, key, shared_keys, workspace_id, Some(note_id), server_url, token)
+        .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn sync_cloud_pull_impl(
+    pool: &DbPool,
+    key: WriterKey,
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
+    workspace_id: &str,
+    only_note: Option<&str>,
+    server_url: &str,
+    token: &str,
+) -> Result<PullOutcome, CloudFail> {
     if unconfigured(workspace_id, token) {
         return Ok(PullOutcome {
             pulled: 0,
@@ -1283,7 +1366,7 @@ pub(crate) async fn sync_cloud_pull_with_keys(
     }
     let client = http_client().map_err(CloudFail::Fatal)?;
     let base = server_url.trim_end_matches('/');
-    let (raw, pending, stale) = pull_all(&client, base, workspace_id, token, pool).await?;
+    let (raw, pending, stale) = pull_all(&client, base, workspace_id, token, pool, only_note).await?;
     let pool2 = pool.clone();
     let shared = shared_keys.clone();
     let (applied, pulled) = tokio::task::spawn_blocking(move || {
@@ -1364,6 +1447,67 @@ pub(crate) async fn sync_cloud_push_with_keys(
     server_url: &str,
     token: &str,
 ) -> Result<PushOutcome, CloudFail> {
+    sync_cloud_push_impl(
+        pool,
+        key,
+        shared_keys,
+        expected_shared,
+        device,
+        now_ms,
+        workspace_id,
+        server_url,
+        token,
+        None,
+        &HashSet::new(),
+    )
+    .await
+}
+
+/// Single-note push for the shared-with-me path: exactly one note under the
+/// note's owning workspace id.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn sync_cloud_push_note_with_keys(
+    pool: &DbPool,
+    key: WriterKey,
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
+    expected_shared: &HashSet<String>,
+    device: &str,
+    now_ms: u64,
+    workspace_id: &str,
+    note_id: &str,
+    server_url: &str,
+    token: &str,
+) -> Result<PushOutcome, CloudFail> {
+    sync_cloud_push_impl(
+        pool,
+        key,
+        shared_keys,
+        expected_shared,
+        device,
+        now_ms,
+        workspace_id,
+        server_url,
+        token,
+        Some(note_id),
+        &HashSet::new(),
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn sync_cloud_push_impl(
+    pool: &DbPool,
+    key: WriterKey,
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
+    expected_shared: &HashSet<String>,
+    device: &str,
+    now_ms: u64,
+    workspace_id: &str,
+    server_url: &str,
+    token: &str,
+    only_note: Option<&str>,
+    skip_notes: &HashSet<String>,
+) -> Result<PushOutcome, CloudFail> {
     if unconfigured(workspace_id, token) {
         return Ok(PushOutcome {
             pushed: 0,
@@ -1376,8 +1520,19 @@ pub(crate) async fn sync_cloud_push_with_keys(
         let device = device.to_string();
         let shared = shared_keys.clone();
         let expected = expected_shared.clone();
+        let only_note = only_note.map(|s| s.to_string());
+        let skip_notes = skip_notes.clone();
         blocking(move || {
-            collect_dirty_guarded(&pool, key, &shared, &expected, &device, now_ms)
+            collect_dirty_guarded(
+                &pool,
+                key,
+                &shared,
+                &expected,
+                &device,
+                now_ms,
+                only_note.as_deref(),
+                &skip_notes,
+            )
         })
         .await?
     };
@@ -1419,13 +1574,24 @@ pub(crate) async fn sync_cloud_push(
         .map_err(CloudFail::Fatal)?;
     let expected = crate::shared::expected_shared_notes(app.state::<AppState>().inner())
         .map_err(CloudFail::Fatal)?;
+    // Notes owned by a *different* workspace (shared-with-me) are excluded from
+    // the active-workspace push; their content syncs through `sync_cloud_note`.
+    // A note whose owning workspace is the one being pushed is never skipped, so
+    // a member who also holds an invitation row still syncs it normally.
+    let skip: HashSet<String> =
+        crate::shared::foreign_shared_notes(app.state::<AppState>().inner())
+            .map_err(CloudFail::Fatal)?
+            .into_iter()
+            .filter(|(_, owner)| owner != workspace_id)
+            .map(|(note, _)| note)
+            .collect();
     let device = blocking({
         let pool = pool.clone();
         move || get_or_create_device_id(&pool)
     })
     .await?;
     let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    sync_cloud_push_with_keys(
+    sync_cloud_push_impl(
         &pool,
         WriterKey::Session(app.clone()),
         &shared,
@@ -1435,8 +1601,72 @@ pub(crate) async fn sync_cloud_push(
         workspace_id,
         server_url,
         token,
+        None,
+        &skip,
     )
     .await
+}
+
+/// Pull then push exactly one shared-with-me note under its owning workspace
+/// id. The background loop stays scoped to the active workspace; this is the
+/// note-scoped path an invited non-member uses. Both phases use the session
+/// shared-key ring, so the note seals/opens under its collaboration key.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn sync_cloud_note(
+    app: &AppHandle,
+    note_id: &str,
+    workspace_id: &str,
+    server_url: &str,
+    token: &str,
+) -> Result<(PullOutcome, PushOutcome), CloudFail> {
+    if unconfigured(workspace_id, token) || note_id.trim().is_empty() {
+        return Ok((
+            PullOutcome {
+                pulled: 0,
+                applied: Vec::new(),
+            },
+            PushOutcome {
+                pushed: 0,
+                unauthorized: false,
+                note_ids: Vec::new(),
+            },
+        ));
+    }
+    let pool = writer_gate(app)?;
+    let shared = crate::shared::shared_note_keys(app.state::<AppState>().inner())
+        .map_err(CloudFail::Fatal)?;
+    let expected = crate::shared::expected_shared_notes(app.state::<AppState>().inner())
+        .map_err(CloudFail::Fatal)?;
+    let device = blocking({
+        let pool = pool.clone();
+        move || get_or_create_device_id(&pool)
+    })
+    .await?;
+    let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
+    let pull = sync_cloud_pull_note_with_keys(
+        &pool,
+        WriterKey::Session(app.clone()),
+        &shared,
+        workspace_id,
+        note_id,
+        server_url,
+        token,
+    )
+    .await?;
+    let push = sync_cloud_push_note_with_keys(
+        &pool,
+        WriterKey::Session(app.clone()),
+        &shared,
+        &expected,
+        &device,
+        now_ms,
+        workspace_id,
+        note_id,
+        server_url,
+        token,
+    )
+    .await?;
+    Ok((pull, push))
 }
 
 #[cfg(test)]
@@ -1583,6 +1813,59 @@ mod tests {
                 .is_some(),
             "cursor must advance past un-pushable rows (finding C4)"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The active-workspace push must never collect a note owned by another
+    /// workspace (a shared-with-me note in the active db), and the note-scoped
+    /// path must collect exactly the one note it names.
+    #[test]
+    fn collect_dirty_skips_foreign_notes_and_only_note_restricts() {
+        use std::collections::{HashMap, HashSet};
+        let (pool, root) = unique_temp_db("beaver-foreign-skip");
+        let app_key = [5u8; 32];
+        crate::db::yjs_append(&pool, "mine", &valid_update("a"), "dev", Some(app_key))
+            .expect("append mine");
+        crate::db::yjs_append(&pool, "foreign", &valid_update("b"), "dev", Some(app_key))
+            .expect("append foreign");
+
+        let skip: HashSet<String> = ["foreign".to_string()].into_iter().collect();
+        let (items, _) = super::collect_dirty_filtered(
+            &pool,
+            &app_key,
+            &HashMap::new(),
+            &HashSet::new(),
+            "dev",
+            5000,
+            None,
+            &skip,
+        )
+        .expect("collect active");
+        let ids: Vec<String> = items.iter().map(|i| i.note_id.clone()).collect();
+        assert_eq!(
+            ids,
+            vec!["mine".to_string()],
+            "a foreign-owned note must be excluded from the active push"
+        );
+
+        let (items, _) = super::collect_dirty_filtered(
+            &pool,
+            &app_key,
+            &HashMap::new(),
+            &HashSet::new(),
+            "dev",
+            5000,
+            Some("foreign"),
+            &HashSet::new(),
+        )
+        .expect("collect one");
+        let ids: Vec<String> = items.iter().map(|i| i.note_id.clone()).collect();
+        assert_eq!(
+            ids,
+            vec!["foreign".to_string()],
+            "only_note pins the shared note"
+        );
+
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -2127,6 +2410,8 @@ mod tests {
                         &HashSet::new(),
                         "dev",
                         5000,
+                        None,
+                        &HashSet::new(),
                     );
                 } else {
                     let _ = super::decode_append_store_guarded(

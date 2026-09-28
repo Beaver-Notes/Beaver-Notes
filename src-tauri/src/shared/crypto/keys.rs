@@ -873,6 +873,21 @@ pub(crate) fn expected_shared_notes(state: &AppState) -> Result<HashSet<String>,
         .clone())
 }
 
+/// Notes invited to in a workspace the caller is not a member of, mapped to the
+/// note's owning workspace id. The active-workspace push skips these so a
+/// shared-with-me note is never copied into the caller's own workspace.
+pub(crate) fn foreign_shared_notes(
+    state: &AppState,
+) -> Result<HashMap<String, String>, AppError> {
+    Ok(state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .foreign_shared_notes
+        .clone())
+}
+
 /// KV at-rest key. None only pre-onboarding (plaintext correct). Locked returns EncryptionLocked: fail closed.
 /// Blocks writing plaintext among encrypted rows or reading ciphertext as garbage.
 pub(crate) fn kv_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {

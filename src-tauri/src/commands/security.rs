@@ -846,6 +846,41 @@ pub(crate) fn sync_clear_shared_keys(state: State<AppState>) -> Result<(), AppEr
     // Drop the expected-shared marks too: they belong to the same session and a
     // stale mark joined to a cleared key set would defer a note forever.
     session.expected_shared_notes.clear();
+    // The foreign-note map belongs to the same session: a stale entry would keep
+    // a now-personal note out of the active-workspace push forever.
+    session.foreign_shared_notes.clear();
+    Ok(())
+}
+
+/// Record that a note belongs to a workspace the caller is *not* a member of
+/// (a shared-with-me invitation), so the active-workspace push skips it instead
+/// of copying it into the caller's own workspace. The note syncs through the
+/// note-scoped `sync_cloud_note` command under `workspace_id`. Pass an empty
+/// `workspace_id` to forget the note (it becomes a normal local note again).
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn sync_register_shared_note_location(
+    state: State<AppState>,
+    note_id: String,
+    workspace_id: String,
+) -> Result<(), AppError> {
+    if note_id.is_empty() {
+        return Err(AppError::Other("note id required".into()));
+    }
+    let forgetting = workspace_id.trim().is_empty();
+    let mut session = state.crypto.session.write().map_err(AppError::from)?;
+    if forgetting {
+        session.foreign_shared_notes.remove(&note_id);
+    } else {
+        session.foreign_shared_notes.insert(note_id, workspace_id);
+    }
+    drop(session);
+    // Forgetting the note makes it eligible for the active push again, so nudge
+    // the scheduler. Marking a foreign note only suppresses a push, which needs
+    // no kick.
+    if forgetting {
+        crate::sync::scheduler::kick_if_running();
+    }
     Ok(())
 }
 

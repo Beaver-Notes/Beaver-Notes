@@ -161,6 +161,11 @@ export function useCloudWorkspaces() {
         await registerCloudWorkspaces(workspaces.value, accountStore);
         await recoverDeviceWorkspaceKeys();
         void autoProvisionPendingKeys();
+        // Notes invited to this account directly (not members of the owning
+        // workspace) are listed and synced under their owning workspace.
+        import('@/composable/useSharedNotes')
+          .then(({ useSharedNotes }) => useSharedNotes().fetchSharedNotes())
+          .catch(() => {});
         // Removal reconciliation must not hold `loading` during the delete loop.
         void reconcileRemovedSharedWorkspaces(workspaces.value);
       } catch (err) {

@@ -928,6 +928,47 @@ pub(crate) async fn sync_kick_dirty(
     Ok(())
 }
 
+/// Sync exactly one shared-with-me note under its owning workspace id. The
+/// background loop stays scoped to the active workspace; this is the note-scoped
+/// path an invited non-member uses. Emits `sync:applied` / `sync:pushed` like a
+/// full tick so the client materialises the note.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn sync_cloud_note(
+    app: AppHandle,
+    note_id: String,
+    workspace_id: String,
+    server_url: Option<String>,
+    token: String,
+) -> Result<SyncStatus, AppError> {
+    let url = server_url.unwrap_or_default();
+    let (pull, push) = super::cloud::sync_cloud_note(&app, &note_id, &workspace_id, &url, &token)
+        .await
+        .map_err(cloud_fail_to_app)?;
+    if !pull.applied.is_empty() {
+        emit_applied(&app, &pull.applied);
+    }
+    if push.has_pushed() {
+        emit_pushed(&app, &push.note_ids);
+    }
+    Ok(SyncStatus {
+        status: "complete".to_string(),
+        pushed: push.pushed,
+        pulled: pull.pulled,
+        pending_icloud: 0,
+        note_ids: pull.applied,
+    })
+}
+
+/// Surface a cloud failure as a command error without losing the typed gates.
+fn cloud_fail_to_app(fail: CloudFail) -> AppError {
+    match fail {
+        CloudFail::Fatal(e) => e,
+        CloudFail::Typed(e) => AppError::from(e),
+        CloudFail::Unauthorized => AppError::Other("sync: unauthorized".into()),
+    }
+}
+
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SyncStatusPayload {

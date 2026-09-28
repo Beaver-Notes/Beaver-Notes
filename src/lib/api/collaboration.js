@@ -4,9 +4,10 @@ function getClient(baseUrl) {
   return getApiClient(baseUrl ? { baseUrl } : undefined);
 }
 
-export async function createCollaborationKey(noteId, { baseUrl, signal } = {}) {
+export async function createCollaborationKey(noteId, { baseUrl, signal, workspaceId } = {}) {
   const client = getClient(baseUrl);
-  return client.post(`/collaboration/keys/${encodeURIComponent(noteId)}`, {}, { signal });
+  const body = workspaceId ? { workspaceId } : {};
+  return client.post(`/collaboration/keys/${encodeURIComponent(noteId)}`, body, { signal });
 }
 
 export async function getCollaborationKey(noteId, { baseUrl, signal } = {}) {
@@ -119,6 +120,15 @@ export async function listAllNoteJoinRequests({ baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   const res = await client.get('/collaboration/join-requests', { signal });
   return res?.requests ?? [];
+}
+
+// Notes the caller was invited to directly, without being a member of the
+// owning workspace. Each row carries the owning workspace id so the note can be
+// synced and joined against the id it actually lives in.
+export async function listSharedWithMe({ baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  const res = await client.get('/collaboration/shared-with-me', { signal });
+  return res?.shared ?? [];
 }
 
 export async function approveNoteJoinRequest(requestId, { baseUrl, signal } = {}) {

@@ -287,6 +287,14 @@ pub(crate) struct CryptoSession {
     /// separate from `shared_note_keys` so no consumer can mistake a mark for a
     /// usable key.
     pub(crate) expected_shared_notes: HashSet<String>,
+    /// Notes the client holds a note-invitation to in a workspace it is *not* a
+    /// member of, mapped to the note's owning workspace id. The active-workspace
+    /// push must skip these: their rows live in the active workspace's db but
+    /// they belong to another workspace, so pushing them under the active id
+    /// would copy them into the caller's own workspace. They sync only through
+    /// the note-scoped `sync_cloud_note` command. Set by
+    /// `sync_register_shared_note_location`; cleared on lock.
+    pub(crate) foreign_shared_notes: HashMap<String, String>,
     /// Items key ring (current plus previous) by key id: lazy rotation keeps old data decryptable.
     pub(crate) items_keys: HashMap<String, [u8; 32]>,
     /// ID of the current items key (empty when locked / unconfigured).

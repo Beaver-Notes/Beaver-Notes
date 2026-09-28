@@ -65,8 +65,12 @@ async function provisionWorkspacePayload(name) {
   const userId = accountStore.profile?.id || null;
   const orgId = accountStore.activeOrgId || accountStore.profile?.organizationId || null;
   const identity = await loadOrCreateIdentity();
-  if (!identity?.publicKeyHex || !userId || !orgId) {
-    throw new ApiError('Cannot create workspace: missing encryption identity or organization.');
+  // An organization is a Team/Enterprise concept: a Basic-plan account has no
+  // org, so it must not block workspace creation. The server accepts an
+  // optional orgId and only needs the owner's encryption identity to wrap the
+  // workspace key.
+  if (!identity?.publicKeyHex || !userId) {
+    throw new ApiError('Cannot create workspace: missing encryption identity.');
   }
 
   const workspaceKeyHex = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));

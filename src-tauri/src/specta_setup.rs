@@ -126,6 +126,9 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::security::sync_clear_shared_keys)(
                     &mut types,
                 ),
+                specta::_fn_datatype!(
+                    crate::commands::security::sync_register_shared_note_location
+                )(&mut types),
                 specta::_fn_datatype!(crate::commands::security::encryption_reconcile_key_params)(
                     &mut types,
                 ),
@@ -198,6 +201,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::sync::scheduler::sync_stop)(&mut types),
                 specta::_fn_datatype!(crate::sync::scheduler::sync_kick)(&mut types),
                 specta::_fn_datatype!(crate::sync::scheduler::sync_kick_dirty)(&mut types),
+                specta::_fn_datatype!(crate::sync::scheduler::sync_cloud_note)(&mut types),
                 specta::_fn_datatype!(crate::commands::index::index_save)(&mut types),
                 specta::_fn_datatype!(crate::commands::index::index_load)(&mut types),
                 specta::_fn_datatype!(crate::commands::search::search_extract_index_data)(
