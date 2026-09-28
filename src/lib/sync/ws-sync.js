@@ -14,6 +14,7 @@ import { loadOrCreateIdentity } from '@/utils/crypto/identity'
 import { getCachedWorkspaceKey, recoverWorkspaceKeyHex } from '@/lib/api/workspaces'
 import { kickRustSync } from '@/utils/sync/rust-shim.js'
 import { registerSharedSyncKey, clearSharedSyncKeys } from '@/utils/sync/shared-keys.js'
+import { resolveNoteWorkspaceId } from '@/utils/sync/shared-notes.js'
 import { ROLES, canEdit } from '@/utils/permissions'
 import { createEncryptedWebSocket } from './encrypted-websocket.js'
 
@@ -179,7 +180,7 @@ function getServerBase() {
 
 // One-time short-lived ticket so the session token never appears in the WS URL.
 // Fail-closed: no ticket means joining without auth params, the server rejects it.
-async function getWsParams(workspaceId) {
+async function getWsParams(workspaceId, noteId) {
   const token = getAuthToken()
   if (!token) return {}
   try {
@@ -189,7 +190,10 @@ async function getWsParams(workspaceId) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(workspaceId ? { workspaceId } : {}),
+      // noteId authorizes an invited non-member for the note room only.
+      body: JSON.stringify(
+        workspaceId ? { workspaceId, ...(noteId ? { noteId } : {}) } : {},
+      ),
     })
     if (res.ok) {
       const { ticket } = await res.json()
@@ -278,7 +282,9 @@ export function useWsSync() {
   }
 
   async function joinNoteRoom(noteId, doc, externalAwareness = null) {
-    const workspaceId = getActiveWorkspaceId()
+    // A shared-with-me note joins its owning workspace's room (note-only
+    // presence), not the caller's active workspace room.
+    const workspaceId = resolveNoteWorkspaceId(noteId, getActiveWorkspaceId())
     if (!workspaceId) return
 
     const roomName = buildRoomName(workspaceId, noteId)
@@ -303,7 +309,7 @@ export function useWsSync() {
     pendingRooms.add(roomName)
     try {
       const wsUrl = getWebSocketUrl()
-      const params = await getWsParams(workspaceId)
+      const params = await getWsParams(workspaceId, noteId)
       if (leaveWhilePending.has(roomName)) {
         leaveWhilePending.delete(roomName)
         return
@@ -354,7 +360,7 @@ export function useWsSync() {
   }
 
   function leaveNoteRoom(noteId) {
-    const workspaceId = getActiveWorkspaceId() || ''
+    const workspaceId = resolveNoteWorkspaceId(noteId, getActiveWorkspaceId() || '')
     const roomName = buildRoomName(workspaceId, noteId)
     clearRejoin(roomName)
     pendingKeyJoins.delete(roomName)

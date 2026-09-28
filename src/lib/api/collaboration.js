@@ -122,6 +122,15 @@ export async function listAllNoteJoinRequests({ baseUrl, signal } = {}) {
   return res?.requests ?? [];
 }
 
+// Notes the caller was invited to directly, without being a member of the
+// owning workspace. Each row carries the owning workspace id so the note can be
+// synced and joined against the id it actually lives in.
+export async function listSharedWithMe({ baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  const res = await client.get('/collaboration/shared-with-me', { signal });
+  return res?.shared ?? [];
+}
+
 export async function approveNoteJoinRequest(requestId, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   return client.post(

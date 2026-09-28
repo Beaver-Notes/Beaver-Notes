@@ -299,7 +299,7 @@ export function useNotesBrowser({
   function getAllVisibleItems() {
     const items = [];
     folders.value.all.forEach((folder) => items.push(`folder-${folder.id}`));
-    ['bookmarked', 'all', 'archived'].forEach((category) => {
+    ['shared', 'bookmarked', 'all', 'archived'].forEach((category) => {
       if (notes.value[category]) {
         notes.value[category].forEach((note) => items.push(`note-${note.id}`));
       }

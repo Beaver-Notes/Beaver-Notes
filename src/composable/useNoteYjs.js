@@ -18,6 +18,7 @@ import {
 import { getWsSync, setRoomKey } from '@/lib/sync/ws-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';
+import { resolveNoteWorkspaceId } from '@/utils/sync/shared-notes.js';
 import { speed } from '@/utils/speed.js';
 
 export { registerActiveDoc, applyRemote } from '@/lib/yjs/shared.js';
@@ -397,15 +398,17 @@ export function useNoteYjs() {
       const onKeyResolved = async (hex) => {
         if (!hex || isStale()) return;
         pendingSetup.value = false;
-        if (workspaceStore.activeId) {
-          const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
-          await setRoomKey(roomName, hex);
+        // A shared-with-me note lives in its owning workspace's room, not the
+        // active one (Google-Docs-style note presence).
+        const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
+        if (ownerId) {
+          await setRoomKey(`workspace:${ownerId}:note:${noteId}`, hex);
         }
       };
       noteKeyHex = await sharing.ensureNoteKey(noteId, { backgroundRetry: true, onKeyResolved });
-      if (noteKeyHex && workspaceStore.activeId) {
-        const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
-        await setRoomKey(roomName, noteKeyHex);
+      const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
+      if (noteKeyHex && ownerId) {
+        await setRoomKey(`workspace:${ownerId}:note:${noteId}`, noteKeyHex);
       }
     } catch (err) {
       console.warn('[yjs] note-key provisioning skipped:', err);

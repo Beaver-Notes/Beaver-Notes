@@ -77,6 +77,8 @@ const commandAliases = {
   'sync:registerSharedKey': 'sync_register_shared_key',
   'sync:expectSharedNote': 'sync_expect_shared_note',
   'sync:clearSharedKeys': 'sync_clear_shared_keys',
+  'sync:cloud-note': 'sync_cloud_note',
+  'sync:registerSharedNoteLocation': 'sync_register_shared_note_location',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
   'encryption:adoptKeyParams': 'encryption_adopt_key_params',
   'encryption:hasRemoteKeyParams': 'encryption_has_remote_key_params',
@@ -358,6 +360,18 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {
         ...withKeyVariants('note_id', payload?.noteId ?? payload?.note_id),
         ...withKeyVariants('expected', payload?.expected),
+      };
+    case 'sync:registerSharedNoteLocation':
+      return {
+        ...withKeyVariants('note_id', payload?.noteId ?? payload?.note_id),
+        ...withKeyVariants('workspace_id', payload?.workspaceId ?? payload?.workspace_id),
+      };
+    case 'sync:cloud-note':
+      return {
+        ...withKeyVariants('note_id', payload?.noteId ?? payload?.note_id),
+        ...withKeyVariants('workspace_id', payload?.workspaceId ?? payload?.workspace_id),
+        ...withKeyVariants('server_url', payload?.serverUrl ?? payload?.server_url),
+        ...withKeyVariants('token', payload?.token),
       };
     case 'sync:start':
     case 'sync:kick':
