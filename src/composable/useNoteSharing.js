@@ -38,7 +38,7 @@ import { registerSharedSyncKey, expectSharedSyncNote } from '@/utils/sync/shared
 // workspace (code `note_ownership_required`). Surface actionable copy instead
 // of the raw server string, which a user cannot act on.
 export const NOTE_WORKSPACE_UNCONFIRMED_MESSAGE =
-  "We couldn't confirm which workspace this note belongs to. Open Settings → Sync, then try again.";
+  'Sharing needs a cloud workspace. Create one in Settings → Workspaces, or ask a teammate to invite you to theirs.';
 
 // Module-level so background tasks can resolve collaborator device keys
 // without spinning up the full composable.

@@ -80,6 +80,7 @@
       "signCommand": "ossign.exe -t pecoff -o %1 %1"
     },
     "macOS": {
+      "minimumSystemVersion": "12.0",
       "entitlements": "../buildResources/entitlements.mac.plist"
     },
     "iOS": {
