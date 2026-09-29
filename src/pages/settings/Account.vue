@@ -503,6 +503,12 @@
                 'No plan'
               }}
             </p>
+            <p
+              v-if="planLimitsText(accountStore.planLimits)"
+              class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400"
+            >
+              {{ planLimitsText(accountStore.planLimits) }}
+            </p>
           </div>
           <ui-button
             v-if="accountStore.isPaidPlan"
@@ -1084,7 +1090,7 @@ import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
-import { PLAN_NAMES, planLabel } from '@/lib/api/types';
+import { PLAN_NAMES, planLabel, planLimitsText } from '@/lib/api/types';
 import {
   generateRecoveryCode as apiGenerateRecoveryCode,
   requestEmailVerification as apiRequestEmailVerification,
@@ -1720,6 +1726,7 @@ export default {
       fmt,
       PLAN_NAMES,
       planLabel,
+      planLimitsText,
       accountStore,
       seedPhaseLabel,
       seedProgressPercent,

@@ -132,6 +132,21 @@ const settingDefs = {
     defaultValue: true,
     parse: (value) => value === true || value === 'true',
   },
+  // Last known good GET /plans payload, so the plan UI still shows real limits
+  // while the account server is unreachable. Written, never authoritative:
+  // a live fetch always overwrites it.
+  accountPlanLimits: {
+    legacyKey: 'accountPlanLimits',
+    defaultValue: null,
+    parse: (value) => {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+      } catch {
+        return null;
+      }
+    },
+  },
   syncPath: {
     legacyKey: 'default-path',
     defaultValue: '',

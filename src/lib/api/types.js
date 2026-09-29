@@ -41,6 +41,31 @@ export function planFeatures(plan) {
   return PLAN_FEATURES[plan] || PLAN_FEATURES[PLAN_NAMES.FREE];
 }
 
+export function formatBytes(bytes) {
+  if (bytes == null) return '';
+  if (bytes >= 1024 * 1024 * 1024) {
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`;
+  }
+  const mb = bytes / (1024 * 1024);
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`;
+}
+
+// Concrete limits from GET /plans, e.g. "10 GB · 30 days of history".
+// Returns '' when the plan carries no limits (free) so the caller can show
+// nothing rather than a misleading zero.
+export function planLimitsText(limits) {
+  if (!limits) return '';
+  const parts = [];
+  if (limits.quotaBytes) parts.push(formatBytes(limits.quotaBytes));
+  if (limits.historyDays == null) parts.push('Unlimited history');
+  else if (limits.historyDays > 0) {
+    const d = limits.historyDays;
+    parts.push(d >= 365 ? '1 year of history' : `${d} days of history`);
+  }
+  return parts.join(' · ');
+}
+
 export const SYNC_TRANSPORT = Object.freeze({
   FOLDER: 'folder',
   REMOTE: 'remote',

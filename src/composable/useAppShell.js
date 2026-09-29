@@ -622,6 +622,11 @@ export function useAppShell(onboardingCompleted = true) {
             accountStore.setSubscription(data.subscription);
             accountStore.setDevices(data.devices || []);
           }
+          // Effective plan limits (history window, storage quota). Separate call
+          // because /account does not carry them; non-critical, same catch.
+          const { getPlans } = await import('@/lib/api/plans');
+          const plans = await getPlans({ baseUrl: accountStore.serverUrl });
+          accountStore.setPlanLimits(plans);
         } catch {
           // non-critical: sync retries next cycle.
         }

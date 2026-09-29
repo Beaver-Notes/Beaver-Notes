@@ -1,6 +1,19 @@
 import { defineStore } from 'pinia';
-import { getSettingSync } from '@/lib/settings';
+import { getSettingSync, setSetting } from '@/lib/settings';
 import { PAID_PLANS, PLAN_NAMES } from '@/lib/api/types';
+
+const PLAN_LIMITS_KEY = 'accountPlanLimits';
+
+function getCachedPlanLimits() {
+  const cached = getSettingSync(PLAN_LIMITS_KEY);
+  if (!cached) return null;
+  // Only trust it if it describes a plan we still know about.
+  return typeof cached.plan === 'string' &&
+    Number.isFinite(cached.quotaBytes) &&
+    (cached.historyDays === null || Number.isFinite(cached.historyDays))
+    ? cached
+    : null;
+}
 
 export const useAccountStore = defineStore('account', {
   state: () => ({
@@ -15,6 +28,10 @@ export const useAccountStore = defineStore('account', {
     // Legacy fields for compat.
     profile: null,
     subscription: null,
+    // Limits for the effective plan, from GET /plans. Falls back to the last
+    // known good value so a down server does not blank the plan UI. Null until
+    // either source has produced something.
+    planLimits: getCachedPlanLimits(),
     devices: [],
     activeSessions: [],
     error: '',
@@ -58,6 +75,11 @@ export const useAccountStore = defineStore('account', {
 
     storageUsedPercent: (state) =>
       state.subscription?.storage?.usedPercent ?? 0,
+
+    // Null = not loaded yet, 0 = genuinely no history (free). Callers must treat
+    // null as "unknown", not as "none".
+    historyDays: (state) => state.planLimits?.historyDays ?? null,
+    planQuotaBytes: (state) => state.planLimits?.quotaBytes ?? null,
   },
 
   actions: {
@@ -98,6 +120,12 @@ export const useAccountStore = defineStore('account', {
 
     setSubscription(subscription) {
       this.subscription = subscription || null;
+    },
+
+    setPlanLimits(limits) {
+      this.planLimits = limits || null;
+      // Fire and forget: the cache is an optimisation, never authoritative.
+      setSetting(PLAN_LIMITS_KEY, limits || null).catch(() => {});
     },
 
     setDevices(devices) {

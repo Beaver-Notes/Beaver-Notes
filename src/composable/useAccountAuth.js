@@ -399,6 +399,7 @@ export function useAccountAuth() {
     accountStore.setToken(null);
     accountStore.setProfile(null);
     accountStore.setSubscription(null);
+    accountStore.setPlanLimits(null);
     accountStore.setDevices([]);
     accountStore.setActiveSessions([]);
   }
@@ -473,6 +474,7 @@ export function useAccountAuth() {
         setStatus('anonymous');
         accountStore.setProfile(null);
         accountStore.setSubscription(null);
+        accountStore.setPlanLimits(null);
         accountStore.setDevices([]);
         accountStore.setActiveSessions([]);
       }
