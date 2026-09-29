@@ -88,7 +88,8 @@
     "unlockToEdit": "Mở khoá để chỉnh sửa",
     "untitledFolder": "Thư mục không có tiêu đề",
     "untitledNote": "Ghi chú không có tiêu đề",
-    "wrongPasswd": "Mật khẩu không chính xác. Ghi chú không thể mở khoá được."
+    "wrongPasswd": "Mật khẩu không chính xác. Ghi chú không thể mở khoá được.",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",

@@ -88,7 +88,8 @@
     "unlockToEdit": "Разблокировать для редактирования",
     "untitledFolder": "Папка без названия",
     "untitledNote": "Заметка без названия",
-    "wrongPasswd": "Неверный пароль. Заметка не может быть разблокирована."
+    "wrongPasswd": "Неверный пароль. Заметка не может быть разблокирована.",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",

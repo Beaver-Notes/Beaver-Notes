@@ -88,7 +88,8 @@
     "unlockToEdit": "Ontgrendel om aan te passen",
     "untitledFolder": "Map zonder titel",
     "untitledNote": "Notitie zonder titel",
-    "wrongPasswd": "Onjuist wachtwoord. Notitie kan niet worden ontgrendeld."
+    "wrongPasswd": "Onjuist wachtwoord. Notitie kan niet worden ontgrendeld.",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",

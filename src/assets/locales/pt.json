@@ -88,7 +88,8 @@
     "unlockToEdit": "Desbloqueie para editar",
     "untitledFolder": "Pasta sem título",
     "untitledNote": "Nota sem título",
-    "wrongPasswd": "Senha incorreta. A nota não pode ser desbloqueada."
+    "wrongPasswd": "Senha incorreta. A nota não pode ser desbloqueada.",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",

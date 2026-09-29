@@ -19,11 +19,21 @@
 
     <div class="pt-4 px-4 flex-1">
       <div>
-        <div
-          data-testid="note-card-title"
-          class="text-md font-semibold text-lg block line-clamp leading-tight note-card__title"
-        >
-          {{ note.title || translations.card.untitledNote }}
+        <div class="flex items-start gap-2">
+          <div
+            data-testid="note-card-title"
+            class="text-md font-semibold text-lg block line-clamp leading-tight note-card__title flex-1"
+          >
+            {{ note.title || translations.card.untitledNote }}
+          </div>
+          <!-- Shared with me: not a workspace member, collaborator on this note only -->
+          <v-remixicon
+            v-if="note.access"
+            v-tooltip="translations.card.sharedNote || 'Shared with me'"
+            name="riGroupLine"
+            size="18"
+            class="flex-shrink-0 mt-1 text-primary"
+          />
         </div>
         <div
           v-if="note.labels?.length"

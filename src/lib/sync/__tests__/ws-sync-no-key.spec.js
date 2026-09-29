@@ -28,6 +28,9 @@ vi.mock('@/store/workspace', () => ({
 vi.mock('@/store/collaborator', () => ({
   useCollaboratorStore: vi.fn(() => ({ noteId: '', collaborators: [] })),
 }))
+vi.mock('@/store/note', () => ({
+  useNoteStore: vi.fn(() => ({ data: {} })),
+}))
 vi.mock('y-protocols/awareness', () => ({
   Awareness: class { constructor(doc) { this.doc = doc } },
 }))

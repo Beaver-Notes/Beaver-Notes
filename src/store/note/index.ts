@@ -77,6 +77,19 @@ export interface NoteData {
   searchText?: string;
   cardPreview?: CardPreview;
   dir?: 'auto' | 'ltr' | 'rtl';
+  access?: NoteAccess;
+}
+
+/**
+ * Present only on notes shared with this account by invitation. The account is
+ * a collaborator on this one note, not a member of the workspace holding it, so
+ * the note is stored in the active workspace's meta doc and the owning
+ * workspace id travels with the note instead of in a separate side map.
+ */
+export interface NoteAccess {
+  role: 'editor' | 'viewer';
+  workspaceId: string;
+  by?: string;
 }
 
 export interface NoteState {

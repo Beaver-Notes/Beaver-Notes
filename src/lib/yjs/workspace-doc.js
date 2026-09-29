@@ -38,6 +38,7 @@ const NOTE_META_FIELDS = [
   'preview',
   'cardPreview',
   'dir',
+  'access',
 ];
 
 let observerAttached = false;
@@ -452,6 +453,13 @@ export function syncNoteMeta(note) {
           ? objToYMap(value)
           : value;
       existing.set(key, next);
+    }
+
+    // `access` is the one field that goes away again (the note stops being
+    // shared with this account). Absent values are skipped above, so a
+    // cleared `access` would leave the stale grant on the note forever.
+    if (note.access === undefined && existing.has('access')) {
+      existing.delete('access');
     }
   });
 }

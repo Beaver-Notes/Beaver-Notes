@@ -88,7 +88,7 @@
         <section
           v-for="name in $route.query.archived
             ? ['archived']
-            : ['shared', 'bookmarked', 'all']"
+            : ['bookmarked', 'all']"
           :key="name"
           class="mb-12"
         >
@@ -172,7 +172,6 @@ import { useDialog } from '@/lib/dialog';
 import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
-import { isSharedNote } from '@/utils/sync/shared-notes';
 import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
 import { useNoteMove } from '@/composable/useNoteMove';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
@@ -249,7 +248,7 @@ export default {
     });
 
     function filterNotes(notes) {
-      const filteredNotes = { all: [], archived: [], bookmarked: [], shared: [] };
+      const filteredNotes = { all: [], archived: [], bookmarked: [] };
       const queryLower = state.query.trim().toLocaleLowerCase();
       const isLabelQuery = queryLower.startsWith('#');
       const labelQuery = isLabelQuery ? queryLower.slice(1) : queryLower;
@@ -309,11 +308,6 @@ export default {
           }
 
           if (!matchesQuery) continue;
-        }
-
-        if (isSharedNote(note.id)) {
-          filteredNotes.shared.push(note);
-          continue;
         }
 
         if (folderId !== null && folderId !== undefined) {

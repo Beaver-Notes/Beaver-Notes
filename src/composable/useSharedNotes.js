@@ -1,18 +1,13 @@
 import { ref } from 'vue';
 import { listSharedWithMe } from '@/lib/api/collaboration';
 import { logger } from '@/utils/logger';
-import {
-  setSharedNoteList,
-  rehydrateSharedNoteLocations,
-  syncSharedNote,
-  isSharedNote,
-} from '@/utils/sync/shared-notes';
+import { applySharedNoteAccess, syncSharedNote } from '@/utils/sync/shared-notes';
 import { expectSharedSyncNote, registerSharedSyncKey } from '@/utils/sync/shared-keys';
 
-// Notes invited to the signed-in account directly, across every workspace. The
-// server list is authoritative; the client-side note→owning-workspace map is
-// kept in sync so Home can label them and the durable engine routes each note
-// to its own workspace.
+// Notes this account was invited to individually, across every workspace. The
+// server list is authoritative and is written onto the notes themselves as
+// `access`; the durable engine routes each note to its owning workspace from
+// that same field.
 const shared = ref([]);
 const loading = ref(false);
 const error = ref('');
@@ -75,7 +70,7 @@ async function fetchSharedNotes({ force = false } = {}) {
   const { accountStore } = await stores();
   if (!accountStore.isAuthenticated) {
     shared.value = [];
-    setSharedNoteList([]);
+    await applySharedNoteAccess([]);
     return [];
   }
   fetchController?.abort();
@@ -89,11 +84,10 @@ async function fetchSharedNotes({ force = false } = {}) {
         signal: fetchController.signal,
       });
       shared.value = rows;
-      // Persist the owning-workspace map and mirror it into the Rust session
-      // before any content can be pushed.
-      setSharedNoteList(rows);
-      await rehydrateSharedNoteLocations();
+      // Persist the grant on the notes themselves and mirror it into the Rust
+      // session before any content can be pushed.
       await materializeSharedNotes();
+      await applySharedNoteAccess(rows);
       await recoverSharedNoteKeys();
       await syncSharedNotes();
       return rows;
@@ -116,7 +110,6 @@ export function useSharedNotes() {
     sharedNotes: shared,
     loading,
     error,
-    isSharedNote,
     fetchSharedNotes,
     refreshSharedNotes: () => fetchSharedNotes({ force: true }),
   };

@@ -88,7 +88,8 @@
     "unlockToEdit": "Sblocca per modificare",
     "untitledFolder": "Cartella senza titolo",
     "untitledNote": "Nota senza titolo",
-    "wrongPasswd": "Password errata. Impossibile sbloccare la nota."
+    "wrongPasswd": "Password errata. Impossibile sbloccare la nota.",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",

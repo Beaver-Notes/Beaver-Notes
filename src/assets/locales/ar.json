@@ -88,7 +88,8 @@
     "unlockToEdit": "افتح القفل للتحرير",
     "untitledFolder": "مجلد بدون عنوان",
     "untitledNote": "ملاحظة بدون عنوان",
-    "wrongPasswd": "كلمة المرور غير صحيحة. لا يمكن فتح الملاحظة."
+    "wrongPasswd": "كلمة المرور غير صحيحة. لا يمكن فتح الملاحظة.",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",

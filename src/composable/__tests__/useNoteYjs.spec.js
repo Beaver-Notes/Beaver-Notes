@@ -29,6 +29,7 @@ vi.mock('@/composable/useNoteSharing', () => ({
   }),
 }));
 vi.mock('@/store/workspace', () => ({ useWorkspaceStore: () => ({ activeId: 'ws' }) }));
+vi.mock('@/store/note', () => ({ useNoteStore: () => ({ data: {} }) }));
 vi.mock('@/utils/speed.js', () => ({ speed: () => ({ end: vi.fn() }) }));
 vi.mock('@/lib/yjs/helpers.js', () => ({
   getDeviceId: () => 'device',

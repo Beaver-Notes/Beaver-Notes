@@ -77,7 +77,8 @@
     "untitledFolder": "Untitled folder",
     "untitledNote": "Untitled note",
     "wrongPasswd": "Incorrect vault key. Note cannot be unlocked.",
-    "conflictCopy": "Conflict copy. Review and delete one version."
+    "conflictCopy": "Conflict copy. Review and delete one version.",
+    "sharedNote": "Shared with me"
   },
   "commandPrompt": {
     "placeholder": "Search file or type '>' to search commands",
@@ -152,7 +153,6 @@
     "newNote": "To create a new note, you can press Ctrl + N, Cmd + N or click the + button on top left",
     "notFound": "No options found",
     "search": "Search something…",
-    "shared": "Shared with me",
     "untitledFolder": "Untitled folder"
   },
   "menu": {

@@ -88,7 +88,8 @@
     "unlockToEdit": "Düzenlemek için kilidi aç",
     "untitledFolder": "İsimsiz Klasör",
     "untitledNote": "İsimsiz Not",
-    "wrongPasswd": "Yanlış şifre. Not kilidi açılamadı."
+    "wrongPasswd": "Yanlış şifre. Not kilidi açılamadı.",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",

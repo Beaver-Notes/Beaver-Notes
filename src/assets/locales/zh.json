@@ -88,7 +88,8 @@
     "unlockToEdit": "解锁后编辑",
     "untitledFolder": "未命名文件夹",
     "untitledNote": "未命名笔记",
-    "wrongPasswd": "密码错误，笔记无法被解锁。"
+    "wrongPasswd": "密码错误，笔记无法被解锁。",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",

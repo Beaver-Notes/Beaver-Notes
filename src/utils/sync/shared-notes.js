@@ -1,46 +1,35 @@
 import { logger } from '@/utils/logger';
+import { useNoteStore } from '@/store/note';
 
-// Notes invited to a caller who is not a member of the owning workspace. Each
-// note is stored locally in the *active* workspace's db (the app has no
-// cross-workspace local store), so the durable engine would otherwise push it
-// under the active workspace id and copy it into the caller's own workspace.
+// Notes invited to this account by a single note's owner, without workspace
+// membership. They live in the active workspace's meta doc (one local store),
+// so the owning workspace id rides along on the note itself as `access` and is
+// cleared when the note stops being shared. Nothing here is persisted outside
+// the note, so losing session state can no longer make a shared note look like
+// the caller's own.
 //
-// Two things ride on this map:
-//   1. the durable sync engine skips these notes for the active-workspace push
-//      (they sync through `sync:cloud-note` under the owning workspace id), and
-//   2. the Home view lists them under "Shared with me" instead of "All".
-//
-// It is a client-side map (not part of the note's Yjs meta), persisted in
-// localStorage, and mirrored into the Rust session on startup.
-const STORAGE_KEY = 'shared-with-me';
+// The Rust durable-sync engine reads sqlite, not the Yjs meta doc, so it is
+// still told which notes to skip — mirrored from `access` on every fetch.
 
-let locations = null;
-
-function loadLocations() {
-  if (locations) return locations;
-  locations = new Map();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (parsed && typeof parsed === 'object') {
-      for (const [noteId, workspaceId] of Object.entries(parsed)) {
-        if (noteId && typeof workspaceId === 'string' && workspaceId) {
-          locations.set(noteId, workspaceId);
-        }
-      }
-    }
-  } catch {
-    // Best-effort: a corrupt entry just means the list is refetched.
-  }
-  return locations;
+function accessOf(noteId) {
+  if (!noteId) return null;
+  return useNoteStore().data[noteId]?.access ?? null;
 }
 
-function persist() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(loadLocations())));
-  } catch {
-    // Best-effort: the server list is authoritative and refetched.
-  }
+// A role the server never sends defaults to editor, matching the old behaviour
+// of treating anything but an explicit viewer grant as full edit access.
+function normalizeRole(role) {
+  return role === 'viewer' ? 'viewer' : 'editor';
+}
+
+export function isSharedNote(noteId) {
+  return Boolean(accessOf(noteId)?.workspaceId);
+}
+
+// The workspace a note must sync/join against: its owning workspace when shared
+// with this account, else the caller's active workspace.
+export function resolveNoteWorkspaceId(noteId, fallback) {
+  return accessOf(noteId)?.workspaceId || fallback || null;
 }
 
 async function getBackend() {
@@ -52,45 +41,11 @@ async function getBackend() {
   }
 }
 
-export function getSharedNoteWorkspaceId(noteId) {
-  if (!noteId) return null;
-  return loadLocations().get(noteId) ?? null;
-}
-
-export function isSharedNote(noteId) {
-  return Boolean(getSharedNoteWorkspaceId(noteId));
-}
-
-// The workspace a note must sync/join against: its owning workspace for a
-// shared-with-me note, else the caller's active workspace.
-export function resolveNoteWorkspaceId(noteId, fallback) {
-  return getSharedNoteWorkspaceId(noteId) || fallback || null;
-}
-
-export function getSharedNoteList() {
-  return Array.from(loadLocations(), ([noteId, workspaceId]) => ({ noteId, workspaceId }));
-}
-
-// Reconcile the persisted map with the server's authoritative list: add/update
-// the returned notes and drop any no longer shared with the caller.
-export function setSharedNoteList(rows) {
-  const next = new Map();
-  for (const row of rows || []) {
-    if (row?.noteId && row.workspaceId) next.set(row.noteId, row.workspaceId);
-  }
-  locations = next;
-  persist();
-  return getSharedNoteList();
-}
-
-// Record (or, with an empty workspaceId, forget) the owning workspace of a
-// shared note and mirror it into the Rust session. Safe to call repeatedly.
+// Record (or, with an empty workspaceId, forget) a shared note in the Rust
+// session so the workspace push leaves its content in the owning workspace
+// instead of copying it into the caller's own. Per-session cache, not truth.
 export async function registerSharedNoteLocation(noteId, workspaceId) {
   if (!noteId) return false;
-  const map = loadLocations();
-  if (workspaceId) map.set(noteId, workspaceId);
-  else map.delete(noteId);
-  persist();
   try {
     const backend = await getBackend();
     await backend?.invoke('sync:registerSharedNoteLocation', {
@@ -104,25 +59,9 @@ export async function registerSharedNoteLocation(noteId, workspaceId) {
   }
 }
 
-export function forgetSharedNoteLocation(noteId) {
-  if (!noteId) return false;
-  loadLocations().delete(noteId);
-  persist();
-  return true;
-}
-
-// Push the persisted map into the Rust session (it is dropped on lock/restart).
-export async function rehydrateSharedNoteLocations() {
-  const entries = getSharedNoteList();
-  await Promise.all(
-    entries.map(({ noteId, workspaceId }) => registerSharedNoteLocation(noteId, workspaceId))
-  );
-  return entries.length;
-}
-
 // Durable pull+push of exactly one shared note under its owning workspace id.
 export async function syncSharedNote(noteId, { serverUrl = '', token = '' } = {}) {
-  const workspaceId = getSharedNoteWorkspaceId(noteId);
+  const workspaceId = accessOf(noteId)?.workspaceId;
   if (!noteId || !workspaceId) return false;
   try {
     const backend = await getBackend();
@@ -135,7 +74,46 @@ export async function syncSharedNote(noteId, { serverUrl = '', token = '' } = {}
   }
 }
 
-// Test seam: forget the in-memory cache (keeps localStorage).
-export function _resetSharedNotesCache() {
-  locations = null;
+// Reconcile the notes against the server's authoritative list: stamp the grant
+// on each shared note, drop it from any note that is no longer shared, and
+// mirror the result into the Rust session. No-op when nothing changed, so the
+// caller's `updatedAt` is left alone.
+export async function applySharedNoteAccess(rows) {
+  const noteStore = useNoteStore();
+  const next = new Map();
+  for (const row of rows || []) {
+    if (row?.noteId && row.workspaceId) next.set(row.noteId, row);
+  }
+
+  const changed = [];
+  const stamp = (noteId, access) => {
+    const note = noteStore.data[noteId];
+    if (!note) return;
+    // `updatedAt` describes the shared note's content, not when this account
+    // last reconciled its list, so it must not move here.
+    noteStore.patchLocal(noteId, { access, updatedAt: note.updatedAt });
+    changed.push([noteId, access?.workspaceId || '']);
+  };
+
+  for (const [noteId, row] of next) {
+    const access = accessOf(noteId);
+    if (access?.workspaceId === row.workspaceId && access?.role === normalizeRole(row.role)) {
+      continue;
+    }
+    stamp(noteId, {
+      role: normalizeRole(row.role),
+      workspaceId: row.workspaceId,
+      by: row.invitedBy || undefined,
+    });
+  }
+  for (const noteId of Object.keys(noteStore.data)) {
+    if (next.has(noteId) || !noteStore.data[noteId].access) continue;
+    stamp(noteId, undefined);
+  }
+
+  await Promise.all(changed.map(([noteId, workspaceId]) => {
+    noteStore.persistMeta(noteId);
+    return registerSharedNoteLocation(noteId, workspaceId);
+  }));
+  return changed.length;
 }

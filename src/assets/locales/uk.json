@@ -88,7 +88,8 @@
     "unlockToEdit": "Розблокувати для редагування",
     "untitledFolder": "Папка без назви",
     "untitledNote": "Нотатка без назви",
-    "wrongPasswd": "Неправильний пароль. Нотатку не вдалося розблокувати."
+    "wrongPasswd": "Неправильний пароль. Нотатку не вдалося розблокувати.",
+    "sharedNote": "Shared with me"
   },
   "cardPreview": {
     "attachment": "Attachment",
