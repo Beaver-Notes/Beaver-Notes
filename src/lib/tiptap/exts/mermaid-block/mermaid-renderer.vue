@@ -34,6 +34,10 @@ const SUPPORTED_TYPES = new Set([
   'class',
   'er',
   'xychart',
+  'pie',
+  'mindmap',
+  'timeline',
+  'quadrant',
 ]);
 
 // Extension point: add new diagram types here as support lands. Types present

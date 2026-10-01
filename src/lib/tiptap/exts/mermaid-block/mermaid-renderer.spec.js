@@ -34,11 +34,10 @@ describe('mermaid-renderer', () => {
     unmount();
   });
 
-  it('shows the unsupported badge for pie (not renderable by beautiful-mermaid)', async () => {
+  it('renders an SVG for pie', async () => {
     const { host, unmount } = mount('pie\n  "Cats" : 7\n  "Dogs" : 3');
     await nextTick();
-    expect(host.querySelector('.mermaid-viewer svg')).toBeFalsy();
-    expect(host.querySelector('.mermaid-fallback-badge')).toBeTruthy();
+    expect(host.querySelector('.mermaid-viewer svg')).toBeTruthy();
     unmount();
   });
 

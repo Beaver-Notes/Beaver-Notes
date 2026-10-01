@@ -2172,10 +2172,9 @@ baseline-browser-mapping@^2.11.20:
   resolved "https://registry.yarnpkg.com/baseline-browser-mapping/-/baseline-browser-mapping-2.11.21.tgz#99af73cb8e54007e4f5345e132278e26c2662f2c"
   integrity sha512-uh8vpY/1/YyFkunIDFH/12p7/7VdPKA1hejMVEbdkEaWnUz0Hesvx5EbiU6XxjyHZIOju+ZMbQJkRh+es3/spQ==
 
-beautiful-mermaid@^1.1.3:
+"beautiful-mermaid@git+https://github.com/Daniele-rolli/beautiful-mermaid.git#v1.2.0":
   version "1.1.3"
-  resolved "https://registry.yarnpkg.com/beautiful-mermaid/-/beautiful-mermaid-1.1.3.tgz#33622aacd24f3cf37d61a1912673a4710ed90461"
-  integrity sha512-TItrtrAyHp1vwFfFVYauWGrquouk/6SS21Aq3RsxindSYZODcN4xYrPZD6BiZRU+o5mKJzDPz9MUSMvELdylyg==
+  resolved "git+https://github.com/Daniele-rolli/beautiful-mermaid.git#1a2037d3bb618af5d432a94ae3818de17d6dec82"
   dependencies:
     elkjs "^0.11.0"
     entities "^7.0.1"
