@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { setActivePinia, createPinia } from 'pinia';
 
 const noteKeyCtl = vi.hoisted(() => ({ key: null }));
 
@@ -40,6 +41,8 @@ describe('history API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     noteKeyCtl.key = null;
+    // history.js resolves the account's serverUrl from the store.
+    setActivePinia(createPinia());
   });
 
   it('createCommit encrypts and POSTs to /commits', async () => {

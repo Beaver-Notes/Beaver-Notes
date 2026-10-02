@@ -415,8 +415,7 @@ const previewBlocks = computed(() => {
 });
 
 const previewMeta = computed(() => {
-  const cp = previewNote.value?.cardPreview;
-  if (!cp) return '';
+  return previewNote.value?.cardPreview?.meta || '';
 });
 
 const previewText = computed(() => {

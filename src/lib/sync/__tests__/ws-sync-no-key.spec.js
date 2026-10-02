@@ -60,6 +60,7 @@ vi.mock('@/lib/api/workspaces', () => ({
   getWorkspaceKey: vi.fn(async () => null),
   getCachedWorkspaceKey: vi.fn(() => null),
   recoverWorkspaceKeyHex: vi.fn(async () => null),
+  clearWorkspaceKeyCache: vi.fn(),
 }))
 vi.mock('@/utils/permissions', () => ({
   ROLES: { OWNER: 'owner', EDITOR: 'editor', VIEWER: 'viewer', GUEST: 'guest' },

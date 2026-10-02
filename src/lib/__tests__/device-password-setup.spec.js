@@ -25,7 +25,7 @@ vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: { value: {} } }),
 }));
 
-import { useDevicePasswordSetup } from '@/composable/useDevicePasswordSetup';
+import { useDevicePasswordSetup } from '@/lib/device-password-setup';
 import {
   getSafeStorageBackendInfo,
   setDevicePassword,

@@ -291,7 +291,7 @@ export const useShareStore = defineStore('share', {
       const existing = targetId ? (noteStore.data as any)[targetId] : null;
       if (targetId && this.items.every((i) => i.targetNoteId === targetId) && existing && !existing.isLocked) {
         const base = docContent(existing.content);
-        return { title: existing.title || title, content: { ...(existing.content || {}), type: 'doc', content: [...base, ...blocks] } };
+        return { title: existing.title || title, content: { ...existing.content, type: 'doc', content: [...base, ...blocks] } };
       }
       return { title, content: { type: 'doc', content: blocks } };
     },

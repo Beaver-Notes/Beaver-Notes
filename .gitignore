@@ -51,3 +51,6 @@ docs/superpowers/
 docs/*.md
 docs/**/*.md
 .duo/*
+# Local-only agent docs — never commit
+/AGENTS.md
+/CLOUD_REVIEW_GUIDE.md

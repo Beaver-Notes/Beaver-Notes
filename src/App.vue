@@ -143,7 +143,7 @@ import { useAppShell } from './composable/useAppShell';
 import { getWsSync } from '@/lib/sync/ws-sync';
 import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
-import { useDevicePasswordSetup } from './composable/useDevicePasswordSetup';
+import { useDevicePasswordSetup } from './lib/device-password-setup';
 import AppNavbar from './components/app/AppNavbar.vue';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
