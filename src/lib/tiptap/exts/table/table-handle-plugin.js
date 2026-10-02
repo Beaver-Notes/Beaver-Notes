@@ -76,22 +76,6 @@ export class TableHandleView {
     this.editorView.root.addEventListener('dragover', this._dragOverHandler);
     this.editorView.root.addEventListener('drop', this._dropHandler);
     window.addEventListener('scroll', this._scrollHandler, true);
-
-    // Continuously track the table position so the floating handles follow
-    // it on every layout change (scroll, sidebar toggle, animations) without
-    // waiting for a document transaction. Early-returns and equality guards
-    // make it effectively free while no table is hovered.
-    this._rafId = null;
-    this._startTracking();
-  }
-
-  _startTracking() {
-    if (this._rafId != null) return;
-    const loop = () => {
-      this._recomputeHandlePositions();
-      this._rafId = requestAnimationFrame(loop);
-    };
-    this._rafId = requestAnimationFrame(loop);
   }
 
   _viewMousedownHandler(event) {
@@ -162,7 +146,7 @@ export class TableHandleView {
     const cellEl = rowEl?.children[colIndex];
     if (!cellEl) return;
 
-    const wrapper = this.tableElement.closest('.tableWrapper');
+    const wrapper = this.tableElement.closest('.tableWrapper') || this.tableElement.querySelector('.tableWrapper');
 
     const newCell = cellEl.getBoundingClientRect();
     const newTable = tableBody.getBoundingClientRect();
@@ -447,7 +431,7 @@ export class TableHandleView {
     }
 
     const newReferencePosTable = tableBody.getBoundingClientRect();
-    const newReferencePosWrapper = this.tableElement.closest('.tableWrapper')?.getBoundingClientRect();
+    const newReferencePosWrapper = (this.tableElement.closest('.tableWrapper') || this.tableElement.querySelector('.tableWrapper'))?.getBoundingClientRect();
     const blockChanged = this.state.block !== tableInfo.node || this.state.blockPos !== tableInfo.pos;
     const indicesChanged = newRowIndex !== this.state.rowIndex || newColIndex !== this.state.colIndex;
     const refPosChanged = newReferencePosCell !== this.state.referencePosCell || newReferencePosTable !== this.state.referencePosTable;
@@ -475,8 +459,6 @@ export class TableHandleView {
     this.editorView.root.removeEventListener('drop', this._dropHandler);
     window.removeEventListener('scroll', this._scrollHandler, true);
     if (this._resizeObserver) this._resizeObserver.disconnect();
-    if (this._rafId != null) cancelAnimationFrame(this._rafId);
-    this._rafId = null;
   }
 }
 

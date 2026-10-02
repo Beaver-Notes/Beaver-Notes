@@ -20,7 +20,7 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
   private var scribbleInteraction: UIScribbleInteraction?
   private var scribbleEnabled = true
 
-  // MARK: - Chargement du plugin
+  // MARK: - Plugin loading
   override func load(webview: WKWebView) {
     trackedWebView = webview
     captureBaselineInsetsIfNeeded(for: webview)
@@ -53,14 +53,16 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     NotificationCenter.default.removeObserver(self)
   }
 
-  // MARK: - Gestion clavier
+  // MARK: - Keyboard handling
   @objc func keyboardWillChangeFrame(notification: Notification) {
     applyKeyboardLayout(notification: notification, forceHidden: false)
   }
 
   @objc func keyboardWillShow(notification: Notification) {
     applyKeyboardLayout(notification: notification, forceHidden: false)
-    trigger("keyboard_shown", data: [:])
+    if !isQuickTypeBar(notification) {
+      trigger("keyboard_shown", data: [:])
+    }
   }
 
   @objc func keyboardWillHide(notification: Notification) {
@@ -74,7 +76,7 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     invoke.resolve()
   }
 
-  // MARK: - Commande: obtenir le top inset (status bar / notch)
+  // MARK: - Command: top inset (status bar / notch)
   @objc public func getTopInset(_ invoke: Invoke) throws {
     DispatchQueue.main.async {
       let window = UIApplication.shared.windows.first
@@ -86,7 +88,7 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     }
   }
 
-  // MARK: - Commande: obtenir le bottom inset (home indicator / nav bar)
+  // MARK: - Command: bottom inset (home indicator / nav bar)
   @objc public func getBottomInset(_ invoke: Invoke) throws {
     DispatchQueue.main.async {
       let window = UIApplication.shared.windows.first
@@ -97,7 +99,7 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     }
   }
 
-  // MARK: - Conversion PX -> DIP
+  // MARK: - PX to DIP conversion
   private func toDIPFromPixel(_ pixels: CGFloat) -> Double {
     let scale = UIScreen.main.scale
     return Double(pixels / scale)
@@ -223,6 +225,31 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval ?? 0.25
   }
 
+  // MARK: - iPad QuickType bar (capacitor-keyboard#52)
+  // With a hardware keyboard attached, iOS still posts WillShow for the ~55pt
+  // QuickType/accessory bar. That is not a real keyboard: it must neither
+  // shrink the webview nor raise the JS event. Screen-relative threshold, so
+  // it holds in portrait, landscape, and Stage Manager. iPhone untouched.
+  private func isIPad() -> Bool {
+    UIDevice.current.userInterfaceIdiom == .pad
+  }
+
+  private func shouldIgnoreResizeForHeight(_ height: CGFloat) -> Bool {
+    guard isIPad(), height > 0 else { return false }
+    return height / UIScreen.main.bounds.height < 0.20
+  }
+
+  private func isQuickTypeBar(_ notification: Notification) -> Bool {
+    guard let webview = trackedWebView else { return false }
+    let overlap = keyboardOverlap(
+      for: notification,
+      in: webview,
+      forceHidden: false
+    )
+    return !isFloatingKeyboard(for: notification)
+      && shouldIgnoreResizeForHeight(overlap)
+  }
+
   private func isFloatingKeyboard(for notification: Notification) -> Bool {
     guard UIDevice.current.userInterfaceIdiom == .pad else { return false }
     guard
@@ -244,11 +271,20 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     captureBaselineInsetsIfNeeded(for: webview)
     applyBackgroundColors(for: webview)
 
-    if !forceHidden && isFloatingKeyboard(for: notification) {
-      return
+    // A floating keyboard never covers the full width: like the QuickType bar
+    // below, it must not shrink the webview. Restore full height instead of
+    // leaving a stale shrunken frame.
+    var overlap = keyboardOverlap(
+      for: notification,
+      in: webview,
+      forceHidden: forceHidden
+    )
+    if !forceHidden
+      && (isFloatingKeyboard(for: notification)
+        || shouldIgnoreResizeForHeight(overlap))
+    {
+      overlap = 0
     }
-
-    let overlap = keyboardOverlap(for: notification, in: webview, forceHidden: forceHidden)
     var resizedFrame = parent.bounds
     resizedFrame.size.height = max(0, parent.bounds.height - overlap)
 
@@ -273,7 +309,7 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
   }
 }
 
-// MARK: - Initialisation plugin Tauri
+// MARK: - Tauri plugin entry point
 @_cdecl("init_plugin_safe_area_insets_css")
 func initPlugin() -> Plugin {
   if #available(iOS 14.0, *) {

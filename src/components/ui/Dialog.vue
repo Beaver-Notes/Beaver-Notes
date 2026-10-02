@@ -1,6 +1,5 @@
 <template>
-  <ui-modal :model-value="state.show" content-class="max-w-md" persist>
-    <!-- Alert -->
+  <ui-modal :model-value="state.show" content-class="max-w-md" overlay-class="z-[70]" persist>
     <template v-if="state.type === 'alert'">
       <div class="text-left mb-6 mobile:text-center">
         <div
@@ -8,7 +7,7 @@
         >
           <div v-if="state.options.icon" class="flex-shrink-0">
             <div
-              class="w-12 h-12 rounded-lg flex items-center justify-center"
+              class="w-12 h-12 rounded-xl flex items-center justify-center"
               :class="
                 state.options.okVariant === 'danger'
                   ? 'bg-red-100 dark:bg-red-900/30'
@@ -26,7 +25,7 @@
               />
             </div>
           </div>
-          <h3 class="font-semibold text-lg">{{ state.options.title }}</h3>
+          <h3 class="font-semibold text-lg tracking-tight leading-snug">{{ state.options.title }}</h3>
         </div>
         <p class="text-neutral-600 dark:text-neutral-200 leading-relaxed">
           {{ state.options.body }}
@@ -45,14 +44,13 @@
       </ui-button>
     </template>
 
-    <!-- Confirm / Prompt / Auth -->
     <template v-else>
       <div
         class="flex flex-col items-start text-left mobile:flex-col mobile:items-center mobile:text-center gap-3 mb-4 mobile:mt-6"
       >
         <div v-if="state.options.icon" class="flex-shrink-0">
           <div
-            class="w-12 h-12 rounded-lg flex items-center justify-center"
+            class="w-12 h-12 rounded-xl flex items-center justify-center"
             :class="
               state.options.okVariant === 'danger'
                 ? 'bg-red-100 dark:bg-red-900/30'
@@ -71,7 +69,7 @@
           </div>
         </div>
         <div class="flex-1 min-w-0">
-          <h3 class="font-semibold text-lg mb-3">{{ state.options.title }}</h3>
+          <h3 class="font-semibold text-lg tracking-tight leading-snug mb-3">{{ state.options.title }}</h3>
 
           <div v-if="state.options.body" class="mb-4">
             <p
@@ -98,10 +96,30 @@
               p.label
             }}</ui-checkbox>
           </div>
+          <div
+            v-if="state.type === 'select'"
+            class="w-full flex flex-col gap-2"
+          >
+            <ui-checkbox
+              :model-value="allSelected"
+              @update:model-value="toggleAll"
+            >
+              {{ state.options.allLabel || 'All' }}
+            </ui-checkbox>
+            <div class="w-full flex flex-col gap-2 max-h-60 overflow-auto">
+              <ui-checkbox
+                v-for="choice in state.options.choices"
+                :key="choice.value"
+                :model-value="state.selections.includes(choice.value)"
+                @update:model-value="(checked) => toggleChoice(choice.value, checked)"
+              >
+                {{ choice.label }}
+              </ui-checkbox>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Actions -->
       <div class="flex gap-3 mobile:flex-col-reverse">
         <ui-button
           class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
@@ -130,7 +148,7 @@
 </template>
 
 <script>
-import { reactive, watch, ref } from 'vue';
+import { reactive, watch, ref, computed } from 'vue';
 import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 
@@ -147,6 +165,9 @@ const defaultOptions = {
   onConfirm: null,
   onCancel: null,
   icon: '',
+  choices: [],
+  defaultValues: null,
+  allLabel: '',
 };
 
 export default {
@@ -156,6 +177,8 @@ export default {
       type: '',
       input: '',
       options: defaultOptions,
+      reentered: false,
+      selections: [],
     });
 
     const isEmpty = ref(false);
@@ -168,8 +191,14 @@ export default {
         ...options,
       };
 
+      state.selections = Array.isArray(state.options.defaultValues)
+        ? [...state.options.defaultValues]
+        : (state.options.choices || []).map((choice) => choice.value);
       state.input = options.defaultValue ?? '';
       state.show = true;
+      // A new show-dialog emit while a callback runs means a nested dialog
+      // took over the modal; fireCallback must not tear it down afterwards.
+      state.reentered = true;
       isEmpty.value = false;
     });
 
@@ -182,6 +211,8 @@ export default {
           ? {
               name: state.input,
             }
+          : state.type === 'select'
+          ? [...state.selections]
           : true;
       let hide = true;
 
@@ -191,6 +222,10 @@ export default {
           return;
         }
       }
+
+      // Reset before running the callback so a nested show-dialog emit can
+      // mark it.
+      state.reentered = false;
 
       if (callback) {
         const cbReturn = callback(param);
@@ -206,7 +241,9 @@ export default {
         }
       }
 
-      if (hide) {
+      // A nested dialog (confirm → prompt, …) replaces the modal via a new
+      // show-dialog emit while this callback runs; it is already visible.
+      if (hide && !state.reentered) {
         state.options = defaultOptions;
         state.show = false;
         state.input = '';
@@ -220,6 +257,25 @@ export default {
       } else if (code === 'Escape') {
         fireCallback('onCancel');
       }
+    }
+
+    const allSelected = computed(
+      () =>
+        state.options.choices.length > 0 &&
+        state.selections.length === state.options.choices.length
+    );
+
+    function toggleChoice(value, checked) {
+      const selected = new Set(state.selections);
+      if (checked) selected.add(value);
+      else selected.delete(value);
+      state.selections = [...selected];
+    }
+
+    function toggleAll(checked) {
+      state.selections = checked
+        ? state.options.choices.map((choice) => choice.value)
+        : [];
     }
 
     watch(
@@ -238,6 +294,9 @@ export default {
       fireCallback,
       isEmpty,
       translations,
+      allSelected,
+      toggleChoice,
+      toggleAll,
     };
   },
 };

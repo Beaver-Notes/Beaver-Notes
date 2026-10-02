@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia';
 import { useNoteStore } from './note';
 import { useLabelStore } from './label';
-import { usePasswordStore } from './passwd';
 import { useFolderStore } from './folder';
 
 interface MainState {
@@ -17,13 +16,11 @@ export const useStore = defineStore('main', {
       const noteStore = useNoteStore();
       const labelStore = useLabelStore();
       const folderStore = useFolderStore();
-      const passwordStore = usePasswordStore();
 
       const values = await Promise.allSettled([
         noteStore.retrieve(),
         labelStore.retrieve(),
         folderStore.retrieve(),
-        passwordStore.retrieve(),
       ]);
 
       if (

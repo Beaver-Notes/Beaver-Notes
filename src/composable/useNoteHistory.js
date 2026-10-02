@@ -23,11 +23,11 @@ export function useNoteHistory() {
     );
   });
 
-  async function loadCommits(workspaceId, noteId) {
+  async function loadCommits(noteId) {
     loading.value = true;
     error.value = null;
     try {
-      commits.value = await listCommits(workspaceId, noteId);
+      commits.value = await listCommits(noteId);
     } catch (err) {
       error.value = err.message || 'Failed to load history';
     } finally {
@@ -35,11 +35,11 @@ export function useNoteHistory() {
     }
   }
 
-  async function loadSnapshot(commitHash) {
+  async function loadSnapshot(commitHash, noteId = '') {
     loading.value = true;
     error.value = null;
     try {
-      selectedCommit.value = await getCommitSnapshot(commitHash);
+      selectedCommit.value = await getCommitSnapshot(commitHash, noteId);
     } catch (err) {
       error.value = err.message || 'Failed to load snapshot';
     } finally {

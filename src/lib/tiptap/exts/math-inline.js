@@ -4,7 +4,7 @@ import {
   REGEX_INLINE_MATH_DOLLARS,
 } from '@benrbray/prosemirror-math';
 import { mathPlugin } from '@benrbray/prosemirror-math';
-import '@benrbray/prosemirror-math/style/math.css';
+import '@benrbray/prosemirror-math/dist/prosemirror-math.css';
 import 'katex/dist/katex.min.css';
 
 export default Node.create({

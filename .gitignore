@@ -4,6 +4,7 @@ dist-ssr/
 
 # Rust / Tauri
 src-tauri/target/
+src-tauri/.tmpdir
 src-tauri/gen/android/app/build/
 src-tauri/gen/apple/build/
 src-tauri/gen/apple/beaver-notes.xcodeproj/
@@ -40,6 +41,7 @@ screenshots/
 *.log
 *.orig
 .env.development
+.env.local
 
 package-lock.json
 
@@ -48,3 +50,7 @@ tests/
 docs/superpowers/
 docs/*.md
 docs/**/*.md
+.duo/*
+# Local-only agent docs — never commit
+/AGENTS.md
+/CLOUD_REVIEW_GUIDE.md

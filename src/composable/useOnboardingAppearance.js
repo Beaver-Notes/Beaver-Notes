@@ -50,11 +50,11 @@ export function useOnboardingAppearance({ fresh, state, theme, goToStep }) {
   }
 
   async function prepareFreshWorkspace() {
-    await applyFreshAndGo('password');
+    await applyFreshAndGo('finish');
   }
 
   async function useDefaultPreferences() {
-    await applyFreshAndGo('password');
+    await applyFreshAndGo('account');
   }
 
   const selectTheme = (name) => {
@@ -65,19 +65,25 @@ export function useOnboardingAppearance({ fresh, state, theme, goToStep }) {
   const selectAccentColor = (color) => {
     fresh.accentColor = color;
     const root = document.documentElement;
+    // 'dark' doubles as Tailwind's dark-mode switch: preserve it across the sweep.
+    const keepDark = root.classList.contains('dark');
+    // Canonical amber plus legacy aliases: remove all.
     const accentColorNames = [
       'red',
+      'amber',
       'light',
+      'dark',
       'green',
       'blue',
       'purple',
       'pink',
       'neutral',
     ];
-    root.classList.forEach((cls) => {
+    ;[...root.classList].forEach((cls) => {
       if (accentColorNames.includes(cls)) root.classList.remove(cls);
     });
     root.classList.add(color);
+    if (keepDark) root.classList.add('dark');
   };
 
   const selectFont = (font) => {

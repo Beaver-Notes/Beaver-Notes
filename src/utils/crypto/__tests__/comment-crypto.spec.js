@@ -13,6 +13,23 @@ describe('comment encryption', () => {
   });
 });
 
+describe('comment payload envelope', () => {
+  it('round-trips text and anchor offsets inside the payload', async () => {
+    const { packComment, unpackComment } = await import('@/utils/crypto/comment-crypto');
+    const packed = packComment({ text: 'hello', anchorFrom: 10, anchorTo: 20 });
+    const { text, anchorFrom, anchorTo } = unpackComment(packed);
+    expect(text).toBe('hello');
+    expect(anchorFrom).toBe(10);
+    expect(anchorTo).toBe(20);
+  });
+
+  it('falls back to row columns for a legacy plaintext body', async () => {
+    const { unpackComment } = await import('@/utils/crypto/comment-crypto');
+    const unpacked = unpackComment('legacy text', { anchorFrom: 3, anchorTo: 7 });
+    expect(unpacked).toEqual({ text: 'legacy text', anchorFrom: 3, anchorTo: 7 });
+  });
+});
+
 describe('workspace/org name encryption', () => {
   it('encrypts and decrypts a name with a workspace key', async () => {
     const { encryptName, decryptName } = await import('@/utils/crypto/comment-crypto');

@@ -1,19 +1,7 @@
-// ─── Memoized array sort ──────────────────────────────────────────────────────
 
 const cache = new WeakMap();
 
-/**
- * Sort an array of objects by a key, avoiding the O(n log n) sort on cache hits.
- *
- * The cache is keyed on the array *reference* + (key, order). Callers pass
- * Pinia getters (e.g. `noteStore.notes`), which return a fresh array whenever
- * any note changes — so the reference change is the mutation signal and a hit
- * is O(1), with no signature string to build and no per-hit array rebuild.
- * The sorted output shares the same element references as the input, so it is
- * never stale.
- *
- * Re-sorts only when a new array reference is passed or key/order change.
- */
+/** Sort objects by key, cached on array reference plus key/order. Pinia getters return fresh array on change, so hit is O(1). */
 export function memoizedSort({ data, key, order = 'asc' }) {
   if (!Array.isArray(data)) return data;
 

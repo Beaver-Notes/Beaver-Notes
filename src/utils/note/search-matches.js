@@ -1,18 +1,12 @@
 import { searchNotesIndex } from '@/utils/note/search.js';
 
 /**
- * Compute the set of note ids that match a search query.
+ * Compute the set of note ids matching a query.
  *
- * - Empty query → `null` (match everything; the caller skips filtering).
- * - `#label` queries → linear scan over note labels (labels are not in the
- *   MiniSearch index fields).
- * - Text queries → the in-memory MiniSearch index (already built and kept
- *   fresh by the persist path). If the index is unavailable it returns `null`
+ * - Empty query → `null` (match everything; caller skips filtering).
+ * - `#label` queries → linear scan over labels (not MiniSearch index fields).
+ * - Text queries → in-memory MiniSearch index; returns `null` if unavailable
  *   so the caller falls back to a linear scan.
- *
- * @param {Array<{id:string, labels?:string[]}>} notes
- * @param {string} query
- * @returns {Set<string>|null}
  */
 export function matchNoteIdsByQuery(notes, query, indexSearch = searchNotesIndex) {
   const queryLower = String(query || '').trim().toLocaleLowerCase();

@@ -105,10 +105,8 @@ mod tests {
 
     #[test]
     fn single_oversized_value_is_still_inserted_and_retained() {
-        // The current implementation cannot evict an oversized entry that is the
-        // sole occupant (the eviction loop is skipped when `inner` is empty), so a
-        // value larger than `max_bytes` is stored verbatim. This pins today's
-        // behavior for the Task 10 refactor.
+        // Oversized sole entries can't be evicted (loop skips when `inner` is
+        // empty); pins today's behavior for the Task 10 refactor.
         let mut cache = ByteLruCache::new(4);
         cache.put("big".to_string(), vec![1, 2, 3, 4, 5, 6]);
         assert_eq!(cache.get("big"), Some(&vec![1, 2, 3, 4, 5, 6]));
@@ -131,9 +129,17 @@ mod tests {
         cache.get("a");
         cache.put("c".to_string(), vec![0u8; 4]);
 
-        assert_eq!(cache.get("a"), Some(&vec![0u8; 4]), "a was promoted, should survive");
+        assert_eq!(
+            cache.get("a"),
+            Some(&vec![0u8; 4]),
+            "a was promoted, should survive"
+        );
         assert_eq!(cache.get("b"), None, "b was LRU, should have been evicted");
-        assert_eq!(cache.get("c"), Some(&vec![0u8; 4]), "c was just inserted, should survive");
+        assert_eq!(
+            cache.get("c"),
+            Some(&vec![0u8; 4]),
+            "c was just inserted, should survive"
+        );
     }
 
     #[test]

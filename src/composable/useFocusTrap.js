@@ -12,12 +12,21 @@ export function useFocusTrap(containerRef, options = {}) {
         escapeDeactivates: true,
         returnFocusOnDeactivate: true,
         allowOutsideClick: true,
+        // Never yank focus (and the mobile keyboard with it) on touch
+        // sheets — Vaul/reka mobile sheets don't autofocus either; the
+        // viewport resize behind the keyboard is what freezes inner
+        // scrollers like the block picker grid on first open.
+        initialFocus:
+          window.matchMedia?.('(pointer: coarse)').matches === true
+            ? false
+            : undefined,
+        preventScroll: true,
         ...options,
       });
       trap.activate();
       isActive.value = true;
     } catch {
-      // Silently catch — component functions without trapping
+      // Silent catch: component works without trapping.
     }
   }
 
@@ -26,7 +35,6 @@ export function useFocusTrap(containerRef, options = {}) {
     try {
       trap.deactivate();
     } catch {
-      // Silently catch
     }
     isActive.value = false;
     trap = null;

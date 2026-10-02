@@ -1,7 +1,7 @@
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::{atomic::Ordering, Condvar, Mutex},
 };
 
 use aes_gcm::{
@@ -19,7 +19,6 @@ use chacha20poly1305::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use hmac::Hmac;
-use keyring::Entry;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -28,32 +27,40 @@ use sha2::Sha256;
 use tauri::AppHandle;
 
 use super::super::{
-    app_encryption_manifest_path, get_settings_value, AppError, AppState, SAFE_STORAGE_SERVICE,
+    app_encryption_manifest_path, get_settings_value, AppError, AppState,
 };
 
-pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
-pub(crate) const ARGON2_MEMORY_KIB: u32 = 32 * 1024;
-pub(crate) const ARGON2_ITERATIONS: u32 = 2;
-pub(crate) const ARGON2_PARALLELISM: u32 = 2;
+pub(crate) const ARGON2_MEMORY_KIB: u32 = 131_072; // 128 MiB (Amendment 1)
+pub(crate) const ARGON2_ITERATIONS: u32 = 3;
+pub(crate) const ARGON2_PARALLELISM: u32 = 4;
+/// Pinned legacy Argon2id params for v3 envelopes/manifests (pre-Amendment 1). Bump would strand locked notes.
+pub(crate) const LEGACY_ARGON2_MEMORY_KIB: u32 = 32768; // 32 MiB
+pub(crate) const LEGACY_ARGON2_ITERATIONS: u32 = 2;
+pub(crate) const LEGACY_ARGON2_PARALLELISM: u32 = 2;
 pub(crate) const ENCRYPTION_MANIFEST_VERSION: u8 = 4;
 pub(crate) const APP_PASSWORD_CHECK: &str = "BeaverNotes-app-manifest-v4";
 pub(crate) const APP_ENCRYPTION_SCOPE: &str = "app";
 pub(crate) const STREAM_CHUNK_SIZE: usize = 256 * 1024;
 pub(crate) const SYNC_ROOT_DIR: &str = "BeaverNotesSync";
 pub(crate) const PROTOCOL_VERSION: u8 = 4;
-/// Envelope version written for binary sync payloads (raw Yjs update bytes).
-/// v5 encrypts the raw bytes directly instead of embedding the update as a
-/// giant JSON number array inside an encrypted JSON object (which cost ~950ms
-/// per multi-MB sync file). v4 envelopes are still decrypted for compat.
+/// Envelope version for binary sync payloads. v5 encrypts raw bytes directly;
+/// v4 (JSON number arrays) still decrypted for compat.
 pub(crate) const SYNC_PAYLOAD_VERSION: u8 = 5;
+/// Envelope version for sync payloads sealed with a note's shared collaboration
+/// key (the per-note key, or the workspace key for the `meta` doc) rather than
+/// the account-scoped items key. Same JSON shape as v5; the version field tells
+/// the reader which key to load, so v5 rows stay items-key readable forever.
+pub(crate) const SHARED_PAYLOAD_VERSION: u8 = 6;
 pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
-/// AAD binding for note-content encryption. Fixed domain string: it proves the
-/// ciphertext is genuine note content (and not forged/moved across contexts).
+/// AAD binding for note-content encryption. Bound to note identity to prevent
+/// cross-note ciphertext transplantation.
 pub(crate) const NOTE_AAD: &str = "beaver-notes:note-content:v1";
-/// Envelope version for raw-byte note payloads. v6 encrypts the raw UTF-8 bytes
-/// directly instead of round-tripping through serde_json (which parsed the JSON
-/// string into a Value and then re-serialised it to bytes). v3 envelopes are
+fn note_aad(note_key: &str) -> String {
+    format!("{}:{}", NOTE_AAD, note_key)
+}
+/// Envelope version for raw-byte note payloads. v6 encrypts raw UTF-8 bytes
+/// directly instead of round-tripping through serde_json. v3 envelopes are
 /// still decrypted for backward compatibility.
 pub(crate) const NOTE_RAW_VERSION: u8 = 6;
 
@@ -64,9 +71,8 @@ pub(crate) struct WrappedKeyEnvelope {
     pub(crate) cipher: String,
 }
 
-/// A previously-active items key that has been rotated out. The key bytes are
-/// wrapped (encrypted) with the master KEK so they can be unwrapped into the
-/// in-memory ring at unlock time for decrypting old notes.
+/// A previously-active items key, rotated out: wrapped with the master KEK so
+/// it can be unwrapped into the in-memory ring at unlock time for old notes.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PreviousWrappedKey {
@@ -97,19 +103,15 @@ pub(crate) struct EncryptionManifest {
     /// Current items-key ID so newly-encrypted notes carry a `kid` reference.
     #[serde(default)]
     pub(crate) current_key_id: String,
-    /// Ring of previously-active items keys (wrapped with the KEK) so they can
-    /// be loaded at unlock time and used to decrypt notes written before the
-    /// most recent rotation.
+    /// Ring of previously-active items keys (wrapped with the KEK), loaded at
+    /// unlock time to decrypt notes written before the last rotation.
     #[serde(default)]
     pub(crate) previous_keys: Vec<PreviousWrappedKey>,
-    /// Items key wrapped with a random recovery secret so it can be recovered
-    /// without the passphrase. Absent for manifests created before recovery
-    /// codes were added; populated lazily when the user generates a code.
+    /// Items key wrapped with a random recovery secret. Absent in manifests
+    /// created before recovery codes; populated lazily on code generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) recovery_kek: Option<WrappedKeyEnvelope>,
 }
-
-const MASTER_KEY_FILE: &str = "master.key";
 
 fn derive_kek(passphrase: &str, salt: &[u8]) -> [u8; 32] {
     let _t = crate::shared::speed_log::scope("keys.derive_kek_pbkdf2");
@@ -125,6 +127,22 @@ pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 
         ARGON2_MEMORY_KIB,
         ARGON2_ITERATIONS,
         ARGON2_PARALLELISM,
+    )
+}
+
+/// KEK under the pinned LEGACY_ARGON2_* parameters, exclusively for the
+/// legacy-note migration path (`derive_argon2_key`): must reproduce historical
+/// v3 derivations byte-for-byte regardless of module-default changes.
+pub(crate) fn derive_kek_argon2id_legacy(
+    passphrase: &str,
+    salt: &[u8],
+) -> Result<[u8; 32], AppError> {
+    derive_kek_argon2id_with_params(
+        passphrase,
+        salt,
+        LEGACY_ARGON2_MEMORY_KIB,
+        LEGACY_ARGON2_ITERATIONS,
+        LEGACY_ARGON2_PARALLELISM,
     )
 }
 
@@ -160,9 +178,8 @@ pub(crate) fn derive_kek_from_manifest(
             .as_ref()
             .ok_or_else(|| AppError::Crypto("Argon2 salt missing in v3 manifest".into()))?;
         let salt = hex::decode(salt.trim())?;
-        // Use the parameters the manifest was created with (they can predate
-        // the current constants) so existing vaults keep unlocking after a
-        // KDF parameter bump.
+        // Use the manifest's stored params (they may predate current constants)
+        // so existing vaults keep unlocking after a KDF parameter bump.
         derive_kek_argon2id_with_params(
             passphrase,
             &salt,
@@ -176,7 +193,7 @@ pub(crate) fn derive_kek_from_manifest(
     }
 }
 
-fn random_key() -> [u8; 32] {
+pub(crate) fn random_key() -> [u8; 32] {
     let mut key = [0_u8; 32];
     rand::thread_rng().fill_bytes(&mut key);
     key
@@ -189,9 +206,8 @@ pub(crate) fn random_nonce() -> [u8; 12] {
 }
 
 /// Force-initialize the lazily-initialized crypto stack (thread-local CSPRNG
-/// seeding and AES-GCM cipher setup) so the first real encrypt/decrypt on the
-/// user-visible path doesn't pay a one-time cold-start cost. Called during
-/// bootstrap and at unlock; the first `yjs_append` then reuses warm state.
+/// seeding, AES-GCM cipher setup) so the first real encrypt/decrypt doesn't pay
+/// a one-time cold-start cost. Called at bootstrap and unlock.
 pub(crate) fn prewarm_crypto() {
     let _t = crate::shared::speed_log::scope("keys.prewarm_crypto");
     let key = random_key();
@@ -245,9 +261,8 @@ pub(crate) fn xnonce() -> [u8; 24] {
     nonce
 }
 
-/// AEAD envelope used for all JSON payloads (sync commits, genesis, snapshot).
-/// XChaCha20-Poly1305 with a 24-byte nonce and AAD binding the ciphertext to its
-/// identity (commit id / snapshot / genesis marker).
+/// AEAD envelope for all JSON payloads (sync commits, genesis, snapshot):
+/// XChaCha20-Poly1305, 24-byte nonce, AAD binding ciphertext to its identity.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SyncEnvelope {
@@ -323,10 +338,7 @@ pub(crate) fn aead_decrypt_json(
     Ok(serde_json::from_slice(&plaintext)?)
 }
 
-/// Encrypt a raw byte payload (e.g. a Yjs binary update) with
-/// XChaCha20-Poly1305. Returns `(iv_hex, enc_base64)` — the same envelope
-/// layout as `aead_encrypt_json` but without the serde_json round-trip, so
-/// multi-MB sync payloads avoid parsing a huge JSON number array.
+/// Encrypt raw bytes with XChaCha20-Poly1305. Returns (iv_hex, enc_base64), same layout without JSON round-trip.
 pub(crate) fn aead_encrypt_bytes(
     key: &[u8; 32],
     plaintext: &[u8],
@@ -427,13 +439,8 @@ pub(crate) fn decrypt_json_from_storage(
     Ok(Some(decrypted))
 }
 
-//  Shared key params
-//
-// The items key is random and wrapped by the master key. To let a second device
-// derive the SAME master key (and thus unwrap the SAME items key) we publish the
-// public KDF parameters (salt) plus the wrapped items key in the sync folder.
-// This file is public: only a device with the correct passphrase can unwrap the
-// items key.
+// Items key is random, wrapped by master key. Publish KDF salt plus wrapped key in sync folder.
+// Only correct passphrase unwraps it, so second device derives same master key.
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -453,25 +460,54 @@ pub(crate) fn sync_key_params_path(
 ) -> Result<Option<PathBuf>, AppError> {
     let sync_path =
         get_settings_value(app, state, "syncPath").and_then(|v| v.as_str().map(|s| s.to_string()));
-    let base = if let Some(ref p) = sync_path {
-        if !p.is_empty() {
-            PathBuf::from(p)
-        } else {
-            // Cloud-only mode: fall back to the app data directory so
-            // keyParams.json is always reachable from the JS side too.
-            dirs::data_local_dir()
-                .map(|d| d.join("com.beavernotes.beaver-notes"))
-                .unwrap_or_default()
-        }
-    } else {
-        dirs::data_local_dir()
-            .map(|d| d.join("com.beavernotes.beaver-notes"))
-            .unwrap_or_default()
+    // No folder chosen (cloud-only / fresh onboarding): keep keyParams.json inside
+    // this instance's app-data dir. Falling back to the shared real-app directory
+    // would let a second instance read/write the first app's vault.
+    let base = match sync_path.as_deref() {
+        Some(p) if !p.is_empty() => PathBuf::from(p),
+        _ => crate::shared::app_storage_dir(app, state)?,
     };
-    Ok(Some(
-        base.join(SYNC_ROOT_DIR)
-            .join(SYNC_KEY_PARAMS_FILE),
-    ))
+    Ok(Some(base.join(SYNC_ROOT_DIR).join(SYNC_KEY_PARAMS_FILE)))
+}
+
+pub(crate) fn key_params_from_manifest(
+    manifest: &EncryptionManifest,
+) -> Result<KeyParams, AppError> {
+    if manifest.version < 3 {
+        return Err(AppError::Crypto(
+            "Encryption manifest is too old to share keys".into(),
+        ));
+    }
+    Ok(KeyParams {
+        version: PROTOCOL_VERSION,
+        kdf: "argon2id".to_string(),
+        salt_hex: manifest
+            .argon2_salt_hex
+            .clone()
+            .unwrap_or(manifest.salt_hex.clone()),
+        argon2_memory_kib: manifest.argon2_memory_kib.unwrap_or(ARGON2_MEMORY_KIB),
+        argon2_iterations: manifest.argon2_iterations.unwrap_or(ARGON2_ITERATIONS),
+        argon2_parallelism: manifest
+            .argon2_parallelism
+            .unwrap_or(ARGON2_PARALLELISM),
+        wrapped_items_key: manifest.wrapped_key.clone(),
+    })
+}
+
+/// Whether `publish_key_params` may replace `existing` with the local
+/// manifest's params. Writing unconditionally let two devices mint divergent
+/// vaults: the second writer clobbered the first's `keyParams.json`, and every
+/// peer commit then failed `decrypt_commit` and was skipped forever (finding
+/// F2). Overwriting is allowed only when there is no file yet or the file wraps
+/// the same items key (same vault).
+fn key_params_overwrite_allowed(
+    existing: Option<&KeyParams>,
+    manifest: &EncryptionManifest,
+) -> bool {
+    match existing {
+        None => true,
+        Some(params) => !remote_params_differ(params, Some(manifest)),
+    }
 }
 
 pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
@@ -481,23 +517,16 @@ pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<()
     let manifest_path = app_encryption_manifest_path(app, state)?;
     let manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Crypto("Encryption manifest is missing".into()))?;
-    if manifest.version < 3 {
-        return Err(AppError::Crypto(
-            "Encryption manifest is too old to share keys".into(),
-        ));
+    let params = key_params_from_manifest(&manifest)?;
+    // Refuse to clobber a different vault's params (finding F2); surface the
+    // conflict instead of silently overwriting.
+    if let Some(existing) = read_key_params(app, state)? {
+        if !key_params_overwrite_allowed(Some(&existing), &manifest) {
+            return Err(AppError::Crypto(
+                "sync: keyParams.json already holds a different vault — refusing to overwrite".into(),
+            ));
+        }
     }
-    let params = KeyParams {
-        version: PROTOCOL_VERSION,
-        kdf: "argon2id".to_string(),
-        salt_hex: manifest
-            .argon2_salt_hex
-            .clone()
-            .unwrap_or(manifest.salt_hex),
-        argon2_memory_kib: manifest.argon2_memory_kib.unwrap_or(ARGON2_MEMORY_KIB),
-        argon2_iterations: manifest.argon2_iterations.unwrap_or(ARGON2_ITERATIONS),
-        argon2_parallelism: manifest.argon2_parallelism.unwrap_or(ARGON2_PARALLELISM),
-        wrapped_items_key: manifest.wrapped_key.clone(),
-    };
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -519,15 +548,35 @@ pub(crate) fn read_key_params(
     Ok(Some(serde_json::from_str(&raw)?))
 }
 
-/// Derive the items key from shared key params: KEK = Argon2id(passphrase, salt),
-/// then unwrap `wrapped_items_key`. Pure and unit-testable. Returns the KEK too
-/// so callers can populate the key ring without re-running the KDF.
+/// Derive the items key from shared key params (KEK = Argon2id(passphrase,
+/// salt), then unwrap). Pure; returns the KEK so callers populate the key ring
+/// without re-running the KDF.
 pub(crate) fn derive_items_key_from_params(
     params: &KeyParams,
     passphrase: &str,
 ) -> Result<([u8; 32], [u8; 32]), AppError> {
     let salt = hex::decode(params.salt_hex.trim())?;
-    let kek = derive_kek_argon2id(passphrase, &salt)?;
+    // Use the vault's published KDF params, never module defaults: a legacy
+    // 16 MiB manifest derived with defaults yields a different KEK and a
+    // spurious WrongPassword for the correct passphrase.
+    if params.argon2_memory_kib < ARGON2_MEMORY_KIB
+        || params.argon2_iterations < ARGON2_ITERATIONS
+        || params.argon2_parallelism < ARGON2_PARALLELISM
+    {
+        return Err(AppError::Crypto(
+            "KeyParams KDF params below minimum — possible downgrade".into(),
+        ));
+    }
+    if params.version < ENCRYPTION_MANIFEST_VERSION || params.kdf != "argon2id" {
+        return Err(AppError::Crypto("Unsupported KeyParams version/kdf".into()));
+    }
+    let kek = derive_kek_argon2id_with_params(
+        passphrase,
+        &salt,
+        params.argon2_memory_kib,
+        params.argon2_iterations,
+        params.argon2_parallelism,
+    )?;
     let items_key = decrypt_bytes_with_key(&kek, &params.wrapped_items_key)
         .map_err(|_| AppError::WrongPassword)?;
     if items_key.len() != 32 {
@@ -540,7 +589,7 @@ pub(crate) fn derive_items_key_from_params(
     Ok((key, kek))
 }
 
-/// True when the shared key params belong to a vault different from the local
+/// True when the shared key params belong to a different vault than the local
 /// manifest (or no local manifest exists).
 pub(crate) fn remote_params_differ(
     params: &KeyParams,
@@ -555,9 +604,9 @@ pub(crate) fn remote_params_differ(
     }
 }
 
-/// Adopt shared key params: derive the same items key every other device uses
-/// from the passphrase + the published (public) salt, update the in-memory key,
-/// and rewrite the local manifest so future local unlocks stay consistent.
+/// Adopt shared key params: derive the items key every other device uses,
+/// update the in-memory key, and rewrite the local manifest so future unlocks
+/// stay consistent.
 pub(crate) fn adopt_key_params(
     app: &AppHandle,
     state: &AppState,
@@ -566,10 +615,19 @@ pub(crate) fn adopt_key_params(
 ) -> Result<(), AppError> {
     let (key, kek) = derive_items_key_from_params(params, passphrase)?;
 
-    {
-        let mut s = state.crypto.session.write().map_err(AppError::from)?;
-        s.app_data_key = Some(key);
-        s.current_items_key_id = params.wrapped_items_key.nonce[..8].to_string();
+    // Joining replaces the local items key. Re-encrypt everything this device
+    // stored under the old key first, otherwise its local notes become
+    // undecryptable (no key-id fallback exists for note/content/asset payloads).
+    // Read the old key before taking the migration barrier: `current_app_key`
+    // takes the session read lock, and the lock order is barrier → session.
+    let old_key = current_app_key(state)?;
+    if old_key.is_none() && app_encryption_manifest_path(app, state)?.exists() {
+        return Err(AppError::EncryptionLocked);
+    }
+
+    fn set_adopted_key(session: &mut crate::shared::CryptoSession, key: [u8; 32], key_id: &str) {
+        session.app_data_key = Some(key);
+        session.current_items_key_id = key_id.to_string();
     }
 
     let key_id = generate_key_id();
@@ -588,8 +646,38 @@ pub(crate) fn adopt_key_params(
         previous_keys: Vec::new(),
         recovery_kek: None,
     };
+
+    // The migration write barrier covers re-encryption, the in-memory swap and
+    // manifest persistence. Sealing writers take the barrier read guard across
+    // key fetch + ciphertext write, so none can observe the old key after the
+    // swap; the post-manifest sweep catches any writer that bypassed the
+    // barrier.
+    let mut backups: Vec<std::path::PathBuf> = Vec::new();
+    match old_key {
+        Some(old) if old != key => {
+            let (_, created) = super::migrate_app_data_key(
+                app,
+                state,
+                &old,
+                &key,
+                &manifest,
+                |session| set_adopted_key(session, key, &key_id),
+            )?;
+            backups = created;
+        }
+        _ => {
+            let mut session = state.crypto.session.write().map_err(AppError::from)?;
+            set_adopted_key(&mut session, key, &key_id);
+            drop(session);
+            write_encryption_manifest(&app_encryption_manifest_path(app, state)?, &manifest)?;
+        }
+    }
     populate_key_ring(state, &manifest, &kek)?;
-    write_encryption_manifest(&app_encryption_manifest_path(app, state)?, &manifest)?;
+    // The key swap is persisted, so the pre-migration backups have done their
+    // job — don't leave hundreds of MB of `*.pre-join-backup` files on disk.
+    for path in backups {
+        let _ = std::fs::remove_file(path);
+    }
     Ok(())
 }
 
@@ -616,9 +704,8 @@ pub(crate) fn write_encryption_manifest(
     Ok(())
 }
 
-/// Create a fresh encryption manifest for a scope. Derives the KEK once and
-/// returns it along with the manifest and items key so the caller can populate
-/// the key ring without re-running the KDF.
+/// Create a fresh encryption manifest for a scope, returning the KEK alongside
+/// so the caller can populate the key ring without re-running the KDF.
 pub(crate) fn create_encryption_manifest(
     scope: &str,
     password_check: &str,
@@ -646,8 +733,8 @@ pub(crate) fn create_encryption_manifest(
     Ok((manifest, data_key, kek))
 }
 
-/// Generate a random 256-bit recovery code and wrap the active items key with
-/// it. Returns the hex-encoded code so the frontend can display it once.
+/// Generate a random 256-bit recovery code wrapping the active items key;
+/// return hex for one-time display to the user.
 pub(crate) fn generate_recovery_code(
     manifest: &mut EncryptionManifest,
     data_key: &[u8; 32],
@@ -659,8 +746,7 @@ pub(crate) fn generate_recovery_code(
 }
 
 /// Recover the items key from a previously-generated recovery code (64 hex
-/// chars). The code must match the value returned by `generate_recovery_code`
-/// for the same manifest.
+/// chars) matching `generate_recovery_code` for the same manifest.
 pub(crate) fn recover_key_from_code(
     manifest: &EncryptionManifest,
     code_hex: &str,
@@ -685,10 +771,7 @@ pub(crate) fn recover_key_from_code(
     Ok(key)
 }
 
-/// Unwrap the items key from the manifest and return it together with the KEK
-/// derived from `passphrase`. Returning the KEK lets callers populate the key
-/// ring (and cache `master_key_cache`) without re-running the KDF — Argon2id is
-/// expensive (~200ms) and only needs to run once per unlock.
+/// Unwrap items key from manifest, return with derived KEK. Callers reuse KEK (Argon2id ~200ms).
 pub(crate) fn unlock_key_from_manifest(
     manifest: &EncryptionManifest,
     passphrase: &str,
@@ -717,9 +800,6 @@ pub(crate) fn unlock_key_from_manifest(
             return Err(AppError::WrongPassword);
         }
     }
-    if key.len() != 32 {
-        return Err(AppError::Crypto("Wrapped key is corrupted.".into()));
-    }
     let mut out = [0_u8; 32];
     out.copy_from_slice(&key[..32]);
     Ok((out, kek))
@@ -732,6 +812,91 @@ pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, AppE
         .read()
         .map_err(AppError::from)?
         .app_data_key)
+}
+
+/// Snapshot the whole shared-key ring for a sync cycle. Cloning 32-byte keys is
+/// cheap and avoids holding the session read lock across network I/O. Each value
+/// is newest-first: index 0 seals, all entries decrypt.
+pub(crate) fn shared_note_keys(
+    state: &AppState,
+) -> Result<HashMap<String, Vec<[u8; 32]>>, AppError> {
+    Ok(state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .shared_note_keys
+        .clone())
+}
+
+/// The key a shared note seals under: the newest in its ring. `None` for an
+/// unregistered note (personal notes fall back to the items key).
+pub(crate) fn current_shared_key(
+    shared: &HashMap<String, Vec<[u8; 32]>>,
+    note_id: &str,
+) -> Option<[u8; 32]> {
+    shared.get(note_id).and_then(|keys| keys.first().copied())
+}
+
+/// Merge a newly-registered note key with any previous keys. The result is
+/// newest-first and deduplicated: `new_key` is current, then `previous_keys`,
+/// then whatever `existing` current was (archived automatically when a rotation
+/// registers a genuinely new key). Capped so repeated rotations cannot grow the
+/// in-memory ring without bound.
+pub(crate) fn merge_shared_note_keys(
+    existing: Option<&[[u8; 32]]>,
+    new_key: [u8; 32],
+    previous_keys: &[[u8; 32]],
+) -> Vec<[u8; 32]> {
+    const MAX_KEYS: usize = 16;
+    let mut keys: Vec<[u8; 32]> = Vec::with_capacity(3);
+    keys.push(new_key);
+    for &key in previous_keys.iter().chain(existing.unwrap_or(&[]).iter()) {
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    keys.truncate(MAX_KEYS);
+    keys
+}
+
+/// Notes the client knows are shared but whose collaboration key is not
+/// registered yet. The cloud push defers sealing these rather than fall back to
+/// the account items key (see `CryptoSession::expected_shared_notes`).
+pub(crate) fn expected_shared_notes(state: &AppState) -> Result<HashSet<String>, AppError> {
+    Ok(state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .expected_shared_notes
+        .clone())
+}
+
+/// Notes invited to in a workspace the caller is not a member of, mapped to the
+/// note's owning workspace id. The active-workspace push skips these so a
+/// shared-with-me note is never copied into the caller's own workspace.
+pub(crate) fn foreign_shared_notes(
+    state: &AppState,
+) -> Result<HashMap<String, String>, AppError> {
+    Ok(state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .foreign_shared_notes
+        .clone())
+}
+
+/// KV at-rest key. None only pre-onboarding (plaintext correct). Locked returns EncryptionLocked: fail closed.
+/// Blocks writing plaintext among encrypted rows or reading ciphertext as garbage.
+pub(crate) fn kv_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
+    let s = state.crypto.session.read().map_err(AppError::from)?;
+    match (s.active, s.app_data_key) {
+        (false, _) => Ok(None),
+        (true, Some(key)) => Ok(Some(key)),
+        (true, None) => Err(AppError::EncryptionLocked),
+    }
 }
 
 /// Generate a random hex key ID (16 hex chars = 8 bytes).
@@ -751,9 +916,8 @@ pub(crate) fn key_for_id(state: &AppState, kid: &str) -> Result<Option<[u8; 32]>
     Ok(s.items_keys.get(kid).copied())
 }
 
-/// Unwrap all `previous_keys` from the manifest and load them into the
-/// in-memory `items_keys` ring. Also caches the KEK in `master_key_cache`
-/// for future rotation without re-prompting.
+/// Unwrap all `previous_keys` into the in-memory `items_keys` ring and cache
+/// the KEK in `master_key_cache` for rotation without re-prompting.
 pub(crate) fn populate_key_ring(
     state: &AppState,
     manifest: &EncryptionManifest,
@@ -777,15 +941,13 @@ pub(crate) fn populate_key_ring(
     Ok(())
 }
 
-/// Rotate the current items key: wrap the old key and store it in the manifest's
-/// `previous_keys` list, generate a fresh random items key, wrap it with the KEK
-/// (which must be cached in `master_key_cache`), and persist the updated manifest.
-/// Old notes encrypted with the previous key remain decryptable via `items_keys`
-/// and `key_for_id`.
+/// Rotate the items key: archive the old key (manifest `previous_keys` +
+/// in-memory ring, so old notes stay decryptable via `key_for_id`), re-encrypt
+/// existing payloads to a fresh random key, and wrap it with the cached KEK.
+/// Requires the app to be unlocked.
 pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("keys.rotate_items_key");
-    // KEK + current key must be present (app must be unlocked). Copy them out so
-    // we can release the lock before doing disk I/O / crypto.
+    // Copy key material out so the lock releases before disk I/O / crypto.
     let (kek, current_key_id, current_key) = {
         let s = state.crypto.session.read().map_err(AppError::from)?;
         let kek = s.master_key_cache.ok_or_else(|| {
@@ -806,8 +968,6 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
     let mut manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Crypto("Encryption manifest is missing".into()))?;
 
-    // Wrap the outgoing key with the KEK and push it into the manifest's
-    // previous-keys list (persistent storage).
     let wrapped_old = encrypt_bytes_with_key(&kek, &current_key)?;
     manifest.previous_keys.push(PreviousWrappedKey {
         id: current_key_id.clone(),
@@ -815,31 +975,38 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
         cipher: wrapped_old.cipher,
     });
 
-    // Keep the old key in the in-memory ring so it can be looked up during this
-    // session without needing to unwrap it from the manifest.
-    state
-        .crypto
-        .session
-        .write()
-        .map_err(AppError::from)?
-        .items_keys
-        .insert(current_key_id, current_key);
-
     let new_key = random_key();
     let new_key_id = generate_key_id();
-
     let wrapped_new = encrypt_bytes_with_key(&kek, &new_key)?;
-
     manifest.wrapped_key = wrapped_new;
     manifest.current_key_id = new_key_id.clone();
 
-    {
-        let mut s = state.crypto.session.write().map_err(AppError::from)?;
-        s.app_data_key = Some(new_key);
-        s.current_items_key_id = new_key_id;
-    }
+    // Same migration barrier as the join path: it is held across
+    // re-encryption, the in-memory swap and manifest persistence, so no
+    // barrier-aware writer can observe the old key mid-rotation or interleave
+    // old-key data after the swap. The post-manifest sweep catches a writer
+    // that bypassed the barrier.
+    let backups: Vec<std::path::PathBuf> = {
+        let (_, created) = super::migrate_app_data_key(
+            app,
+            state,
+            &current_key,
+            &new_key,
+            &manifest,
+            |session| {
+                // Keep the old key in the in-memory ring for lookups this session.
+                session.items_keys.insert(current_key_id.clone(), current_key);
+                session.app_data_key = Some(new_key);
+                session.current_items_key_id = new_key_id.clone();
+            },
+        )?;
+        created
+    };
 
-    write_encryption_manifest(&manifest_path, &manifest)?;
+    // The swap is persisted, so the pre-migration backups have done their job.
+    for path in backups {
+        let _ = std::fs::remove_file(path);
+    }
 
     Ok(())
 }
@@ -899,9 +1066,8 @@ pub(crate) fn decrypt_native_note_content(
     if !note_content_is_native_encrypted(content) {
         return Ok(Some(content.clone()));
     }
-    // Determine which items key to use: `kid` in the envelope lets us pick
-    // the correct key from the ring after rotation; absent `kid` (legacy)
-    // falls back to the current key.
+    // Pick the items key via `kid` (correct ring entry after rotation);
+    // absent `kid` (legacy) falls back to the current key.
     let kid = content
         .get("kid")
         .and_then(serde_json::Value::as_str)
@@ -997,137 +1163,6 @@ pub(crate) fn decrypt_note_row_from_storage(
     Ok(Value::Object(note))
 }
 
-/// Master-key resolution state. `Loading` means a thread is currently inside
-/// the (slow) Keychain/file read; concurrent cold callers wait on
-/// `MASTER_KEY_CONDVAR` and reuse the single result instead of issuing several
-/// Keychain IPC round-trips (each of which costs seconds on macOS).
-enum MasterKeyState {
-    Pending,
-    Loading,
-    Ready(Vec<u8>),
-}
-
-static MASTER_KEY_STATE: Mutex<MasterKeyState> = Mutex::new(MasterKeyState::Pending);
-static MASTER_KEY_CONDVAR: Condvar = Condvar::new();
-
-pub(crate) fn read_master_key() -> Result<Vec<u8>, AppError> {
-    let _t = crate::shared::speed_log::scope("keys.read_master_key");
-    let mut state = MASTER_KEY_STATE
-        .lock()
-        .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-    loop {
-        match &*state {
-            MasterKeyState::Ready(key) => return Ok(key.clone()),
-            MasterKeyState::Pending => break,
-            MasterKeyState::Loading => {
-                state = MASTER_KEY_CONDVAR
-                    .wait(state)
-                    .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-            }
-        }
-    }
-    *state = MasterKeyState::Loading;
-    drop(state);
-
-    let result = read_master_key_from_store();
-
-    let mut state = MASTER_KEY_STATE
-        .lock()
-        .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-    match &result {
-        Ok(key) => *state = MasterKeyState::Ready(key.clone()),
-        // Transient Keychain failures retry next call.
-        Err(_) => *state = MasterKeyState::Pending,
-    }
-    MASTER_KEY_CONDVAR.notify_all();
-    result
-}
-
-fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
-    if super::KEYRING_AVAILABLE.load(Ordering::Relaxed) {
-        if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
-            if let Ok(stored) = entry.get_password() {
-                return BASE64.decode(stored.as_bytes()).map_err(AppError::from);
-            }
-
-            let mut key = vec![0_u8; 32];
-            rand::thread_rng().fill_bytes(&mut key);
-            if entry.set_password(&BASE64.encode(&key)).is_ok() {
-                return Ok(key);
-            }
-        }
-        super::KEYRING_AVAILABLE.store(false, Ordering::Relaxed);
-    }
-
-    file_based_master_key()
-}
-
-pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
-    let app_dir = dirs::data_local_dir()
-        .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))?
-        .join("com.beavernotes.beaver-notes");
-    let key_path = app_dir.join(MASTER_KEY_FILE);
-
-    if !key_path.exists() {
-        // Fail closed: never mint a fresh plaintext master key next to the
-        // data when the OS keychain is unavailable.
-        return Err(AppError::Other(
-            "OS keychain unavailable and no existing master key file found.".into(),
-        ));
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = fs::metadata(&key_path)?.permissions();
-        if perms.mode() & 0o077 != 0 {
-            fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
-        }
-    }
-    let raw = fs::read_to_string(&key_path)?;
-    let key_bytes = BASE64.decode(raw.trim().as_bytes())?;
-    if key_bytes.len() != 32 {
-        return Err(AppError::Crypto(
-            "Invalid file-based master key length".into(),
-        ));
-    }
-    Ok(key_bytes)
-}
-
-pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppError> {
-    let key = read_master_key()?;
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
-    let mut iv = [0_u8; 12];
-    rand::thread_rng().fill_bytes(&mut iv);
-    let encrypted = cipher.encrypt(Nonce::from_slice(&iv), bytes)?;
-    let mut payload = iv.to_vec();
-    payload.extend_from_slice(&encrypted);
-    Ok(BASE64.encode(payload))
-}
-
-pub(crate) fn safe_storage_decrypt_bytes(value: &str) -> Result<Vec<u8>, AppError> {
-    let key = read_master_key()?;
-    let payload = BASE64.decode(value.as_bytes())?;
-    if payload.len() < 13 {
-        return Err(AppError::Crypto("Invalid encrypted payload".into()));
-    }
-    let (iv, ciphertext) = payload.split_at(12);
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
-    cipher
-        .decrypt(Nonce::from_slice(iv), ciphertext)
-        .map_err(AppError::from)
-}
-
-pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
-    if super::super::ALLOWED_BLOB_KEYS.contains(&key) {
-        Ok(())
-    } else {
-        Err(AppError::Other(format!(
-            "[safeStorage] Unsupported blob key: {key}"
-        )))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1151,11 +1186,32 @@ mod tests {
         (params, data_key)
     }
 
+    /// L8: registering a rotated key keeps the previous generation available
+    /// (newest first), archives the old current, and deduplicates.
+    #[test]
+    fn merge_shared_note_keys_keeps_previous_generations_newest_first() {
+        let old = [1u8; 32];
+        let new = [2u8; 32];
+        let older = [3u8; 32];
+
+        // Rotation with an explicit previous key: new, then explicit prev, then
+        // the archived existing current.
+        let merged = merge_shared_note_keys(Some(&[old]), new, &[older]);
+        assert_eq!(merged, vec![new, older, old]);
+
+        // Re-registering the same key does not duplicate or reorder.
+        let same = merge_shared_note_keys(Some(&merged), new, &[]);
+        assert_eq!(same, vec![new, older, old]);
+
+        // No history: just the new key.
+        assert_eq!(merge_shared_note_keys(None, new, &[old]), vec![new, old]);
+    }
+
     #[test]
     fn derive_items_key_with_correct_passphrase_matches_manifest_key() {
         let (params, data_key) = sample_params("correct horse battery staple");
-        let (key, _kek) = derive_items_key_from_params(&params, "correct horse battery staple")
-            .expect("derive");
+        let (key, _kek) =
+            derive_items_key_from_params(&params, "correct horse battery staple").expect("derive");
         assert_eq!(key, data_key);
     }
 
@@ -1176,12 +1232,9 @@ mod tests {
 
     #[test]
     fn remote_params_differ_false_when_matching_manifest() {
-        let (manifest, _, _) = create_encryption_manifest(
-            APP_ENCRYPTION_SCOPE,
-            APP_PASSWORD_CHECK,
-            "pw",
-        )
-        .expect("create manifest");
+        let (manifest, _, _) =
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, "pw")
+                .expect("create manifest");
         let params = KeyParams {
             version: PROTOCOL_VERSION,
             kdf: "argon2id".to_string(),
@@ -1195,5 +1248,29 @@ mod tests {
             wrapped_items_key: manifest.wrapped_key.clone(),
         };
         assert!(!remote_params_differ(&params, Some(&manifest)));
+    }
+
+    /// F2: a device must not overwrite an existing `keyParams.json` that
+    /// belongs to a different vault. Same-vault params (or no file) still write.
+    #[test]
+    fn key_params_overwrite_refuses_a_foreign_vault() {
+        let (manifest_a, _, _) =
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, "pw-a")
+                .expect("manifest a");
+        let (manifest_b, _, _) =
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, "pw-b")
+                .expect("manifest b");
+        let params_a = key_params_from_manifest(&manifest_a).expect("params a");
+        let params_b = key_params_from_manifest(&manifest_b).expect("params b");
+
+        // No existing file: always allowed.
+        assert!(key_params_overwrite_allowed(None, &manifest_a));
+        // Same vault: allowed (idempotent republish).
+        assert!(key_params_overwrite_allowed(Some(&params_a), &manifest_a));
+        // Foreign vault: refused so its wrapped items key is not clobbered.
+        assert!(!key_params_overwrite_allowed(
+            Some(&params_b),
+            &manifest_a
+        ));
     }
 }

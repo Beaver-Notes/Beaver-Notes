@@ -8,74 +8,85 @@
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <template #header>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 px-4 py-4">
         <div
-          class="w-10 h-10 rounded-lg bg-black/5 dark:bg-white/5 flex items-center justify-center flex-shrink-0"
+          class="w-9 h-9 rounded-xl bg-neutral-100 dark:bg-white/10 flex items-center justify-center shrink-0"
         >
-          <v-remixicon name="riSettings3Line" class="w-8 text-neutral-500" />
+          <v-remixicon
+            name="riSettings3Line"
+            class="w-5 h-5 text-neutral-600 dark:text-neutral-300"
+          />
         </div>
         <div class="flex-1 min-w-0">
           <h2
-            class="text-sm font-semibold text-neutral-800 dark:text-white leading-tight"
+            class="text-[13px] font-semibold text-neutral-800 dark:text-white leading-tight"
           >
-            {{ translations.toolbarCustomizer?.title || 'Customize Toolbar' }}
+            {{ translations.toolbarCustomizer?.title || 'Customize toolbar' }}
           </h2>
-          <p class="text-xs text-neutral-400 leading-none mt-0.5">
-            {{
+          <p class="text-xs text-neutral-500 leading-none mt-1">
+            <span class="hidden sm:inline">{{
               translations.toolbarCustomizer?.subtitle ||
               'Drag to reorder · toggle visibility'
-            }}
+            }}</span
+            ><span class="sm:hidden">Hold to reorder · toggle visibility</span>
           </p>
         </div>
-        <ui-button variant="danger" @click="toolbar.reset()">
-          {{ translations.toolbarCustomizer?.reset || 'Reset' }}
-        </ui-button>
       </div>
     </template>
 
-    <div class="flex flex-col max-h-[70vh]">
-      <div class="overflow-y-auto flex-1 px-2 py-2" @dragover.prevent>
+    <div class="flex flex-col max-h-[72dvh] sm:max-h-[70vh]">
+      <div
+        ref="listRef"
+        class="overflow-y-auto flex-1 px-3 py-3 overscroll-contain"
+        style="-webkit-overflow-scrolling: touch"
+        @dragover.prevent
+      >
         <template
           v-for="(item, index) in toolbar.allItems.value"
           :key="item.id"
         >
           <p
             v-if="!item.meta?.isDivider && shouldShowGroupLabel(item, index)"
-            class="text-sm font-bold uppercase tracking-widest text-neutral-400 dark:text-neutral-600 px-3 pt-3 pb-1 select-none"
+            class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 px-3 pt-4 pb-1.5 select-none"
           >
             {{ item.meta?.group }}
           </p>
 
           <div
+            :data-row-index="index"
             :draggable="true"
             :class="[
-              'flex items-center gap-2.5 px-3 rounded-xl mb-0.5 cursor-grab active:cursor-grabbing select-none transition-[background-color,box-shadow,opacity,transform] duration-100',
-              item.meta?.isDivider ? 'py-1.5' : 'py-2',
+              'flex items-center gap-2 px-3 rounded-xl mb-1 cursor-grab active:cursor-grabbing select-none transition-[background-color,box-shadow,opacity,transform] duration-100 min-h-[48px]',
+              dragIndex !== null ? 'touch-none' : 'touch-manipulation',
+              item.meta?.isDivider ? 'py-1' : 'py-2',
               dragOverIndex === index
                 ? 'bg-primary/8 ring-1 ring-inset ring-primary/20'
-                : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/60',
+                : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/60 active:bg-neutral-100 dark:active:bg-neutral-800',
               dragIndex === index ? 'opacity-30 scale-[0.98]' : '',
-              !item.visible && !item.meta?.isDivider ? 'opacity-50' : '',
+              !item.visible && !item.meta?.isDivider ? 'opacity-60' : '',
             ]"
             @dragstart="onDragStart(index, $event)"
-            @dragover.prevent="onDragOver(index)"
+            @dragover.prevent="onDragOver(index, $event)"
             @drop.prevent="onDrop(index)"
             @dragend="onDragEnd"
+            @touchstart="onTouchStart(index, $event)"
+            @touchmove="onTouchMove($event)"
+            @touchend="onTouchEnd"
+            @touchcancel="onTouchCancel"
           >
-            <v-remixicon
-              name="riDraggable"
-              class="w-3.5 h-3.5 text-neutral-300 flex-shrink-0"
-            />
+            <span class="flex w-6 h-6 items-center justify-center shrink-0">
+              <v-remixicon
+                name="riDraggable"
+                class="w-3.5 h-3.5 text-neutral-300"
+              />
+            </span>
 
             <template v-if="item.meta?.isDivider">
               <div class="flex-1 flex items-center gap-1.5">
                 <div class="flex-1 border-t border-dashed" />
-                <span
-                  class="text-[10px] text-neutral-300 dark:text-neutral-700"
-                  >{{
-                    translations.toolbarCustomizer?.divider || 'divider'
-                  }}</span
-                >
+                <span class="text-xs text-neutral-300 dark:text-neutral-700">{{
+                  translations.toolbarCustomizer?.divider || 'divider'
+                }}</span>
                 <div class="flex-1 border-t border-dashed" />
               </div>
             </template>
@@ -111,11 +122,13 @@
 
             <button
               :model-value="item.visible"
-              class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+              class="hoverable w-10 h-10 rounded-xl transition-colors flex items-center justify-center shrink-0 ml-auto touch-manipulation"
               @click.stop="toolbar.toggleItem(item.id)"
+              @pointerdown.stop
             >
               <v-remixicon
                 :name="item.visible ? 'riEyeLine' : 'riEyeCloseLine'"
+                class="w-5 h-5"
               />
             </button>
           </div>
@@ -123,16 +136,21 @@
       </div>
 
       <div
-        class="px-4 py-3 border-t flex items-center justify-between bg-white dark:bg-neutral-900"
+        class="px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex items-center justify-between bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800"
       >
-        <span class="text-xs text-neutral-400">
-          <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{
+        <span class="text-xs text-neutral-500">
+          <span class="font-semibold text-neutral-700 dark:text-neutral-200">{{
             toolbar.visibleCount.value
           }}</span>
           / {{ toolbar.totalCount.value }}
           {{ translations.toolbarCustomizer?.visible || 'visible' }}
         </span>
-        <ui-button variant="primary" @click="$emit('close')">
+        <ui-button
+          variant="primary"
+          size="lg"
+          class="rounded-full px-6"
+          @click="$emit('close')"
+        >
           {{ translations.toolbarCustomizer?.done || 'Done' }}
         </ui-button>
       </div>
@@ -171,17 +189,85 @@ export default {
   emits: ['close', 'update:modelValue'],
   setup() {
     const { translations } = useTranslations();
+    // Edge auto-scroll zone + speed for held reorder drags (dnd-kit
+    // AutoScroll equivalent: native scroll is preventDefaulted once the
+    // long-press arms, so the list is driven explicitly near its edges).
+    const EDGE_PX = 56;
+    const SCROLL_PX_PER_FRAME = 12;
+    let autoScrollRaf = null;
+    let autoScrollDir = 0;
+    let lastPointerY = null;
+
+    function stopAutoScroll() {
+      if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf);
+      autoScrollRaf = null;
+      autoScrollDir = 0;
+      lastPointerY = null;
+    }
+
+    // Drop index from pointer Y vs row midpoints — robust while the list
+    // scrolls under a held finger, unlike elementFromPoint which goes stale.
+    function updateDragOverFromY(clientY) {
+      const el = listRef.value;
+      if (!el) return;
+      const rows = el.querySelectorAll('[data-row-index]');
+      let candidate = null;
+      for (const row of rows) {
+        const rect = row.getBoundingClientRect();
+        const idx = Number(row.dataset.rowIndex);
+        if (Number.isNaN(idx)) continue;
+        if (clientY < rect.top + rect.height / 2) {
+          candidate = idx;
+          break;
+        }
+        candidate = idx;
+      }
+      if (candidate !== null && candidate !== dragOverIndex.value)
+        dragOverIndex.value = candidate;
+    }
+
+    function updateAutoScroll(clientY) {
+      const el = listRef.value;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (clientY < rect.top + EDGE_PX) autoScrollDir = -1;
+      else if (clientY > rect.bottom - EDGE_PX) autoScrollDir = 1;
+      else autoScrollDir = 0;
+      if (autoScrollDir !== 0 && autoScrollRaf === null) {
+        const step = () => {
+          const list = listRef.value;
+          if (!list || autoScrollDir === 0) {
+            autoScrollRaf = null;
+            return;
+          }
+          list.scrollTop += autoScrollDir * SCROLL_PX_PER_FRAME;
+          if (lastPointerY !== null) updateDragOverFromY(lastPointerY);
+          autoScrollRaf = requestAnimationFrame(step);
+        };
+        autoScrollRaf = requestAnimationFrame(step);
+      }
+    }
+
     const toolbar = useToolbarConfig();
     const dragIndex = ref(null);
     const dragOverIndex = ref(null);
+    const listRef = ref(null);
 
     function onDragStart(index, event) {
       dragIndex.value = index;
       event.dataTransfer.effectAllowed = 'move';
     }
-    function onDragOver(index) {
+    function onDragOver(index, event) {
       if (dragIndex.value !== null && dragIndex.value !== index)
         dragOverIndex.value = index;
+      // HTML5 DnD edge auto-scroll: Chrome does some natively, Safari/Firefox
+      // barely — drive it explicitly so bottom-to-top drags stay tracked.
+      if (event?.clientY !== undefined && listRef.value) {
+        const rect = listRef.value.getBoundingClientRect();
+        if (event.clientY < rect.top + EDGE_PX) listRef.value.scrollTop -= 8;
+        else if (event.clientY > rect.bottom - EDGE_PX)
+          listRef.value.scrollTop += 8;
+      }
     }
     function onDrop(toIndex) {
       if (dragIndex.value === null) return;
@@ -190,6 +276,84 @@ export default {
       dragOverIndex.value = null;
     }
     function onDragEnd() {
+      dragIndex.value = null;
+      dragOverIndex.value = null;
+    }
+    function move(idx, dir) {
+      const to = idx + dir;
+      if (to < 0 || to >= toolbar.allItems.value.length) return;
+      toolbar.reorder(idx, to);
+    }
+    // whole-row touch reorder: long-press grabs the row, plain drags scroll.
+    // touch-action is snapshotted at touchstart, so flipping the row to
+    // `touch-none` mid-gesture can't retroactively stop a scroll that the
+    // browser already owns. Instead reorder is only armed after a hold-still,
+    // and we never preventDefault before that point.
+    const LONG_PRESS_MS = 400;
+    const MOVE_TOLERANCE_PX = 10;
+    let touchStartIndex = null;
+    let pressTimer = null;
+    let pressCandidate = null;
+    function cancelPress() {
+      if (pressTimer) clearTimeout(pressTimer);
+      pressTimer = null;
+      pressCandidate = null;
+    }
+    function onTouchStart(index, e) {
+      const t = e.touches?.[0];
+      if (!t) return;
+      if (e.target.closest('button')) return;
+      cancelPress();
+      pressCandidate = { index, x: t.clientX, y: t.clientY };
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        if (!pressCandidate) return;
+        touchStartIndex = pressCandidate.index;
+        dragIndex.value = pressCandidate.index;
+        pressCandidate = null;
+      }, LONG_PRESS_MS);
+    }
+    function onTouchMove(e) {
+      const t = e.touches?.[0];
+      if (!t) return;
+      if (touchStartIndex === null) {
+        // reorder not armed: finger moved = scroll intent. Abandon the press
+        // and return WITHOUT preventDefault so the browser scrolls natively.
+        if (
+          pressCandidate &&
+          (Math.abs(t.clientX - pressCandidate.x) > MOVE_TOLERANCE_PX ||
+            Math.abs(t.clientY - pressCandidate.y) > MOVE_TOLERANCE_PX)
+        ) {
+          cancelPress();
+        }
+        return;
+      }
+      // Armed: drive highlight + auto-scroll explicitly; native scroll stays
+      // off so the two never fight over the gesture.
+      lastPointerY = t.clientY;
+      updateDragOverFromY(t.clientY);
+      updateAutoScroll(t.clientY);
+      e.preventDefault();
+    }
+    function onTouchEnd() {
+      cancelPress();
+      stopAutoScroll();
+      if (
+        touchStartIndex !== null &&
+        dragOverIndex.value !== null &&
+        dragOverIndex.value !== touchStartIndex
+      ) {
+        toolbar.reorder(touchStartIndex, dragOverIndex.value);
+      }
+      touchStartIndex = null;
+      dragIndex.value = null;
+      dragOverIndex.value = null;
+    }
+    function onTouchCancel() {
+      // system took the gesture (call, scroll takeover) — abort, don't apply
+      cancelPress();
+      stopAutoScroll();
+      touchStartIndex = null;
       dragIndex.value = null;
       dragOverIndex.value = null;
     }
@@ -205,12 +369,18 @@ export default {
 
     return {
       toolbar,
+      listRef,
       dragIndex,
       dragOverIndex,
       onDragStart,
       onDragOver,
       onDrop,
       onDragEnd,
+      move,
+      onTouchStart,
+      onTouchMove,
+      onTouchEnd,
+      onTouchCancel,
       shouldShowGroupLabel,
       GROUP_STYLES,
       translations,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run E2E tests serially — one spec at a time.
+# Run E2E tests serially: one spec at a time.
 # WDIO v9's local runner ignores maxInstances, so we orchestrate serial execution ourselves.
 set -euo pipefail
 

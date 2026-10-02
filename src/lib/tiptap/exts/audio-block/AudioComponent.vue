@@ -1,97 +1,93 @@
 <template>
   <NodeViewWrapper>
     <div
-      class="mt-2 mb-2 bg-neutral-100 dark:bg-[#353333] p-3 rounded-lg flex items-center justify-between w-full"
+      class="bg-neutral-50 dark:bg-neutral-900 border rounded-xl w-full px-3 py-1.5"
+      :title="fileName"
     >
       <audio
-        id="audioPlayer"
         ref="audioPlayer"
         :src="audioSrc"
         class="hidden"
+        preload="metadata"
         @timeupdate="updateProgress"
         @loadedmetadata="initialize"
+        @durationchange="readDuration"
+        @canplay="readDuration"
         @ended="audioEnded"
         @error="audioError"
       ></audio>
-      <div class="flex items-center border-r-2 rtl:border-none">
-        <button class="py-1 px-3 rounded" @click="skipBackward">
-          <v-remixicon name="riBack5" />
-        </button>
+
+      <div class="flex items-center gap-3 min-w-0">
         <button
-          class="bg-primary text-white p-2 rounded-full hover:bg-secondary ml-2"
+          type="button"
+          class="flex items-center justify-center shrink-0 rounded-full size-8 active:scale-95 transition touch-manipulation"
+          :class="
+            isPlaying
+              ? 'text-primary hover:bg-black/5 dark:hover:bg-white/10'
+              : 'text-neutral-700 hover:bg-black/5 dark:text-neutral-200 dark:hover:bg-white/10'
+          "
+          :aria-label="isPlaying ? 'Pause' : 'Play'"
           @click="togglePlay"
         >
-          <v-remixicon :name="isPlaying ? 'riPauseFill' : 'riPlayFill'" />
-        </button>
-        <button class="py-1 px-3 ml-2" @click="skipForward">
-          <v-remixicon name="riFoward5" />
-        </button>
-      </div>
-      <span
-        v-if="fileName"
-        class="ml-4 text-sm text-neutral-700 dark:text-neutral-300"
-        >{{ fileName }}</span
-      >
-      <span class="ml-4 text-sm text-neutral-700 dark:text-neutral-300">{{
-        formattedCurrentTime
-      }}</span>
-      <div
-        class="flex w-full mx-4 h-1.5 bg-gray-200 rounded-full overflow-hidden dark:bg-neutral-700 relative"
-        role="progressbar"
-        :aria-valuenow="currentTime"
-        aria-valuemin="0"
-        :aria-valuemax="duration"
-        @click="seek"
-      >
-        <div
-          class="flex flex-col justify-center rounded-full bg-primary text-xs text-white text-center transition duration-500 dark:bg-primary"
-          :style="{ width: progressBarWidth }"
-        ></div>
-        <div
-          class="absolute top-0 left-0 h-full w-4 bg-secondary rounded-full transform -translate-x-1/2"
-          :style="{ left: progressBarWidth }"
-          @mousedown="startDrag"
-        ></div>
-      </div>
-      <span class="ml-4 text-sm text-neutral-700 dark:text-neutral-300">{{
-        formattedDuration
-      }}</span>
-      <input
-        v-model="currentTime"
-        type="range"
-        class="hidden w-full appearance-none h-2 bg-gray-200 dark:bg-gray-700"
-        min="0"
-        :max="duration"
-      />
-      <div class="flex items-center ml-4">
-        <button
-          class="text-black py-1 px-3 rounded dark:text-[color:var(--selected-dark-text)]"
-          @click="toggleMute"
-        >
           <v-remixicon
-            :name="isMuted ? 'riVolumeMuteFill' : 'riVolumeDownFill'"
+            :name="isPlaying ? 'riPauseFill' : 'riPlayFill'"
+            class="size-4"
           />
         </button>
-      </div>
-      <div class="flex items-center ml-4 relative">
-        <button
-          class="text-black py-1 px-3 rounded dark:text-[color:var(--selected-dark-text)]"
-          @click="toggleSpeedOptions"
+        <p
+          class="shrink-0 tabular-nums text-xs text-neutral-500 dark:text-neutral-400"
         >
-          <v-remixicon name="riSpeedDial" />
-        </button>
+          {{ formattedCurrentTime }}/{{ formattedDuration }}
+        </p>
         <div
-          v-show="showSpeedOptions"
-          class="absolute bg-white border border-gray-300 rounded mt-2 py-1 shadow-lg dark:bg-neutral-700 dark:border-gray-500"
+          class="group h-3 flex flex-1 items-center cursor-pointer touch-manipulation min-w-12"
+          role="progressbar"
+          :aria-valuenow="currentTime"
+          aria-valuemin="0"
+          :aria-valuemax="duration"
+          @click="seek"
         >
-          <button
-            v-for="speed in playbackRates"
-            :key="speed"
-            class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-200 dark:text-[color:var(--selected-dark-text)] dark:hover:bg-neutral-600"
-            @click="setPlaybackRate(speed)"
+          <div
+            class="relative h-1 w-full rounded-full bg-neutral-200 dark:bg-neutral-700"
           >
-            {{ speed }}x
+            <div
+              class="absolute inset-y-0 left-0 rounded-full bg-primary"
+              :style="{ width: progressBarWidth }"
+            ></div>
+            <div
+              class="absolute top-1/2 size-3 rounded-full bg-primary cursor-grab active:cursor-grabbing -translate-x-1/2 -translate-y-1/2 transition-transform group-hover:scale-125"
+              :style="{ left: progressBarWidth }"
+              @pointerdown="startDrag"
+            ></div>
+          </div>
+        </div>
+        <div class="relative shrink-0">
+          <button
+            type="button"
+            class="flex items-center justify-center rounded-full text-neutral-500 hover:bg-black/5 size-8 tabular-nums text-xs font-semibold dark:text-neutral-400 dark:hover:bg-white/10 transition-colors touch-manipulation"
+            :aria-label="`Playback speed ${playbackRate}x`"
+            @click="toggleSpeedOptions"
+          >
+            {{ playbackRate }}x
           </button>
+          <div
+            v-show="showSpeedOptions"
+            class="absolute top-full mt-1 right-0 bg-white border border-neutral-200 rounded-lg py-1 shadow-lg dark:bg-neutral-700 dark:border-neutral-600 z-10"
+          >
+            <button
+              v-for="speed in playbackRates"
+              :key="speed"
+              class="block w-full text-left px-4 py-1.5 text-sm tabular-nums transition-colors"
+              :class="
+                speed === playbackRate
+                  ? 'font-semibold text-neutral-900 dark:text-neutral-100'
+                  : 'text-neutral-600 hover:bg-black/5 dark:text-neutral-300 dark:hover:bg-white/10'
+              "
+              @click="setPlaybackRate(speed)"
+            >
+              {{ speed }}x
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -100,39 +96,58 @@
 
 <script>
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
+import { formatMediaTime } from '@/utils/mediaTime.js';
 
 export default {
-  components: { NodeViewWrapper },
+  components: {
+    NodeViewWrapper,
+  },
   props: nodeViewProps,
   setup(props) {
-    const fileName = ref(props.node.attrs.fileName || '');
     const audioSrc = ref('');
     const audioPlayer = ref(null);
     const isPlaying = ref(false);
     const currentTime = ref(0);
     const duration = ref(0);
-    const isMuted = ref(false);
     const playbackRate = ref(1);
     const showSpeedOptions = ref(false);
     const playbackRates = [0.5, 1, 1.5, 2];
 
-    // Read and convert audio file via IPC
-    const loadAudioFile = async () => {
-      try {
-        const filePath = props.node.attrs.src; // Full path to audio file
-        audioSrc.value = filePath;
-        preloadAudio();
-      } catch (error) {
-        console.error('Failed to load audio file via IPC:', error);
+    onMounted(() => {
+      audioPlayer.value.volume = 1;
+      audioPlayer.value.playbackRate = playbackRate.value;
+      audioSrc.value = props.node.attrs.src;
+    });
+
+    // Background-saved assets swap src after insert; follow the attr so the
+    // player picks up the final assets:// URL without a remount.
+    watch(
+      () => props.node.attrs.src,
+      (src) => {
+        audioSrc.value = src;
+      },
+    );
+
+    const readDuration = () => {
+      const el = audioPlayer.value;
+      if (!el) return;
+      const d = el.duration;
+      // Some engines report Infinity until the media fully loads; only trust
+      // finite, positive durations so the label never shows garbage.
+      if (Number.isFinite(d) && d > 0) {
+        duration.value = d;
       }
     };
 
-    onMounted(() => {
-      loadAudioFile();
-    });
+    const initialize = () => {
+      readDuration();
+      const el = audioPlayer.value;
+      if (el) currentTime.value = el.currentTime || 0;
+    };
 
     const togglePlay = () => {
+      if (!audioPlayer.value) return;
       if (isPlaying.value) {
         audioPlayer.value.pause();
       } else {
@@ -149,22 +164,25 @@ export default {
 
     const seek = (event) => {
       const progressBar = event.target.closest('[role="progressbar"]');
-      if (progressBar) {
-        const boundingRect = progressBar.getBoundingClientRect();
-        const offsetX = event.clientX - boundingRect.left;
-        const newTime = (offsetX / progressBar.offsetWidth) * duration.value;
-        if (audioPlayer.value) {
-          audioPlayer.value.currentTime = newTime;
-          currentTime.value = newTime;
-        }
+      if (!progressBar) return;
+
+      const boundingRect = progressBar.getBoundingClientRect();
+      const offsetX = event.clientX - boundingRect.left;
+      const newTime = (offsetX / progressBar.offsetWidth) * duration.value;
+
+      if (audioPlayer.value) {
+        audioPlayer.value.currentTime = newTime;
+        currentTime.value = newTime;
       }
     };
 
     const startDrag = (event) => {
-      const progressBar = event.target.closest('[role="progressbar"]');
+      if (event.cancelable) event.preventDefault();
+      const progressBar = event.currentTarget.closest('[role="progressbar"]');
+      if (!progressBar) return;
       const onMove = (moveEvent) => {
-        const boundingRect = progressBar.getBoundingClientRect();
-        const offsetX = moveEvent.clientX - boundingRect.left;
+        const rect = progressBar.getBoundingClientRect();
+        const offsetX = moveEvent.clientX - rect.left;
         const newTime = (offsetX / progressBar.offsetWidth) * duration.value;
         if (audioPlayer.value) {
           audioPlayer.value.currentTime = newTime;
@@ -172,64 +190,25 @@ export default {
         }
       };
       const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
       };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    };
-
-    const preloadAudio = () => {
-      const tempAudio = new Audio(audioSrc.value);
-      tempAudio.addEventListener('loadedmetadata', () => {
-        if (!isNaN(tempAudio.duration) && tempAudio.duration > 0) {
-          duration.value = tempAudio.duration;
-        }
-      });
-      tempAudio.addEventListener('error', (event) => {
-        console.error('Error loading audio metadata:', event);
-      });
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
     };
 
     const audioEnded = () => {
       isPlaying.value = false;
     };
 
-    const toggleMute = () => {
-      if (audioPlayer.value) {
-        isMuted.value = !isMuted.value;
-        audioPlayer.value.muted = isMuted.value;
-      }
-    };
-
-    const skipForward = () => {
-      if (audioPlayer.value) {
-        audioPlayer.value.currentTime = Math.min(
-          audioPlayer.value.currentTime + 5,
-          duration.value
-        );
-        currentTime.value = audioPlayer.value.currentTime;
-      }
-    };
-
-    const skipBackward = () => {
-      if (audioPlayer.value) {
-        audioPlayer.value.currentTime = Math.max(
-          audioPlayer.value.currentTime - 5,
-          0
-        );
-        currentTime.value = audioPlayer.value.currentTime;
-      }
-    };
-
     const toggleSpeedOptions = () => {
       showSpeedOptions.value = !showSpeedOptions.value;
     };
 
-    const setPlaybackRate = (speed) => {
-      playbackRate.value = speed;
+    const setPlaybackRate = (rate) => {
+      playbackRate.value = rate;
       if (audioPlayer.value) {
-        audioPlayer.value.playbackRate = speed;
+        audioPlayer.value.playbackRate = rate;
       }
       showSpeedOptions.value = false;
     };
@@ -240,39 +219,35 @@ export default {
         : '0%';
     });
 
-    const formattedCurrentTime = computed(() => {
-      return formatTime(currentTime.value);
-    });
+    const formattedCurrentTime = computed(() =>
+      formatMediaTime(currentTime.value),
+    );
+    const formattedDuration = computed(() => formatMediaTime(duration.value));
+    const fileName = computed(
+      () => props.node.attrs.fileName || 'Audio recording',
+    );
 
-    const formattedDuration = computed(() => {
-      return formatTime(duration.value);
-    });
-
-    const formatTime = (time) => {
-      const minutes = Math.floor(time / 60);
-      const seconds = Math.floor(time % 60)
-        .toString()
-        .padStart(2, '0');
-      return `${minutes}:${seconds}`;
+    const audioError = (event) => {
+      const src = audioSrc.value || 'unknown';
+      console.error('Audio playback error:', src, event);
     };
 
     return {
-      fileName,
       audioSrc,
       duration,
       progressBarWidth,
       audioPlayer,
       isPlaying,
       currentTime,
-      isMuted,
+      fileName,
       togglePlay,
       updateProgress,
+      initialize,
+      readDuration,
       seek,
       startDrag,
-      toggleMute,
-      skipForward,
-      skipBackward,
       audioEnded,
+      audioError,
       formattedCurrentTime,
       formattedDuration,
       playbackRate,

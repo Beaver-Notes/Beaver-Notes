@@ -1,16 +1,68 @@
 import { createMlKem768 } from 'mlkem';
 import { importCollabKey, isValidCollabKey } from './collab.js';
 
-// Cache for unwrapped note key hex values (noteId -> noteKeyHex)
-// Avoids repeated ML-KEM768 decap + AES-GCM unwrap on every access.
+// Cache unwrapped note keys: avoids repeated ML-KEM decap plus unwrap.
 const unwrappedKeyCache = new Map();
+// Older generations of a rotated note key, recovered from a keyring envelope.
+// Registered with the Rust session alongside the current key so pre-rotation
+// history stays decryptable on a fresh device.
+const previousKeysCache = new Map();
 
 export function clearUnwrappedKeyCache(noteId) {
   if (noteId) {
     unwrappedKeyCache.delete(noteId);
+    previousKeysCache.delete(noteId);
   } else {
     unwrappedKeyCache.clear();
+    previousKeysCache.clear();
   }
+}
+
+/** Already-unwrapped note key, or null. Lets hot paths (commit snapshots) skip the ML-KEM unwrap. */
+export function getCachedNoteKey(noteId) {
+  return noteId ? (unwrappedKeyCache.get(noteId) ?? null) : null;
+}
+
+/** Older generations of the note key recovered from a keyring envelope (may be empty). */
+export function getPreviousNoteKeys(noteId) {
+  return noteId ? (previousKeysCache.get(noteId) ?? []) : [];
+}
+
+/** Record the current key plus any previous generations for a note. */
+export function rememberNoteKeyring(noteId, currentHex, previousHexes = []) {
+  if (!noteId || !currentHex) return;
+  unwrappedKeyCache.set(noteId, currentHex);
+  if (previousHexes.length) previousKeysCache.set(noteId, previousHexes);
+  else previousKeysCache.delete(noteId);
+}
+
+/** A fresh 32-byte note key as hex. */
+export async function generateNoteKeyHex() {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+/**
+ * A wrapped note-key envelope holds either a bare 64-hex key (legacy) or, after
+ * a rotation, a keyring `{v:1, cur, prev:[...]}` so a fresh device of a
+ * remaining collaborator can still read pre-rotation history.
+ */
+export function buildNoteKeyPayload(currentHex, previousHexes = []) {
+  return JSON.stringify({ v: 1, cur: currentHex, prev: previousHexes.filter(Boolean) });
+}
+
+export function parseNoteKeyPayload(payload) {
+  if (typeof payload !== 'string' || !payload) return null;
+  if (isValidCollabKey(payload)) return { current: payload, previous: [] };
+  try {
+    const obj = JSON.parse(payload);
+    if (obj && typeof obj === 'object' && isValidCollabKey(obj.cur)) {
+      const previous = Array.isArray(obj.prev) ? obj.prev.filter(isValidCollabKey) : [];
+      return { current: obj.cur, previous };
+    }
+  } catch {
+    // Not a keyring payload.
+  }
+  return null;
 }
 
 async function bytesToHex(buf) { return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join(''); }
@@ -42,16 +94,26 @@ export async function unwrapNoteKey(privateKeyHex, envelopeStr) {
   return new TextDecoder().decode(plaintext);
 }
 
-/**
- * Resolve the note key for a caller without ever rotating an existing one.
- *
- * Injected API functions keep this pure and unit-testable:
- *   getKey()        -> GET /keys/:noteId response
- *   listPublicKeys() -> GET /public-keys/:noteId response
- *   storeRecipients(recipients) -> POST /keys/:noteId/recipients response
- *
- * Returns the note key hex, or null (never provision/rotate on ambiguity).
- */
+/** Injected API fns keep this pure and testable. Returns key hex or null, never rotates on ambiguity. */
+/** Try each envelope with the local private key; cache the first valid unwrap. */
+export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _log = console) {
+  for (const env of envelopes || []) {
+    const wrappedKey = env?.wrappedKey ?? env;
+    if (!wrappedKey) continue;
+    try {
+      const k = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
+      const parsed = parseNoteKeyPayload(k);
+      if (parsed) {
+        if (noteId) rememberNoteKeyring(noteId, parsed.current, parsed.previous);
+        return parsed.current;
+      }
+    } catch {
+      // Envelope not for this device: try next.
+    }
+  }
+  return null;
+}
+
 export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients, identity, noteId, log = console }) {
   if (noteId && unwrappedKeyCache.has(noteId)) {
     return unwrappedKeyCache.get(noteId);
@@ -76,7 +138,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
     return null;
   }
 
-  // 1. The note already has a key. Recover this caller's envelope, if any.
+  // Note already has key: recover caller envelope if any.
   if (raw?.noteHasKey === true) {
     if (raw?.wrappedKey) {
       try {
@@ -89,13 +151,11 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
         log.warn?.('[provisionNoteKey] failed to unwrap note key envelope:', err);
       }
     }
-    // Late joiner (or unwrap failure): no usable envelope for this caller.
-    // Do NOT provision/rotate — an owner must re-wrap the existing key for us.
+    // No usable envelope: owner must re-wrap, never provision/rotate.
     return null;
   }
 
-  // 2. Fresh note — provision a new note key for every keypair'd collaborator
-  //    (the owner is part of the collaborator set).
+  // Fresh note: provision key for every keypair collaborator.
   try {
     const publicKeys = await listPublicKeys();
     const keypairCollabs = Array.isArray(publicKeys?.collaborators)
@@ -107,22 +167,21 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
     const recipients = [];
     for (const c of keypairCollabs) {
       const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, noteKeyHex);
-      recipients.push({ userId: c.userId, wrappedKey });
+      recipients.push({ userId: c.userId, deviceId: c.deviceId || 'default', wrappedKey });
     }
     const stored = await storeRecipients(recipients);
 
-    // Concurrent provisioning: another client won the race and the server
-    // refused our envelopes. Recover the winner's key instead of diverging.
+    // Concurrent provisioning: another client won the race; recover the winner's key.
     if (stored?.existing) {
       try {
         const winner = await getKey();
-        if (winner?.wrappedKey) {
-          const winnerKey = await unwrapNoteKey(identity.privateKeyHex, winner.wrappedKey);
-          if (winnerKey && isValidCollabKey(winnerKey)) {
-            if (noteId) unwrappedKeyCache.set(noteId, winnerKey);
-            return winnerKey;
-          }
-        }
+        const winnerKey = await recoverNoteKeyFromEnvelopes(
+          winner?.wrappedKeys || (winner?.wrappedKey ? [winner] : []),
+          identity,
+          noteId,
+          log
+        );
+        if (winnerKey) return winnerKey;
       } catch (err) {
         log.warn?.('[provisionNoteKey] failed to recover concurrently-provisioned note key:', err);
       }

@@ -1,32 +1,49 @@
 import { defineStore } from 'pinia';
-import { getSettingSync } from '@/lib/settings';
-import { PAID_PLANS } from '@/lib/api/types';
+import { getSettingSync, setSetting } from '@/lib/settings';
+import { PAID_PLANS, PLAN_NAMES } from '@/lib/api/types';
+
+const PLAN_LIMITS_KEY = 'accountPlanLimits';
+
+function getCachedPlanLimits() {
+  const cached = getSettingSync(PLAN_LIMITS_KEY);
+  if (!cached) return null;
+  // Only trust it if it describes a plan we still know about.
+  return typeof cached.plan === 'string' &&
+    Number.isFinite(cached.quotaBytes) &&
+    (cached.historyDays === null || Number.isFinite(cached.historyDays))
+    ? cached
+    : null;
+}
 
 export const useAccountStore = defineStore('account', {
   state: () => ({
     status: 'anonymous',
     serverUrl:
       getSettingSync('beaverAccountServerUrl') || 'https://api.beavernotes.com',
+    token: null,
     accounts: [],
     activeAccountId: null,
     activeOrgId: null,
     activeWorkspaceId: null,
-    // Legacy fields kept for backward compatibility
+    // Legacy fields for compat.
     profile: null,
     subscription: null,
+    // Limits for the effective plan, from GET /plans. Falls back to the last
+    // known good value so a down server does not blank the plan UI. Null until
+    // either source has produced something.
+    planLimits: getCachedPlanLimits(),
     devices: [],
     activeSessions: [],
     error: '',
     busy: false,
     seedStatus: 'idle',
     seedProgress: { total: 0, uploaded: 0, phase: '' },
+    seedError: '',
   }),
 
   getters: {
-    isAuthenticated: (state) => state.status === 'authenticated',
+    isAuthenticated: (state) => state.status === 'authenticated' && !!state.token,
     isAnonymous: (state) => state.status === 'anonymous',
-    isAuthenticating: (state) => state.status === 'authenticating',
-    hasAccount: (state) => state.status === 'authenticated',
 
     activeAccount: (state) =>
       state.accounts.find((a) => a.id === state.activeAccountId) ?? null,
@@ -41,19 +58,9 @@ export const useAccountStore = defineStore('account', {
       );
     },
 
-    activeWorkspace: (state) => {
-      const org = this.activeOrg;
-      return (
-        org?.workspaces?.find((w) => w.id === state.activeWorkspaceId) ??
-        null
-      );
-    },
-
-    allAccounts: (state) => state.accounts,
-
     plan(state) {
-      // Prefer org subscription, fall back to legacy
-      return this.activeOrg?.subscription?.plan ?? state.subscription?.plan ?? null;
+      // Org subscription first, legacy fallback, fail-closed to free.
+      return this.activeOrg?.subscription?.plan ?? state.subscription?.plan ?? PLAN_NAMES.FREE;
     },
 
     isPaidPlan(state) {
@@ -66,16 +73,13 @@ export const useAccountStore = defineStore('account', {
       return this.isPaidPlan;
     },
 
-    storageUsedBytes: (state) =>
-      this.activeOrg?.subscription?.storageUsedBytes ??
-      state.subscription?.storage?.usedBytes ??
-      0,
-    storageQuotaBytes: (state) =>
-      this.activeOrg?.subscription?.storageQuotaBytes ??
-      state.subscription?.storage?.quotaBytes ??
-      0,
     storageUsedPercent: (state) =>
       state.subscription?.storage?.usedPercent ?? 0,
+
+    // Null = not loaded yet, 0 = genuinely no history (free). Callers must treat
+    // null as "unknown", not as "none".
+    historyDays: (state) => state.planLimits?.historyDays ?? null,
+    planQuotaBytes: (state) => state.planLimits?.quotaBytes ?? null,
   },
 
   actions: {
@@ -91,8 +95,23 @@ export const useAccountStore = defineStore('account', {
       this.busy = !!value;
     },
 
+    // Fail-closed: only http(s) URLs are stored. Returns false when refused.
+    // Non-loopback cleartext is additionally blocked by the desktop CSP.
     setServerUrl(url) {
-      this.serverUrl = (url || '').trim();
+      const next = (url || '').trim().replace(/\/+$/, '');
+      let protocol = '';
+      try {
+        protocol = new URL(next).protocol;
+      } catch {
+        return false;
+      }
+      if (protocol !== 'http:' && protocol !== 'https:') return false;
+      this.serverUrl = next;
+      return true;
+    },
+
+    setToken(token) {
+      this.token = token || null;
     },
 
     setProfile(profile) {
@@ -101,6 +120,12 @@ export const useAccountStore = defineStore('account', {
 
     setSubscription(subscription) {
       this.subscription = subscription || null;
+    },
+
+    setPlanLimits(limits) {
+      this.planLimits = limits || null;
+      // Fire and forget: the cache is an optimisation, never authoritative.
+      setSetting(PLAN_LIMITS_KEY, limits || null).catch(() => {});
     },
 
     setDevices(devices) {
@@ -112,18 +137,6 @@ export const useAccountStore = defineStore('account', {
     },
 
     // Multi-account actions
-    addAccount(account) {
-      this.accounts.push(account);
-      this.activeAccountId = account.id;
-      // Set default org and workspace
-      if (account.organizations?.length > 0) {
-        this.activeOrgId = account.organizations[0].id;
-        if (account.organizations[0].workspaces?.length > 0) {
-          this.activeWorkspaceId = account.organizations[0].workspaces[0].id;
-        }
-      }
-    },
-
     removeAccount(accountId) {
       this.accounts = this.accounts.filter((a) => a.id !== accountId);
       if (this.activeAccountId === accountId) {
@@ -137,34 +150,16 @@ export const useAccountStore = defineStore('account', {
       }
     },
 
-    switchAccount(accountId) {
-      this.activeAccountId = accountId;
-      const account = this.accounts.find((a) => a.id === accountId);
-      if (account) {
-        this.activeOrgId = account.organizations?.[0]?.id ?? null;
-        this.activeWorkspaceId =
-          account.organizations?.[0]?.workspaces?.[0]?.id ?? null;
-      }
-    },
-
-    switchOrg(orgId) {
-      this.activeOrgId = orgId;
-      const org = this.activeOrg;
-      if (org) {
-        this.activeWorkspaceId = org.workspaces?.[0]?.id ?? null;
-      }
-    },
-
-    switchWorkspace(workspaceId) {
-      this.activeWorkspaceId = workspaceId;
-    },
-
     setSeedStatus(status) {
       this.seedStatus = status;
     },
 
     setSeedProgress(progress) {
       this.seedProgress = progress;
+    },
+
+    setSeedError(message) {
+      this.seedError = message || '';
     },
   },
 });

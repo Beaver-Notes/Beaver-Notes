@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security configuration for Beaver Notes.
+
+  The app lets users point sync at their own Beaver Sync server, including
+  self-hosted instances reachable over plain HTTP on a LAN or a custom
+  address. Cleartext is therefore permitted to all hosts; the app only ever
+  talks to the server the user configured (no third-party traffic).
+
+  Keeping this in a dedicated config (instead of the blanket
+  usesCleartextTraffic attribute) makes the policy explicit and auditable.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

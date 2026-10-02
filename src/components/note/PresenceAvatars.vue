@@ -3,13 +3,13 @@
     <ui-popover placement="bottom-start" trigger="click">
       <template #trigger="{ isShow }">
         <div
-          class="flex items-center -space-x-2.5 cursor-pointer rounded-full transition-transform duration-200 ease-[cubic-bezier(0.25,0.46,0.45,0.94)]"
+          class="flex items-center -space-x-2.5 cursor-pointer rounded-full transition-transform duration-200 ease-[var(--ease-standard)]"
           :class="{ 'scale-[1.03]': isShow }"
         >
           <div
             v-for="(peer, i) in visiblePeers"
             :key="peer.id"
-            class="peer-avatar relative w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-all duration-200 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] hover:z-10 hover:-translate-y-0.5 hover:shadow-md"
+            class="peer-avatar relative w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-[transform,box-shadow] duration-200 ease-[var(--ease-standard)] hover:z-10 hover:-translate-y-0.5 hover:shadow-md"
             :style="{
               backgroundColor: peer.color,
               zIndex: visiblePeers.length - i,
@@ -20,7 +20,7 @@
 
           <div
             v-if="overflowCount > 0"
-            class="relative w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-neutral-600 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800 ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-all duration-200 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] hover:z-10 hover:-translate-y-0.5 hover:shadow-md"
+            class="relative w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-neutral-600 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800 ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-all duration-200 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] hover:z-10 hover:-translate-y-0.5 hover:shadow-md"
           >
             +{{ overflowCount }}
           </div>
@@ -29,7 +29,7 @@
 
       <div class="w-64 max-h-80 overflow-y-auto">
         <div
-          class="px-3 pt-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500"
+          class="px-3 pt-2 pb-1.5 text-xs font-semibold font-bold tracking-wide text-neutral-400 dark:text-neutral-500"
         >
           {{ peerList.length }}
           {{ peerList.length === 1 ? 'person' : 'people' }} here
@@ -42,7 +42,7 @@
             class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg mx-1 transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <div
-              class="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-[11px] font-semibold text-white ring-1 ring-black/5"
+              class="w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold text-white ring-1 ring-black/5"
               :style="{ backgroundColor: peer.color }"
             >
               {{ getInitials(peer.name) }}

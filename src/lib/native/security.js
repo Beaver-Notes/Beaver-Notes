@@ -7,6 +7,14 @@ export function isEncryptionAvailable() {
   return backend.invoke('safeStorage:isEncryptionAvailable');
 }
 
+export function getSafeStorageBackendInfo() {
+  return backend.invoke('safeStorage:getBackendInfo');
+}
+
+export function setDevicePassword(password) {
+  return backend.invoke('safeStorage:setDevicePassword', password);
+}
+
 export function encryptString(plainText) {
   return backend.invoke('safeStorage:encryptString', plainText);
 }
@@ -93,10 +101,6 @@ export function syncDecryptPayload(enc, aad) {
   return backend.invoke('sync:decryptPayload', { enc, aad });
 }
 
-export function syncEncryptBatch(metas, dataB64s, aads) {
-  return backend.invoke('sync:encryptBatch', { metas, dataB64s, aads });
-}
-
 export function syncDecryptBatch(envelopes, aads) {
   return backend.invoke('sync:decryptBatch', { envelopes, aads });
 }
@@ -118,6 +122,14 @@ export function adoptKeyParams(passphrase, keyParams) {
 
 export function hasRemoteKeyParams() {
   return backend.invoke('encryption:hasRemoteKeyParams');
+}
+
+export function localKeyParamsJson() {
+  return backend.invoke('encryption:localKeyParamsJson');
+}
+
+export function remoteParamsDiffer(paramsJson) {
+  return backend.invoke('encryption:remoteParamsDiffer', { paramsJson });
 }
 
 export function decryptAssetStream(path) {

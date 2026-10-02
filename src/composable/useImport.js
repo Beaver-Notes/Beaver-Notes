@@ -11,6 +11,7 @@ import { openDialog } from '@/lib/native/dialog';
 import { getAppDirectory } from '@/lib/native/app';
 import { importAppleNotes, importEvernote } from '@/lib/native/imports';
 import { createProgressState } from '@/utils/helpers/index.js';
+import { useTranslations } from '@/composable/useTranslations';
 
 export function useImport({
   storage: _storage,
@@ -20,6 +21,7 @@ export function useImport({
   isMacOS,
 }) {
   const importState = shallowReactive({
+    beaverBackup: createProgressState(),
     obsidian: createProgressState(),
     notion: createProgressState(),
     bear: createProgressState(),
@@ -28,6 +30,7 @@ export function useImport({
     simplenote: createProgressState(),
     genericMd: createProgressState(),
   });
+  const { translations } = useTranslations();
   const showImportModal = ref(false);
   const selectedImportSource = ref('obsidian');
 
@@ -94,7 +97,7 @@ export function useImport({
   async function importObsidianHandler(options = {}) {
     return importDirectorySource(
       'obsidian',
-      t?.settings?.selectObsidianVault || 'Select Obsidian Vault',
+      translations.value?.settings?.selectObsidianVault || 'Select Obsidian Vault',
       (path, appDir, onProgress) =>
         importObsidian(path, noteStore, folderStore, appDir, onProgress),
       options
@@ -104,7 +107,7 @@ export function useImport({
   async function importNotionHandler(options = {}) {
     return importDirectorySource(
       'notion',
-      t?.settings?.selectNotionExport || 'Select Notion Export',
+      translations.value?.settings?.selectNotionExport || 'Select Notion Export',
       (path, appDir, onProgress) =>
         importNotion(path, noteStore, folderStore, appDir, onProgress),
       options
@@ -114,7 +117,7 @@ export function useImport({
   async function importBearHandler(options = {}) {
     return importDirectorySource(
       'bear',
-      t?.settings?.selectBearExport || 'Select Bear Export',
+      translations.value?.settings?.selectBearExport || 'Select Bear Export',
       (path, appDir, onProgress) =>
         importBear(path, noteStore, folderStore, appDir, onProgress),
       options
@@ -124,7 +127,7 @@ export function useImport({
   async function importEvernoteHandler(options = {}) {
     const { notebookName } = options;
     const filePaths = await pickDialogPaths({
-      title: t?.settings?.selectEnexFile || 'Select ENEX File',
+      title: translations.value?.settings?.selectEnexFile || 'Select ENEX File',
       properties: ['openFile'],
       filters: [{ name: 'Evernote ENEX', extensions: ['enex'] }],
     });
@@ -162,7 +165,7 @@ export function useImport({
 
   async function importSimplenoteHandler(options = {}) {
     const filePaths = await pickDialogPaths({
-      title: t?.settings?.selectSimplenoteExport || 'Select notes.json',
+      title: translations.value?.settings?.selectSimplenoteExport || 'Select notes.json',
       properties: ['openFile'],
       filters: [{ name: 'Simplenote JSON', extensions: ['json'] }],
     });
@@ -177,7 +180,7 @@ export function useImport({
   async function importGenericMarkdownHandler(options = {}) {
     return importDirectorySource(
       'genericMd',
-      t?.settings?.selectMarkdownFolder || 'Select Markdown Folder',
+      translations.value?.settings?.selectMarkdownFolder || 'Select Markdown Folder',
       (path, appDir, onProgress) =>
         importGenericMarkdown(path, noteStore, folderStore, appDir, onProgress),
       options
@@ -207,6 +210,20 @@ export function useImport({
 
   const importSourceGroups = computed(() => {
     const groups = [
+      {
+        label: 'Restore',
+        items: [
+          {
+            key: 'beaverBackup',
+            title: 'Beaver Notes Backup',
+            icon: 'riArchiveLine',
+            group: 'Restore',
+            description:
+              'Restore notes, folders, labels and settings from a backup created by Beaver Notes. This replaces everything currently on this device.',
+            buttonLabel: 'Select Backup Folder',
+          },
+        ],
+      },
       {
         label: 'Markdown-based',
         items: [
@@ -274,7 +291,9 @@ export function useImport({
     ];
 
     if (isMacOS.value) {
-      groups[1].items.push({
+      groups
+        .find((group) => group.label === 'Direct import')
+        .items.push({
         key: 'appleNotes',
         title: 'Apple Notes',
         icon: 'riAppleFill',

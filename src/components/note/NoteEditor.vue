@@ -1,12 +1,6 @@
 <template>
   <div class="note-editor mb-64">
     <slot v-bind="{ editor }" />
-    <presence-indicator
-      v-if="awareness"
-      :awareness="awareness"
-      :user-name="userName"
-      class="mb-2"
-    />
     <drag-handle
       v-if="editor && showDragHandle"
       :editor="editor"
@@ -18,11 +12,7 @@
       :class="{ 'opacity-0 pointer-events-none': isDragging }"
     >
       <div class="drag-handle-inner">
-        <button
-          class="dh-button"
-          title="Add block"
-          @click.prevent="addBlock"
-        >
+        <button class="dh-button" title="Add block" @click.prevent="addBlock">
           <v-remixicon name="riAddLine" class="dh-icon" />
         </button>
         <div class="dh-grip">
@@ -64,6 +54,8 @@ import {
   Commands,
 } from '@/lib/tiptap';
 import { canEdit } from '@/utils/permissions';
+import VersionPreview from '@/lib/tiptap/exts/version-preview';
+import LiveCollab from '@/lib/tiptap/exts/live-collab';
 import { NodeRangeSelection } from '@tiptap/extension-node-range';
 import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
@@ -75,7 +67,7 @@ import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
 import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
-import PresenceIndicator from './PresenceIndicator.vue';
+import { getColorFromId } from '@/composable/usePresence';
 
 export default {
   components: {
@@ -85,7 +77,6 @@ export default {
     TableHandle,
     TableSelectionOverlay,
     TableExtendRowColumnButton,
-    PresenceIndicator,
   },
   props: {
     modelValue: { type: [String, Object], default: '' },
@@ -95,18 +86,29 @@ export default {
     ydoc: { type: Object, default: null },
     awareness: { type: Object, default: null },
     userName: { type: String, default: 'Anonymous' },
+    userId: { type: String, default: '' },
     role: { type: String, default: 'editor' },
   },
-  emits: ['init', 'update', 'update:modelValue', 'comment-activated'],
+  emits: [
+    'init',
+    'update',
+    'update:modelValue',
+    'comment-activated',
+    'version-restore',
+    'version-exit',
+    'review-exit',
+    'review-action',
+    'activity',
+  ],
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
 
-    const isYjs = !!props.ydoc;
+    const isYjs = computed(() => !!props.ydoc);
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
 
     const showDragHandle = ref(
-      typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+      typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
     );
     const isDragging = ref(false);
     const currentNodePos = ref(-1);
@@ -267,32 +269,60 @@ export default {
     });
 
     const exts = [
-      ...(isYjs && props.ydoc ? createBaseExtensions({ yjs: true }) : extensions),
+      ...(isYjs.value && props.ydoc
+        ? createBaseExtensions({ yjs: true })
+        : extensions),
       dropFile.configure({ id: props.id }),
       NodeRangeSelection,
     ];
-    if (typeof window === 'undefined' || window.innerWidth >= 768) {
-      exts.push(Commands.configure({ id: props.id }));
-    }
+    // Always registered (mobile keeps its block picker as an extra affordance).
+    exts.push(Commands.configure({ id: props.id }));
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
+    exts.push(
+      VersionPreview.configure({
+        onRestore: (meta) => emit('version-restore', meta),
+        onExit: () => emit('version-exit'),
+        onReviewExit: () => emit('review-exit'),
+        onReviewAction: (payload) => emit('review-action', payload),
+      })
+    );
+    // Live (Google-Docs-style) attribution for remote websocket edits. Stays
+    // editable and does NOT touch the async review/banner path.
+    exts.push(
+      LiveCollab.configure({
+        awareness: props.awareness,
+        noteId: props.id,
+        onActivity: (payload) => emit('activity', payload),
+      })
+    );
 
-    if (isYjs && props.ydoc) {
+    if (isYjs.value && props.ydoc) {
       exts.push(
         Collaboration.configure({
           document: props.ydoc,
           field: 'content',
-        })
+        }),
       );
-      if (props.awareness) {
-        exts.push(
-          CollaborationCursor.configure({
-            provider: { awareness: props.awareness },
-            user: {
-              name: props.userName,
-              color: '#3B82F6',
-            },
-          })
-        );
+      if (props.awareness && canEdit(props.role)) {
+        try {
+          exts.push(
+            CollaborationCursor.configure({
+              provider: { awareness: props.awareness },
+              user: {
+                // The cursor extension replaces the whole awareness `user`
+                // field with this object: the id must travel along or
+                // presence self-exclusion and ghost dedup stop working.
+                // Color is derived from the account id (not the name) so the
+                // inline caret matches the toolbar avatar.
+                id: props.userId || 'anonymous',
+                name: props.userName || 'Anonymous',
+                color: getColorFromId(props.userId || 'anon'),
+              },
+            }),
+          );
+        } catch (e) {
+          console.warn('[editor] cursor init skipped:', e?.message);
+        }
       }
       exts.push(
         CommentExtension.configure({
@@ -302,14 +332,14 @@ export default {
           onCommentActivated: (commentId) => {
             emit('comment-activated', commentId);
           },
-        })
+        }),
       );
     }
 
     let _lastContent = null;
     let _lastSanitized = null;
     const safeContent = computed(() => {
-      if (isYjs) return '';
+      if (isYjs.value) return '';
       if (isEncryptedContent(props.modelValue)) return '';
       if (props.modelValue === _lastContent) return _lastSanitized;
       _lastContent = props.modelValue;
@@ -321,7 +351,7 @@ export default {
     let pendingProgrammaticUpdates = 0;
 
     const editor = useEditor({
-      content: isYjs ? undefined : safeContent.value,
+      content: isYjs.value ? undefined : safeContent.value,
       editable: canEdit(props.role),
       autofocus: props.cursorPosition,
       extensions: exts,
@@ -389,7 +419,7 @@ export default {
       if (!editor.value) return;
       emit('init', editor.value);
 
-      if (!isYjs && safeContent.value) {
+      if (!isYjs.value && safeContent.value) {
         editor.value.commands.setContent(safeContent.value);
       }
 
@@ -397,14 +427,16 @@ export default {
         const { state, view } = editor.value;
         const pos = Math.min(props.cursorPosition, state.doc.content.size);
         const tr = state.tr.setSelection(
-          state.selection.constructor.near(state.doc.resolve(pos))
+          state.selection.constructor.near(state.doc.resolve(pos)),
         );
         view.dispatch(tr);
       }
 
       editor.value.on('update', () => {
-        if (isYjs) {
-          emit('update', null);
+        if (isYjs.value) {
+          // Yjs owns persistence, but downstream (previews, search index)
+          // still needs the JSON — emit it instead of discarding.
+          emit('update', editor.value.getJSON());
           return;
         }
         if (pendingProgrammaticUpdates > 0) {
@@ -418,7 +450,7 @@ export default {
       });
     });
 
-    if (!isYjs) {
+    if (!isYjs.value) {
       watch(safeContent, (val) => {
         if (!editor.value || !val) return;
         if (!hasUserEdited.value) {
@@ -463,7 +495,16 @@ export default {
       () => props.id,
       () => {
         destroyEditor();
-      }
+      },
+    );
+
+    watch(
+      () => props.role,
+      (role) => {
+        if (editor.value && !editor.value.isDestroyed) {
+          editor.value.setEditable(canEdit(role), false);
+        }
+      },
     );
 
     return {
@@ -485,8 +526,216 @@ export default {
 
 <style>
 .comment-highlight {
-  background-color: rgba(255, 235, 59, 0.3);
-  border-bottom: 2px solid rgba(255, 235, 59, 0.6);
+  background: rgba(254, 240, 138, 0.42);
+  border-bottom: 1.5px solid hsl(var(--twc-primary));
+  border-radius: 3px;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
   cursor: pointer;
+  position: relative;
+  transition: background 140ms var(--ease-standard);
+}
+.comment-highlight:hover {
+  background: rgba(254, 240, 138, 0.62);
+}
+/* active thread (clicked in sidebar) */
+.comment-highlight.is-active,
+.comment-highlight[data-active='true'] {
+  background: rgba(254, 249, 195, 0.95);
+  border-bottom-color: #eab308;
+  box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.14);
+}
+.comment-highlight[data-comment-id]::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 3px;
+  margin-right: 1px;
+  vertical-align: text-bottom;
+  border-radius: 9999px;
+  background-color: #facc15;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z'/%3E%3C/svg%3E");
+  background-size: 9px 9px;
+  background-repeat: no-repeat;
+  background-position: center;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+  transform: translateY(1px);
+}
+:root.dark .comment-highlight {
+  background: rgba(202, 138, 4, 0.22);
+  border-bottom-color: rgba(250, 204, 21, 0.55);
+}
+:root.dark .comment-highlight:hover {
+  background: rgba(202, 138, 4, 0.32);
+}
+
+.version-preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid hsl(var(--twc-primary) / 0.35);
+  background: hsl(var(--twc-primary) / 0.08);
+  font-size: 0.8rem;
+  color: rgb(82 82 91);
+}
+.version-preview-banner__label {
+  flex: 1;
+  font-weight: 500;
+}
+.version-preview-banner__action {
+  border: 1px solid hsl(var(--twc-primary) / 0.4);
+  background: hsl(var(--twc-primary));
+  color: #fff;
+  border-radius: 7px;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.version-preview-banner__exit {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+.version-review-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.version-review-banner__done {
+  background: hsl(var(--twc-primary));
+}
+.version-preview-chunk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px;
+  vertical-align: baseline;
+  user-select: none;
+}
+.version-preview-chunk__btn {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.version-preview-chunk__revert {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+}
+.version-preview-chunk__revert:hover {
+  background: rgba(239, 68, 68, 0.16);
+}
+.version-preview-chunk[data-stale='true'] {
+  opacity: 0.55;
+}
+.version-preview-added {
+  background: rgba(34, 197, 94, 0.18);
+  border-radius: 3px;
+}
+.version-preview-removed {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+  text-decoration: line-through;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+:root.dark .version-preview-banner {
+  color: rgb(212 212 216);
+}
+:root.dark .version-preview-banner__exit {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+:root.dark .version-preview-removed {
+  color: #fca5a5;
+}
+:root.dark .version-preview-chunk__revert {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.45);
+}
+:root.dark .version-preview-chunk__btn {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Live collaboration attribution: translucent author tint + inline chip. */
+.live-collab-added {
+  background-color: color-mix(
+    in srgb,
+    var(--live-collab-color, #9ca3af) 20%,
+    transparent
+  );
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  animation: live-collab-fade 4s ease forwards;
+}
+.live-collab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px;
+  padding: 0 6px;
+  vertical-align: baseline;
+  border-radius: 9999px;
+  border: 1px solid
+    color-mix(in srgb, var(--live-collab-color, #9ca3af) 55%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--live-collab-color, #9ca3af) 14%,
+    transparent
+  );
+  color: color-mix(
+    in srgb,
+    var(--live-collab-color, #6b7280) 65%,
+    rgb(55 65 81)
+  );
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+  animation: live-collab-fade 4s ease forwards;
+}
+.live-collab-chip__undo {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.live-collab-chip__undo:hover {
+  text-decoration: none;
+}
+@keyframes live-collab-fade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-collab-added,
+  .live-collab-chip {
+    animation: none;
+  }
 }
 </style>

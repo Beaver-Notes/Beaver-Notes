@@ -1,49 +1,50 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
+import { hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
-import { listen } from '@tauri-apps/api/event';
+import { logger } from '@/utils/logger';
+import { localNoteCount } from '@/utils/notes/local-note-count.js';
+
 import { openDialog, showMessage } from '@/lib/native/dialog';
-import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
+import {
+  getAppDirectory,
+  getHelperPath,
+  relaunchApp,
+  setSpellcheck,
+} from '@/lib/native/app';
+import { exportBackup, importBackup } from '@/lib/native/backup';
+import {
+  getActiveLocalWorkspace,
+  listLocalWorkspaces,
+} from '@/lib/native/workspaces';
+import { errorMessage, isError } from '@/lib/tauri/errors';
 import { path } from '@/lib/tauri-bridge';
 import {
   copyPath,
-  ensureDir,
   readJson,
   removePath,
-  writeJson,
 } from '@/lib/native/fs';
 import { useAppStore } from '@/store/app';
 import { useI18nStore } from '@/store/i18n';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
-import { markRaw } from 'vue';
+
 import {
   clearAssetPassphrase,
   clearSecureBlob,
 } from '@/lib/native/security.js';
-import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
+import {
+  adoptVaultKey,
+  ensureKeyReadyForWrite,
+  hasRemoteVaultKeyParams,
+  reconcileFolderVault,
+  setDeclinedVaultJoin,
+  verifyPassphrase,
+} from '@/utils/crypto/encryption.js';
 
 import {
   ONBOARDING_LANGUAGE_CONFIG,
   getLanguageDirection,
 } from '@/utils/i18n/languages.js';
-
-async function encryptSettings(plaintext, password) {
-  const salt = crypto.getRandomValues(new Uint8Array(32));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
-  const aesKey = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-    key, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
-  );
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, new TextEncoder().encode(plaintext));
-  return JSON.stringify({
-    v: 1,
-    salt: Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join(''),
-    iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
-    cipher: bufToBase64(new Uint8Array(ct)),
-  });
-}
 
 async function decryptSettings(ciphertext, password) {
   const parsed = JSON.parse(ciphertext);
@@ -63,10 +64,11 @@ export function useSettingsData({
   dialog,
   folderStore,
   noteStore: _noteStore,
-  passwordStore,
-  storage,
+  storage: _storage = null,
   translations,
 }) {
+
+  const storage = _storage;
   let _unregSettingsShortcuts;
 
   const appStore = useAppStore();
@@ -87,14 +89,9 @@ export function useSettingsData({
 
   const state = reactive({
     syncPath: '',
-    password: '',
-    withPassword: false,
     lastUpdated: null,
     zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
   });
-
-  const syncProgress = ref(null);
-  let unlistenSyncProgress = null;
 
   const defaultPath = ref('');
 
@@ -187,75 +184,238 @@ export function useSettingsData({
     return typeof directory === 'string' ? directory.trim() : '';
   }
 
-  async function exportData() {
+  async function makeBackupStaging() {
+    return path.join(
+      await getHelperPath('temp'),
+      `beaver-backup-${Date.now()}`
+    );
+  }
+
+  function isScopedPath(value) {
+    return String(value || '').startsWith('scoped:');
+  }
+
+  // Returns the workspace ids to include, `null` to let the backend export the
+  // active workspace, or `undefined` when the user cancelled the selector.
+  async function exportWorkspaceChoices() {
+    let workspaces = [];
     try {
-      const appDirectory = await getEffectiveAppDirectory();
+      const list = await listLocalWorkspaces();
+      if (Array.isArray(list)) workspaces = list.filter((w) => w?.id);
+    } catch {
+      workspaces = [];
+    }
+
+    if (workspaces.length <= 1) {
+      let active = workspaces[0]?.id;
+      if (!active) {
+        try {
+          active = (await getActiveLocalWorkspace())?.id;
+        } catch {
+          active = '';
+        }
+      }
+      return active ? [active] : null;
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (!settled) {
+          settled = true;
+          resolve(value);
+        }
+      };
+      dialog.select({
+        title:
+          translations.value.settings?.exportWorkspacesTitle || 'Export backup',
+        body:
+          translations.value.settings?.exportWorkspacesBody ||
+          'Choose which workspaces to include in this backup.',
+        choices: workspaces.map((w) => ({
+          value: w.id,
+          label: w.name || w.id,
+        })),
+        defaultValues: workspaces.map((w) => w.id),
+        allLabel:
+          translations.value.settings?.exportWorkspacesAll || 'All workspaces',
+        okText: translations.value.settings?.export || 'Export',
+        cancelText: translations.value.dialog?.cancel || 'Cancel',
+        onCancel: () => finish(undefined),
+        onConfirm: (selected) =>
+          finish(
+            Array.isArray(selected) && selected.length ? selected : undefined
+          ),
+      });
+    });
+  }
+
+  async function exportData(selectedWorkspaces) {
+    try {
+      const workspaces =
+        selectedWorkspaces ?? (await exportWorkspaceChoices());
+      if (workspaces === undefined) return;
+
       const { canceled, filePaths } = await openDialog({
         title: translations.value.settings.exportData,
         properties: ['openDirectory'],
         useScopedStorage: true,
       });
 
-      if (canceled) return;
-
-      let data = await storage.store();
-      data.appPassword = storage.get('sharedKey');
-      data.lockedNotes = JSON.parse(localStorage.getItem('lockedNotes'));
-      await passwordStore.retrieve();
-      data.appPassword = passwordStore.appPassword;
-
-      if (state.withPassword) {
-        data = await encryptSettings(JSON.stringify(data), state.password);
-      }
+      if (canceled || !filePaths?.length) return;
 
       const { default: dayjs } = await import('@/lib/dayjs');
       const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
       const folderPath = path.join(filePaths[0], folderName);
 
-      await ensureDir(folderPath);
-      await writeJson(path.join(folderPath, 'data.json'), { data });
-      await copyPath(
-        path.join(appDirectory, 'assets'),
-        path.join(folderPath, 'assets')
-      );
+      if (isScopedPath(filePaths[0])) {
+        const staging = await makeBackupStaging();
+        const stagedFolder = path.join(staging, folderName);
+        await exportBackup(stagedFolder, workspaces);
+        try {
+          await copyPath(stagedFolder, folderPath);
+        } finally {
+          await removePath(staging).catch(() => {});
+        }
+      } else {
+        await exportBackup(folderPath, workspaces);
+      }
 
       if (!folderPath.includes('gvfs')) {
         showDialogAlert(
           `${translations.value.settings.exportMessage}"${folderName}"`
         );
       }
-
-      state.withPassword = false;
-      state.password = '';
     } catch (error) {
       console.error(error);
+      showAlert(errorMessage(error));
     }
   }
 
   async function mergeImportedData(data) {
     try {
+
+      const lockedIds = new Set([
+        ...Object.entries(data.lockStatus ?? {})
+          .filter(([, v]) => v === 'locked')
+          .map(([k]) => k),
+        ...Object.entries(data.isLocked ?? {})
+          .filter(([, v]) => v === true)
+          .map(([k]) => k),
+      ]);
+      if (lockedIds.size && data.notes) {
+        for (const id of lockedIds) {
+          if (data.notes[id]) data.notes[id].isLocked = true;
+        }
+      }
+
       const keys = [
         { key: 'notes', dfData: {} },
         { key: 'labels', dfData: [] },
-        { key: 'lockStatus', dfData: {} },
-        { key: 'isLocked', dfData: {} },
         { key: 'folders', dfData: {} },
       ];
 
-      for (const { key, dfData } of keys) {
-        const currentData = await storage.get(key, dfData);
-        const importedData = data[key] ?? dfData;
-        const mergedData =
-          key === 'labels'
-            ? [...new Set([...currentData, ...importedData])]
-            : { ...currentData, ...importedData };
+      if (storage) {
 
-        await storage.set(key, mergedData);
+        for (const { key, dfData } of keys) {
+          const currentData = await storage.get(key, dfData);
+          const importedData = data[key] ?? dfData;
+          const mergedData =
+            key === 'labels'
+              ? [...new Set([...currentData, ...importedData])]
+              : { ...currentData, ...importedData };
+
+          await storage.set(key, mergedData);
+        }
         await folderStore.retrieve();
+      } else {
+
+        if (Array.isArray(data.labels) && data.labels.length) {
+          try {
+            const { useLabelStore } = await import('@/store/label');
+            const labelStore = useLabelStore();
+            for (const label of data.labels) {
+              if (label && !labelStore.data.includes(label)) await labelStore.add(label);
+            }
+          } catch {}
+        }
+        if (data.folders && typeof data.folders === 'object') {
+          const { syncFolder } = await import('@/lib/yjs/workspace-doc.js');
+          for (const folder of Object.values(data.folders)) {
+            if (!folder?.id || folderStore.data[folder.id]) continue;
+            folderStore.data[folder.id] = folder;
+            try {
+              syncFolder(folder);
+            } catch {}
+          }
+          try {
+            folderStore._rebuildIndex?.();
+          } catch {}
+        }
+      }
+
+      if (data.notes) {
+        try {
+          const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
+          for (const note of Object.values(data.notes)) {
+            if (note?.id) syncNoteMeta(note);
+          }
+        } catch {}
       }
     } catch (error) {
       console.error(error);
     }
+  }
+
+  async function runBackupImport(dirPath, vaultKey) {
+    if (isScopedPath(dirPath)) {
+      const staging = await makeBackupStaging();
+      try {
+        await copyPath(dirPath, staging);
+        return vaultKey
+          ? await importBackup(staging, vaultKey)
+          : await importBackup(staging);
+      } finally {
+        await removePath(staging).catch(() => {});
+      }
+    }
+    return vaultKey ? importBackup(dirPath, vaultKey) : importBackup(dirPath);
+  }
+
+  // Shown only when the backup's payloads do not decrypt with this device's
+  // current vault key. The source vault key is the same kind of secret used
+  // everywhere else — never a separate "backup password".
+  function promptForBackupVaultKey(dirPath) {
+    dialog.prompt({
+      title: translations.value.settings?.password || 'Vault key',
+      body:
+        translations.value.settings?.backupDifferentVaultKey ||
+        'This backup was made with a different vault key — enter it to import.',
+      password: true,
+      placeholder: translations.value.settings?.vaultKeyPlaceholder || 'Vault key',
+      okText: translations.value.settings.import,
+      cancelText: translations.value.dialog?.cancel || 'Cancel',
+      onConfirm: async (vaultKey) => {
+        if (!vaultKey) {
+          showAlert(translations.value.settings.invalidPassword);
+          return false;
+        }
+        try {
+          await runBackupImport(dirPath, vaultKey);
+        } catch (error) {
+          console.error(error);
+          showAlert(
+            isError(error, 'WrongPassword')
+              ? translations.value.settings?.wrongBackupVaultKey ||
+                  'Wrong vault key. Enter the vault key this backup was made with.'
+              : errorMessage(error)
+          );
+          return false;
+        }
+        await relaunchApp();
+        return true;
+      },
+    });
   }
 
   async function importData() {
@@ -270,28 +430,51 @@ export function useSettingsData({
         useScopedStorage: true,
       });
 
-      if (canceled) return;
+      if (canceled || !dirPath) return;
 
-      let { data } = await readJson(path.join(dirPath, 'data.json'));
-      if (!data) {
+      let legacy;
+      try {
+        legacy = await readJson(path.join(dirPath, 'data.json'));
+      } catch {
+        legacy = null;
+      }
+      if (legacy && !legacy.data) {
         showAlert(translations.value.settings.invalidData);
         return;
       }
 
+      if (!legacy) {
+        dialog.confirm({
+          title: translations.value.settings.importData,
+          body:
+            translations.value.settings.importReplaceWarning ||
+            'Importing this backup will REPLACE all data on this device.',
+          okText: translations.value.settings.import,
+          cancelText: translations.value.dialog?.cancel || 'Cancel',
+          okVariant: 'danger',
+          onConfirm: async () => {
+            try {
+              await runBackupImport(dirPath);
+            } catch (error) {
+              if (isError(error, 'VaultKeyRequired')) {
+                promptForBackupVaultKey(dirPath);
+                return true;
+              }
+              console.error(error);
+              showAlert(errorMessage(error));
+              return false;
+            }
+            await relaunchApp();
+            return true;
+          },
+        });
+        return;
+      }
+
+      let { data } = legacy;
+
       const finishImport = async (result) => {
         await mergeImportedData(result);
-
-        if (result.appPassword) {
-          await passwordStore.importAppPassword(result.appPassword);
-        }
-
-        if (result.lockStatus !== null && result.lockStatus !== undefined) {
-          localStorage.setItem('lockStatus', JSON.stringify(result.lockStatus));
-        }
-
-        if (result.isLocked !== null && result.isLocked !== undefined) {
-          localStorage.setItem('isLocked', JSON.stringify(result.isLocked));
-        }
 
         await ensureKeyReadyForWrite();
         await copyPath(
@@ -300,27 +483,59 @@ export function useSettingsData({
         );
       };
 
-      if (typeof data === 'string') {
-        dialog.prompt({
-          title: translations.value.settings.inputPassword,
-          body: translations.value.settings.body,
-          okText: translations.value.settings.import,
-          cancelText: translations.value.settings.cancel,
-          placeholder: translations.value.settings.password,
-          onConfirm: async (pass) => {
+      dialog.prompt({
+        title: translations.value.settings.inputPassword,
+        body:
+          translations.value.settings?.backupPasswordPrompt ||
+          'This is a legacy backup. Enter the password set when it was exported.',
+        okText: translations.value.settings.import,
+        cancelText: translations.value.settings.cancel,
+        placeholder:
+          translations.value.settings?.backupPasswordPlaceholder ||
+          'Backup password',
+        password: true,
+        onConfirm: async (pass) => {
+          if (!pass) {
+            showAlert(translations.value.settings.invalidPassword);
+            return false;
+          }
+
+          if (typeof data === 'string') {
             try {
               const result = await decryptSettings(data, pass);
               await finishImport(JSON.parse(result));
             } catch {
-              showAlert(translations.value.settings.invalidPassword);
+              showAlert(
+                translations.value.settings.wrongBackupPassword ||
+                  'Wrong backup password'
+              );
               return false;
             }
-          },
-        });
-        return;
-      }
+            return true;
+          }
 
-      await finishImport(data);
+          const verification = await verifyPassphrase(pass);
+          if (!verification.ok) {
+            showAlert(
+              translations.value.settings.wrongWorkspacePassphrase ||
+                verification.error ||
+                translations.value.settings.invalidPassword
+            );
+            return false;
+          }
+
+          try {
+            await finishImport(data);
+          } catch {
+            showAlert(
+              translations.value.settings.wrongWorkspacePassphrase ||
+                translations.value.settings.invalidPassword
+            );
+            return false;
+          }
+          return true;
+        },
+      });
     } catch (error) {
       console.error(error);
     }
@@ -340,8 +555,72 @@ export function useSettingsData({
       if (canceled) return;
       defaultPath.value = await setSyncPath(dir);
       state.syncPath = defaultPath.value;
-      const { forceSyncNow } = await import('@/utils/sync');
-      forceSyncNow().catch(() => {});
+
+      try {
+        const { startRustSync } = await import('@/utils/sync/rust-shim.js');
+        await startRustSync();
+      } catch {}
+
+      detectVaultAndSync(defaultPath.value).catch((error) => {
+        console.error(error);
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function detectVaultAndSync(dir) {
+    try {
+      const { kickRustSync } = await import('@/utils/sync/rust-shim.js');
+      let hasRemoteVault;
+      try {
+        hasRemoteVault = await hasRemoteVaultKeyParams();
+      } catch (e) {
+        logger.warn('[settings] vault detection failed:', e);
+        dialog.alert({
+          title: translations.value.settings?.alertTitle || 'Alert',
+          body:
+            translations.value.settings?.vaultDetectFailed ||
+            'Could not check the sync folder for an existing vault. Sync was not started.',
+          okText: translations.value.dialog?.close || 'Close',
+        });
+        return;
+      }
+      if (hasRemoteVault) {
+
+        setDeclinedVaultJoin(dir).catch(() => {});
+        dialog.prompt({
+          title: translations.value.settings?.vaultDetected || 'Vault detected',
+          body:
+            `This folder holds an existing encrypted vault. Importing merges this device's notes into it: ${localNoteCount()} local note(s) are re-encrypted with the vault key and kept. A backup is saved first. Enter the vault key to import it.`,
+          password: true,
+          onConfirm: async (pass) => {
+            if (!pass) return;
+            try {
+              const res = await adoptVaultKey(pass);
+              if (!res.ok) {
+                dialog.alert({
+                  title: translations.value.settings?.alertTitle || 'Alert',
+                  body: res.error || 'Failed to import the vault. Check the password.',
+                  okText: translations.value.dialog?.close || 'Close',
+                });
+                return;
+              }
+            } catch (e) {
+              dialog.alert({
+                title: translations.value.settings?.alertTitle || 'Alert',
+                body: e?.message || 'Failed to import the vault.',
+                okText: translations.value.dialog?.close || 'Close',
+              });
+              return;
+            }
+            kickRustSync();
+          },
+        });
+        return;
+      }
+      await reconcileFolderVault();
+      kickRustSync();
     } catch (error) {
       console.error(error);
     }
@@ -373,18 +652,23 @@ export function useSettingsData({
             appDirectory ? path.join(appDirectory, 'app-crypto') : '',
           ].filter(Boolean);
 
+          const { backend } = await import('@/lib/tauri-bridge');
           await Promise.allSettled([
-            ...cleanupPaths.map((targetPath) => removePath(targetPath)),
-            storage.clear('data'),
-            storage.clear('settings'),
-            clearSecureBlob('encryptionPassphraseBlob'),
-            clearAssetPassphrase(),
-            setSyncPath(''),
-          ]);
+              ...cleanupPaths.map((targetPath) => removePath(targetPath)),
+              backend.invoke('storage:clear', { name: 'data' }),
+              backend.invoke('storage:clear', { name: 'settings' }),
+              clearSecureBlob('encryptionPassphraseBlob'),
+              clearAssetPassphrase(),
+              setSyncPath(''),
+            ]);
 
           localStorage.clear();
           sessionStorage.clear();
 
+          if (import.meta.env.DEV) {
+            window.location.reload();
+            return;
+          }
           await relaunchApp();
         } catch (error) {
           console.error('Error nuking app in debug mode:', error);
@@ -417,6 +701,9 @@ export function useSettingsData({
   const updateLanguage = () => {
     const languageCode = selectedLanguage.value;
     const dir = getLanguageDirection(languageCode);
+    directionPreference.value = dir;
+    document.documentElement.setAttribute('dir', dir);
+    document.documentElement.setAttribute('lang', languageCode);
     const i18n = useI18nStore();
     void Promise.all([
       i18n.setLanguage(languageCode),
@@ -437,22 +724,6 @@ export function useSettingsData({
     }
     void setSetting('timeFormat', timeFormat.value);
   };
-
-  function registerSyncProgressListener() {
-    if (unlistenSyncProgress) return;
-    (async () => {
-      unlistenSyncProgress = await listen('sync:progress', (event) => {
-        syncProgress.value = markRaw(event.payload);
-      });
-    })();
-  }
-
-  function unregisterSyncProgressListener() {
-    if (unlistenSyncProgress) {
-      unlistenSyncProgress();
-      unlistenSyncProgress = null;
-    }
-  }
 
   onMounted(() => {
     void (async () => {
@@ -493,9 +764,7 @@ export function useSettingsData({
     chooseDefaultPath,
     clearPath,
     nukeAppDebugOnly,
-    syncProgress,
-    registerSyncProgressListener,
-    unregisterSyncProgressListener,
+
     toggleAdvancedSettings,
     toggleSpellcheck,
     applySpellcheckAttribute,

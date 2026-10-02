@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,4 +17,9 @@ pub struct ShareTextPayload {
 pub struct ShareFilePayload {
     pub path: String,
     pub mime_type: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct PendingShareResponse {
+    pub payload: String,
 }

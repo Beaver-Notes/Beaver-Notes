@@ -7,10 +7,11 @@ import SettingsAppearance from './pages/settings/Appearance.vue';
 import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
 import SettingsLabels from './pages/settings/Labels.vue';
-import SettingsSecurity from './pages/settings/Security.vue';
 import SettingsAccount from './pages/settings/Account.vue';
-import SettingsData from './pages/settings/Data.vue';
+import SettingsTeamAdmin from './pages/settings/TeamAdmin.vue';
 import JoinNote from './pages/join/[token].vue';
+import VerifyEmail from './pages/VerifyEmail.vue';
+import ResetPassword from './pages/ResetPassword.vue';
 import Home from './pages/Index.vue';
 import Note from './pages/note/_id.vue';
 import Folder from './pages/folder/_id.vue';
@@ -21,14 +22,13 @@ const routeTitles = {
   Home: APP_NAME,
   Note: 'Note',
   Folder: 'Folder',
-  Settings: `Settings — ${APP_NAME}`,
-  'Settings-Appearance': `Appearance — ${APP_NAME}`,
-  'Settings-Shortcuts': `Shortcuts — ${APP_NAME}`,
-  'Settings-About': `About — ${APP_NAME}`,
-  'Settings-Labels': `Labels — ${APP_NAME}`,
-  'Settings-Security': `Security — ${APP_NAME}`,
-  'Settings-Data': `Data — ${APP_NAME}`,
-  Onboarding: `Welcome — ${APP_NAME}`,
+  Settings: `Settings - ${APP_NAME}`,
+  'Settings-Appearance': `Appearance - ${APP_NAME}`,
+  'Settings-Shortcuts': `Shortcuts - ${APP_NAME}`,
+  'Settings-About': `About - ${APP_NAME}`,
+  'Settings-Labels': `Labels - ${APP_NAME}`,
+  'Settings-Team': `Team - ${APP_NAME}`,
+  Onboarding: `Welcome - ${APP_NAME}`,
 };
 
 const routes = [
@@ -73,6 +73,11 @@ const routes = [
         component: SettingsAccount,
       },
       {
+        path: 'workspace',
+        name: 'Settings-Team',
+        component: SettingsTeamAdmin,
+      },
+      {
         path: 'shortcuts',
         name: 'Settings-Shortcuts',
         component: SettingsShortcuts,
@@ -87,22 +92,36 @@ const routes = [
         name: 'Settings-Labels',
         component: SettingsLabels,
       },
-      {
-        path: 'security',
-        name: 'Settings-Security',
-        component: SettingsSecurity,
-      },
-      {
-        path: 'data',
-        name: 'Settings-Data',
-        component: SettingsData,
-      },
     ],
   },
   {
     path: '/join/:token',
     name: 'JoinNote',
     component: JoinNote,
+    meta: { guest: true },
+  },
+  {
+    path: '/verify-email',
+    name: 'VerifyEmail',
+    component: VerifyEmail,
+    meta: { guest: true },
+  },
+  {
+    path: '/verify-email/:token',
+    name: 'VerifyEmailToken',
+    component: VerifyEmail,
+    meta: { guest: true },
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: ResetPassword,
+    meta: { guest: true },
+  },
+  {
+    path: '/reset-password/:token',
+    name: 'ResetPasswordToken',
+    component: ResetPassword,
     meta: { guest: true },
   },
   {

@@ -20,10 +20,6 @@ export function canView(role) {
   return role in ROLE_HIERARCHY
 }
 
-export function canManageCollaborators(role) {
-  return role === ROLES.OWNER || role === ROLES.EDITOR
-}
-
 export function canDeleteNote(role) {
   return role === ROLES.OWNER
 }

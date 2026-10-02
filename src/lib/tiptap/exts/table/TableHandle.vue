@@ -1,13 +1,14 @@
 <template>
   <div
     v-if="state?.show"
-    class="fixed inset-0 z-0 pointer-events-none"
+    class="fixed inset-0 z-30 pointer-events-none"
   >
     <div
       v-if="showRowHandle"
       ref="rowFloatingRef"
       :style="rowFloatingStyles"
-      class="table-handle-floating"
+      class="table-handle-floating pointer-events-auto"
+      style="pointer-events:auto"
     >
       <ui-popover
         placement="right-start"
@@ -47,7 +48,8 @@
       v-if="showColHandle"
       ref="colFloatingRef"
       :style="colFloatingStyles"
-      class="table-handle-floating"
+      class="table-handle-floating pointer-events-auto"
+      style="pointer-events:auto"
     >
       <ui-popover
         placement="bottom"
@@ -289,6 +291,9 @@ export default {
 </script>
 
 <style>
+.table-handle-floating,
+.table-handle-floating .ui-popover,
+.table-handle-floating .ui-popover__trigger { pointer-events: auto; }
 .thandle {
   display: flex;
   align-items: center;
