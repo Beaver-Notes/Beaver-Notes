@@ -891,7 +891,7 @@ export default {
 
     // Lifecycle
     onMounted(() => {
-      history.loadCommits(props.workspaceId, props.noteId);
+      history.loadCommits(props.noteId);
       activity.loadIfNeeded(props.noteId);
     });
 

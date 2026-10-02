@@ -1,6 +1,14 @@
 import { getApiClient } from './client';
+import { useAccountStore } from '@/store/account';
 import { getSyncDeviceId } from '@/utils/sync/sync-repository';
 import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
+
+// Every read must name the account's own sync server: the default client is a
+// single slot seeded with the vendor origin, so an omitted baseUrl ships the
+// session bearer token off-box. Same call shape as utils/sync/vault-key-params.
+function getClient() {
+  return getApiClient({ baseUrl: useAccountStore().serverUrl });
+}
 
 // Commit snapshot envelope versions:
 //   v4/v5 - legacy/items-key Rust envelope (`encryptJSON`). Personal notes.
@@ -27,8 +35,8 @@ async function resolveCommitKey(noteId) {
   }
 }
 
-export async function listCommits(workspaceId, noteId) {
-  const client = getApiClient();
+export async function listCommits(noteId) {
+  const client = getClient();
   const response = await client.get('/commits/history', {
     query: { noteId },
   });
@@ -47,7 +55,7 @@ export async function listCommits(workspaceId, noteId) {
 }
 
 export async function getCommitSnapshot(commitHash, noteId = '') {
-  const client = getApiClient();
+  const client = getClient();
   const response = await client.get(
     `/commits/${encodeURIComponent(commitHash)}`,
     // X-Note-Id lets the server authorise a collaborator (not just the pusher)
@@ -111,8 +119,8 @@ export async function getCommitSnapshot(commitHash, noteId = '') {
 /**
  * Create a version history commit for a note (`snapshot` = HTML content + title).
  */
-export async function createCommit(noteId, snapshot, opts = {}) {
-  const client = getApiClient(opts.baseUrl ? { baseUrl: opts.baseUrl } : undefined);
+export async function createCommit(noteId, snapshot) {
+  const client = getClient();
 
   const deviceId = await getSyncDeviceId();
   const ts = Date.now();

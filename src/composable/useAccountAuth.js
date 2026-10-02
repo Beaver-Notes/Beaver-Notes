@@ -138,8 +138,12 @@ export function useAccountAuth() {
       return data;
     } catch (err) {
       if (err && err.status === 401) {
-        // Keep auth on 401: may be wrong URL or transient, token still valid.
-        console.warn('[auth] fetchProfile 401: keeping auth state, token may still be valid');
+        // client.js already cleared the persisted token on this 401, so the session
+        // is dead. Leaving the in-memory token would strand the app: REST reads
+        // storage (anonymous) while ws-sync reads this store (still authenticating).
+        accountStore.setToken(null);
+        accountStore.setStatus('anonymous');
+        console.warn('[auth] fetchProfile 401: session rejected, signing out');
       } else {
         console.error('[auth] fetchProfile failed:', err);
       }
@@ -365,12 +369,30 @@ export function useAccountAuth() {
     // Drop the previous account's notes from the in-memory store; the next
     // account hydrates its own from the workspace doc.
     try {
-      const { useNoteStore } = await import('@/store/note');
+      const { useNoteStore, clearNoteContentSignatures } = await import('@/store/note');
       const noteStore = useNoteStore();
       noteStore.data = {};
       noteStore.syncInProgress = false;
+      // The signatures hold note plaintext and outlive `data`, so they need
+      // their own teardown.
+      clearNoteContentSignatures();
     } catch (err) {
       console.warn('[auth] note store teardown failed:', err);
+    }
+
+    // Drop the collaboration state that carries decrypted text and emails.
+    try {
+      const [{ useCommentStore }, { useCollaboratorStore }, { useWorkspaceStore }] =
+        await Promise.all([
+          import('@/store/comment'),
+          import('@/store/collaborator'),
+          import('@/store/workspace'),
+        ]);
+      useCommentStore().reset();
+      useCollaboratorStore().reset();
+      useWorkspaceStore().reset();
+    } catch (err) {
+      console.warn('[auth] collaboration store teardown failed:', err);
     }
 
     // Drop the previous account's search index so search can't surface it.

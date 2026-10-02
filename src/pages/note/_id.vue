@@ -920,7 +920,7 @@ export default {
       // The page's history instance is only loaded lazily, so fetch the newest
       // commit as the baseline (the state before the merged changes).
       if (!noteHistory.commits.value.length) {
-        await noteHistory.loadCommits('', id.value);
+        await noteHistory.loadCommits(id.value);
       }
       const commit = noteHistory.commits.value?.[0];
       let content = null;

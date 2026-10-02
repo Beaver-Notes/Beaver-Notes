@@ -104,6 +104,15 @@ export function setSkipUndo(value: boolean): void {
 }
 
 const contentSignature: Map<string, object> = new Map();
+
+/**
+ * Drop the content signatures. They hold note plaintext, so they are torn down
+ * with the store on sign-out rather than outliving it.
+ */
+export function clearNoteContentSignatures(): void {
+  contentSignature.clear();
+}
+
 const indexSignature: Map<string, string> = new Map();
 
 // Incremental folder counts avoid O(n) rebuild. Version counter busts Pinia getter cache.

@@ -26,6 +26,14 @@ export function setCachedWorkspaceKey(workspaceId, workspaceKeyHex) {
   workspaceKeyCache.set(workspaceId, workspaceKeyHex);
 }
 
+/**
+ * Drop every cached workspace key. The cache outlives sign-out otherwise, so
+ * the next account inherits the previous account's key material in the heap.
+ */
+export function clearWorkspaceKeyCache() {
+  workspaceKeyCache.clear();
+}
+
 /** Wrap workspace key under session AEK so members recovering passphrase re-derive locally. Returns base64 envelope. */
 export async function buildVaultWrappedKeys(workspaceKeyHex) {
   const payload = new TextEncoder().encode(JSON.stringify({ workspaceKey: workspaceKeyHex }));

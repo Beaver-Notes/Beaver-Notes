@@ -56,10 +56,12 @@ function buildUrl(base, path, query) {
 
 function withTimeout(signal, ms) {
   const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(new Error('Request timed out')),
-    ms
-  );
+  const timer = setTimeout(() => {
+    // Name the reason so the catch below can tell our timeout from a caller abort.
+    const reason = new Error('Request timed out');
+    reason.name = 'TimeoutError';
+    controller.abort(reason);
+  }, ms);
   if (signal) {
     if (signal.aborted) controller.abort(signal.reason);
     else
@@ -168,7 +170,11 @@ export function createApiClient({
     } catch (err) {
       cancel();
       throw new ApiError(
-        err?.name === 'AbortError' ? 'Request was aborted.' : 'Network error.',
+        err?.name === 'TimeoutError'
+          ? 'Request timed out.'
+          : err?.name === 'AbortError'
+            ? 'Request was aborted.'
+            : 'Network error.',
         { status: 0, code: 'network_error', cause: err }
       );
     }

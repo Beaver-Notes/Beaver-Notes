@@ -38,7 +38,7 @@ import {
   retryNoteExtraction,
 } from './note/index';
 import { getBacklinks, getBacklinkCount } from './note/backlinks';
-export { setSkipUndo } from './note/index';
+export { setSkipUndo, clearNoteContentSignatures } from './note/index';
 
 export const useNoteStore = defineStore('note', {
   state: (): NoteState => ({

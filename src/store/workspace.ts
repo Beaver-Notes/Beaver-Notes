@@ -31,6 +31,17 @@ export const useWorkspaceStore = defineStore('workspace', {
   },
 
   actions: {
+    /**
+     * Drop the decrypted workspace list. Names arrive decrypted from the cloud
+     * layer, so they are cleared on sign-out with everything else the previous
+     * account owned.
+     */
+    reset() {
+      this.workspaces = [];
+      this.activeId = null;
+      this.loading = false;
+    },
+
     async retrieve() {
       this.loading = true;
       try {

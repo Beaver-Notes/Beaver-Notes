@@ -11,7 +11,11 @@ import {
 } from '@/utils/crypto/collab'
 import { clearUnwrappedKeyCache } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
-import { getCachedWorkspaceKey, recoverWorkspaceKeyHex } from '@/lib/api/workspaces'
+import {
+  getCachedWorkspaceKey,
+  recoverWorkspaceKeyHex,
+  clearWorkspaceKeyCache,
+} from '@/lib/api/workspaces'
 import { kickRustSync } from '@/utils/sync/rust-shim.js'
 import { registerSharedSyncKey, clearSharedSyncKeys } from '@/utils/sync/shared-keys.js'
 import { resolveNoteWorkspaceId } from '@/utils/sync/shared-notes.js'
@@ -180,6 +184,7 @@ function getServerBase() {
 
 // One-time short-lived ticket so the session token never appears in the WS URL.
 // Fail-closed: no ticket means joining without auth params, the server rejects it.
+const WS_TICKET_TIMEOUT_MS = 15000
 async function getWsParams(workspaceId, noteId) {
   const token = getAuthToken()
   if (!token) return {}
@@ -190,6 +195,9 @@ async function getWsParams(workspaceId, noteId) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
+      // Bounded: an unanswered request would otherwise hold this room in
+      // `pendingRooms` for the rest of the session, so it could never rejoin.
+      signal: AbortSignal.timeout(WS_TICKET_TIMEOUT_MS),
       // noteId authorizes an invited non-member for the note room only.
       body: JSON.stringify(
         workspaceId ? { workspaceId, ...(noteId ? { noteId } : {}) } : {},
@@ -452,6 +460,7 @@ export function useWsSync() {
     collabKeys.clear()
     pendingKeyJoins.clear()
     clearUnwrappedKeyCache()
+    clearWorkspaceKeyCache()
     void clearSharedSyncKeys()
   }
 
