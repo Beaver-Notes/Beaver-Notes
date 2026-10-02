@@ -40,6 +40,10 @@ pub(crate) enum SyncError {
     Offline,
     ICloudPending,
     Throttled,
+    /// A single update is larger than the server's per-chunk body cap. The row
+    /// was never stored, so its push cursor must not move: this is a gate, not a
+    /// skip, and it is retried after the note shrinks.
+    ItemTooLarge,
 }
 
 impl SyncError {
@@ -50,6 +54,7 @@ impl SyncError {
             SyncError::Offline => "offline",
             SyncError::ICloudPending => "pending-icloud",
             SyncError::Throttled => "throttled",
+            SyncError::ItemTooLarge => "item-too-large",
         }
     }
 }
@@ -753,23 +758,29 @@ async fn push_items(
             report.attempted = acked_cursors(items, global_attempted, &chunk_attempts);
             return Ok(report);
         }
-        // A 413 means this chunk exceeds the server body cap. Byte-aware
-        // chunking isolates an oversized single item, so advance its cursor and
-        // report it rather than aborting push+assets every tick (finding C6).
-        // A multi-item 413 is left unacked so it retries (and is logged).
+        // A 413 means this chunk exceeds the server body cap. Byte-aware chunking
+        // isolates an oversized single item, so a single-item 413 is that one row
+        // and nothing else in the chunk can be at fault.
+        //
+        // The row was not stored, so it must NOT be acked: acking it would let
+        // `acked_cursors` fold it into the high-water mark and `store_push_acks`
+        // move the push cursor past it, silently dropping that note's update
+        // forever with no retry and no error. It surfaces as a typed gate instead;
+        // the server dedupes on `(device, sequence)`, so re-sending is safe.
+        // A multi-item 413 is left unacked and retried below.
         if status == reqwest::StatusCode::PAYLOAD_TOO_LARGE {
             crate::rs_log!(
                 "[sync::cloud] push chunk rejected 413 ({} item(s), note ids {:?}); {}",
                 chunk.len(),
                 order,
                 if chunk.len() == 1 {
-                    "skipping oversized item once (cursor advanced)"
+                    "holding cursor, reporting item-too-large"
                 } else {
                     "leaving unacked for retry"
                 }
             );
             if chunk.len() == 1 {
-                chunk_attempts.push((start..end, order.iter().cloned().collect()));
+                return Err(CloudFail::Typed(SyncError::ItemTooLarge));
             }
             continue;
         }
@@ -1554,6 +1565,45 @@ async fn sync_cloud_push_impl(
 /// Cloud push: dirty rows since the kv cursor → envelope encrypt → chunked
 /// `push-batch` (50 items / 5MB) → advance cursors only on ack. Idempotent
 /// replay: unacked rows reuse the same (device, sequence) keys.
+/// Notes the active-workspace push must not collect: notes owned by a
+/// *different* workspace (shared-with-me). Their content syncs through
+/// `sync_cloud_note` instead. A note whose owning workspace is the one being
+/// pushed is never skipped, so a member who also holds an invitation row still
+/// syncs it normally.
+///
+/// Ownership is read from the durable `note_owners` table, not from the crypto
+/// session: `encryption_lock` wipes the session, and a tick between unlock and
+/// the JS re-registration would otherwise see an empty skip set and copy a
+/// shared-with-me note into the caller's own workspace. The session map is still
+/// unioned in so an in-flight registration is never ignored.
+fn push_skip_set(
+    state: &AppState,
+    pool: &crate::db::DbPool,
+    workspace_id: &str,
+) -> Result<HashSet<String>, CloudFail> {
+    let mut owners = crate::db::foreign_note_owners(pool, workspace_id).map_err(CloudFail::Fatal)?;
+    owners.extend(
+        crate::shared::foreign_shared_notes(state)
+            .map_err(CloudFail::Fatal)?
+            .into_iter()
+            .filter(|(_, owner)| owner != workspace_id),
+    );
+    Ok(owners.into_keys().collect())
+}
+
+/// Notes shared with other accounts that still have no registered collaboration
+/// key. Same durability rule as `push_skip_set`: the session map is a cache,
+/// `note_owners` is the record, because sealing one of these with the account
+/// items key produces an envelope no peer can open.
+fn expected_shared_set(
+    state: &AppState,
+    pool: &crate::db::DbPool,
+) -> Result<HashSet<String>, CloudFail> {
+    let mut notes = crate::db::expected_shared_notes(pool).map_err(CloudFail::Fatal)?;
+    notes.extend(crate::shared::expected_shared_notes(state).map_err(CloudFail::Fatal)?);
+    Ok(notes)
+}
+
 pub(crate) async fn sync_cloud_push(
     app: &AppHandle,
     workspace_id: &str,
@@ -1572,19 +1622,12 @@ pub(crate) async fn sync_cloud_push(
     let pool = writer_gate(app)?;
     let shared = crate::shared::shared_note_keys(app.state::<AppState>().inner())
         .map_err(CloudFail::Fatal)?;
-    let expected = crate::shared::expected_shared_notes(app.state::<AppState>().inner())
-        .map_err(CloudFail::Fatal)?;
-    // Notes owned by a *different* workspace (shared-with-me) are excluded from
-    // the active-workspace push; their content syncs through `sync_cloud_note`.
-    // A note whose owning workspace is the one being pushed is never skipped, so
-    // a member who also holds an invitation row still syncs it normally.
-    let skip: HashSet<String> =
-        crate::shared::foreign_shared_notes(app.state::<AppState>().inner())
-            .map_err(CloudFail::Fatal)?
-            .into_iter()
-            .filter(|(_, owner)| owner != workspace_id)
-            .map(|(note, _)| note)
-            .collect();
+    let expected = expected_shared_set(app.state::<AppState>().inner(), &pool)?;
+    let skip = push_skip_set(
+        app.state::<AppState>().inner(),
+        &pool,
+        workspace_id,
+    )?;
     let device = blocking({
         let pool = pool.clone();
         move || get_or_create_device_id(&pool)
@@ -1635,8 +1678,7 @@ pub(crate) async fn sync_cloud_note(
     let pool = writer_gate(app)?;
     let shared = crate::shared::shared_note_keys(app.state::<AppState>().inner())
         .map_err(CloudFail::Fatal)?;
-    let expected = crate::shared::expected_shared_notes(app.state::<AppState>().inner())
-        .map_err(CloudFail::Fatal)?;
+    let expected = expected_shared_set(app.state::<AppState>().inner(), &pool)?;
     let device = blocking({
         let pool = pool.clone();
         move || get_or_create_device_id(&pool)
@@ -1671,6 +1713,71 @@ pub(crate) async fn sync_cloud_note(
 
 #[cfg(test)]
 mod tests {
+    /// A one-shot HTTP server that answers every request with `status`.
+    /// Returns the base URL. The listener is bound and listening before the
+    /// caller connects, so no sleep or retry loop is needed.
+    fn one_shot_server(status_line: &'static str) -> (String, std::thread::JoinHandle<()>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let handle = std::thread::spawn(move || {
+            let body = "{}";
+            if let Ok((mut stream, _)) = listener.accept() {
+                use std::io::Read;
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                let response = format!(
+                    "HTTP/1.1 {status_line}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                use std::io::Write;
+                let _ = stream.write_all(response.as_bytes());
+            }
+        });
+        (format!("http://{addr}"), handle)
+    }
+
+    /// A single item the server rejects with 413 must NOT advance the push
+    /// cursor: the row was never stored, so a cursor past it drops the note's
+    /// remaining updates forever. It has to surface as a typed gate instead.
+    #[tokio::test]
+    async fn push_413_single_item_reports_a_gate_and_holds_the_cursor() {
+        use std::collections::HashMap;
+
+        let (base, server) = one_shot_server("413 Payload Too Large");
+        let client = reqwest::Client::new();
+        let items = vec![super::PushItem {
+            note_id: "big".to_string(),
+            row_id: 77,
+            key: "k".to_string(),
+            data: "x".to_string(),
+            device: "d".to_string(),
+            ts: 0,
+            seq: 5,
+            // Bigger than the 5 MB body cap, so chunking isolates it alone.
+            size: 6 * 1024 * 1024,
+        }];
+        let global: HashMap<String, (i64, u64)> = [("big".to_string(), (77, 5))]
+            .into_iter()
+            .collect();
+
+        let result = super::push_items(
+            &client, &base, "ws", "tok", "dev", &items, &global,
+        )
+        .await;
+        let _ = server.join();
+
+        // CloudFail has no Debug, so match rather than unwrap_or_default.
+        match result {
+            Err(super::CloudFail::Typed(t)) => assert_eq!(
+                t.status_str(),
+                "item-too-large",
+                "an oversized item must be a named gate the UI can explain, not a silent skip"
+            ),
+            Err(_) => panic!("a 413 must be a typed gate, not a fatal error"),
+            Ok(_) => panic!("a 413 must not report success: nothing was stored"),
+        }
+    }
+
     #[test]
     fn chunk_caps_match_server_limits() {
         assert_eq!(super::chunk_sizes(&[1024; 101]).len(), 3); // 50-item cap
@@ -1864,6 +1971,116 @@ mod tests {
             ids,
             vec!["foreign".to_string()],
             "only_note pins the shared note"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The active-workspace push must still exclude a shared-with-me note after
+    /// `encryption_lock` wiped the crypto session. Ownership is a durable fact
+    /// about the note, so the window between unlock and the JS re-registration
+    /// cannot open.
+    #[test]
+    fn active_push_still_skips_foreign_note_after_lock() {
+        use crate::shared::AppState;
+        let (pool, root) = unique_temp_db("beaver-owner-durable");
+        let state = AppState::new(root.clone(), root.clone(), None);
+
+        // A note invited into this workspace but owned by another one. This is
+        // what JS registration records.
+        crate::db::note_owner_set(&pool, "foreign", "ws-other").expect("record owner");
+        crate::db::yjs_append(&pool, "mine", &valid_update("a"), "dev", None).expect("append mine");
+        crate::db::yjs_append(&pool, "foreign", &valid_update("b"), "dev", None)
+            .expect("append foreign");
+        {
+            let mut s = state.crypto.session.write().unwrap();
+            s.foreign_shared_notes
+                .insert("foreign".to_string(), "ws-other".to_string());
+        }
+
+        // `encryption_lock`.
+        state
+            .crypto
+            .session
+            .write()
+            .unwrap()
+            .reset();
+
+        let skip = super::push_skip_set(&state, &pool, "ws-mine").unwrap_or_default();
+        let (items, _) = super::collect_dirty_filtered(
+            &pool,
+            &[5u8; 32],
+            &std::collections::HashMap::new(),
+            &std::collections::HashSet::new(),
+            "dev",
+            5000,
+            None,
+            &skip,
+        )
+        .expect("collect");
+        let ids: Vec<String> = items.iter().map(|i| i.note_id.clone()).collect();
+        assert!(
+            !ids.contains(&"foreign".to_string()),
+            "a note owned by another workspace must never be pushed into the caller's \
+             own workspace, even straight after a lock: got {ids:?}"
+        );
+        assert!(ids.contains(&"mine".to_string()), "own note still pushed");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A note shared with other accounts must not be re-sealed with the account
+    /// items key after a lock, which would produce an envelope no peer can open.
+    /// The collaboration key itself is zeroized on lock by design, so the push
+    /// must defer instead.
+    #[test]
+    fn push_defers_shared_note_after_lock_instead_of_resealing_v5() {
+        use crate::shared::AppState;
+        let (pool, root) = unique_temp_db("beaver-shared-durable");
+        let state = AppState::new(root.clone(), root.clone(), None);
+        let app_key = [5u8; 32];
+
+        crate::db::yjs_append(&pool, "shared", &valid_update("a"), "dev", Some(app_key))
+            .expect("append shared");
+        crate::db::note_share_expect(&pool, "shared", true).expect("mark shared");
+        {
+            let mut s = state.crypto.session.write().unwrap();
+            s.expected_shared_notes.insert("shared".to_string());
+        }
+
+        // `encryption_lock` zeroes the key ring and every mark.
+        state.crypto.session.write().unwrap().reset();
+        assert!(
+            state
+                .crypto
+                .session
+                .read()
+                .unwrap()
+                .shared_note_keys
+                .is_empty(),
+            "precondition: lock clears the key ring"
+        );
+
+        let expected = super::expected_shared_set(&state, &pool).unwrap_or_default();
+        let (items, attempted) = super::collect_dirty_filtered(
+            &pool,
+            &app_key,
+            &std::collections::HashMap::new(),
+            &expected,
+            "dev",
+            5000,
+            None,
+            &std::collections::HashSet::new(),
+        )
+        .expect("collect");
+        assert!(
+            items.is_empty(),
+            "a shared note with no key must be deferred, not sealed v5: got {:?}",
+            items.iter().map(|i| i.note_id.clone()).collect::<Vec<_>>()
+        );
+        assert!(
+            !attempted.contains_key("shared"),
+            "the push cursor must stay behind the deferred note"
         );
 
         let _ = std::fs::remove_dir_all(&root);

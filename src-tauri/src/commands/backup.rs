@@ -395,7 +395,7 @@ fn reencrypt_staged_db(
     target_key: &[u8; 32],
 ) -> Result<u64, AppError> {
     let pool = crate::db::open_pool(path)?;
-    let migrated = crate::db::reencrypt_payloads_for_key(&pool, source_key, target_key)?;
+    let migrated = crate::db::reencrypt_payloads_for_key(&pool, source_key, target_key, None)?;
     crate::db::reset_transport_push_cursors(&pool)?;
     {
         let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;

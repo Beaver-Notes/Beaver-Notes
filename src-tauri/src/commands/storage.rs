@@ -1,7 +1,9 @@
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager, State};
 
+use crate::db::DbPool;
 use crate::shared::{RawJson, *};
+use crate::sync::scheduler::begin_cycle;
 
 fn key_segments(key: &str) -> Vec<&str> {
     key.split('.')
@@ -248,6 +250,17 @@ fn pick_pool(name: &str, app: &AppHandle, state: &AppState) -> Result<crate::db:
 /// fall through to `load_store_root` to see all rows reassembled.
 const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
 
+// Prefixes the sync engine owns in the kv table: cloud/folder push cursors, pull
+// checkpoints and the per-note merge vectors. They are read with enc_key = None, so
+// anything the UI writes through storage_set lands under a different representation
+// than the sync layer expects. The commands are registered for the webview, so the
+// boundary is enforced here rather than trusted to callers.
+const RESERVED_KEY_PREFIXES: &[&str] = &["sync:"];
+
+fn is_reserved_key(key: &str) -> bool {
+    RESERVED_KEY_PREFIXES.iter().any(|p| key.starts_with(p))
+}
+
 fn flat_db_key(segments: &[&str]) -> Option<String> {
     match segments {
         // Single non-collection key ("deletedIds", …) stored as-is; bare
@@ -352,6 +365,11 @@ fn storage_set_value(
     if segments.is_empty() {
         return Ok(());
     }
+    if is_reserved_key(&key) {
+        return Err(AppError::Other(format!(
+            "storage key '{key}' is a reserved sync namespace and cannot be written"
+        )));
+    }
     let is_data = name == DATA_STORE;
     let db_key = if is_data { app_key } else { None };
 
@@ -399,6 +417,11 @@ fn storage_delete_value(
     let segments = key_segments(&key);
     if segments.is_empty() {
         return Ok(());
+    }
+    if is_reserved_key(&key) {
+        return Err(AppError::Other(format!(
+            "storage key '{key}' is a reserved sync namespace and cannot be deleted"
+        )));
     }
     let is_data = name == DATA_STORE;
     let db_key = if is_data { app_key } else { None };
@@ -866,10 +889,27 @@ pub(crate) async fn storage_clear(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+    // db_clear wipes every kv row, which includes all sync:cloud:*, sync:local:* and
+    // sync:vec:* cursors. Wiping them mid-cycle leaves an in-flight tick persisting a
+    // checkpoint for a store whose rows are gone, so take the same two guards every
+    // sibling storage command takes.
     let pool = pick_pool(&name, &app, &state)?;
-    tokio::task::spawn_blocking(move || crate::db::db_clear(&pool))
+    tokio::task::spawn_blocking(move || clear_store(pool))
         .await
         .map_err(|e| AppError::Other(e.to_string()))?
+}
+
+/// The guarded body of [`storage_clear`], split out so the cycle guard is
+/// testable without an `AppHandle`. db_clear wipes every kv row, which includes
+/// all sync:cloud:*, sync:local:* and sync:vec:* cursors; wiping them mid-cycle
+/// leaves an in-flight tick persisting a checkpoint for a store whose rows are
+/// gone, so take the same two guards every sibling storage command takes.
+fn clear_store(pool: DbPool) -> Result<(), AppError> {
+    let Some(_cycle) = begin_cycle() else {
+        return Err(AppError::Other("sync cycle already running".to_string()));
+    };
+    let _barrier = write_barrier();
+    crate::db::db_clear(&pool)
 }
 
 #[cfg(test)]
@@ -877,6 +917,89 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::{fs, path::PathBuf, time::SystemTime};
+
+    /// Regression: `storage_clear` wipes every kv row, which is where all the
+    /// sync push cursors, pull checkpoints and merge vectors live. It must
+    /// refuse while a sync cycle holds the guard, or a tick in flight persists a
+    /// checkpoint for a store whose rows no longer exist.
+    #[test]
+    fn storage_clear_refuses_while_a_sync_cycle_is_running() {
+        let root = unique_temp_dir("beaver-notes-storage-clear-cycle");
+        let _ = fs::create_dir_all(&root);
+        let pool = crate::db::open_pool(&root.join("data.db")).expect("pool");
+        crate::db::db_set(&pool, "sync:cloud:pushed:n1", "7", None).expect("seed cursor");
+
+        let guard = begin_cycle().expect("acquire the cycle guard");
+        let err = clear_store(pool.clone())
+            .expect_err("clearing during a sync cycle must be refused");
+        assert!(
+            err.to_string().contains("sync cycle already running"),
+            "unexpected error: {err}"
+        );
+        assert_eq!(
+            crate::db::db_get(&pool, "sync:cloud:pushed:n1", None).expect("read cursor"),
+            Some("7".to_string()),
+            "the refused clear must not have wiped the cursor"
+        );
+        drop(guard);
+
+        clear_store(pool.clone()).expect("clear with no cycle running");
+        assert!(
+            crate::db::db_get(&pool, "sync:cloud:pushed:n1", None)
+                .expect("read cursor")
+                .is_none(),
+            "an allowed clear wipes the cursor"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn storage_refuses_to_write_or_delete_the_sync_cursor_namespace() {
+        let root = unique_temp_dir("beaver-notes-reserved-test");
+        let _ = fs::create_dir_all(&root);
+        let db_path = root.join("data.db");
+        let pool = crate::db::open_pool(&db_path).expect("pool");
+
+        // A real push cursor, as store_push_acks would write it.
+        crate::db::db_set(
+            &pool,
+            "sync:cloud:pushed:n1",
+            "7",
+            None,
+        )
+        .expect("seed cursor");
+
+        let err = storage_set_value(
+            pool.clone(),
+            DATA_STORE.to_string(),
+            "sync:cloud:pushed:n1".to_string(),
+            json!("999"),
+            None,
+            "kid1".to_string(),
+        )
+        .expect_err("writing a live push cursor through the storage command must be refused");
+        assert!(
+            err.to_string().contains("reserved"),
+            "the refusal must name the namespace, got: {err}"
+        );
+
+        let err = storage_delete_value(
+            pool.clone(),
+            DATA_STORE.to_string(),
+            "sync:vec:n1".to_string(),
+            None,
+            "kid1".to_string(),
+        )
+        .expect_err("deleting the merge vector through the storage command must be refused");
+        assert!(
+            err.to_string().contains("reserved"),
+            "the refusal must name the namespace, got: {err}"
+        );
+
+        // Untouched: the cursor the sync engine owns is still there.
+        let kept = crate::db::db_get(&pool, "sync:cloud:pushed:n1", None).expect("read");
+        assert_eq!(kept.as_deref(), Some("7"), "the live cursor must be unchanged");
+    }
 
     fn unique_temp_dir(prefix: &str) -> PathBuf {
         let ts = SystemTime::now()

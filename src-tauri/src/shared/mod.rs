@@ -305,6 +305,14 @@ pub(crate) struct CryptoSession {
     pub(crate) active: bool,
 }
 
+impl CryptoSession {
+    /// `encryption_lock`: drop every key and every routing mark. Named so the
+    /// lock path and its tests exercise the same statement.
+    pub(crate) fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
 impl Drop for CryptoSession {
     fn drop(&mut self) {
         if let Some(key) = self.app_data_key.as_mut() {

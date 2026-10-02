@@ -13,7 +13,7 @@ use crate::shared::{
 
 pub(crate) type DbPool = Pool<SqliteConnectionManager>;
 
-pub(crate) const SCHEMA_VERSION: i64 = 4;
+pub(crate) const SCHEMA_VERSION: i64 = 6;
 
 // ponytail: fixed per-note cap; a note edited for years would otherwise grow
 // this table without bound. 200 entries is far more than any UI scroll-back
@@ -101,7 +101,73 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
         .map_err(|e| AppError::Other(e.to_string()))?;
     }
 
+    // Durable per-note routing state: which workspace owns each note held in
+    // this db, and whether the note is shared with other accounts. The crypto
+    // session used to be the only record of both, and `encryption_lock` wipes
+    // it, so a tick between unlock and the JS re-registration saw an empty skip
+    // set and an empty expected set: it pushed a shared-with-me note into the
+    // caller's own workspace, and re-sealed a shared note with the account items
+    // key so no peer could open it. Note ids and workspace ids are already
+    // plaintext here (note_content.note_id, WS room names), so this leaks
+    // nothing new; it is routing state, not key material. The collaboration key
+    // itself is never stored here.
+    if from < 5 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS note_owners (
+              note_id     TEXT PRIMARY KEY NOT NULL,
+              workspace_id TEXT NOT NULL DEFAULT '',
+              shared      INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_note_owners_workspace
+              ON note_owners(workspace_id);",
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    }
+
+    // Which app items key last committed a re-encryption into this database.
+    // A vault join or key rotation commits one SQLite transaction *per
+    // workspace database* with no cross-file transaction, so a failure part way
+    // leaves earlier databases on the new key while the manifest still names
+    // the old one. Nothing detected that: the next launch opened with the old
+    // key and the already-migrated notes simply read as empty, with no error
+    // and no retry that converges. A key id is not secret (it is already in the
+    // manifest file on disk), so one plaintext row is enough to turn that
+    // silent data loss into a clear mismatch at unlock.
+    if from < 6 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS db_key_marker (
+              id     INTEGER PRIMARY KEY CHECK (id = 1),
+              key_id TEXT NOT NULL
+            );",
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    }
+
     Ok(())
+}
+
+/// Record `key_id` as the key that last rewrote this database's payloads.
+/// Written inside the same transaction as `reencrypt_payloads_for_key` so the
+/// marker can never disagree with the rows it describes.
+pub(crate) fn db_key_marker_set(conn: &rusqlite::Transaction<'_>, key_id: &str) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO db_key_marker (id, key_id) VALUES (1, ?1)
+         ON CONFLICT(id) DO UPDATE SET key_id = excluded.key_id",
+        params![key_id],
+    )
+    .map(|_| ())
+    .map_err(|e| AppError::Other(e.to_string()))
+}
+
+/// The key id recorded by the last successful key migration, or `None` when
+/// this database has never been migrated.
+pub(crate) fn db_key_marker(pool: &DbPool) -> Result<Option<String>, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    conn.query_row("SELECT key_id FROM db_key_marker WHERE id = 1", [], |r| {
+        r.get::<_, String>(0)
+    })
+    .optional()
+    .map_err(|e| AppError::Other(e.to_string()))
 }
 
 pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
@@ -152,10 +218,15 @@ fn reencrypt_blob(old_key: &[u8; 32], new_key: &[u8; 32], stored: &[u8]) -> Opti
 /// transaction: `synchronous = NORMAL` makes that a single fsync, and an
 /// immediate transaction takes the write lock up front instead of losing the
 /// lock-upgrade race against a concurrent writer (sync append, autosave).
+/// `key_id` labels the new key and is recorded in `db_key_marker` inside the
+/// same transaction. Pass `None` only for flows that are not a vault join or
+/// rotation (backup import re-encrypts a staged copy, whose marker the
+/// importing app owns).
 pub(crate) fn reencrypt_payloads_for_key(
     pool: &DbPool,
     old_key: &[u8; 32],
     new_key: &[u8; 32],
+    key_id: Option<&str>,
 ) -> Result<u64, AppError> {
     if old_key == new_key {
         return Ok(0);
@@ -255,6 +326,10 @@ pub(crate) fn reencrypt_payloads_for_key(
                 migrated += 1;
             }
         }
+    }
+
+    if let Some(key_id) = key_id {
+        db_key_marker_set(&tx, key_id)?;
     }
 
     tx.commit().map_err(err)?;
@@ -369,6 +444,88 @@ pub(crate) fn db_clear(pool: &DbPool) -> Result<(), AppError> {
     let _ = conn.execute("DELETE FROM yjs_snapshots", []);
     let _ = conn.execute("DELETE FROM deleted_notes", []);
     let _ = conn.execute("DELETE FROM activity_log", []);
+    let _ = conn.execute("DELETE FROM note_owners", []);
+    let _ = conn.execute("DELETE FROM db_key_marker", []);
+    Ok(())
+}
+
+/// Record the workspace that owns `note_id`. An empty `workspace_id` forgets the
+/// note, which makes it eligible for the active-workspace push again.
+pub(crate) fn note_owner_set(
+    pool: &DbPool,
+    note_id: &str,
+    workspace_id: &str,
+) -> Result<(), AppError> {
+    if workspace_id.trim().is_empty() {
+        return note_owner_forget(pool, note_id);
+    }
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    conn.execute(
+        "INSERT INTO note_owners (note_id, workspace_id) VALUES (?1, ?2)
+         ON CONFLICT(note_id) DO UPDATE SET workspace_id = excluded.workspace_id",
+        params![note_id, workspace_id],
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(())
+}
+
+pub(crate) fn note_owner_forget(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    conn.execute("DELETE FROM note_owners WHERE note_id = ?1", params![note_id])
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(())
+}
+
+/// Notes held in this db that belong to a workspace other than `workspace_id`.
+/// The active-workspace push must exclude these: their rows live here but they
+/// are owned elsewhere, so pushing them under the active id copies them into
+/// the caller's own workspace.
+pub(crate) fn foreign_note_owners(
+    pool: &DbPool,
+    workspace_id: &str,
+) -> Result<HashMap<String, String>, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let mut stmt = conn
+        .prepare("SELECT note_id, workspace_id FROM note_owners WHERE workspace_id != '' AND workspace_id != ?1")
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let rows = stmt
+        .query_map(params![workspace_id], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let out: Result<HashMap<String, String>, _> = rows.collect();
+    out.map_err(|e| AppError::Other(e.to_string()))
+}
+
+/// Notes shared with other accounts whose collaboration key is not registered
+/// yet. The push defers these instead of sealing them with the account items key,
+/// which no peer could decrypt.
+pub(crate) fn expected_shared_notes(pool: &DbPool) -> Result<std::collections::HashSet<String>, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let mut stmt = conn
+        .prepare("SELECT note_id FROM note_owners WHERE shared = 1")
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let rows = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let out: Result<std::collections::HashSet<String>, _> = rows.collect();
+    out.map_err(|e| AppError::Other(e.to_string()))
+}
+
+/// Mark or unmark `note_id` as shared with other accounts. Does not touch
+/// `workspace_id`, so this is safe to call for a note whose owner is unknown.
+pub(crate) fn note_share_expect(
+    pool: &DbPool,
+    note_id: &str,
+    expected: bool,
+) -> Result<(), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    conn.execute(
+        "INSERT INTO note_owners (note_id, shared) VALUES (?1, ?2)
+         ON CONFLICT(note_id) DO UPDATE SET shared = excluded.shared",
+        params![note_id, if expected { 1 } else { 0 }],
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 
@@ -1518,7 +1675,7 @@ mod tests {
             .expect("snapshot insert");
         }
 
-        let migrated = reencrypt_payloads_for_key(&pool, &old, &new).expect("migrate");
+        let migrated = reencrypt_payloads_for_key(&pool, &old, &new, None).expect("migrate");
         assert_eq!(migrated, 3, "kv + note_content + yjs_snapshots");
 
         let rows = yjs_get_updates(&pool, "n1", Some(new)).expect("read new");
@@ -1560,7 +1717,7 @@ mod tests {
         yjs_append(&pool, "n1", b"old bytes", "devA", Some(old)).expect("append old");
         yjs_append(&pool, "n2", &foreign_plain, "devA", Some(foreign)).expect("append foreign");
 
-        let migrated = reencrypt_payloads_for_key(&pool, &old, &new).expect("migrate");
+        let migrated = reencrypt_payloads_for_key(&pool, &old, &new, None).expect("migrate");
         assert_eq!(migrated, 1, "only the row encrypted under old_key is rewritten");
 
         let foreign_rows = yjs_get_updates(&pool, "n2", Some(foreign)).expect("read foreign");
@@ -1581,7 +1738,7 @@ mod tests {
         yjs_append(&pool, "n1", b"bytes", "devA", Some(key)).expect("append");
 
         assert_eq!(
-            reencrypt_payloads_for_key(&pool, &key, &key).expect("migrate"),
+            reencrypt_payloads_for_key(&pool, &key, &key, None).expect("migrate"),
             0
         );
         let rows = yjs_get_updates(&pool, "n1", Some(key)).expect("read");

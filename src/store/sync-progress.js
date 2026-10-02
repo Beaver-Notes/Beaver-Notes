@@ -31,6 +31,10 @@ const STATUS_TAXONOMY = {
     text: 'Notes are locked. Unlock to sync.',
   },
   'decrypt-failed': { tone: 'action', text: 'Couldn’t decrypt an update' },
+  'item-too-large': {
+    tone: 'action',
+    text: 'An update is too large to sync. Reduce the change and sync again.',
+  },
   'authorization-failed': {
     tone: 'action',
     text: 'Session expired. Sign in again.',

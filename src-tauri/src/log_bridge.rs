@@ -58,21 +58,32 @@ pub fn init(app: &AppHandle) {
             Err(_) => return,
         },
     };
-    if std::fs::create_dir_all(&dir).is_err() {
+    open_log(&path, &dir);
+}
+
+fn open_log(path: &std::path::Path, dir: &std::path::Path) {
+    if std::fs::create_dir_all(dir).is_err() {
         return;
     }
     // ponytail: single backup generation; add date-based rotation if 16MB total ever matters.
-    if let Ok(meta) = std::fs::metadata(&path) {
+    if let Ok(meta) = std::fs::metadata(path) {
         if meta.len() > MAX_BYTES {
-            let mut backup = path.clone();
+            let mut backup = path.to_path_buf();
             backup.set_extension("log.1");
-            let _ = std::fs::rename(&path, backup);
+            let _ = std::fs::rename(path, backup);
         }
     }
-    if let Ok(file) = OpenOptions::new().create(true).append(true).open(&path) {
+    if let Ok(file) = OpenOptions::new().create(true).append(true).open(path) {
         LOG_PATH.set(path.to_string_lossy().into_owned()).ok();
         WRITER.set(Mutex::new(BufWriter::new(file))).ok();
     }
+}
+
+/// Lets a test read what `rs_log!` wrote. Both `OnceLock`s are set at most once per
+/// process, so this is only usable by the first test that asks for it.
+#[cfg(test)]
+pub(crate) fn init_for_test(path: &std::path::Path) {
+    open_log(path, path.parent().unwrap_or(std::path::Path::new(".")));
 }
 
 /// JS logger batches lines and flushes here (already timestamped client-side).

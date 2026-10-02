@@ -295,6 +295,11 @@ pub(crate) async fn encryption_unlock(
     })
     .await
     .map_err(to_error)??;
+    // A key migration that died part way leaves some workspace databases sealed
+    // under a key this manifest does not name. Unlocking anyway would read those
+    // notes as empty with no error and no converging retry, so refuse instead.
+    let workspaces = workspace_root(&app, state.inner())?;
+    verify_db_key_markers(&workspaces, &manifest.current_key_id)?;
     populate_key_ring(state.inner(), &manifest, &kek)?;
     let mut s = state.crypto.session.write()?;
     s.app_data_key = Some(key);
@@ -311,7 +316,7 @@ pub(crate) async fn encryption_unlock(
 #[specta::specta]
 pub(crate) fn encryption_lock(state: State<AppState>) -> Result<(), AppError> {
     let mut s = state.crypto.session.write()?;
-    *s = CryptoSession::default();
+    s.reset();
     Ok(())
 }
 
@@ -568,8 +573,20 @@ pub(crate) async fn sync_decrypt_batch(
     let key =
         current_app_key(state.inner())?.ok_or_else(|| AppError::Other("KEY_LOCKED".into()))?;
 
-    tokio::task::spawn_blocking(move || {
-        let _t = crate::shared::speed_log::scope("security.sync_decrypt_batch");
+    tokio::task::spawn_blocking(move || decrypt_batch_with_key(key, envelopes, aads))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))
+}
+
+/// The body of [`sync_decrypt_batch`], split out so it is testable without an
+/// `AppHandle`. Each envelope is independent; failed items yield `None`.
+fn decrypt_batch_with_key(
+    key: [u8; 32],
+    envelopes: Vec<String>,
+    aads: Vec<String>,
+) -> Vec<Option<SyncDecryptedPayload>> {
+    let _t = crate::shared::speed_log::scope("security.sync_decrypt_batch");
+    {
 
         let results: Vec<Option<SyncDecryptedPayload>> = envelopes
             .par_iter()
@@ -670,30 +687,34 @@ pub(crate) async fn sync_decrypt_batch(
                         update: BASE64.encode(bytes),
                     })
                 } else {
-                    if cfg!(debug_assertions) {
-                        crate::rs_log!(
-                            "[sync][rust][debug] [{}] unsupported envelope version: {}",
-                            i, v
-                        );
-                    }
+                    // Not debug-gated. v6 (SHARED_PAYLOAD_VERSION) is emitted by the
+                    // current pull path, so a version this dispatcher does not know is
+                    // either a newer client or a data-path break, and it must be
+                    // visible in release. The item still decrypts to None so the caller's
+                    // per-item contract is unchanged.
+                    crate::rs_log!(
+                        "[sync][rust] [{}] unsupported envelope version: {} (this build handles v{} legacy and v{} items-key)",
+                        i,
+                        v,
+                        PROTOCOL_VERSION,
+                        SYNC_PAYLOAD_VERSION
+                    );
                     None
                 }
             })
             .collect();
 
         let null_count = results.iter().filter(|r| r.is_none()).count();
-        if null_count > 0 && cfg!(debug_assertions) {
+        if null_count > 0 {
             crate::rs_log!(
-                "[sync][rust][debug] sync_decrypt_batch: {}/{} items failed",
+                "[sync][rust] sync_decrypt_batch: {}/{} items failed",
                 null_count,
                 results.len()
             );
         }
 
-        Ok(results)
-    })
-    .await
-    .map_err(|e| AppError::Other(e.to_string()))?
+        results
+    }
 }
 
 /// Batch-encrypt sync payloads in parallel. All items must succeed; any
@@ -814,6 +835,7 @@ fn decode_shared_keys(keys: Option<&[String]>) -> Result<Vec<[u8; 32]>, AppError
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn sync_expect_shared_note(
+    app: AppHandle,
     state: State<AppState>,
     note_id: String,
     expected: bool,
@@ -821,6 +843,11 @@ pub(crate) fn sync_expect_shared_note(
     if note_id.is_empty() {
         return Err(AppError::Other("note id required".into()));
     }
+    // Persist before the session: the mark must outlive `encryption_lock`, or a
+    // push right after unlock re-seals the note with the account items key and no
+    // peer can open it.
+    let pool = crate::shared::data_pool(&app, state.inner())?;
+    crate::db::note_share_expect(&pool, &note_id, expected)?;
     let mut session = state.crypto.session.write().map_err(AppError::from)?;
     if expected {
         session.expected_shared_notes.insert(note_id);
@@ -860,6 +887,7 @@ pub(crate) fn sync_clear_shared_keys(state: State<AppState>) -> Result<(), AppEr
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn sync_register_shared_note_location(
+    app: AppHandle,
     state: State<AppState>,
     note_id: String,
     workspace_id: String,
@@ -867,6 +895,12 @@ pub(crate) fn sync_register_shared_note_location(
     if note_id.is_empty() {
         return Err(AppError::Other("note id required".into()));
     }
+    // Persist before touching the session. The session map is a cache that
+    // `encryption_lock` wipes; `note_owners` is the durable record the push skip
+    // set reads, so it must not depend on a lock/unlock window. A failed write
+    // surfaces to JS as a rejection rather than silently losing the mark.
+    let pool = crate::shared::data_pool(&app, state.inner())?;
+    crate::db::note_owner_set(&pool, &note_id, &workspace_id)?;
     let forgetting = workspace_id.trim().is_empty();
     let mut session = state.crypto.session.write().map_err(AppError::from)?;
     if forgetting {
@@ -1495,5 +1529,39 @@ mod tests {
         assert_eq!(value["meta"]["sequence"], 0);
         assert_eq!(value["iv"], "aabb");
         assert_eq!(value["enc"], "QQ==");
+    }
+
+    /// v6 (SHARED_PAYLOAD_VERSION) is produced by the current pull path
+    /// (cloud.rs, bootstrap.rs, assets.rs all emit it) but this dispatcher does not
+    /// handle it. The drop must be visible in release, not only under
+    /// cfg!(debug_assertions), or a client/server version skew loses data silently.
+    #[test]
+    fn batch_decrypt_reports_an_unsupported_envelope_version() {
+        let dir = std::env::temp_dir().join(format!(
+            "bv-log-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log_path = dir.join("beaver.log");
+        crate::log_bridge::init_for_test(&log_path);
+
+        let key = [7u8; 32];
+        let aad = "note-1-42".to_string();
+        // A v6-shaped envelope: right fields, wrong version for this dispatcher.
+        let env = r#"{"v":6,"meta":{"device":"d","ts":42,"noteId":"note-1"},"iv":"aabb","enc":"QQ=="}"#;
+
+        let out = decrypt_batch_with_key(key, vec![env.to_string()], vec![aad]);
+        assert_eq!(out.len(), 1);
+        assert!(out[0].is_none(), "v6 must not decrypt here, it must be reported");
+
+        let logged = std::fs::read_to_string(&log_path).unwrap_or_default();
+        assert!(
+            logged.contains("unsupported envelope version: 6"),
+            "a release build must log the unsupported version; log was: {logged:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

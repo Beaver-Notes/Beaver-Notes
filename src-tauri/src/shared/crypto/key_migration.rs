@@ -102,6 +102,7 @@ fn migrate_workspace_dbs(
     workspaces_root: &Path,
     old_key: &[u8; 32],
     new_key: &[u8; 32],
+    key_id: &str,
     backup: bool,
     backups: &mut Vec<PathBuf>,
 ) -> Result<u64, AppError> {
@@ -123,7 +124,7 @@ fn migrate_workspace_dbs(
                 backups.extend(backup_db(&db)?);
             }
             let pool = crate::db::open_pool(&db)?;
-            migrated += crate::db::reencrypt_payloads_for_key(&pool, old_key, new_key)?;
+            migrated += crate::db::reencrypt_payloads_for_key(&pool, old_key, new_key, Some(key_id))?;
             // The transport cursors still say these rows were published (under
             // the old key), so peers would never get the re-encrypted content.
             // Reset them; the next cycle re-publishes under the adopted key.
@@ -196,6 +197,7 @@ fn migrate_roots(
     manifest_path: &Path,
     old_key: &[u8; 32],
     new_key: &[u8; 32],
+    key_id: &str,
     backup: bool,
 ) -> Result<(u64, Vec<PathBuf>), AppError> {
     if old_key == new_key {
@@ -208,7 +210,7 @@ fn migrate_roots(
     }
 
     let mut migrated =
-        migrate_workspace_dbs(workspaces_root, old_key, new_key, backup, &mut backups)?;
+        migrate_workspace_dbs(workspaces_root, old_key, new_key, key_id, backup, &mut backups)?;
     migrated += migrate_assets(assets_root, old_key, new_key)?;
     Ok((migrated, backups))
 }
@@ -248,6 +250,7 @@ pub(crate) fn migrate_app_data_key(
         &manifest_path,
         old_key,
         new_key,
+        &manifest.current_key_id,
         true,
     )?;
 
@@ -265,10 +268,55 @@ pub(crate) fn migrate_app_data_key(
         &manifest_path,
         old_key,
         new_key,
+        &manifest.current_key_id,
         false,
     )?;
 
     Ok((migrated, backups))
+}
+
+/// Refuse to unlock when a workspace database was re-encrypted under a key the
+/// manifest does not name. A migration that dies part way leaves earlier
+/// databases committed on the new key; opening with the manifest's old key then
+/// reads those notes as empty, silently and irreversibly (a retry does not
+/// converge, because `reencrypt_blob` skips rows that no longer open with the
+/// old key). A clear error is recoverable — the `*.pre-join-backup` files are
+/// still on disk — silent emptiness is not.
+///
+/// A database with no marker was never migrated, so it is consistent with
+/// whatever the manifest says and passes.
+pub(crate) fn verify_db_key_markers(
+    workspaces_root: &Path,
+    expected_key_id: &str,
+) -> Result<(), AppError> {
+    if !workspaces_root.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(workspaces_root)? {
+        let dir = entry?.path();
+        if !dir.is_dir() {
+            continue;
+        }
+        for name in ["data.db", "settings.db"] {
+            let db = dir.join(name);
+            if !db.exists() {
+                continue;
+            }
+            let pool = crate::db::open_pool(&db)?;
+            if let Some(marker) = crate::db::db_key_marker(&pool)? {
+                if marker != expected_key_id {
+                    return Err(AppError::Other(format!(
+                        "Workspace data in {} was re-encrypted under key {marker}, but the \
+                         vault manifest names key {expected_key_id}. The key migration did not \
+                         finish. Restore the *.pre-join-backup files next to this database, or \
+                         join the vault again to finish the migration.",
+                        db.display()
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -289,6 +337,60 @@ mod tests {
         let pool = crate::db::open_pool(db).expect("pool");
         crate::db::yjs_append(&pool, note, b"secret payload", "dev", Some(*key))
             .expect("append");
+    }
+
+    /// Regression: a key migration commits one SQLite transaction per workspace
+    /// database with no cross-file transaction, so a failure part way leaves
+    /// earlier databases on the new key while the manifest still names the old
+    /// one. Without a per-database marker nothing detects that, and the next
+    /// launch reads those notes as empty with no error.
+    #[test]
+    fn a_partially_migrated_workspace_is_detected_instead_of_reading_empty() {
+        let root = unique_temp_dir("beaver-notes-key-marker");
+        let workspaces_root = root.join("workspaces");
+        let old = [7u8; 32];
+        let new = [8u8; 32];
+        let old_id = "key-old";
+        let new_id = "key-new";
+
+        for ws in ["migrated", "pending"] {
+            let dir = workspaces_root.join(ws);
+            fs::create_dir_all(&dir).expect("workspace dir");
+            seed_note(&dir.join("data.db"), "n1", &old);
+        }
+
+        // CONTROL: before any migration there is no marker, so the old manifest
+        // is consistent with both databases and unlock must succeed.
+        verify_db_key_markers(&workspaces_root, old_id).expect("no marker yet");
+
+        // Migrate one database, then fail before the other, exactly as a
+        // mid-migration error does.
+        let migrated_db = workspaces_root.join("migrated").join("data.db");
+        let pool = crate::db::open_pool(&migrated_db).expect("pool");
+        crate::db::reencrypt_payloads_for_key(&pool, &old, &new, Some(new_id)).expect("migrate");
+
+        let err = verify_db_key_markers(&workspaces_root, old_id)
+            .expect_err("a half-migrated database must not unlock under the old key");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("key-new") && msg.contains("key-old"),
+            "the error must name both key ids so the user knows which vault is half-joined: {msg}"
+        );
+        assert!(
+            msg.contains("migrated"),
+            "the error must name the offending database: {msg}"
+        );
+
+        // The manifest that *does* name the new key passes: the marker is a
+        // consistency check, not a lock.
+        verify_db_key_markers(&workspaces_root, new_id).expect("matching manifest is fine");
+
+        // A database that was never migrated carries no marker, so it never
+        // blocks a legitimate unlock.
+        let untouched = workspaces_root.join("pending");
+        verify_db_key_markers(&untouched, new_id).expect("never-migrated is fine");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Regression: a failed migration retry must never clobber the first clean
@@ -346,7 +448,7 @@ mod tests {
         encrypt_asset_streaming(&src, &asset, &old).expect("encrypt asset");
 
         let (migrated, backups) =
-            migrate_roots(&workspaces_root, &assets_root, &manifest_path, &old, &new, true)
+            migrate_roots(&workspaces_root, &assets_root, &manifest_path, &old, &new, "kid", true)
                 .expect("migrate");
         assert_eq!(
             migrated, 4,
@@ -422,16 +524,23 @@ mod tests {
         seed_note(&db, "n1", &old);
 
         let (migrated, _) =
-            migrate_roots(&workspaces_root, &assets_root, &manifest_path, &old, &new, true)
+            migrate_roots(&workspaces_root, &assets_root, &manifest_path, &old, &new, "kid", true)
                 .expect("first pass");
         assert_eq!(migrated, 1);
 
         // Simulate a writer that sealed with the old key while migration ran.
         seed_note(&db, "late", &old);
 
-        let (swept, _) =
-            migrate_roots(&workspaces_root, &assets_root, &manifest_path, &old, &new, false)
-                .expect("sweep");
+        let (swept, _) = migrate_roots(
+            &workspaces_root,
+            &assets_root,
+            &manifest_path,
+            &old,
+            &new,
+            "kid",
+            false,
+        )
+        .expect("sweep");
         assert_eq!(swept, 1, "sweep must re-encrypt the late old-key row");
 
         let pool = crate::db::open_pool(&db).expect("pool");
@@ -457,6 +566,7 @@ mod tests {
             &manifest_path,
             &key,
             &key,
+            "kid",
             true,
         )
         .expect("no-op");
@@ -505,7 +615,7 @@ mod tests {
             }
         }
 
-        migrate_roots(&workspaces_root, &assets_root, &manifest_path, &old, &new, true)
+        migrate_roots(&workspaces_root, &assets_root, &manifest_path, &old, &new, "kid", true)
             .expect("migrate");
 
         let pool = crate::db::open_pool(&db).expect("pool");
@@ -546,7 +656,7 @@ mod tests {
             crate::db::db_set(&pool, "sync:local:pushed:n1", "9", None).expect("seed cursor");
         }
 
-        migrate_roots(&workspaces_root, &assets_root, &manifest_path, &key, &key, true)
+        migrate_roots(&workspaces_root, &assets_root, &manifest_path, &key, &key, "kid", true)
             .expect("no-op migrate");
 
         let pool = crate::db::open_pool(&db).expect("pool");

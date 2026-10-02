@@ -179,3 +179,12 @@ describe('sync progress store action persistence', () => {
     expect(store.lastAttemptFailed).toBe(false)
   })
 })
+
+test('an oversized item surfaces a message instead of failing silently', () => {
+  // The Rust push engine reports item-too-large rather than advancing past a
+  // rejected row. Unmapped, the sync strip would show nothing at all.
+  expect(describeStatus('item-too-large').text).toBe(
+    'An update is too large to sync. Reduce the change and sync again.',
+  );
+  expect(describeStatus('item-too-large').tone).toBe('action');
+});
