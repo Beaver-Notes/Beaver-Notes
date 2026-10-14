@@ -34,7 +34,7 @@
           :key="t.id"
           v-tooltip:right="railLabel(t)"
           :aria-label="railLabel(t)"
-          class="rounded-full transition hover:ring-2 hover:ring-primary/30"
+          class="rounded-full transition hover:ring-2 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
           :class="t.id === activeThreadId ? 'ring-2 ring-primary/40' : ''"
           @click="openFromRail(t.id)"
         >
