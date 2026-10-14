@@ -1,5 +1,6 @@
 <template>
   <ui-modal
+    data-testid="share-modal"
     :model-value="modelValue"
     content-class="max-w-md"
     @close="$emit('update:modelValue', false)"
@@ -17,7 +18,98 @@
     </template>
 
     <div class="space-y-5">
-      <section v-if="isAuthenticated" class="space-y-3">
+      <div
+        v-if="isMobile"
+        data-testid="share-mobile-tabs"
+        class="flex gap-1 rounded-xl bg-neutral-100 p-1 dark:bg-neutral-800"
+        role="tablist"
+      >
+        <button
+          v-for="tab in mobileTabs"
+          :key="tab.id"
+          :data-testid="`share-tab-${tab.id}`"
+          role="tab"
+          :aria-selected="mobileTab === tab.id"
+          class="flex-1 rounded-lg px-2 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
+          :class="mobileTab === tab.id
+            ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-900 dark:text-neutral-100'
+            : 'text-neutral-500 dark:text-neutral-400'"
+          @click="mobileTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <section
+        v-if="isAuthenticated && (!isMobile || mobileTab === 'people')"
+        data-testid="share-links-section"
+        class="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900"
+      >
+        <div class="flex items-start gap-3">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <v-remixicon name="riLink" size="18" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+              {{ translations.share?.anyoneWithLink || 'Anyone with the link' }}
+            </p>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">
+              {{ translations.share?.linkJoinsDirectly || 'Joins this note directly' }}
+            </p>
+          </div>
+          <ui-select
+            v-model="linkAccess"
+            :options="LINK_ACCESS_OPTIONS"
+            class="w-32 shrink-0"
+          />
+        </div>
+
+        <div v-if="activeLink" class="flex gap-2">
+          <div class="min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 dark:border-neutral-800 dark:bg-neutral-950">
+            <!-- the server stores only the token hash, so the url only exists for links created in this session -->
+            <p v-if="activeLink.token" data-testid="share-link-url" class="truncate text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              {{ getInviteUrl(activeLink.token) }}
+            </p>
+            <p v-else class="truncate text-xs text-neutral-500 dark:text-neutral-400">
+              {{ translations.share?.linkUrlUnavailable || 'Link available in this session only' }}
+            </p>
+          </div>
+          <ui-button
+            data-testid="share-link-copy"
+            variant="secondary"
+            :disabled="!activeLink.token"
+            @click="copyLink(activeLink.token)"
+          >
+            {{ copyState === 1 ? (translations.share?.copied || 'Copied') : (translations.share?.copyLink || 'Copy link') }}
+          </ui-button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <ui-select
+            v-model="linkExpiry"
+            :options="EXPIRY_OPTIONS"
+            class="min-w-[10rem] flex-1"
+          />
+          <ui-button
+            data-testid="share-link-reset"
+            variant="secondary"
+            :disabled="!activeLink"
+            @click="handleResetLink"
+          >
+            {{ translations.share?.resetLink || 'Reset link' }}
+          </ui-button>
+        </div>
+
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">
+          {{ translations.share?.linkResetHint || 'Created automatically. Resetting replaces it, and the old link stops working.' }}
+        </p>
+
+        <p v-if="linkError" role="alert" class="text-xs text-red-500">
+          {{ linkError }}
+        </p>
+      </section>
+
+      <section v-if="isAuthenticated && (!isMobile || mobileTab === 'people')" class="space-y-3">
         <h3 class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
           {{ translations.share?.collaborate || 'Collaborate' }}
         </h3>
@@ -25,6 +117,7 @@
         <div class="flex flex-col gap-2 sm:flex-row">
           <ui-input
             v-model="inviteInput"
+            data-testid="share-invite-email"
             class="flex-1"
             type="text"
             placeholder="email"
@@ -36,18 +129,19 @@
             class="sm:w-32"
           />
           <ui-button
+            data-testid="share-invite-submit"
             variant="primary"
             :disabled="!inviteInput.trim() || inviting"
             :loading="inviting"
             :title="!isEmailVerified ? verifyTooltip : undefined"
             @click="handleInvite"
           >
-            <v-remixicon name="riUserAddLine" class="mr-1" size="16" />
+            <v-remixicon name="riUserAddLine" class="ltr:mr-1 rtl:ml-1" size="16" />
             Invite
           </ui-button>
         </div>
 
-        <p v-if="sharing.error.value" role="alert" class="text-sm text-red-500">
+        <p v-if="sharing.error.value" data-testid="share-error" role="alert" class="text-sm text-red-500">
           {{ sharing.error.value }}
         </p>
 
@@ -59,14 +153,65 @@
           {{ inviteMessage }}
         </p>
 
-        <div v-if="sharing.collaborators.value.length" class="space-y-2">
+        <div v-if="joinRequests.length" class="space-y-2">
           <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            Collaborators
+            {{ translations.share?.pendingRequests || 'Pending requests' }}
           </p>
           <ui-list class="space-y-1">
             <ui-list-item
-              v-for="collab in sharing.collaborators.value"
+              v-for="req in joinRequests"
+              :key="req.id"
+              data-testid="share-pending-row"
+              class="gap-2"
+            >
+              <ui-user-avatar :name="req.username || req.accountId" :size="32" />
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  {{ req.username || req.accountId }}
+                </p>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                  {{ translations.share?.pending || 'Pending' }} · {{ roleLabel(req.role, translations) }}
+                </p>
+              </div>
+              <ui-button
+                variant="primary"
+                class="!h-9 !px-3"
+                @click="handleApproveRequest(req)"
+              >
+                {{ translations.share?.approve || 'Approve' }}
+              </ui-button>
+              <ui-button
+                variant="secondary"
+                class="!h-9 !px-3"
+                @click="handleDenyRequest(req)"
+              >
+                {{ translations.share?.deny || 'Deny' }}
+              </ui-button>
+            </ui-list-item>
+          </ui-list>
+        </div>
+
+        <div class="space-y-2">
+          <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            {{ translations.share?.people || 'People' }}
+          </p>
+          <ui-list class="space-y-1">
+            <ui-list-item data-testid="share-self-row" class="gap-2">
+              <ui-user-avatar :name="selfName" :size="32" />
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                  {{ selfName }}
+                  <span class="text-xs font-medium text-amber-600 dark:text-amber-400">(you)</span>
+                </p>
+                <p v-if="selfRoleLabel" class="text-xs text-neutral-500 dark:text-neutral-400">
+                  {{ selfRoleLabel }}
+                </p>
+              </div>
+            </ui-list-item>
+            <ui-list-item
+              v-for="collab in otherCollaborators"
               :key="collab.userId"
+              data-testid="share-collaborator-row"
               class="gap-2"
             >
               <ui-user-avatar
@@ -79,10 +224,13 @@
                 </p>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400">
                   {{ roleLabel(collab.role, translations) }}
+                  <span v-if="collab.viaWorkspace"> · {{ translations.share?.viaWorkspace || 'via workspace' }}</span>
                 </p>
               </div>
               <button
-                class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
+                v-if="!collab.viaWorkspace"
+                data-testid="share-collaborator-remove"
+                class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-red-500 focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none dark:hover:text-red-400"
                 title="Remove collaborator"
                 @click="handleRemove(collab)"
               >
@@ -90,120 +238,26 @@
               </button>
             </ui-list-item>
           </ui-list>
-        </div>
 
-        <div v-else-if="sharing.loading.value" class="flex justify-center py-4">
-          <ui-spinner size="20" />
-        </div>
+          <div v-if="!otherCollaborators.length && sharing.loading.value" class="flex justify-center py-4">
+            <ui-spinner size="20" />
+          </div>
 
-        <p
-          v-else
-          class="py-3 text-center text-sm text-neutral-500 dark:text-neutral-400"
-        >
-          {{ translations.share?.noCollaborators || 'No collaborators yet. Invite someone to start collaborating.' }}
-        </p>
-
-        <div v-if="joinRequests.length" class="space-y-2">
-          <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            {{ translations.share?.pendingRequests || 'Pending requests' }}
-          </p>
-          <ui-list class="space-y-1">
-            <ui-list-item
-              v-for="req in joinRequests"
-              :key="req.id"
-              class="gap-2"
-            >
-              <ui-user-avatar :name="req.username || req.accountId" :size="32" />
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                  {{ req.username || req.accountId }}
-                </p>
-                <p class="text-xs font-medium text-amber-600 dark:text-amber-400">
-                  {{ translations.share?.pending || 'Pending' }} · {{ roleLabel(req.role, translations) }}
-                </p>
-              </div>
-              <button
-                class="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
-                title="Approve"
-                @click="handleApproveRequest(req)"
-              >
-                {{ translations.share?.approve || 'Approve' }}
-              </button>
-              <button
-                class="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                title="Deny"
-                @click="handleDenyRequest(req)"
-              >
-                {{ translations.share?.deny || 'Deny' }}
-              </button>
-            </ui-list-item>
-          </ui-list>
-        </div>
-
-        <div class="flex gap-2">
-          <ui-select
-            v-model="linkRole"
-            :options="LINK_ROLE_OPTIONS"
-            class="flex-1"
-          />
-          <ui-select
-            v-model="linkExpiry"
-            :options="EXPIRY_OPTIONS"
-            class="flex-1"
-          />
-        </div>
-
-        <ui-button
-          variant="primary"
-          class="w-full"
-          :loading="linkLoading"
-          :title="!isEmailVerified ? verifyTooltip : undefined"
-          @click="createLink"
-        >
-          Create invite link
-        </ui-button>
-
-        <p v-if="linkError" role="alert" class="text-xs text-red-500">
-          {{ linkError }}
-        </p>
-
-        <ui-list v-if="inviteLinks.length" class="space-y-2">
-          <ui-list-item
-            v-for="link in inviteLinks"
-            :key="link.id"
-            class="gap-2 bg-neutral-50 dark:bg-neutral-800"
+          <p
+            v-else-if="!otherCollaborators.length"
+            data-testid="share-empty"
+            class="py-3 text-center text-sm text-neutral-500 dark:text-neutral-400"
           >
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                {{ getInviteUrl(link.token) }}
-              </p>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                {{ roleLabel(link.role, translations) }} ·
-                {{ link.expiresAt ? 'Expires ' + formatDate(link.expiresAt) : 'No expiry' }}
-              </p>
-            </div>
-            <button
-              class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
-              :title="copyState === 1 && copiedToken === link.token ? 'Copied' : 'Copy link'"
-              @click="copyLink(link.token)"
-            >
-              <v-remixicon
-                :name="copyState === 1 && copiedToken === link.token ? 'riCheckLine' : 'riFileCopyLine'"
-                size="16"
-              />
-            </button>
-            <button
-              class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
-              title="Revoke link"
-              @click="handleRevokeLink(link)"
-            >
-              <v-remixicon name="riDeleteBinLine" size="16" />
-            </button>
-          </ui-list-item>
-        </ui-list>
+            {{ translations.share?.noCollaborators || 'No collaborators yet. Invite someone to start collaborating.' }}
+          </p>
+        </div>
       </section>
 
-      <section v-if="isMobile && shareActions.length" class="space-y-3">
+      <section
+        v-if="isMobile && shareActions.length && mobileTab === 'export'"
+        data-testid="share-export-section"
+        class="space-y-3"
+      >
         <h3 class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
           Export
         </h3>
@@ -211,7 +265,7 @@
           <button
             v-for="s in shareActions"
             :key="s.name"
-            class="flex flex-col items-center justify-center gap-2 p-3 rounded-xl border bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-700 active:bg-neutral-100 dark:active:bg-neutral-600 transition-colors"
+            class="flex flex-col items-center justify-center gap-2 p-3 rounded-xl border bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-700 active:bg-neutral-100 dark:active:bg-neutral-600 transition-colors focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
             @click="$emit('update:modelValue', false); s.handler();"
           >
             <div class="flex items-center justify-center w-12 h-12">
@@ -247,9 +301,10 @@ const INVITE_ROLE_OPTIONS = [
   { value: 'viewer', text: 'Viewer' },
 ];
 
-const LINK_ROLE_OPTIONS = [
-  { value: 'editor', text: 'Can edit' },
+const LINK_ACCESS_OPTIONS = [
   { value: 'viewer', text: 'Can view' },
+  { value: 'editor', text: 'Can edit' },
+  { value: 'off', text: 'Off' },
 ];
 
 const EXPIRY_OPTIONS = [
@@ -268,6 +323,7 @@ export default {
   emits: ['update:modelValue'],
   setup(props) {
     const sharing = useNoteSharing();
+    const collaborators = computed(() => sharing.collaborators.value);
     const accountStore = useAccountStore();
     const workspaceStore = useWorkspaceStore();
     const { translations } = useTranslations();
@@ -279,26 +335,58 @@ export default {
     const inviting = ref(false);
     const inviteMessage = ref('');
     const {
-      inviteLinks,
+      inviteLinks: realInviteLinks,
       linkLoading,
       fetchLinks,
       generateLink,
       revokeLink,
-      joinRequests,
+      joinRequests: realJoinRequests,
       fetchJoinRequests,
       approveJoinRequest,
       denyJoinRequest,
     } = sharing;
-    const linkRole = ref('editor');
+    const inviteLinks = computed(() => realInviteLinks.value);
+    const joinRequests = computed(() => realJoinRequests.value);
     const linkExpiry = ref('never');
     const linkError = ref('');
     const { copyState, copyToClipboard } = useClipboard();
-    const copiedToken = ref('');
     const isEmailVerified = computed(() => {
       const v = accountStore.profile?.emailVerified;
       return v === true || v === null || v === undefined;
     });
     const verifyTooltip = 'Please verify your email to invite collaborators.';
+    // Mobile tab split: People is the default; Export only when the runtime provides actions.
+    const mobileTab = ref('people');
+    const mobileTabs = computed(() => {
+      const share = translations.value?.share;
+      const tabs = [{ id: 'people', label: share?.peopleTab || 'People' }];
+      if (props.shareActions.length) {
+        tabs.push({ id: 'export', label: share?.exportTab || 'Export' });
+      }
+      return tabs;
+    });
+    const selfName = computed(() => displayName(accountStore.profile));
+    const selfRoleLabel = computed(() => {
+      const selfId = accountStore.profile?.id;
+      if (!selfId) return '';
+      const self = collaborators.value.find((c) => c.userId === selfId);
+      return self?.role ? roleLabel(self.role, translations.value) : '';
+    });
+    // The owner holds a self-invitation row, so the list already contains you:
+    // drop it there and show it once, pinned at the top with (you).
+    // Workspace members merged in by useNoteSharing carry `viaWorkspace`.
+    const otherCollaborators = computed(() => {
+      const selfId = accountStore.profile?.id;
+      return selfId
+        ? collaborators.value.filter((c) => c.userId !== selfId)
+        : collaborators.value;
+    });
+
+    // Prefer the session-known link (raw token), else any live server link.
+    const activeLink = computed(() => {
+      const links = inviteLinks.value;
+      return links.find((l) => l.token) || links[0] || null;
+    });
 
     function getInviteUrl(token) {
       return `beaver-notes://join/${token}`;
@@ -311,12 +399,14 @@ export default {
       );
     }
 
-    async function createLink() {
+    async function createLink(roleOverride) {
+      const role =
+        roleOverride || (linkAccess.value !== 'off' ? linkAccess.value : 'editor');
       linkLoading.value = true;
       linkError.value = '';
       try {
         await generateLink(props.noteId, {
-          role: linkRole.value,
+          role,
           expiresIn: linkExpiry.value === 'never' ? null : parseInt(linkExpiry.value, 10),
           workspaceId: workspaceStore.activeId,
         });
@@ -328,19 +418,125 @@ export default {
       }
     }
 
-    async function copyLink(token) {
-      await copyToClipboard(getInviteUrl(token));
-      if (copyState.value === 1) {
-        copiedToken.value = token;
+    // TODO: Option B provisional one-link rule. The server keeps only a token
+    // hash, so a previous session's link is unrecoverable. Auto-create only
+    // when the server has none; never silently revoke existing links on open.
+    async function ensureInviteLink() {
+      if (!isAuthenticated.value) return;
+      try {
+        await fetchLinks(props.noteId);
+      } catch {
+        // Link fetch errors are non-critical
       }
+      const links = inviteLinks.value;
+      if (links.some((l) => l.token)) return;
+      if (!links.length) await createLink();
     }
 
+    async function revokeAllLinks() {
+      const ids = inviteLinks.value.map((l) => l.id);
+      await Promise.all(ids.map((id) => revokeLink(props.noteId, id)));
+    }
+
+    async function copyLink(token) {
+      if (!token) return;
+      await copyToClipboard(getInviteUrl(token));
+    }
+
+    function linkDialogOptions(title, body, icon) {
+      return {
+        title,
+        body,
+        icon,
+        okText: translations.value?.dialog?.confirm || 'Confirm',
+        cancelText: translations.value?.dialog?.cancel || 'Cancel',
+      };
+    }
+
+    function handleResetLink() {
+      const share = translations.value?.share;
+      dialog.confirm({
+        ...linkDialogOptions(
+          share?.resetLinkTitle || 'Reset invite link?',
+          share?.resetLinkBody || 'The current link stops working. A new one replaces it.',
+          'riRestartLine',
+        ),
+        onConfirm: async () => {
+          linkError.value = '';
+          const role = activeLink.value?.role;
+          try {
+            await revokeAllLinks();
+            await createLink(role);
+          } catch (err) {
+            linkError.value = err?.message || 'Failed to reset invite link';
+            console.error('[ShareModal] resetLink failed:', err);
+          }
+        },
+      });
+    }
+
+    function onAccessChange(value) {
+      const current = activeLink.value?.role || 'off';
+      if (value === current) return;
+      const share = translations.value?.share;
+      if (value === 'off') {
+        dialog.confirm({
+          ...linkDialogOptions(
+            share?.linkOffTitle || 'Turn off link access?',
+            share?.linkOffBody ||
+              'Anyone with the link will no longer be able to join. People you invited stay.',
+            'riLink',
+          ),
+          okVariant: 'danger',
+          onConfirm: async () => {
+            linkError.value = '';
+            try {
+              await revokeAllLinks();
+            } catch (err) {
+              linkError.value = err?.message || 'Failed to turn off link access';
+            }
+          },
+        });
+        return;
+      }
+      if (!activeLink.value) {
+        createLink(value);
+        return;
+      }
+      dialog.confirm({
+        ...linkDialogOptions(
+          share?.resetLinkTitle || 'Reset invite link?',
+          share?.resetLinkBody ||
+            'The current link stops working. A new one replaces it with the new access.',
+          'riRestartLine',
+        ),
+        onConfirm: async () => {
+          linkError.value = '';
+          try {
+            await revokeAllLinks();
+            await createLink(value);
+          } catch (err) {
+            linkError.value = err?.message || 'Failed to reset invite link';
+          }
+        },
+      });
+    }
+
+    // Derived from the live link, so cancelling a confirm snaps the select back.
+    const linkAccess = computed({
+      get: () => activeLink.value?.role || 'off',
+      set: (value) => onAccessChange(value),
+    });
+
+    // Kept for the spec contract: per-link confirm + revoke.
     function handleRevokeLink(link) {
       const share = translations.value?.share;
       dialog.confirm({
-        title: tpl(share?.revokeLinkTitle || 'Revoke invite link {url}?', {
-          url: getInviteUrl(link.token),
-        }),
+        title: link.token
+          ? tpl(share?.revokeLinkTitle || 'Revoke invite link {url}?', {
+              url: getInviteUrl(link.token),
+            })
+          : share?.revokeLinkTitleNoUrl || 'Revoke invite link?',
         body:
           share?.revokeLinkBody ||
           'Anyone who already has this link will no longer be able to join this note.',
@@ -360,35 +556,37 @@ export default {
       });
     }
 
-    function formatDate(dateStr) {
-      return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    async function refresh() {
+      if (!props.noteId) return;
+      try {
+        await sharing.fetchCollaborators(props.noteId);
+      } catch {
+        // Errors handled internally by useNoteSharing
+      }
+      try {
+        await fetchJoinRequests(props.noteId);
+      } catch {
+        // Join-request fetch errors are non-critical
+      }
+      await ensureInviteLink();
     }
 
     watch(
       () => props.modelValue,
       async (open) => {
         if (open && props.noteId) {
-          try {
-            await sharing.fetchCollaborators(props.noteId);
-          } catch {
-            // Errors handled internally by useNoteSharing
-          }
-          try {
-            await fetchLinks(props.noteId);
-          } catch {
-            // Link fetch errors are non-critical
-          }
-          try {
-            await fetchJoinRequests(props.noteId);
-          } catch {
-            // Join-request fetch errors are non-critical
-          }
+          mobileTab.value = 'people';
+          linkError.value = '';
+          await refresh();
         }
       }
     );
 
     onMounted(() => {
-      if (props.noteId) {
+      if (!props.noteId) return;
+      if (props.modelValue) {
+        refresh();
+      } else {
         fetchLinks(props.noteId);
         fetchJoinRequests(props.noteId);
       }
@@ -461,34 +659,40 @@ export default {
 
     return {
       sharing,
+      collaborators,
       translations,
       isAuthenticated,
       isMobile,
       INVITE_ROLE_OPTIONS,
-      LINK_ROLE_OPTIONS,
+      LINK_ACCESS_OPTIONS,
       EXPIRY_OPTIONS,
       inviteInput,
       inviteRole,
       inviting,
       inviteMessage,
       roleLabel,
+      selfName,
+      selfRoleLabel,
+      otherCollaborators,
       inviteLinks,
+      activeLink,
+      linkAccess,
       linkLoading,
       linkError,
-      linkRole,
       linkExpiry,
       joinRequests,
       handleApproveRequest,
       handleDenyRequest,
       copyState,
-      copiedToken,
       isEmailVerified,
       verifyTooltip,
+      mobileTab,
+      mobileTabs,
       createLink,
       copyLink,
       handleRevokeLink,
+      handleResetLink,
       getInviteUrl,
-      formatDate,
       handleInvite,
       handleRemove,
       displayName,

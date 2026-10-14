@@ -8,9 +8,12 @@ const state = vi.hoisted(() => ({
   inviteImpl: () => Promise.resolve({ userId: 'u9' }),
   removeImpl: () => Promise.resolve(),
   revokeImpl: () => Promise.resolve(),
+  generateImpl: () =>
+    Promise.resolve({ id: 'l-new', token: 'tok-new', role: 'editor', expiresAt: null }),
   inviteCalls: [],
   removeCalls: [],
   revokeCalls: [],
+  generateCalls: [],
   confirm: [],
   errorRef: null,
 }));
@@ -38,7 +41,7 @@ vi.mock('@/composable/useNoteSharing', async () => {
       inviteLinks: ref(state.inviteLinks),
       linkLoading: ref(false),
       fetchLinks: vi.fn(),
-      generateLink: vi.fn(),
+      generateLink: (...a) => { state.generateCalls.push(a); return state.generateImpl(...a); },
       revokeLink: (...a) => { state.revokeCalls.push(a); return state.revokeImpl(...a); },
       joinRequests: ref([]),
       fetchJoinRequests: vi.fn(),
@@ -76,9 +79,12 @@ describe('ShareModal', () => {
     state.inviteImpl = () => Promise.resolve({ userId: 'u9' });
     state.removeImpl = () => Promise.resolve();
     state.revokeImpl = () => Promise.resolve();
+    state.generateImpl = () =>
+      Promise.resolve({ id: 'l-new', token: 'tok-new', role: 'editor', expiresAt: null });
     state.inviteCalls.length = 0;
     state.removeCalls.length = 0;
     state.revokeCalls.length = 0;
+    state.generateCalls.length = 0;
     state.confirm.length = 0;
     if (state.errorRef) state.errorRef.value = '';
   });
@@ -104,17 +110,27 @@ describe('ShareModal', () => {
       },
     });
 
+  async function openMobileTab(wrapper, label) {
+    const tab = wrapper
+      .get('[data-testid="share-mobile-tabs"]')
+      .findAll('button')
+      .find((b) => b.text().includes(label));
+    await tab.trigger('click');
+    await flushPromises();
+  }
+
   it('renders a Done footer action (close path without the X)', () => {
     const wrapper = mountModal();
     expect(wrapper.text()).toContain('Done');
   });
 
-  it('renders export tiles when shareActions provided', () => {
+  it('renders export tiles when shareActions provided', async () => {
     const wrapper = mountModal([
       { name: 'bea', title: 'BEA', icon: 'riFileTextFill', handler: vi.fn() },
       { name: 'pdf', title: 'PDF', icon: 'riFile2Line', handler: vi.fn() },
     ]);
     expect(wrapper.text()).toContain('Export');
+    await openMobileTab(wrapper, 'Export');
     expect(wrapper.text()).toContain('BEA');
     expect(wrapper.text()).toContain('PDF');
   });
@@ -137,14 +153,78 @@ describe('ShareModal', () => {
     expect(wrapper.text()).toContain('Collaborate');
   });
 
-  it('keeps the invite-link action enabled when the account email is unverified', () => {
+  it('keeps invite-link creation enabled when the account email is unverified', async () => {
     mockProfile = { emailVerified: false };
     const wrapper = mountModal();
-    const createLink = wrapper
-      .findAll('button')
-      .find((b) => b.text().includes('Create invite link'));
-    expect(createLink).toBeTruthy();
-    expect(createLink.attributes('disabled')).toBeUndefined();
+    await flushPromises();
+
+    expect(state.generateCalls).toHaveLength(1);
+    expect(state.generateCalls[0][0]).toBe('n1');
+    expect(wrapper.get('[data-testid="share-links-section"]').text()).toContain(
+      'Anyone with the link',
+    );
+  });
+
+  it('auto-creates a single link on open when the server has none', async () => {
+    mountModal();
+    await flushPromises();
+
+    expect(state.generateCalls).toHaveLength(1);
+    expect(state.generateCalls[0][0]).toBe('n1');
+  });
+
+  it('does not create a new link when a session link already exists', async () => {
+    state.inviteLinks = [{ id: 'l1', token: 'tok1', role: 'editor', expiresAt: null }];
+    const wrapper = mountModal();
+    await flushPromises();
+
+    expect(state.generateCalls).toHaveLength(0);
+    expect(wrapper.get('[data-testid="share-link-url"]').text()).toContain(
+      'beaver-notes://join/tok1',
+    );
+  });
+
+  it('does not stack new links when only tokenless links exist', async () => {
+    state.inviteLinks = [{ id: 'l1', role: 'editor', expiresAt: null }];
+    mountModal();
+    await flushPromises();
+
+    expect(state.generateCalls).toHaveLength(0);
+  });
+
+  it('confirms before resetting the link, revokes all, then creates a new one', async () => {
+    state.inviteLinks = [{ id: 'l1', token: 'tok1', role: 'editor', expiresAt: null }];
+    const wrapper = mountModal();
+    await flushPromises();
+
+    wrapper.vm.handleResetLink();
+    expect(state.confirm).toHaveLength(1);
+    expect(state.revokeCalls).toHaveLength(0);
+    expect(state.generateCalls).toHaveLength(0);
+
+    await state.confirm[0].onConfirm();
+    await flushPromises();
+
+    expect(state.revokeCalls).toEqual([['n1', 'l1']]);
+    expect(state.generateCalls).toHaveLength(1);
+  });
+
+  it('turns link access off only after confirmation, without auto-revoking on open', async () => {
+    state.inviteLinks = [{ id: 'l1', token: 'tok1', role: 'editor', expiresAt: null }];
+    const wrapper = mountModal();
+    await flushPromises();
+
+    expect(state.revokeCalls).toHaveLength(0);
+
+    wrapper.vm.linkAccess = 'off';
+    expect(state.confirm).toHaveLength(1);
+    expect(state.revokeCalls).toHaveLength(0);
+
+    await state.confirm[0].onConfirm();
+    await flushPromises();
+
+    expect(state.revokeCalls).toEqual([['n1', 'l1']]);
+    expect(state.generateCalls).toHaveLength(0);
   });
 
   it('confirms before removing a collaborator and names them', async () => {
