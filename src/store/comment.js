@@ -73,6 +73,34 @@ export const useCommentStore = defineStore('comment', () => {
     return importCollabKey(noteKeyHex);
   }
 
+  // Reaction rows arrive as { userId, emojisEncrypted, emojisIv }; decrypt each
+  // user's emoji list into the UI shape [{ emoji, userIds }]. Bad ciphertext
+  // (or a wrong AAD) is skipped, never thrown — one rotten row must not kill
+  // the thread list.
+  async function decryptReactionRows(key, commentId, rows) {
+    const byEmoji = new Map();
+    for (const row of rows) {
+      if (!row?.emojisEncrypted || !row?.emojisIv || !row?.userId) continue;
+      try {
+        const plain = await decryptComment(
+          key,
+          { contentEncrypted: row.emojisEncrypted, contentIv: row.emojisIv },
+          commentId,
+        );
+        const list = JSON.parse(plain);
+        if (!Array.isArray(list)) continue;
+        for (const emoji of list) {
+          if (typeof emoji !== 'string') continue;
+          if (!byEmoji.has(emoji)) byEmoji.set(emoji, []);
+          byEmoji.get(emoji).push(row.userId);
+        }
+      } catch (err) {
+        console.warn('[comment] Failed to decrypt reactions', commentId, err);
+      }
+    }
+    return [...byEmoji].map(([emoji, userIds]) => ({ emoji, userIds }));
+  }
+
   function resolveAuthorName(authorId) {
     if (!authorId) return null;
     const profile = useAccountStore().profile;
@@ -138,6 +166,9 @@ export const useCommentStore = defineStore('comment', () => {
               console.warn('[comment] Failed to decrypt comment', c.id, err);
             }
           }
+          c.reactions = Array.isArray(c.reactions) && c.reactions.length
+            ? await decryptReactionRows(key, c.id, c.reactions)
+            : [];
         }
       }
       for (const c of data) {
@@ -256,26 +287,51 @@ export const useCommentStore = defineStore('comment', () => {
     hoverThreadId.value = threadId;
   }
 
-  // Optimistic local toggle; server is the source of truth and returns the
-  // full reactions array. Restore on error.
+  // Optimistic local toggle; the wire format is the caller's whole emoji list
+  // encrypted with the note key (per-user row, server never sees emoji).
+  // Restore the snapshot on any failure.
   async function toggleReaction(commentId, emoji, { baseUrl } = {}) {
     const c = comments.value.find((x) => x.id === commentId);
     if (!c) return;
     const myId = useAccountStore().profile?.id;
+    if (!myId) return;
     if (!Array.isArray(c.reactions)) c.reactions = [];
     const snapshot = c.reactions.map((r) => ({ emoji: r.emoji, userIds: [...r.userIds] }));
-    let bucket = c.reactions.find((r) => r.emoji === emoji);
-    if (!bucket) {
-      bucket = { emoji, userIds: [] };
-      c.reactions.push(bucket);
-    }
-    const idx = bucket.userIds.indexOf(myId);
-    if (idx >= 0) bucket.userIds.splice(idx, 1);
-    else bucket.userIds.push(myId);
+    const bucket = c.reactions.find((r) => r.emoji === emoji);
+    const wasIn = !!bucket && bucket.userIds.includes(myId);
+
+    // My current list, then toggle.
+    const myEmojis = c.reactions
+      .filter((r) => r.userIds.includes(myId))
+      .map((r) => r.emoji);
+    const nextEmojis = wasIn
+      ? myEmojis.filter((e) => e !== emoji)
+      : [...myEmojis, emoji];
+
+    // Optimistic UI update.
+    if (!bucket) c.reactions.push({ emoji, userIds: [] });
+    const target = c.reactions.find((r) => r.emoji === emoji);
+    const idx = target.userIds.indexOf(myId);
+    if (idx >= 0) target.userIds.splice(idx, 1);
+    else target.userIds.push(myId);
     c.reactions = c.reactions.filter((r) => r.userIds.length > 0);
+
     try {
-      const result = await apiToggleReaction(commentId, emoji, { baseUrl });
-      if (Array.isArray(result?.reactions)) c.reactions = result.reactions;
+      const key = await resolveNoteKey(c.noteId);
+      if (!key) throw new Error('No encryption key available for this note');
+      const { contentEncrypted, contentIv } = await encryptComment(
+        key,
+        JSON.stringify(nextEmojis),
+        commentId,
+      );
+      const result = await apiToggleReaction(
+        commentId,
+        { emojisEncrypted: contentEncrypted, emojisIv: contentIv },
+        { baseUrl },
+      );
+      if (Array.isArray(result?.reactions)) {
+        c.reactions = await decryptReactionRows(key, commentId, result.reactions);
+      }
     } catch (err) {
       console.error('[comment] Failed to toggle reaction:', err);
       c.reactions = snapshot;

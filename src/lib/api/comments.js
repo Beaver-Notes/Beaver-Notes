@@ -48,11 +48,11 @@ export async function resolveComment(commentId, { baseUrl, signal } = {}) {
   );
 }
 
-export async function toggleReaction(commentId, emoji, { baseUrl, signal } = {}) {
+export async function toggleReaction(commentId, payload, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   return client.post(
     `/comments/${encodeURIComponent(commentId)}/reactions`,
-    { emoji },
+    payload,
     { signal }
   );
 }

@@ -65,8 +65,15 @@ export default {
   emits: ['toggle'],
   setup(props, { emit }) {
     const open = ref(false);
+    // Whitelist at render: the server cannot check ciphertext, so unknown
+    // emoji (from a misbehaving client) never renders.
     const visibleReactions = computed(() =>
-      (props.reactions || []).filter((r) => Array.isArray(r.userIds) && r.userIds.length > 0)
+      (props.reactions || []).filter(
+        (r) =>
+          EMOJIS.includes(r.emoji) &&
+          Array.isArray(r.userIds) &&
+          r.userIds.length > 0,
+      )
     );
     function hasReacted(r) {
       return !!props.myId && r.userIds.includes(props.myId);
