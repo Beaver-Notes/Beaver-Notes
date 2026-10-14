@@ -6,11 +6,13 @@ import {
   updateComment,
   deleteComment,
   resolveComment,
+  toggleReaction as apiToggleReaction,
 } from '@/lib/api/comments';
 import { useNoteSharing } from '@/composable/useNoteSharing';
 import { useCollaboratorStore } from '@/store/collaborator';
 import { useAccountStore } from '@/store/account';
 import { importCollabKey } from '@/utils/crypto/collab';
+import { displayName } from '@/utils/displayName';
 import {
   encryptComment,
   decryptComment,
@@ -26,6 +28,9 @@ export const useCommentStore = defineStore('comment', () => {
   // failing to the console.
   const unavailable = ref(false);
   const activeThreadId = ref(null);
+  // Hover preview (desktop fine-pointer only) — deliberately separate from
+  // activeThreadId, which stays the click/selection path.
+  const hoverThreadId = ref(null);
   const pendingThreadId = ref(null);
   const pendingAnchorFrom = ref(null);
   const pendingAnchorTo = ref(null);
@@ -70,8 +75,16 @@ export const useCommentStore = defineStore('comment', () => {
 
   function resolveAuthorName(authorId) {
     if (!authorId) return null;
+    const profile = useAccountStore().profile;
+    if (profile?.id === authorId) {
+      return displayName({ id: authorId, username: profile.username });
+    }
     const user = useCollaboratorStore().usernames.find((u) => u.id === authorId);
-    return user?.username || user?.label || null;
+    return displayName({
+      id: authorId,
+      username: user?.username,
+      email: user?.email,
+    });
   }
 
   function resolveMentions(content) {
@@ -108,6 +121,9 @@ export const useCommentStore = defineStore('comment', () => {
         comments.value = [];
         return;
       }
+      // The note's own collaborator fetch runs before ensureNoteKey self-invites,
+      // so it 403s and leaves the store empty; reload it now that we are in.
+      await useNoteSharing().fetchCollaborators?.(noteId);
       const data = await listComments(noteId, { baseUrl });
       if (key) {
         for (const c of data) {
@@ -159,7 +175,8 @@ export const useCommentStore = defineStore('comment', () => {
         comment.content = content;
         comment.anchorFrom = anchorFrom ?? null;
         comment.anchorTo = anchorTo ?? null;
-        comment.authorName = useAccountStore().profile?.username || resolveAuthorName(comment.authorId);
+        comment.authorName = resolveAuthorName(comment.authorId);
+        if (!Array.isArray(comment.reactions)) comment.reactions = [];
         comments.value.push(comment);
       }
       pendingThreadId.value = null;
@@ -235,6 +252,37 @@ export const useCommentStore = defineStore('comment', () => {
     if (threadId) showSidebar.value = true;
   }
 
+  function setHoverThread(threadId) {
+    hoverThreadId.value = threadId;
+  }
+
+  // Optimistic local toggle; server is the source of truth and returns the
+  // full reactions array. Restore on error.
+  async function toggleReaction(commentId, emoji, { baseUrl } = {}) {
+    const c = comments.value.find((x) => x.id === commentId);
+    if (!c) return;
+    const myId = useAccountStore().profile?.id;
+    if (!Array.isArray(c.reactions)) c.reactions = [];
+    const snapshot = c.reactions.map((r) => ({ emoji: r.emoji, userIds: [...r.userIds] }));
+    let bucket = c.reactions.find((r) => r.emoji === emoji);
+    if (!bucket) {
+      bucket = { emoji, userIds: [] };
+      c.reactions.push(bucket);
+    }
+    const idx = bucket.userIds.indexOf(myId);
+    if (idx >= 0) bucket.userIds.splice(idx, 1);
+    else bucket.userIds.push(myId);
+    c.reactions = c.reactions.filter((r) => r.userIds.length > 0);
+    try {
+      const result = await apiToggleReaction(commentId, emoji, { baseUrl });
+      if (Array.isArray(result?.reactions)) c.reactions = result.reactions;
+    } catch (err) {
+      console.error('[comment] Failed to toggle reaction:', err);
+      c.reactions = snapshot;
+      throw err;
+    }
+  }
+
   function setPendingThread(threadId, anchorFrom, anchorTo) {
     pendingThreadId.value = threadId;
     pendingAnchorFrom.value = anchorFrom ?? null;
@@ -256,6 +304,7 @@ export const useCommentStore = defineStore('comment', () => {
     comments.value = [];
     unavailable.value = false;
     activeThreadId.value = null;
+    hoverThreadId.value = null;
     pendingThreadId.value = null;
     pendingAnchorFrom.value = null;
     pendingAnchorTo.value = null;
@@ -267,6 +316,7 @@ export const useCommentStore = defineStore('comment', () => {
     loading,
     unavailable,
     activeThreadId,
+    hoverThreadId,
     pendingThreadId,
     pendingAnchorFrom,
     pendingAnchorTo,
@@ -280,6 +330,8 @@ export const useCommentStore = defineStore('comment', () => {
     removeComment,
     toggleResolve,
     setActiveThread,
+    setHoverThread,
+    toggleReaction,
     setPendingThread,
     openSidebar,
     closeSidebar,

@@ -35,7 +35,7 @@
             goBack,
             peers: presence.peers.value,
             localColor: presence.localColor?.value,
-            localName: accountStore.profile?.username || 'Anonymous',
+            localName: presence.localName.value,
             showHistory,
             showComments,
           }"
@@ -127,37 +127,6 @@
         </button>
       </div>
       <div
-        v-if="
-          changeReview.mergeBannerVisible.value &&
-          !changeReview.active.value &&
-          !isLocked
-        "
-        class="merge-review-banner no-print flex items-center gap-3 mb-4 px-3 py-2 rounded-xl border border-emerald-300/60 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-100 text-sm"
-        role="status"
-      >
-        <span class="flex-1">
-          {{
-            translations.note?.mergedFromDevice ||
-            'Merged changes from another device'
-          }}
-        </span>
-        <button
-          type="button"
-          class="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors"
-          @click="reviewMergedChanges"
-        >
-          {{ translations.note?.reviewChanges || 'Review' }}
-        </button>
-        <button
-          type="button"
-          aria-label="Dismiss"
-          class="text-emerald-700/70 hover:text-emerald-900 dark:text-emerald-200/70 dark:hover:text-emerald-100 p-1"
-          @click="changeReview.dismissMergeBanner()"
-        >
-          <v-remixicon name="riCloseLine" class="w-4 h-4" />
-        </button>
-      </div>
-      <div
         v-if="!isLocked"
         class="editor prose dark:prose-invert max-w-none w-full mb-6 mobile:mb-6"
       >
@@ -227,10 +196,10 @@
           v-if="yjsReady"
           :id="$route.params.id"
           ref="noteEditor"
-          :key="`${$route.params.id}-${awareness?.clientID ?? 'no-aw'}`"
+          :key="`${$route.params.id}-${ydoc?.clientID ?? 'no-doc'}-${awareness?.clientID ?? 'no-aw'}`"
           :ydoc="ydoc"
           :awareness="awareness"
-          :user-name="accountStore.profile?.username || 'Anonymous'"
+          :user-name="presence.localName.value"
           :user-id="accountStore.profile?.id || ''"
           :note="note"
           :role="noteRole"
@@ -265,6 +234,7 @@
         </div>
       </div>
       <note-backlinks v-if="!isLocked" />
+      <comment-inline-popover v-if="!isLocked" :note-id="id" />
     </div>
     <ReaderPill
       v-if="uiState.inReaderMode"
@@ -288,7 +258,7 @@
       class="hidden xl:flex justify-center px-4 pb-10"
     >
       <div class="w-full flex justify-center">
-        <comment-sidebar :note-id="id" :docked="true" @close="closeComments" />
+        <comment-sidebar :note-id="id" :docked="true" :editor="editor" @close="closeComments" />
       </div>
     </div>
     <template v-if="showComments && !isDocked">
@@ -296,7 +266,7 @@
         class="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]"
         @click="closeComments"
       />
-      <comment-sidebar :note-id="id" :docked="false" @close="closeComments" />
+      <comment-sidebar :note-id="id" :docked="false" :editor="editor" @close="closeComments" />
     </template>
   </div>
 </template>
@@ -350,12 +320,12 @@ import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
 import { useChangeReview } from '@/composable/useChangeReview';
 import { useActivityLog } from '@/composable/useActivityLog';
-import { onRemoteApplied } from '@/lib/yjs/shared';
 import { getWsSync } from '@/lib/sync/ws-sync';
 import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
 import { useCommentStore } from '@/store/comment';
 import CommentSidebar from '@/components/note/CommentSidebar.vue';
+import CommentInlinePopover from '@/components/note/CommentInlinePopover.vue';
 import UnlockCard from '@/components/app/UnlockCard.vue';
 import { canEdit } from '@/utils/permissions';
 import { displayName } from '@/utils/displayName';
@@ -374,6 +344,7 @@ export default {
     WordCountPill,
     NoteBacklinks,
     CommentSidebar,
+    CommentInlinePopover,
     UnlockCard,
     ReaderPill,
     MobileSyncStrip,
@@ -522,11 +493,17 @@ export default {
     const yjsError = ref(null);
 
     const awareness = shallowRef(null);
+    // The note id the current Awareness was built for, and the doc instance it
+    // wraps. A repeated ydoc emission for the same note must not rebuild either.
+    let awarenessNoteId = null;
+    let awarenessDoc = null;
+    // Load epoch: an in-flight load whose epoch was superseded (or whose page
+    // unmounted) must not continue, otherwise a second concurrent load for the
+    // same note tears down the live provider the first load installed.
+    let loadEpoch = 0;
 
     function displayNameForPresence() {
-      const p = accountStore.profile;
-      const name = displayName(p);
-      return name === 'Unknown' ? 'Anonymous' : name;
+      return displayName(accountStore.profile);
     }
     const presence = usePresence(
       awareness,
@@ -534,10 +511,27 @@ export default {
       () => displayNameForPresence(),
     );
 
-    // Create/destroy Awareness only after ydoc resolves; never cache across doc switches
+    // Create/destroy Awareness only when the doc for this note really changed;
+    // a repeat emission for the same doc would destroy the live provider.
     watch(
       ydoc,
       (doc, oldDoc) => {
+        const noteId = id.value;
+        if (!doc) {
+          awarenessNoteId = null;
+          awarenessDoc = null;
+          if (awareness.value) {
+            try {
+              awareness.value.setLocalState(null);
+            } catch {}
+            presence.destroy();
+            awareness.value = null;
+          }
+          return;
+        }
+        if (awareness.value && noteId && noteId === awarenessNoteId && doc === awarenessDoc) {
+          return;
+        }
         if (awareness.value) {
           try {
             awareness.value.setLocalState(null);
@@ -545,19 +539,22 @@ export default {
           presence.destroy();
           awareness.value = null;
         }
-        if (!doc) return;
         const aw = new Awareness(doc);
         awareness.value = aw;
+        awarenessNoteId = noteId || null;
+        awarenessDoc = doc;
         // set initial local user state (usePresence.init does this, but ensure)
         presence.init();
         // pass this awareness to ws-sync so provider reuses same instance (per-doc guard)
         // joinNoteRoom is idempotent; if provider already exists for this doc it is skipped
-        if (id.value) {
+        if (noteId) {
           const wsSyncAny = getWsSync();
           // if provider for this note already created without external awareness, we need to re-wire:
           // leave and re-join with correct awareness
           // detection: provider exists but its awareness !== aw
-          wsSyncAny.joinNoteRoom?.(id.value, doc, aw);
+          Promise.resolve(wsSyncAny.joinNoteRoom?.(noteId, doc, aw)).catch((err) => {
+            console.warn('[note] joinNoteRoom failed:', noteId, err?.message || err);
+          });
         }
       },
       { immediate: true },
@@ -579,6 +576,9 @@ export default {
     );
 
     onUnmounted(() => {
+      // Retire in-flight loads from this page: without this they resume against
+      // a destroyed view and register a second doc for the note.
+      loadEpoch++;
       presence.destroy();
       if (awareness.value) {
         try {
@@ -622,6 +622,98 @@ export default {
       commentStore.setActiveThread(commentId);
       showComments.value = true;
     }
+    // Desktop fine-pointer hover: peek a thread from its note mark without
+    // touching activeThreadId (that stays the click/selection path).
+    const hoverOpenTimer = ref(null);
+    const hoverCloseTimer = ref(null);
+    function cancelHoverOpen() {
+      if (hoverOpenTimer.value) {
+        clearTimeout(hoverOpenTimer.value);
+        hoverOpenTimer.value = null;
+      }
+    }
+    function cancelHoverClose() {
+      if (hoverCloseTimer.value) {
+        clearTimeout(hoverCloseTimer.value);
+        hoverCloseTimer.value = null;
+      }
+    }
+    function closeHoverSoon() {
+      cancelHoverOpen();
+      cancelHoverClose();
+      hoverCloseTimer.value = setTimeout(() => {
+        hoverCloseTimer.value = null;
+        commentStore.setHoverThread?.(null);
+      }, 200);
+    }
+    function commentIdFromEvent(e) {
+      const el = e.target instanceof Element ? e.target : null;
+      return el?.closest?.('[data-comment-id]')?.dataset?.commentId || null;
+    }
+    function onDocMouseOver(e) {
+      const id = commentIdFromEvent(e);
+      if (id) {
+        cancelHoverClose();
+        cancelHoverOpen();
+        hoverOpenTimer.value = setTimeout(() => {
+          hoverOpenTimer.value = null;
+          commentStore.setHoverThread?.(id);
+        }, 150);
+        return;
+      }
+      // Keep the popover open while the pointer is inside it.
+      const pop = e.target instanceof Element && e.target.closest?.('[data-testid="inline-popover"]');
+      if (pop) {
+        cancelHoverClose();
+        return;
+      }
+      closeHoverSoon();
+    }
+    function onDocMouseOut(e) {
+      const from = e.target instanceof Element ? e.target : null;
+      const to = e.relatedTarget instanceof Element ? e.relatedTarget : null;
+      if (!from || !to) return;
+      if (from.closest('[data-comment-id]') && from.closest('[data-comment-id]').contains(to)) return;
+      if (from.closest('[data-comment-id]') || from.closest('[data-testid="inline-popover"]')) {
+        closeHoverSoon();
+      }
+    }
+    function onDocFocusIn(e) {
+      const id = commentIdFromEvent(e);
+      if (id) {
+        cancelHoverClose();
+        commentStore.setHoverThread?.(id);
+      }
+    }
+    function onDocKeyDown(e) {
+      if (e.key === 'Escape' && commentStore.hoverThreadId) {
+        commentStore.setHoverThread?.(null);
+      }
+    }
+    const hoverQuery =
+      typeof window !== 'undefined'
+        ? window.matchMedia('(hover: hover) and (pointer: fine)')
+        : null;
+    function onHoverCapableChange() {
+      if (!hoverQuery?.matches) commentStore.setHoverThread?.(null);
+    }
+    if (hoverQuery?.matches) {
+      document.addEventListener('mouseover', onDocMouseOver);
+      document.addEventListener('mouseout', onDocMouseOut);
+      document.addEventListener('focusin', onDocFocusIn);
+      document.addEventListener('keydown', onDocKeyDown);
+      hoverQuery.addEventListener?.('change', onHoverCapableChange);
+    }
+    onUnmounted(() => {
+      cancelHoverOpen();
+      cancelHoverClose();
+      commentStore.setHoverThread?.(null);
+      document.removeEventListener('mouseover', onDocMouseOver);
+      document.removeEventListener('mouseout', onDocMouseOut);
+      document.removeEventListener('focusin', onDocFocusIn);
+      document.removeEventListener('keydown', onDocKeyDown);
+      hoverQuery?.removeEventListener?.('change', onHoverCapableChange);
+    });
     watch(
       () => commentStore.showSidebar,
       (open) => {
@@ -868,8 +960,6 @@ export default {
 
     let previewActive = false;
     let previewWasEditable = true;
-    let removeRemoteApplied = () => {};
-
     function formatVersionLabel(createdAt) {
       if (!createdAt) return 'Viewing an older version';
       const when = new Date(createdAt).toLocaleString();
@@ -1011,17 +1101,21 @@ export default {
         const currentNote = noteStore.getById(noteId);
         if (!currentNote || !currentNote.id) {
           router.push('/');
-        } else {
-          store.activeNoteId = currentNote.id;
-          localStorage.setItem('lastNoteEdit', noteId);
+          return;
         }
+        store.activeNoteId = currentNote.id;
+        localStorage.setItem('lastNoteEdit', noteId);
 
         // Read content at call time: decrypt watcher may have updated store since fire.
         const currentForLoad = noteStore.getById(noteId);
         const seedContent = currentForLoad?.content;
         yjsError.value = null;
+        const epoch = ++loadEpoch;
         yjsLoad(noteId, seedContent).catch((err) => {
           console.error('[yjs] Failed to load note:', err);
+          // Superseded or unmounted: do not stamp an error onto a note that is
+          // no longer the one being shown.
+          if (epoch !== loadEpoch) return;
           yjsError.value = err?.message || 'Failed to load note';
         });
       },
@@ -1076,9 +1170,6 @@ export default {
         },
       });
       window.addEventListener('beforeunload', handleBeforeUnload);
-      removeRemoteApplied = onRemoteApplied((noteId) => {
-        changeReview.handleRemoteApplied(noteId, id.value);
-      });
 
       if (titleDiv.value) {
         const titleText = note.value?.title || yjsGetTitle() || '';
@@ -1101,7 +1192,6 @@ export default {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
       removeEditorListeners();
-      removeRemoteApplied();
       exitChangeReview();
     });
 

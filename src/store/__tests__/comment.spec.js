@@ -6,6 +6,7 @@ vi.mock('@/lib/api/comments', () => ({
   listComments: vi.fn(async () => []),
   createComment: vi.fn(async () => ({ comment: { id: 'c1', contentEncrypted: 'x', contentIv: 'y', mentions: '[]' } })),
   resolveComment: vi.fn(async () => ({ resolved: true })),
+  toggleReaction: vi.fn(async () => ({ reactions: [] })),
 }));
 
 const ensureNoteKeyMock = vi.hoisted(() => vi.fn(async () => 'ab'.repeat(32)));
@@ -16,7 +17,7 @@ vi.mock('@/composable/useNoteSharing', () => ({
   }),
 }));
 
-import { listComments, createComment, resolveComment } from '@/lib/api/comments';
+import { listComments, createComment, resolveComment, toggleReaction } from '@/lib/api/comments';
 
 describe('comment store pending flow', () => {
   beforeEach(() => {
@@ -115,6 +116,22 @@ describe('comment store pending flow', () => {
     expect(s.comments[0].authorName).toBe('alice');
   });
 
+  it('resolves the signed-in author from their own profile, not the collaborator list', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    const { useCollaboratorStore } = await import('@/store/collaborator');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    // The note owner is never in the collaborators list (that endpoint is for
+    // invited non-members), so the profile is the only source for own comments.
+    useCollaboratorStore().setCollaborators('n1', []);
+    listComments.mockResolvedValueOnce([
+      { id: 'c1', noteId: 'n1', threadId: 't1', authorId: 'me', contentEncrypted: 'x', contentIv: 'y', resolved: false },
+      { id: 'c2', noteId: 'n1', threadId: 't1', authorId: 'u1', contentEncrypted: 'x', contentIv: 'y', resolved: false },
+    ]);
+    const s = useCommentStore();
+    await s.fetchThreads('n1');
+    expect(s.comments.find((c) => c.id === 'c1').authorName).toBe('myself');
+  });
+
   it('marks comments unavailable instead of a silent no-op when the note has no shared key', async () => {
     ensureNoteKeyMock.mockResolvedValueOnce(null);
     const s = useCommentStore();
@@ -169,5 +186,51 @@ describe('comment store pending flow', () => {
     expect(resolveComment).toHaveBeenCalledWith('c1', expect.anything());
     expect(s.resolvedThreads).toHaveLength(1);
     expect(s.unresolvedThreads).toHaveLength(0);
+  });
+
+  it('toggleReaction optimistically adds the caller, then accepts the server array', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    toggleReaction.mockResolvedValueOnce({ reactions: [{ emoji: '👍', userIds: ['me'] }] });
+    const s = useCommentStore();
+    s.comments.push({ id: 'c1', threadId: 't1', reactions: [] });
+    await s.toggleReaction('c1', '👍', { baseUrl: null });
+    expect(toggleReaction).toHaveBeenCalledWith('c1', '👍', { baseUrl: null });
+    expect(s.comments[0].reactions).toEqual([{ emoji: '👍', userIds: ['me'] }]);
+  });
+
+  it('toggleReaction removes the caller from an existing emoji bucket', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    toggleReaction.mockResolvedValueOnce({ reactions: [] });
+    const s = useCommentStore();
+    s.comments.push({
+      id: 'c1',
+      threadId: 't1',
+      reactions: [{ emoji: '👍', userIds: ['me', 'other'] }],
+    });
+    await s.toggleReaction('c1', '👍', { baseUrl: null });
+    expect(s.comments[0].reactions).toEqual([]);
+  });
+
+  it('toggleReaction restores the previous reactions when the API call fails', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    const before = [{ emoji: '🎉', userIds: ['other'] }];
+    toggleReaction.mockRejectedValueOnce(new Error('offline'));
+    const s = useCommentStore();
+    s.comments.push({ id: 'c1', threadId: 't1', reactions: JSON.parse(JSON.stringify(before)) });
+    await expect(s.toggleReaction('c1', '🎉', { baseUrl: null })).rejects.toThrow('offline');
+    expect(s.comments[0].reactions).toEqual(before);
+  });
+
+  it('setHoverThread does not touch the click/selection path', () => {
+    const s = useCommentStore();
+    s.setActiveThread('t-click');
+    s.setHoverThread('t-hover');
+    expect(s.hoverThreadId).toBe('t-hover');
+    expect(s.activeThreadId).toBe('t-click');
+    s.setHoverThread(null);
+    expect(s.activeThreadId).toBe('t-click');
   });
 });

@@ -411,6 +411,7 @@
     "selectObsidianVault": "Select Obsidian Vault",
     "selectNotionExport": "Select Notion Export",
     "selectBearExport": "Select Bear Export",
+    "selectGoogleKeepExport": "Select Google Keep Export",
     "selectEnexFile": "Select ENEX File",
     "selectSimplenoteExport": "Select notes.json",
     "selectMarkdownFolder": "Select Markdown Folder",
@@ -496,6 +497,8 @@
     "removeCollaboratorBody": "{name} loses access to future changes to this note. The note key is rotated so they cannot read anything new.",
     "revokeLinkTitle": "Revoke invite link {url}?",
     "revokeLinkBody": "Anyone who already has this link will no longer be able to join this note.",
+    "revokeLinkTitleNoUrl": "Revoke invite link?",
+    "linkUrlUnavailable": "Link available in this session only",
     "noteWithIdNotFound": "Note with ID {id} not found.",
     "noteExportedToPath": "Note \"{title}\" exported to \"{path}\".",
     "invalidFileFormat": "Invalid file format or empty file.",
@@ -835,5 +838,29 @@
   },
   "appearanceView": {
     "loremIpsum": "Lorem Ipsum"
+  },
+  "comments": {
+    "title": "Comments",
+    "placeholder": "Add a comment...",
+    "replyPlaceholder": "Reply...",
+    "send": "Send",
+    "reply": "Reply",
+    "resolve": "Resolve",
+    "reopen": "Re-open",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "empty": "No comments yet",
+    "emptyHint": "Select text in the note and add a comment. Threads appear here.",
+    "newComment": "New thread",
+    "delete": "Delete",
+    "unavailable": "Comments work on shared notes",
+    "unavailableHint": "Invite someone to this note to turn comments on.",
+    "attachedToText": "Attached to text",
+    "addReaction": "Add reaction",
+    "comment": "comment",
+    "comments": "comments",
+    "nResolved": "{n} resolved",
+    "keyboardHint": "↵ to send · ⇧↵ for new line · @ to mention"
   }
 }

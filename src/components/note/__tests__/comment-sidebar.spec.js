@@ -5,6 +5,8 @@ const ctl = vi.hoisted(() => ({
   addComment: vi.fn(),
   toggleResolve: vi.fn(),
   removeComment: vi.fn(),
+  toggleReaction: vi.fn(),
+  setHoverThread: vi.fn(),
 }));
 
 vi.mock('@/store/comment', () => ({
@@ -12,11 +14,14 @@ vi.mock('@/store/comment', () => ({
     loading: false,
     unavailable: false,
     activeThreadId: null,
+    hoverThreadId: null,
     unresolvedThreads: [],
     resolvedThreads: [],
     addComment: ctl.addComment,
     toggleResolve: ctl.toggleResolve,
     removeComment: ctl.removeComment,
+    toggleReaction: ctl.toggleReaction,
+    setHoverThread: ctl.setHoverThread,
     fetchThreads: vi.fn(),
   }),
 }));
@@ -26,6 +31,10 @@ vi.mock('@/store/account', () => ({
     profile: { id: 'u1', username: 'me' },
     serverUrl: 'https://api.test',
   }),
+}));
+
+vi.mock('@/store/collaborator', () => ({
+  useCollaboratorStore: () => ({ usernames: [] }),
 }));
 
 vi.mock('@/composable/useTranslations', () => ({
@@ -46,6 +55,8 @@ describe('CommentSidebar action failures stay visible', () => {
     ctl.addComment.mockReset();
     ctl.toggleResolve.mockReset();
     ctl.removeComment.mockReset();
+    ctl.toggleReaction.mockReset();
+    ctl.setHoverThread.mockReset();
   });
 
   it('shows the failure inline when adding a comment fails', async () => {
