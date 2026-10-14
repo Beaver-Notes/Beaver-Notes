@@ -18,6 +18,7 @@ vi.mock('@/lib/dialog', () => ({
 
 const adminMock = vi.hoisted(() => ({
   members: [],
+  joinRequests: [],
   removeMember: null,
   revoke: null,
 }));
@@ -32,7 +33,7 @@ vi.mock('@/composable/useTeamAdmin', async () => {
       devices: r([]),
       sessions: r([]),
       auditLogs: r([]),
-      joinRequests: r([]),
+      joinRequests: r(adminMock.joinRequests),
       error: r(''),
       loadMembers: vi.fn().mockResolvedValue({}),
       loadDevices: vi.fn().mockResolvedValue({}),
@@ -77,6 +78,7 @@ vi.mock('@/composable/useTranslations', () => ({
 }));
 
 import { getPlans } from '@/lib/api/plans';
+import { deleteSsoConfig } from '@/lib/api/sso';
 import TeamAdmin from '../TeamAdmin.vue';
 
 const MEMBER = {
@@ -96,6 +98,8 @@ function mountAdmin() {
         'ui-input': true,
         'ui-select': true,
         'ui-button': { template: '<button type="button"><slot /></button>' },
+        'ui-modal': true,
+        'ui-user-avatar': true,
         'v-remixicon': true,
       },
     },
@@ -106,8 +110,10 @@ describe('TeamAdmin member identity', () => {
   beforeEach(() => {
     dialogCalls.confirm.length = 0;
     adminMock.members = [MEMBER];
+    adminMock.joinRequests = [];
     adminMock.removeMember.mockClear();
     adminMock.revoke.mockClear();
+    deleteSsoConfig.mockClear();
   });
 
   it('offers an Upgrade CTA on the plan gate that preselects Team', async () => {
@@ -180,5 +186,34 @@ describe('TeamAdmin member identity', () => {
 
     await dialogCalls.confirm[0].onConfirm();
     expect(adminMock.revoke).toHaveBeenCalledWith('h1');
+  });
+
+  it('shows pending join requests above the members list', async () => {
+    adminMock.joinRequests = [
+      { type: 'workspace', id: 'r1', username: 'ines', accountId: 'a9', role: 'viewer' },
+    ];
+    const wrapper = mountAdmin();
+    await flushPromises();
+
+    const text = wrapper.text();
+    expect(text).toContain('ines');
+    expect(text).toContain('alice');
+    expect(text.indexOf('ines')).toBeLessThan(text.indexOf('alice'));
+  });
+
+  it('confirms before deleting an SSO config and names it', async () => {
+    const wrapper = mountAdmin();
+    await flushPromises();
+
+    await wrapper.vm.sso.removeConfig({ id: 'c1', slug: 'acme' });
+
+    expect(dialogCalls.confirm).toHaveLength(1);
+    expect(dialogCalls.confirm[0].title).toContain('acme');
+    expect(deleteSsoConfig).not.toHaveBeenCalled();
+
+    await dialogCalls.confirm[0].onConfirm();
+    expect(deleteSsoConfig).toHaveBeenCalledWith('ws-1', 'c1', {
+      baseUrl: 'https://api.test',
+    });
   });
 });

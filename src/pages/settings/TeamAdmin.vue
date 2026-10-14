@@ -22,23 +22,76 @@
     </section>
 
     <template v-else>
-      <!-- Overview -->
-      <section class="space-y-2">
-        <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
-          <div class="flex flex-col gap-3 px-4 py-3.5">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.plan || 'Plan' }}</p>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400 capitalize">{{ plan }}</p>
+      <!-- Pending join requests: first thing an admin sees -->
+      <section v-if="joinRequests.length" class="space-y-2">
+        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+          {{ tr.pendingRequests || 'Pending requests' }}
+        </p>
+        <div class="space-y-2 rounded-xl border border-primary/30 bg-primary/10 p-2">
+          <p class="px-2 text-xs font-medium text-primary">
+            {{ tr.needsAttention || 'Needs your attention' }}
+          </p>
+          <div
+            v-for="req in joinRequests"
+            :key="`${req.type}:${req.id}`"
+            class="flex flex-col gap-3 rounded-lg border border-neutral-100 bg-white px-3 py-3 dark:border-neutral-800 dark:bg-neutral-950/60 sm:flex-row sm:items-center"
+          >
+            <div class="flex min-w-0 flex-1 items-center gap-3">
+              <ui-user-avatar :name="req.username || req.accountId" :size="32" />
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                  {{ req.username || req.accountId }}
+                </p>
+                <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                  {{ requestLabel(req) }}
+                </p>
+              </div>
             </div>
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.storage || 'Storage' }}</p>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ quotaGB }} GB pooled</p>
-            </div>
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.history || 'History' }}</p>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ historyLabel }}</p>
+            <div class="flex flex-col gap-2 sm:flex-row">
+              <ui-button
+                variant="primary"
+                class="max-md:h-11"
+                @click="handleApproveRequest(req)"
+              >
+                {{ tr.approve || 'Approve' }}
+              </ui-button>
+              <ui-button
+                variant="secondary"
+                class="max-md:h-11"
+                @click="handleDenyRequest(req)"
+              >
+                {{ tr.deny || 'Deny' }}
+              </ui-button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Plan overview -->
+      <section class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div class="col-span-2 rounded-xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900 sm:col-span-1">
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.storage || 'Storage' }}</p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ quotaGB }} GB pooled</p>
+          <div
+            class="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="storagePercent"
+          >
+            <div
+              class="h-full rounded-full bg-primary transition-all duration-300"
+              :style="{ width: storagePercent + '%' }"
+            ></div>
+          </div>
+        </div>
+        <div class="rounded-xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.plan || 'Plan' }}</p>
+          <p class="mt-0.5 text-xs capitalize text-neutral-500 dark:text-neutral-400">{{ plan }}</p>
+        </div>
+        <div class="rounded-xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.history || 'History' }}</p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ historyLabel }}</p>
         </div>
       </section>
 
@@ -67,6 +120,19 @@
             >
               {{ addingMember ? (tr.inviting || 'Inviting…') : (tr.invite || 'Invite') }}
             </ui-button>
+            <ui-button
+              variant="secondary"
+              :disabled="addingMember"
+              :title="!isEmailVerified ? verifyTooltip : (tr.copyInviteLink || 'Copy invite link')"
+              @click="handleCopyInviteLink"
+            >
+              <v-remixicon
+                :name="inviteLinkCopied ? 'riCheckLine' : 'riFileCopyLine'"
+                size="18"
+                class="inline-block align-[-3px]"
+              />
+              {{ tr.copyLink || 'Copy link' }}
+            </ui-button>
           </div>
           <p v-if="!isEmailVerified" class="px-4 text-xs text-amber-600 dark:text-amber-400">
             {{ tr.verifyEmailToInvite || 'Please verify your email to invite members.' }}
@@ -76,6 +142,7 @@
           </p>
 
           <div v-for="m in members" :key="m.userId" class="flex items-center gap-3 px-4 py-3.5">
+            <ui-user-avatar :name="memberLabel(m)" :size="32" />
             <div class="min-w-0 flex-1">
               <p
                 class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate"
@@ -89,7 +156,7 @@
             </div>
             <ui-select
               :model-value="m.role"
-              class="w-32"
+              class="w-32 max-md:hidden"
               :disabled="m.userId === currentUserId && m.role === 'owner'"
               :aria-label="fmt('roleFor', { user: memberLabel(m) })"
               @change="($event) => handleChangeRole(m.userId, $event)"
@@ -102,63 +169,104 @@
             <ui-button
               icon
               variant="danger"
+              class="max-md:hidden"
               :aria-label="fmt('removeUser', { user: memberLabel(m) })"
               @click="handleRemoveMember(m)"
             >
               <v-remixicon name="riDeleteBin6Line" />
             </ui-button>
+            <!-- Phones: role + remove live in a tap-to-open sheet -->
+            <span
+              v-if="m.userId === currentUserId && m.role === 'owner'"
+              class="inline-flex h-9 max-md:h-11 items-center rounded-lg border border-neutral-200 px-2.5 text-xs font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400 md:hidden"
+            >{{ displayRole(m.role) }}</span>
+            <button
+              v-else
+              type="button"
+              class="inline-flex h-9 max-md:h-11 items-center gap-1 rounded-lg border border-neutral-200 px-2.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-secondary dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800 md:hidden"
+              :aria-label="fmt('roleFor', { user: memberLabel(m) })"
+              @click="openMemberSheet(m)"
+            >
+              {{ displayRole(m.role) }}
+              <v-remixicon name="riArrowRightSLine" size="14" class="rtl:rotate-180" />
+            </button>
           </div>
           <p v-if="error" class="px-4 py-3">
             <span class="text-sm text-red-500" role="alert">{{ error }}</span>
           </p>
         </div>
-      </section>
 
-      <!-- Pending join requests -->
-      <section v-if="joinRequests.length" class="space-y-2">
-        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-          {{ tr.pendingRequests || 'Pending requests' }}
-        </p>
-        <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
-          <div
-            v-for="req in joinRequests"
-            :key="`${req.type}:${req.id}`"
-            class="flex items-center gap-3 px-4 py-3.5"
-          >
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
-                {{ req.username || req.accountId }}
-              </p>
-              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                {{ requestLabel(req) }}
-              </p>
-            </div>
-            <ui-button variant="primary" @click="handleApproveRequest(req)">
-              {{ tr.approve || 'Approve' }}
-            </ui-button>
-            <ui-button variant="danger" @click="handleDenyRequest(req)">
-              {{ tr.deny || 'Deny' }}
+        <ui-modal
+          v-model="memberSheet.open"
+          :title="memberSheet.member ? memberLabel(memberSheet.member) : ''"
+        >
+          <div v-if="memberSheet.member" class="space-y-4">
+            <ui-select
+              :model-value="memberSheet.member.role"
+              :label="fmt('roleFor', { user: memberLabel(memberSheet.member) })"
+              @change="($event) => handleChangeRole(memberSheet.member.userId, $event)"
+            >
+              <option value="owner">{{ tr.owner || 'Owner' }}</option>
+              <option value="admin">{{ tr.admin || 'Admin' }}</option>
+              <option value="editor">{{ tr.editor || 'Editor' }}</option>
+              <option value="viewer">{{ tr.viewer || 'Viewer' }}</option>
+            </ui-select>
+            <ui-button
+              variant="danger"
+              class="w-full max-md:h-11"
+              @click="handleRemoveFromSheet"
+            >
+              <v-remixicon
+                name="riDeleteBin6Line"
+                size="18"
+                class="inline-block align-[-3px] ltr:mr-1 rtl:ml-1"
+              />
+              {{ tr.remove || 'Remove' }}
             </ui-button>
           </div>
-        </div>
+        </ui-modal>
       </section>
 
       <!-- Devices & Sessions -->
       <section class="space-y-2">
-        <div class="flex items-center justify-between">
-          <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.devicesAndSessions || 'Devices & Sessions' }}</p>
-          <ui-button variant="secondary" @click="handleLoadDevices">{{ tr.refresh || 'Refresh' }}</ui-button>
+        <div class="flex items-center justify-between gap-3 rounded-xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+              {{ tr.devicesAndSessions || 'Devices & Sessions' }}
+            </p>
+            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+              {{ devicesSummary }}
+            </p>
+          </div>
+          <ui-button variant="secondary" class="max-md:h-11" @click="toggleDevices">
+            {{ showDevices ? (tr.hide || 'Hide') : (tr.review || 'Review') }}
+          </ui-button>
         </div>
-        <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
+        <div v-if="showDevices" class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
+          <div class="flex items-center justify-end px-4 pt-3">
+            <ui-button variant="secondary" @click="handleLoadDevices">{{ tr.refresh || 'Refresh' }}</ui-button>
+          </div>
           <div
             v-for="s in sessions"
             :key="s.idHash"
             class="flex items-center gap-3 px-4 py-3.5"
           >
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
-                {{ s.deviceLabel }}
-              </p>
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                  {{ s.deviceLabel }}
+                </p>
+                <span
+                  class="inline-flex items-center gap-1 text-xs"
+                  :class="isOnline(s.lastSeenAt) ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-400 dark:text-neutral-500'"
+                >
+                  <span
+                    class="inline-block h-1.5 w-1.5 rounded-full"
+                    :class="isOnline(s.lastSeenAt) ? 'bg-emerald-500' : 'bg-neutral-400 dark:bg-neutral-600'"
+                  ></span>
+                  {{ isOnline(s.lastSeenAt) ? (tr.online || 'Online') : (tr.offline || 'Offline') }}
+                </span>
+              </div>
               <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
                 {{ s.deviceId || (tr.unknownDevice || 'Unknown device') }} · {{ fmt('lastSeen', { time: s.lastSeenAt || (tr.never || 'never') }) }}
               </p>
@@ -178,7 +286,19 @@
             class="flex items-center gap-3 px-4 py-3.5"
           >
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">{{ d.label }}</p>
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">{{ d.label }}</p>
+                <span
+                  class="inline-flex items-center gap-1 text-xs"
+                  :class="isOnline(d.lastSeen) ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-400 dark:text-neutral-500'"
+                >
+                  <span
+                    class="inline-block h-1.5 w-1.5 rounded-full"
+                    :class="isOnline(d.lastSeen) ? 'bg-emerald-500' : 'bg-neutral-400 dark:bg-neutral-600'"
+                  ></span>
+                  {{ isOnline(d.lastSeen) ? (tr.online || 'Online') : (tr.offline || 'Offline') }}
+                </span>
+              </div>
               <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ d.deviceId }}</p>
             </div>
           </div>
@@ -218,7 +338,7 @@
           <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.sso || 'Single Sign-On (SSO)' }}</p>
           <button
             v-if="flags.audit"
-            class="text-xs text-primary dark:text-primary-light hover:underline"
+            class="text-xs text-primary dark:text-primary-light hover:underline rounded focus-visible:ring-2 focus-visible:ring-secondary"
             @click="sso.showForm = !sso.showForm"
           >
             {{ sso.showForm ? (tr.cancel || 'Cancel') : (tr.addSso || '+ Add SSO') }}
@@ -255,8 +375,8 @@
                 </p>
               </div>
               <div class="flex items-center gap-2">
-                <button class="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" @click="sso.editConfig(cfg)">{{ tr.edit || 'Edit' }}</button>
-                <button class="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400" @click="sso.removeConfig(cfg)">{{ tr.delete || 'Delete' }}</button>
+                <button type="button" class="text-xs text-neutral-500 hover:text-neutral-800 rounded px-1 focus-visible:ring-2 focus-visible:ring-secondary dark:hover:text-neutral-200" @click="sso.editConfig(cfg)">{{ tr.edit || 'Edit' }}</button>
+                <button type="button" class="text-xs text-red-500 hover:text-red-700 rounded px-1 focus-visible:ring-2 focus-visible:ring-secondary dark:hover:text-red-400" @click="sso.removeConfig(cfg)">{{ tr.delete || 'Delete' }}</button>
               </div>
             </div>
           </div>
@@ -290,10 +410,14 @@
             </template>
 
             <div class="flex items-center gap-3">
-              <button class="ui-button py-2 text-sm px-4 rounded-lg" :disabled="sso.saving" @click="sso.saveConfig">
+              <ui-button variant="primary" :disabled="sso.saving" @click="sso.saveConfig">
                 {{ sso.saving ? (tr.saving || 'Saving…') : (sso.editingId ? (tr.update || 'Update') : (tr.create || 'Create')) }}
-              </button>
-              <button class="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" @click="sso.cancelForm">{{ tr.cancel || 'Cancel' }}</button>
+              </ui-button>
+              <button
+                type="button"
+                class="text-xs text-neutral-500 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-secondary rounded dark:hover:text-neutral-200"
+                @click="sso.cancelForm"
+              >{{ tr.cancel || 'Cancel' }}</button>
               <p v-if="sso.formError" class="text-xs text-red-500">{{ sso.formError }}</p>
             </div>
           </div>
@@ -313,6 +437,7 @@ import { getPlans } from '@/lib/api/plans';
 import { listSsoConfigs, createSsoConfig, updateSsoConfig, deleteSsoConfig } from '@/lib/api/sso';
 import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/lib/dialog';
+import { useClipboard } from '@/composable/clipboard';
 import { roleLabel } from '@/utils/roleLabel';
 
 export default {
@@ -345,6 +470,12 @@ export default {
     }
     function sessionLabel(s) {
       return s?.deviceLabel || s?.deviceId || tr.value.unknownDevice || 'Unknown device';
+    }
+    // Client-computed presence: Online when lastSeen is within 5 minutes.
+    function isOnline(lastSeen) {
+      if (!lastSeen) return false;
+      const t = new Date(lastSeen).getTime();
+      return Number.isFinite(t) && Date.now() - t < 5 * 60 * 1000;
     }
 
     const workspaceId = computed(
@@ -463,26 +594,71 @@ export default {
     }
 
     async function ssoRemoveConfig(cfg) {
-      if (!confirm(`Delete SSO config "${cfg.slug}"? Members will lose SSO login access.`)) return;
-      try {
-        await deleteSsoConfig(workspaceId.value, cfg.id, { baseUrl: accountStore.serverUrl });
-        await loadSsoConfigs();
-      } catch (err) {
-        console.error('[sso] delete failed:', err);
-      }
+      dialog.confirm({
+        title: copy('removeSsoTitle', 'Delete SSO config "{slug}"?', { slug: cfg.slug }),
+        body: copy('removeSsoBody', 'Members will lose SSO login access.'),
+        icon: 'riDeleteBin6Line',
+        okText: tr.value.delete || 'Delete',
+        cancelText: translations.value?.dialog?.cancel || 'Cancel',
+        okVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            await deleteSsoConfig(workspaceId.value, cfg.id, { baseUrl: accountStore.serverUrl });
+            await loadSsoConfigs();
+          } catch (err) {
+            console.error('[sso] delete failed:', err);
+          }
+        },
+      });
     }
 
     const inviteInput = ref('');
     const inviteRole = ref('editor');
     const addingMember = ref(false);
     const inviteSuccess = ref('');
+    const inviteLinkCopied = ref(false);
+    const { copyState: inviteCopyState, copyToClipboard } = useClipboard();
 
     const quotaGB = computed(() => (quotaBytes.value / 1024 ** 3).toFixed(0));
+    // Pooled-storage usage comes from the account subscription (owner's org
+    // plan); fall back to 0 so the meter never renders a fake number.
+    const storagePercent = computed(() => {
+      const pct = Number(accountStore.storageUsedPercent);
+      if (!Number.isFinite(pct)) return 0;
+      return Math.min(100, Math.max(0, pct));
+    });
     const historyLabel = computed(() => {
       if (flags.value.audit) return 'Enterprise (negotiated)';
       if (historyDays.value === null) return 'Unlimited';
       return `${historyDays.value} days`;
     });
+    const devicesSummary = computed(() => {
+      const d = admin.devices.value?.length || 0;
+      const s = admin.sessions.value?.length || 0;
+      if (!d && !s) return tr.value.noDevices || 'No devices or active sessions.';
+      return copy('devicesSessionsCounts', 'Devices: {devices} · Sessions: {sessions}', {
+        devices: d,
+        sessions: s,
+      });
+    });
+
+    // Phones hide the inline role select + remove button; both live in a
+    // tap-to-open sheet instead (see openMemberSheet).
+    const memberSheet = reactive({ open: false, member: null });
+    function openMemberSheet(m) {
+      memberSheet.member = m;
+      memberSheet.open = true;
+    }
+    function handleRemoveFromSheet() {
+      const m = memberSheet.member;
+      memberSheet.open = false;
+      if (m) handleRemoveMember(m);
+    }
+
+    const showDevices = ref(false);
+    function toggleDevices() {
+      showDevices.value = !showDevices.value;
+    }
 
     async function loadPlans() {
       try {
@@ -513,6 +689,33 @@ export default {
         await admin.loadMembers();
       } catch (err) {
         admin.error.value = err?.message || 'Failed to invite member.';
+      } finally {
+        addingMember.value = false;
+      }
+    }
+
+    // Adds the member (like Invite) but copies the shareable workspace link
+    // instead of relying on an email delivery — the recipient opens the
+    // `beaver-notes://join-ws/<token>` deep link to join.
+    async function handleCopyInviteLink() {
+      inviteSuccess.value = '';
+      const identifier = inviteInput.value.trim();
+      if (!identifier) {
+        admin.error.value = tr.value.enterIdentifier || 'Enter an email or username.';
+        return;
+      }
+      addingMember.value = true;
+      try {
+        const res = await admin.generateInviteLink(inviteInput.value, inviteRole.value);
+        if (!res?.inviteUrl) throw new Error('No invite link returned.');
+        await copyToClipboard(res.inviteUrl);
+        inviteLinkCopied.value = true;
+        inviteSuccess.value = copy('inviteLinkCopied', 'Invite link copied.');
+        inviteInput.value = '';
+        await admin.loadMembers();
+        setTimeout(() => { inviteLinkCopied.value = false; }, 2000);
+      } catch (err) {
+        admin.error.value = err?.message || 'Failed to create invite link.';
       } finally {
         addingMember.value = false;
       }
@@ -644,7 +847,14 @@ export default {
       flags,
       quotaBytes,
       quotaGB,
+      storagePercent,
       historyLabel,
+      devicesSummary,
+      memberSheet,
+      openMemberSheet,
+      handleRemoveFromSheet,
+      showDevices,
+      toggleDevices,
       plansLoaded,
       currentUserId,
       isEmailVerified,
@@ -653,6 +863,7 @@ export default {
       fmt,
       memberLabel,
       sessionLabel,
+      isOnline,
       displayRole,
       goToUpgrade,
       admin,
@@ -660,6 +871,8 @@ export default {
       inviteRole,
       addingMember,
       inviteSuccess,
+      inviteLinkCopied,
+      inviteCopyState,
       members: admin.members,
       devices: admin.devices,
       sessions: admin.sessions,
@@ -670,25 +883,22 @@ export default {
       handleApproveRequest,
       handleDenyRequest,
       handleAddMember,
+      handleCopyInviteLink,
       handleChangeRole,
       handleRemoveMember,
       handleRevoke,
       handleLoadDevices,
       handleLoadAudit,
-      sso: {
-        configs: computed(() => sso.configs),
-        loading: computed(() => sso.loading),
-        showForm: computed({ get: () => sso.showForm, set: (v) => { sso.showForm = v; } }),
-        editingId: computed(() => sso.editingId),
-        saving: computed(() => sso.saving),
-        formError: computed(() => sso.formError),
-        form: sso.form,
+      // Return the reactive directly: a plain object of nested computed refs
+      // would not unwrap in the template (render gets the ref object itself,
+      // so `sso.configs.length` is undefined and the v-for crashes the page).
+      sso: Object.assign(sso, {
         loginUrl: ssoLoginUrl,
         editConfig: ssoEditConfig,
         saveConfig: ssoSaveConfig,
         removeConfig: ssoRemoveConfig,
         cancelForm: resetSsoForm,
-      },
+      }),
     };
   },
 };

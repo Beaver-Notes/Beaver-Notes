@@ -802,7 +802,13 @@
     "allowedDomainsLabel": "Allowed email domains (comma-separated)",
     "saving": "Saving…",
     "create": "Create",
-    "update": "Update"
+    "update": "Update",
+    "needsAttention": "Needs your attention",
+    "review": "Review",
+    "hide": "Hide",
+    "devicesSessionsCounts": "Devices: {devices} · Sessions: {sessions}",
+    "removeSsoTitle": "Delete SSO config \"{slug}\"?",
+    "removeSsoBody": "Members will lose SSO login access."
   },
   "account": {
     "forgotPassword": "Forgot password?",
