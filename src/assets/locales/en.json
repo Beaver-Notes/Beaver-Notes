@@ -745,7 +745,11 @@
     "justNow": "just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
-    "daysAgo": "{count}d ago"
+    "daysAgo": "{count}d ago",
+    "showPreview": "Show preview",
+    "hidePreview": "Hide preview",
+    "deselect": "Clear selection",
+    "close": "Close"
   },
   "teamAdmin": {
     "teamSettings": "Team settings",
