@@ -578,6 +578,14 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
         }
     }
 
+    // Report the folder pull's notes here, before the cloud phase: a cloud
+    // failure returns from this function, and Rust never reports these ids
+    // again (the cursor advanced and the rows are in the vector), so a peer
+    // note would stay invisible in the renderer until the app restarted.
+    if !applied.is_empty() {
+        emit_applied(app, &applied);
+    }
+
     if cloud_enabled(cfg.transport.as_deref())
         && !cfg.workspace_id.trim().is_empty()
         && !cfg.token.is_empty()
@@ -730,9 +738,6 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
 
     if status == "complete" && pending_icloud > 0 {
         status = SyncError::ICloudPending.status_str();
-    }
-    if !applied.is_empty() {
-        emit_applied(app, &applied);
     }
     if status == "complete" {
         note_success();
