@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-const { blobs, teardownSpy, switchSpy, runInitSpy } = vi.hoisted(() => ({
+const { blobs, teardownSpy, switchSpy, runInitSpy, fetchWsSpy } = vi.hoisted(() => ({
   blobs: new Map(),
   teardownSpy: vi.fn(async () => {}),
   switchSpy: vi.fn(async () => {}),
   runInitSpy: vi.fn(async () => {}),
+  fetchWsSpy: vi.fn(async () => {}),
 }));
 
 vi.mock('@/lib/native/security', () => ({
@@ -67,6 +68,7 @@ vi.mock('@/composable/useCloudWorkspaces', async (importOriginal) => {
     useCloudWorkspaces: () => ({
       ...actual.useCloudWorkspaces(),
       teardownLiveWorkspaceState: teardownSpy,
+      fetchWorkspaces: fetchWsSpy,
     }),
   };
 });
@@ -162,6 +164,34 @@ describe('signInWithPassword', () => {
       expect.objectContaining({ id: 'p1', email: 'me@test.test' }),
       expect.objectContaining({ id: 'n1', email: 'new@test.test' }),
     ]);
+  });
+
+  it('moves the live workspace to the arriving account', async () => {
+    // Workspaces belong to accounts. Adding one in place left the previous
+    // account's workspace live, so the notes list and the sync scope belonged
+    // to the account we had just left; the reload this used to do hid it.
+    await saveIndex({ accounts: [PERSONAL], activeAccountId: 'p1' });
+    await saveSessionToken('personal-token', 'p1');
+    useCloudWorkspaces().activeId.value = 'w-personal';
+    // A brand-new account with no organization, so its record carries no
+    // workspace and the arrival's own list is what has to answer.
+    getAccount.mockImplementation(async () => ({
+      profile: { id: 'n1', email: 'new@test.test', kemPublicKey: 'pk' },
+      subscription: { plan: 'pro' },
+      organizations: [],
+      devices: [],
+    }));
+    fetchWsSpy.mockImplementation(async () => {
+      const cloud = useCloudWorkspaces();
+      cloud.workspaces.value = [{ id: 'w-new', name: 'New Team' }];
+      cloud.activeId.value = 'w-new';
+    });
+
+    await signIn('new@test.test', 'password');
+
+    expect(switchSpy).toHaveBeenCalledWith('w-new');
+    expect(useCloudWorkspaces().activeId.value).toBe('w-new');
+    expect(useAccountStore().activeWorkspaceId).toBe('w-new');
   });
 });
 

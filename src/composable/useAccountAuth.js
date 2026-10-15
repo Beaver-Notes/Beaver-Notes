@@ -462,6 +462,38 @@ export function useAccountAuth() {
         console.warn('[auth] account record persist failed:', err?.message || err);
       }
     }
+    // Adding an account used to end in a reload, which re-derived the active
+    // workspace for the arriving account. In place nothing did, so the notes
+    // list and the sync scope stayed on the account we just left. Hand over
+    // explicitly: the record's workspace if it has one, otherwise the arriving
+    // account's own first workspace.
+    if (persist && accountId) {
+      try {
+        const record = listAccounts().find((account) => account.id === accountId);
+        let targetWorkspaceId =
+          record?.activeWorkspaceId || record?.workspaces?.[0]?.id || '';
+        if (!targetWorkspaceId) {
+          const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
+            '@/composable/useCloudWorkspaces.js'
+          );
+          // The module-level list still holds the previous account's rows, and
+          // the fetch below only picks a workspace when it has none.
+          resetWorkspaceModuleState();
+          const cloud = useCloudWorkspaces();
+          await cloud.fetchWorkspaces();
+          targetWorkspaceId = cloud.activeId.value || '';
+        }
+        if (targetWorkspaceId) {
+          await performSwitch({
+            accountId,
+            workspaceId: targetWorkspaceId,
+            force: true,
+          });
+        }
+      } catch (err) {
+        console.warn('[auth] workspace handover after sign-in failed:', err?.message || err);
+      }
+    }
     return { token: sessionId, user, subscription };
   }
 
