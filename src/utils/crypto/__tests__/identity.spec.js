@@ -42,4 +42,18 @@ describe('identity', () => {
       baseUrl: 'http://localhost:4000',
     });
   });
+
+  // Two accounts must not be linkable by key: a shared identity would let the
+  // server tie both accounts to one device.
+  it('gives each account its own keypair and never shares one', async () => {
+    const { loadOrCreateIdentity, identityBlobKey } = await import(
+      '@/utils/crypto/identity'
+    );
+    expect(identityBlobKey('a1')).toBe('e2eIdentityKeypair:a1');
+    expect(identityBlobKey()).toBe('e2eIdentityKeypair');
+    const a = await loadOrCreateIdentity('a1');
+    const b = await loadOrCreateIdentity('a2');
+    expect(a.publicKeyHex).not.toBe(b.publicKeyHex);
+    expect(await loadOrCreateIdentity('a1')).toEqual(a);
+  });
 });
