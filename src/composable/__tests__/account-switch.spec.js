@@ -2,10 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
 // Stateful blob mock: identity + credentials only reach storage through it.
-const { blobs, teardownSpy, switchSpy, runInitSpy, fetchWsSpy } = vi.hoisted(() => ({
+const { blobs, nativeActive, teardownSpy, switchSpy, runInitSpy, fetchWsSpy } = vi.hoisted(() => ({
   blobs: new Map(),
+  // Rust keeps the active workspace itself; the mock models it following a
+  // successful switch, because that is what makes the two agree in the app.
+  nativeActive: { id: null },
   teardownSpy: vi.fn(async () => {}),
-  switchSpy: vi.fn(async () => {}),
+  switchSpy: vi.fn(async (id) => {
+    nativeActive.id = id;
+  }),
   runInitSpy: vi.fn(async () => {}),
   fetchWsSpy: vi.fn(async () => {}),
 }));
@@ -40,7 +45,7 @@ vi.mock('@/composable/useCloudWorkspaces', async (importOriginal) => {
 vi.mock('@/lib/native/workspaces', () => ({
   switchLocalWorkspace: switchSpy,
   listLocalWorkspaces: vi.fn(async () => []),
-  getActiveLocalWorkspace: vi.fn(async () => null),
+  getActiveLocalWorkspace: vi.fn(async () => ({ id: nativeActive.id })),
 }));
 
 vi.mock('@/composable/useAppShell', () => ({
@@ -84,8 +89,11 @@ beforeEach(async () => {
   setActivePinia(createPinia());
   localStorage.clear();
   blobs.clear();
+  nativeActive.id = null;
   vi.clearAllMocks();
-  switchSpy.mockImplementation(async () => {});
+  switchSpy.mockImplementation(async (id) => {
+    nativeActive.id = id;
+  });
   runInitSpy.mockImplementation(async () => {});
   fetchWsSpy.mockImplementation(async () => {});
   await clearIndex();
@@ -135,6 +143,17 @@ describe('switching account in place', () => {
     expect(teardownSpy).toHaveBeenCalledTimes(1);
     expect(switchSpy).toHaveBeenCalledTimes(1);
     expect(runInitSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('switches when the store already shows the workspace but Rust never followed', async () => {
+    await seed([PERSONAL, TEAM], 't1');
+    const { useWorkspaceStore } = await import('@/store/workspace');
+    useWorkspaceStore().activeId = 'w-team';
+    nativeActive.id = 'w-personal';
+
+    await switchAccount({ accountId: 't1', workspaceId: 'w-team' });
+
+    expect(switchSpy).toHaveBeenCalledWith('w-team');
   });
 
   it('a second switch during the first cannot interleave', async () => {

@@ -203,7 +203,19 @@ async function performSwitch({ accountId, workspaceId, force = false } = {}) {
     useWorkspaceStore().activeId || cloud.activeId.value || accountStore.activeWorkspaceId;
   const targetWorkspaceId = await resolveAccountWorkspace(accountId, record, workspaceId);
 
-  if (!force && getActiveAccountId() === accountId && currentWorkspaceId === targetWorkspaceId) {
+  // This store is not the only place that decides: Rust keeps the active
+  // workspace in its registry and every sync cycle reads the data pool that
+  // registry points at, so a store already showing the target still has to
+  // move the registry, or the cycle would keep reading the leaving account's
+  // pool (and publish its rows under the arriving token).
+  const { getActiveLocalWorkspace } = await import('@/lib/native/workspaces');
+  const nativeWorkspace = await getActiveLocalWorkspace().catch(() => null);
+  if (
+    !force &&
+    getActiveAccountId() === accountId &&
+    currentWorkspaceId === targetWorkspaceId &&
+    nativeWorkspace?.id === targetWorkspaceId
+  ) {
     return { switched: false, reason: 'already-active' };
   }
 
