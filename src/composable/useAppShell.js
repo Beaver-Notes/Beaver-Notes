@@ -752,8 +752,15 @@ export function useAppShell(onboardingCompleted = true) {
         );
         const result = await useCloudWorkspaces().joinWorkspace(token);
         // A require-approval invite grants nothing until approved; stay put so
-        // the pending state is visible instead of reloading as if joined.
-        if (!result?.pending) window.location.reload();
+        // the pending state is visible instead of switching as if joined.
+        if (!result?.pending && result?.workspaceId) {
+          const { switchAccount } = await import('@/composable/useAccountAuth');
+          const { getActiveAccountId } = await import('@/lib/accounts-index');
+          await switchAccount({
+            accountId: getActiveAccountId(),
+            workspaceId: result.workspaceId,
+          });
+        }
         return;
       }
       if (path.startsWith('join/')) {

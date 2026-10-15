@@ -1,7 +1,11 @@
 <template>
   <div>
     <mobile-sync-strip v-if="isMobile" />
-    <mobile-workspace-bar v-if="isMobile" />
+    <!-- The mobile workspace label: the same switcher the sidebar shows on
+         desktop, so accounts and workspaces are reachable on a phone. -->
+    <div v-if="isMobile" class="px-4 pt-2">
+      <workspace-switcher expanded />
+    </div>
 
     <div class="container pt-6">
       <h1 class="text-4xl mb-6 font-bold">
@@ -185,7 +189,7 @@ import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
 import MobileSyncStrip from '../components/app/MobileSyncStrip.vue';
-import MobileWorkspaceBar from '../components/app/MobileWorkspaceBar.vue';
+import WorkspaceSwitcher from '../components/app/WorkspaceSwitcher.vue';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
@@ -199,7 +203,7 @@ export default {
     Actions,
     EmptyState,
     MobileSyncStrip,
-    MobileWorkspaceBar,
+    WorkspaceSwitcher,
   },
   setup() {
     const { translations } = useTranslations();
