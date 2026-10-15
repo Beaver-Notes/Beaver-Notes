@@ -6,19 +6,53 @@ import {
   fetchSecureBlob,
   clearSecureBlob,
 } from '@/lib/native/security';
+import { getActiveAccountId } from '@/lib/accounts-index';
 
 const SESSION_BLOB_KEY = 'beaverAccountSession';
+const REFRESH_BLOB_KEY = 'accountRefreshTokenBlob';
+const PROFILE_BLOB_KEY = 'beaverAccountProfile';
+const DEVICE_BLOB_KEY = 'beaverAccountDeviceId';
+
 // Duo/dev isolation: two app instances on one machine share the WebKit
 // localStorage, so a fresh instance would resurrect the other instance's
 // session through the mirror fallback. VITE_DUO_SUFFIX namespaces the
 // mirror key per instance (secure blobs are already per-instance via
 // BEAVER_NOTES_DATA_DIR). Empty in prod: key unchanged.
-const SESSION_MIRROR_KEY =
-  SESSION_BLOB_KEY +
-  ((typeof import.meta !== 'undefined' && import.meta.env?.VITE_DUO_SUFFIX) ||
-    '');
-const DEVICE_BLOB_KEY = 'beaverAccountDeviceId';
-const PROFILE_BLOB_KEY = 'beaverAccountProfile';
+const DUO_SUFFIX =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DUO_SUFFIX) ||
+  '';
+
+// Credentials are per account, so each key is `<base>:<accountId>`. With no
+// account id (signed out, or an install that predates accounts) the
+// pre-migration install-level key is used unchanged — which is also what keeps
+// a downgrade working.
+export function sessionBlobKey(accountId) {
+  return accountId ? `accountSession:${accountId}` : SESSION_BLOB_KEY;
+}
+
+export function sessionMirrorKey(accountId) {
+  return sessionBlobKey(accountId) + DUO_SUFFIX;
+}
+
+export function refreshBlobKey(accountId) {
+  return accountId ? `accountRefreshToken:${accountId}` : REFRESH_BLOB_KEY;
+}
+
+export function refreshMirrorKey(accountId) {
+  // The pre-migration mirror carries no duo suffix; keep that exact key so an
+  // upgrade cannot orphan the refresh token already on disk.
+  return accountId
+    ? `accountRefreshToken:${accountId}${DUO_SUFFIX}`
+    : 'accountRefreshTokenMirror';
+}
+
+export function profileBlobKey(accountId) {
+  return accountId ? `accountProfile:${accountId}` : PROFILE_BLOB_KEY;
+}
+
+function resolveAccountId(accountId) {
+  return accountId ?? getActiveAccountId();
+}
 
 function safeStorageAvailable() {
   return isEncryptionAvailable().catch(() => false);
@@ -49,15 +83,16 @@ function fromBase64(base64) {
   }
 }
 
-export async function saveSessionToken(token) {
+export async function saveSessionToken(token, accountId) {
+  const id = resolveAccountId(accountId);
   if (!token) {
-    await clearSessionToken();
+    await clearSessionToken(id);
     return;
   }
   // Always save to localStorage as backup
   try {
     const cipher = await encryptString(toBase64(token));
-    localStorage.setItem(SESSION_MIRROR_KEY, cipher);
+    localStorage.setItem(sessionMirrorKey(id), cipher);
   } catch {
     // Encryption failed: never persist plaintext backup.
   }
@@ -65,14 +100,15 @@ export async function saveSessionToken(token) {
   if (await safeStorageAvailable()) {
     try {
       const cipher = await encryptString(toBase64(token));
-      await storeSecureBlob(SESSION_BLOB_KEY, cipher);
+      await storeSecureBlob(sessionBlobKey(id), cipher);
     } catch {
       // secure storage failed, encrypted localStorage mirror is already saved
     }
   }
 }
 
-export async function loadSessionToken() {
+export async function loadSessionToken(accountId) {
+  const id = resolveAccountId(accountId);
   try {
     // Opportunistically scrub a legacy plaintext backup written before the
     // no-plaintext-fallback rule.
@@ -82,7 +118,7 @@ export async function loadSessionToken() {
     // Try secure storage first
     if (await safeStorageAvailable()) {
       try {
-        const cipher = await fetchSecureBlob(SESSION_BLOB_KEY);
+        const cipher = await fetchSecureBlob(sessionBlobKey(id));
         if (cipher) {
           const plain = await decryptString(cipher);
           return fromBase64(plain) || null;
@@ -92,7 +128,7 @@ export async function loadSessionToken() {
       }
     }
     // Try localStorage with decryption
-    const cipher = localStorage.getItem(SESSION_MIRROR_KEY);
+    const cipher = localStorage.getItem(sessionMirrorKey(id));
     if (cipher) {
       try {
         const plain = await decryptString(cipher);
@@ -108,10 +144,11 @@ export async function loadSessionToken() {
   }
 }
 
-export async function clearSessionToken() {
+export async function clearSessionToken(accountId) {
+  const id = resolveAccountId(accountId);
   try {
-    await clearSecureBlob(SESSION_BLOB_KEY);
-    localStorage.removeItem(SESSION_MIRROR_KEY);
+    await clearSecureBlob(sessionBlobKey(id));
+    localStorage.removeItem(sessionMirrorKey(id));
     localStorage.removeItem(SESSION_BLOB_KEY + '_plain');
   } catch (err) {
     console.error('[accountStorage] clearSessionToken failed:', err);
@@ -121,35 +158,34 @@ export async function clearSessionToken() {
 // Refresh token storage. Same encryption and secure-storage rules as the
 // session token, but a separate slot: clearing the session must NOT throw the
 // refresh token away, or the next 401 could never be recovered from.
-const REFRESH_BLOB_KEY = 'accountRefreshTokenBlob';
-const REFRESH_MIRROR_KEY = 'accountRefreshTokenMirror';
-
-export async function saveRefreshToken(token) {
+export async function saveRefreshToken(token, accountId) {
+  const id = resolveAccountId(accountId);
   if (!token) {
-    await clearRefreshToken();
+    await clearRefreshToken(id);
     return;
   }
   try {
     const cipher = await encryptString(toBase64(token));
-    localStorage.setItem(REFRESH_MIRROR_KEY, cipher);
+    localStorage.setItem(refreshMirrorKey(id), cipher);
   } catch {
     // Encryption failed: never persist a plaintext backup.
   }
   if (await safeStorageAvailable()) {
     try {
       const cipher = await encryptString(toBase64(token));
-      await storeSecureBlob(REFRESH_BLOB_KEY, cipher);
+      await storeSecureBlob(refreshBlobKey(id), cipher);
     } catch {
       // secure storage failed, encrypted localStorage mirror is already saved
     }
   }
 }
 
-export async function loadRefreshToken() {
+export async function loadRefreshToken(accountId) {
+  const id = resolveAccountId(accountId);
   try {
     if (await safeStorageAvailable()) {
       try {
-        const cipher = await fetchSecureBlob(REFRESH_BLOB_KEY);
+        const cipher = await fetchSecureBlob(refreshBlobKey(id));
         if (cipher) {
           const plain = await decryptString(cipher);
           return fromBase64(plain) || null;
@@ -158,7 +194,7 @@ export async function loadRefreshToken() {
         // Fall through to localStorage
       }
     }
-    const cipher = localStorage.getItem(REFRESH_MIRROR_KEY);
+    const cipher = localStorage.getItem(refreshMirrorKey(id));
     if (cipher) {
       try {
         const plain = await decryptString(cipher);
@@ -174,35 +210,38 @@ export async function loadRefreshToken() {
   }
 }
 
-export async function clearRefreshToken() {
+export async function clearRefreshToken(accountId) {
+  const id = resolveAccountId(accountId);
   // The mirror removal must not depend on the secure store: if clearing the
   // blob throws, a dead refresh token would survive and be retried forever.
   try {
-    await clearSecureBlob(REFRESH_BLOB_KEY);
+    await clearSecureBlob(refreshBlobKey(id));
   } catch (err) {
     console.error('[accountStorage] clearRefreshToken blob failed:', err);
   }
-  localStorage.removeItem(REFRESH_MIRROR_KEY);
+  localStorage.removeItem(refreshMirrorKey(id));
 }
 
-export async function saveCachedProfile(profile) {
+export async function saveCachedProfile(profile, accountId) {
+  const id = resolveAccountId(accountId);
   if (!profile) {
-    await clearCachedProfile();
+    await clearCachedProfile(id);
     return;
   }
   try {
     if (!(await safeStorageAvailable())) return;
     const cipher = await encryptString(toBase64(profile));
-    await storeSecureBlob(PROFILE_BLOB_KEY, cipher);
+    await storeSecureBlob(profileBlobKey(id), cipher);
   } catch (err) {
     console.error('[accountStorage] saveCachedProfile failed:', err);
   }
 }
 
-export async function loadCachedProfile() {
+export async function loadCachedProfile(accountId) {
+  const id = resolveAccountId(accountId);
   try {
     if (!(await safeStorageAvailable())) return null;
-    const cipher = await fetchSecureBlob(PROFILE_BLOB_KEY);
+    const cipher = await fetchSecureBlob(profileBlobKey(id));
     if (!cipher) return null;
     const plain = await decryptString(cipher);
     return JSON.parse(fromBase64(plain) || 'null');
@@ -212,9 +251,10 @@ export async function loadCachedProfile() {
   }
 }
 
-export async function clearCachedProfile() {
+export async function clearCachedProfile(accountId) {
+  const id = resolveAccountId(accountId);
   try {
-    await clearSecureBlob(PROFILE_BLOB_KEY);
+    await clearSecureBlob(profileBlobKey(id));
   } catch (err) {
     console.error('[accountStorage] clearCachedProfile failed:', err);
   }
@@ -255,15 +295,21 @@ export async function clearAccountDeviceId() {
   }
 }
 
-export async function clearAllAccountStorage() {
+// No argument means the install-level sign-out: it wipes the active account's
+// credentials and the device registration. An explicit account id clears only
+// that account, so signing one account out cannot unregister the others.
+export async function clearAllAccountStorage(accountId) {
+  const target = resolveAccountId(accountId);
   await Promise.all([
-    clearSessionToken(),
+    clearSessionToken(target),
     // The refresh token is a credential in its own right: signing out must not
     // leave one on the disk that can mint a fresh session.
-    clearRefreshToken(),
-    clearCachedProfile(),
-    clearAccountDeviceId(),
+    clearRefreshToken(target),
+    clearCachedProfile(target),
   ]);
+  if (accountId == null) {
+    await clearAccountDeviceId();
+  }
 }
 
 export function useAccountStorage() {
