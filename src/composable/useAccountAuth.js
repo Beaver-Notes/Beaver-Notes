@@ -152,27 +152,49 @@ export function useAccountAuth() {
   }
 
   async function ensureDeviceId() {
-    let id = await loadAccountDeviceId();
+    let id = null;
+    try {
+      // The Rust id is installation-global and survives sign-out, the secure
+      // blob does not; prefer it so a re-login keeps its published identity
+      // (and session device_id matches account.device_keys).
+      const { getSyncDeviceId } = await import('@/utils/sync/sync-repository.js');
+      id = await getSyncDeviceId();
+    } catch {
+      id = null;
+    }
+    if (!id) {
+      id = await loadAccountDeviceId().catch(() => null);
+    }
     if (!id) {
       id =
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-      try {
-        await saveAccountDeviceId(id);
-      } catch (err) {
-        console.error('[auth] saveAccountDeviceId failed:', err);
-      }
+    }
+    try {
+      await saveAccountDeviceId(id);
+    } catch (err) {
+      console.error('[auth] saveAccountDeviceId failed:', err);
     }
     return id;
   }
 
-  async function performSignIn({ token, user, subscription, persist = true }) {
+  async function performSignIn({ token, user, subscription, refreshToken = null, persist = true }) {
     if (!token) {
       throw new Error('Sign-in response did not include a session token.');
     }
     if (persist) {
       await persistToken(token, user);
+      // Keep the rotating refresh token beside the session so a later 401 can
+      // be recovered silently instead of signing the user out.
+      if (refreshToken) {
+        try {
+          const { saveRefreshToken } = await import('@/lib/account-storage');
+          await saveRefreshToken(refreshToken);
+        } catch (err) {
+          console.error('[auth] persist refresh token failed:', err);
+        }
+      }
     }
     accountStore.setToken(token);
     setStatus('authenticated');
@@ -193,7 +215,7 @@ export function useAccountAuth() {
       const deviceId = await ensureDeviceId();
       const userKem = accountStore.profile?.kemPublicKey;
       if (!userKem || userKem !== identity.publicKeyHex) {
-        await publishIdentity(identity, deviceId);
+        await publishIdentity(identity, deviceId, activeBaseUrl());
         await fetchProfile();
       }
     } catch (err) {
@@ -223,6 +245,7 @@ export function useAccountAuth() {
       if (!normalizedEmail) {
         throw new Error('Email is required.');
       }
+      await ensureDeviceId();
       const requestOptions = await authApi.passkeyLoginBegin(normalizedEmail, {
         baseUrl: activeBaseUrl(),
       });
@@ -231,7 +254,6 @@ export function useAccountAuth() {
         { baseUrl: activeBaseUrl() },
         requestOptions
       );
-      await ensureDeviceId();
       return performSignIn(result || {});
     });
   }
@@ -242,6 +264,7 @@ export function useAccountAuth() {
       if (!normalizedEmail) {
         throw new Error('Email is required.');
       }
+      await ensureDeviceId();
       const deviceLabel = deriveDeviceLabel();
       const createOptions = await authApi.passkeyRegisterBegin(
         normalizedEmail,
@@ -264,10 +287,10 @@ export function useAccountAuth() {
       if (!normalizedEmail || !password) {
         throw new Error('Email and password are required.');
       }
+      await ensureDeviceId();
       const result = await authApi.passwordLogin(normalizedEmail, password, {
         baseUrl: activeBaseUrl(),
       });
-      await ensureDeviceId();
       return performSignIn(result || {});
     });
   }
@@ -282,12 +305,12 @@ export function useAccountAuth() {
         throw new Error('Password must be at least 12 characters.');
       }
       const identity = await loadOrCreateIdentity();
+      await ensureDeviceId();
       const result = await authApi.passwordRegister(normalizedEmail, password, {
         baseUrl: activeBaseUrl(),
         kemPublicKey: identity.publicKeyHex,
         username: typeof username === 'string' ? username.trim().slice(0, 50) : undefined,
       });
-      await ensureDeviceId();
       return performSignIn(result || {});
     });
   }
@@ -527,16 +550,43 @@ export function useAccountAuth() {
     return true;
   }
 
-  async function triggerSeed(onProgress) {
-    if (!accountStore.isAuthenticated) return false;
-    if (!accountStore.isPaidPlan) return false;
+  // A skipped seed used to return `false` with nothing recorded, so the
+  // onboarding "seeding" phase resolved having done nothing. Report the reason
+  // through the seedStatus/seedError pair the failure panel already renders.
+  function skipSeed(reason, message) {
+    logger.error(`[auth] cloud sync seed skipped: ${reason}`);
+    accountStore.setSeedStatus('error');
+    accountStore.setSeedError(message);
+    return { started: false, reason };
+  }
 
-    const transportSetting = await import('@/lib/settings').then(
-      (m) => m.getSettingSync('syncTransport')
-    );
+  async function triggerSeed(onProgress) {
+    if (!accountStore.isAuthenticated) {
+      return skipSeed('not-authenticated', 'Sign in to set up cloud sync.');
+    }
+    if (!accountStore.isPaidPlan) {
+      return skipSeed(
+        'plan-not-paid',
+        'Cloud sync needs a paid plan. Your notes stay on this device.'
+      );
+    }
+
+    const settings = await import('@/lib/settings');
+    const transportSetting = settings.getSettingSync('syncTransport');
     const { normalizeSyncTransport } = await import('@/lib/api/types.js');
-    if (transportSetting && normalizeSyncTransport(transportSetting) !== 'remote') {
-      return false;
+    if (normalizeSyncTransport(transportSetting) !== 'remote') {
+      // Folder mode requires a chosen folder: an empty sync path means the
+      // `folder` value is just the unset default (Settings sign-in never
+      // writes syncTransport), so adopt remote for this paid account and seed.
+      const syncPath = settings.getSettingSync('syncPath');
+      if (accountStore.isPaidPlan && !String(syncPath ?? '').trim()) {
+        await settings.setSetting('syncTransport', 'remote');
+      } else {
+        return skipSeed(
+          'transport-not-remote',
+          'Sync is set to a local folder, so there is no cloud copy to seed.'
+        );
+      }
     }
 
     accountStore.setSeedStatus('seeding');
@@ -627,7 +677,7 @@ export function useAccountAuth() {
       accountStore.setSeedStatus('error');
       accountStore.setSeedError(err?.message || 'Sync setup failed.');
       await stopSeedWatch();
-      return false;
+      return { started: false, reason: 'start-failed' };
     }
 
     await Promise.race([
@@ -640,9 +690,9 @@ export function useAccountAuth() {
       accountStore.setSeedStatus('error');
       accountStore.setSeedError('Sync setup timed out.');
       await stopSeedWatch();
-      return false;
+      return { started: false, reason: 'start-timeout' };
     }
-    return true;
+    return { started: true, reason: null };
   }
 
   onMounted(() => {

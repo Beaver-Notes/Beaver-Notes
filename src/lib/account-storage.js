@@ -118,6 +118,71 @@ export async function clearSessionToken() {
   }
 }
 
+// Refresh token storage. Same encryption and secure-storage rules as the
+// session token, but a separate slot: clearing the session must NOT throw the
+// refresh token away, or the next 401 could never be recovered from.
+const REFRESH_BLOB_KEY = 'accountRefreshTokenBlob';
+const REFRESH_MIRROR_KEY = 'accountRefreshTokenMirror';
+
+export async function saveRefreshToken(token) {
+  if (!token) {
+    await clearRefreshToken();
+    return;
+  }
+  try {
+    const cipher = await encryptString(toBase64(token));
+    localStorage.setItem(REFRESH_MIRROR_KEY, cipher);
+  } catch {
+    // Encryption failed: never persist a plaintext backup.
+  }
+  if (await safeStorageAvailable()) {
+    try {
+      const cipher = await encryptString(toBase64(token));
+      await storeSecureBlob(REFRESH_BLOB_KEY, cipher);
+    } catch {
+      // secure storage failed, encrypted localStorage mirror is already saved
+    }
+  }
+}
+
+export async function loadRefreshToken() {
+  try {
+    if (await safeStorageAvailable()) {
+      try {
+        const cipher = await fetchSecureBlob(REFRESH_BLOB_KEY);
+        if (cipher) {
+          const plain = await decryptString(cipher);
+          return fromBase64(plain) || null;
+        }
+      } catch {
+        // Fall through to localStorage
+      }
+    }
+    const cipher = localStorage.getItem(REFRESH_MIRROR_KEY);
+    if (cipher) {
+      try {
+        const plain = await decryptString(cipher);
+        return fromBase64(plain) || null;
+      } catch {
+        // Decryption failed, no plaintext fallback exists
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error('[accountStorage] loadRefreshToken failed:', err);
+    return null;
+  }
+}
+
+export async function clearRefreshToken() {
+  try {
+    await clearSecureBlob(REFRESH_BLOB_KEY);
+    localStorage.removeItem(REFRESH_MIRROR_KEY);
+  } catch (err) {
+    console.error('[accountStorage] clearRefreshToken failed:', err);
+  }
+}
+
 export async function saveCachedProfile(profile) {
   if (!profile) {
     await clearCachedProfile();
@@ -191,6 +256,9 @@ export async function clearAccountDeviceId() {
 export async function clearAllAccountStorage() {
   await Promise.all([
     clearSessionToken(),
+    // The refresh token is a credential in its own right: signing out must not
+    // leave one on the disk that can mint a fresh session.
+    clearRefreshToken(),
     clearCachedProfile(),
     clearAccountDeviceId(),
   ]);
@@ -201,6 +269,9 @@ export function useAccountStorage() {
     saveSessionToken,
     loadSessionToken,
     clearSessionToken,
+    saveRefreshToken,
+    loadRefreshToken,
+    clearRefreshToken,
     saveCachedProfile,
     loadCachedProfile,
     clearCachedProfile,

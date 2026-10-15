@@ -3,6 +3,24 @@ import {
   clearSessionToken,
 } from '@/lib/account-storage';
 
+async function defaultGetDeviceId() {
+  try {
+    const { loadAccountDeviceId } = await import('@/lib/account-storage');
+    return await loadAccountDeviceId();
+  } catch {
+    return null;
+  }
+}
+
+async function defaultGetDeviceLabel() {
+  try {
+    const { getDeviceModel } = await import('@/utils/device/device-model');
+    return getDeviceModel() || null;
+  } catch {
+    return null;
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_API_URL =
   (typeof import.meta !== 'undefined' &&
@@ -109,6 +127,8 @@ export function createApiClient({
   baseUrl,
   getToken = loadSessionToken,
   clearToken = clearSessionToken,
+  getDeviceId = defaultGetDeviceId,
+  getDeviceLabel = defaultGetDeviceLabel,
   defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
   fetchImpl = typeof fetch !== 'undefined' ? fetch.bind(globalThis) : null,
 } = {}) {
@@ -156,6 +176,16 @@ export function createApiClient({
       }
     }
 
+    const deviceId = await getDeviceId().catch(() => null);
+    if (deviceId) {
+      finalHeaders['X-Device-Id'] = deviceId;
+    }
+
+    const deviceLabel = await getDeviceLabel().catch(() => null);
+    if (deviceLabel) {
+      finalHeaders['X-Device-Label'] = deviceLabel;
+    }
+
     const { signal: timeoutSignal, cancel } = withTimeout(signal, timeoutMs);
 
     let response;
@@ -193,7 +223,19 @@ export function createApiClient({
     const body2 = await readBody(response).catch(() => null);
 
     if (!response.ok) {
-      if (response.status === 401 && auth) {
+      if (response.status === 401 && auth && !options?.retriedAfterRefresh) {
+        // A 401 is recoverable: the session can lapse while the refresh token
+        // is still good. Refresh once, retry the call, and only sign the user
+        // out when that fails.
+        let refreshed = false;
+        try {
+          refreshed = await tryRefreshToken();
+        } catch (err) {
+          console.warn('[api] refresh attempt failed:', err);
+        }
+        if (refreshed) {
+          return request(method, path, { ...options, retriedAfterRefresh: true });
+        }
         try {
           await clearToken();
         } catch (err) {
@@ -204,6 +246,47 @@ export function createApiClient({
     }
 
     return body2;
+  }
+
+  // One refresh at a time: concurrent 401s must not each rotate the token, or
+  // the loser of the race would present an already-rotated value and trip the
+  // replay guard, killing the whole family.
+  let refreshInFlight = null;
+  function tryRefreshToken() {
+    if (!refreshInFlight) {
+      refreshInFlight = (async () => {
+        const { loadRefreshToken, saveRefreshToken, saveSessionToken } = await import('@/lib/account-storage');
+        const refreshToken = await loadRefreshToken();
+        if (!refreshToken) return false;
+        const data = await request('POST', '/auth/refresh', { auth: false, body: { refreshToken } });
+        if (!data?.token) return false;
+        await saveSessionToken(data.token);
+        if (data.refreshToken) await saveRefreshToken(data.refreshToken);
+        // The rest of the app reads the token from the store, so a refreshed
+        // session has to land there too or nothing but this HTTP client recovers.
+        try {
+          const { useAccountStore } = await import('@/store/account');
+          useAccountStore().setToken(data.token);
+        } catch (err) {
+          console.warn('[api] could not sync refreshed token to the store:', err);
+        }
+        // The Rust sync engine holds the token it was started with, so hand it
+        // the new one — otherwise background sync keeps presenting the dead
+        // session and the banner comes back.
+        try {
+          const rustSync = await import('@/utils/sync/rust-shim');
+          if (rustSync.isRustSyncActive()) await rustSync.startRustSync();
+        } catch (err) {
+          console.warn('[api] could not re-arm rust sync after refresh:', err);
+        }
+        return true;
+      })()
+        .catch(() => false)
+        .finally(() => {
+          refreshInFlight = null;
+        });
+    }
+    return refreshInFlight;
   }
 
   return {
