@@ -25,7 +25,7 @@
           </span>
           <span
             v-if="activeRole && activeRole !== 'owner'"
-            class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
+            class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-medium"
           >
             {{ activeRole }}
           </span>
@@ -94,7 +94,7 @@
 
             <span
               v-if="accountPlan(acct)"
-              class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
+              class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-medium"
             >
               {{ accountPlan(acct) }}
             </span>
@@ -342,9 +342,10 @@ export default {
     }
 
     // The plan badge reads the account record, not the store: it has to be
-    // right for every account in the list, not only the active one.
+    // right for every account in the list, not only the active one. Migration
+    // and sign-in leave `subscription` null, so `planLimits` is the real source.
     function accountPlan(acct) {
-      const plan = acct?.subscription?.plan;
+      const plan = acct?.subscription?.plan || acct?.planLimits?.plan;
       return typeof plan === 'string' ? plan : '';
     }
 

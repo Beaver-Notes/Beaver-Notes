@@ -87,7 +87,10 @@ const ACCOUNTS = [
   {
     id: 't1',
     email: 'team@test.test',
-    subscription: { plan: 'team' },
+    // What sign-in/migration actually leave behind: no subscription object,
+    // the plan only in planLimits.
+    subscription: null,
+    planLimits: { plan: 'team' },
     workspaces: [{ id: 'ws2', name: 'Beta', role: 'owner' }],
     activeWorkspaceId: 'ws2',
   },
@@ -138,6 +141,7 @@ describe('WorkspaceSwitcher accounts', () => {
     expect(wrapper.text()).toContain('me@test.test');
     expect(wrapper.text()).toContain('team@test.test');
     expect(wrapper.text()).toContain('pro');
+    expect(wrapper.text()).toContain('team');
     expect(wrapper.find('[data-testid="workspace-option-active"]').exists()).toBe(
       true,
     );
