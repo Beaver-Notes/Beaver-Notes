@@ -13,6 +13,7 @@ const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
 import { useTheme } from './theme';
 import { useStorage } from '@/lib/storage';
 import {
+  getSetting,
   getSettingSync,
   hydrateSettingsStore,
   setSetting,
@@ -26,6 +27,7 @@ import { useAccountStore } from '@/store/account';
 import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
+import { logger } from '@/utils/logger';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
 import {
   appReady,
@@ -503,7 +505,7 @@ export function useAppShell(onboardingCompleted = true) {
 
     const [hasData, onboardingCompleted] = await Promise.all([
       hasExistingWorkspaceData(),
-      settingsStorage.get('onboardingCompleted', false),
+      getSetting('onboardingCompleted'),
     ]);
 
     if (!hasData && !onboardingCompleted) {
@@ -630,15 +632,47 @@ export function useAppShell(onboardingCompleted = true) {
         } catch {
           // non-critical: sync retries next cycle.
         }
+        // Observed bug: a session restored from secure storage never re-published
+        // the ML-KEM keypair (only interactive sign-in did), so the server held no
+        // device key for this account and other accounts could not encrypt for it.
+        try {
+          const { loadOrCreateIdentity, publishIdentity } = await import(
+            '@/utils/crypto/identity'
+          );
+          const { loadAccountDeviceId } = await import('@/lib/account-storage');
+          const { getSyncDeviceId } = await import('@/utils/sync/sync-repository.js');
+          const identity = await loadOrCreateIdentity();
+          const deviceId =
+            (await getSyncDeviceId().catch(() => null)) ||
+            (await loadAccountDeviceId().catch(() => null));
+          if (identity?.publicKeyHex && deviceId) {
+            await publishIdentity(identity, deviceId, accountStore.serverUrl);
+            const { getAccount } = await import('@/lib/api/account');
+            const refreshed = await getAccount({
+              baseUrl: accountStore.serverUrl,
+            });
+            if (refreshed) accountStore.setProfile(refreshed.profile);
+          }
+        } catch (err) {
+          logger.warn(
+            '[app] restored-session keypair publish failed:',
+            err?.message || err,
+          );
+        }
         await useWorkspaceStore().retrieve();
 
         // Join meta room now activeId known (was null at loadWorkspaceDoc).
-        const { getWsSync } = await import('@/lib/sync/ws-sync');
+        const { getWsSync, retryParkedNoteJoins } = await import('@/lib/sync/ws-sync');
         const { ensureMetaRoomKey } = await import('@/lib/yjs/workspace-doc');
         const wsId = useWorkspaceStore().activeId;
         if (wsId) {
           await ensureMetaRoomKey(wsId).catch(() => {});
           getWsSync().joinMetaRoom(wsId);
+          // A note page that mounted before this hydrate parked its room join
+          // because the workspace id was still null. Now that activeId is known,
+          // replay those joins, or the room stays unjoined for the whole session:
+          // no realtime typing, no presence.
+          retryParkedNoteJoins();
         }
       }
     } catch (err) {
@@ -646,6 +680,7 @@ export function useAppShell(onboardingCompleted = true) {
     }
     initAppSync();
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', refreshSharedNotesQuietly);
 
     performance.mark('init:done');
     logStartupTiming();
@@ -671,6 +706,23 @@ export function useAppShell(onboardingCompleted = true) {
           ? payload
           : payload?.url || payload?.path || '';
       const path = raw.replace(/^beaver-notes:\/\//, '');
+      if (path.startsWith('join-ws/')) {
+        const token = path.slice('join-ws/'.length);
+        if (!token) return;
+        const accountStore = useAccountStore();
+        if (!accountStore.isAuthenticated) {
+          console.warn('[deep-link] Cannot join workspace: not authenticated');
+          return;
+        }
+        const { useCloudWorkspaces } = await import(
+          '@/composable/useCloudWorkspaces'
+        );
+        const result = await useCloudWorkspaces().joinWorkspace(token);
+        // A require-approval invite grants nothing until approved; stay put so
+        // the pending state is visible instead of reloading as if joined.
+        if (!result?.pending) window.location.reload();
+        return;
+      }
       if (path.startsWith('join/')) {
         const token = path.slice('join/'.length);
         if (!token) return;
@@ -684,6 +736,14 @@ export function useAppShell(onboardingCompleted = true) {
           baseUrl: accountStore.serverUrl,
         });
         if (result?.noteId) {
+          try {
+            const { useSharedNotes } = await import(
+              '@/composable/useSharedNotes'
+            );
+            await useSharedNotes().refreshSharedNotes();
+          } catch {
+            // fall through to navigation
+          }
           router.push(`/note/${result.noteId}`);
         }
       }
@@ -693,7 +753,9 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   onMounted(async () => {
-    document.body.style.zoom = state.zoomLevel;
+    if (Number(state.zoomLevel) !== 1) {
+      document.body.style.zoom = state.zoomLevel;
+    }
 
     if (!onboardingCompleted) {
       retrieved.value = true;
@@ -799,7 +861,7 @@ export function useAppShell(onboardingCompleted = true) {
             'hasExistingWorkspaceData',
           ).catch(() => false),
           withTimeout(
-            settingsStorage.get('onboardingCompleted', false),
+            getSetting('onboardingCompleted'),
             1500,
             'onboardingCompleted',
           ).catch(() => false),
@@ -830,11 +892,21 @@ export function useAppShell(onboardingCompleted = true) {
     });
   });
 
+  // A new invite reaches a running app through no push channel: the pull only
+  // runs on a workspace fetch (app start, workspace switch). Refresh whenever
+  // the user returns to the window, so an invite lands without a reload.
+  function refreshSharedNotesQuietly() {
+    void import('@/composable/useSharedNotes')
+      .then(({ useSharedNotes }) => useSharedNotes().refreshSharedNotes())
+      .catch(() => {});
+  }
+
   function handleVisibilityChange() {
     if (document.hidden) {
       kickRustDirty();
     } else {
       kickRustSync();
+      refreshSharedNotesQuietly();
     }
   }
 
@@ -842,6 +914,7 @@ export function useAppShell(onboardingCompleted = true) {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('focus', refreshSharedNotesQuietly);
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())

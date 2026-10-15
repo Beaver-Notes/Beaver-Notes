@@ -9,6 +9,16 @@ const api = vi.hoisted(() => ({
   inviteCollaborator: vi.fn(),
   generateInviteLink: vi.fn(),
   listCollaborators: vi.fn().mockResolvedValue([]),
+  getWorkspaceMembers: vi.fn().mockResolvedValue({ members: [] }),
+}));
+
+vi.mock('@/lib/api/workspaces', () => ({
+  getWorkspaceMembers: api.getWorkspaceMembers,
+}));
+
+vi.mock('@/utils/sync/shared-notes', () => ({
+  resolveNoteWorkspaceId: vi.fn((noteId, fallback) => fallback ?? null),
+  isSharedNote: vi.fn(() => false),
 }));
 
 vi.mock('@/lib/api/collaboration', () => ({
@@ -44,6 +54,10 @@ vi.mock('@/utils/crypto/note-key', () => ({
 vi.mock('@/utils/sync/shared-keys', () => ({
   registerSharedSyncKey: vi.fn(),
   expectSharedSyncNote: vi.fn(),
+  getActiveWsKey: vi.fn(() => null),
+  setActiveWsKey: vi.fn(),
+  registerWsKeyForNote: vi.fn(async () => true),
+  registerWsKeyForNotes: vi.fn(async () => {}),
 }));
 
 vi.mock('@/utils/crypto/identity', () => ({
@@ -112,5 +126,70 @@ describe('useNoteSharing workspace resolution', () => {
 
     expect(wsState.retrieve).toHaveBeenCalledTimes(1);
     expect(sharing.error.value).toBe(NOTE_WORKSPACE_UNCONFIRMED_MESSAGE);
+  });
+
+  it('merges workspace members into collaborators marked viaWorkspace, invite roles win', async () => {
+    wsState.activeId = 'ws-9';
+    api.listCollaborators.mockResolvedValue([
+      { userId: 'u1', username: 'owner', role: 'owner' },
+    ]);
+    api.getWorkspaceMembers.mockResolvedValue({
+      members: [
+        { userId: 'u1', username: 'owner', role: 'owner' },
+        { userId: 'u2', username: 'teammate', role: 'editor' },
+      ],
+    });
+
+    const sharing = useNoteSharing();
+    await sharing.fetchCollaborators('n1');
+
+    expect(api.getWorkspaceMembers).toHaveBeenCalledWith(
+      'ws-9',
+      expect.objectContaining({ baseUrl: 'https://sync.test' }),
+    );
+    expect(sharing.collaborators.value).toEqual([
+      expect.objectContaining({ userId: 'u1', role: 'owner' }),
+      expect.objectContaining({ userId: 'u2', username: 'teammate', viaWorkspace: true }),
+    ]);
+    expect(sharing.collaborators.value.find((c) => c.userId === 'u1')).not.toHaveProperty('viaWorkspace');
+  });
+
+  it('falls back to workspace members when the note invitations list 403s (workspace-key member)', async () => {
+    // Regression: an editor who reads a note via the workspace key is not a
+    // per-note invitee, so the invitations endpoint 403s — the share modal
+    // used to show nobody and skipped the member merge entirely.
+    wsState.activeId = 'ws-9';
+    api.listCollaborators.mockRejectedValue(Object.assign(new Error('forbidden'), { status: 403 }));
+    api.getWorkspaceMembers.mockResolvedValue({
+      members: [{ userId: 'u2', username: 'teammate', role: 'editor' }],
+    });
+
+    const sharing = useNoteSharing();
+    await sharing.fetchCollaborators('n1');
+
+    expect(api.getWorkspaceMembers).toHaveBeenCalledWith(
+      'ws-9',
+      expect.objectContaining({ baseUrl: 'https://sync.test' }),
+    );
+    expect(sharing.collaborators.value).toEqual([
+      expect.objectContaining({ userId: 'u2', username: 'teammate', viaWorkspace: true }),
+    ]);
+    expect(sharing.error.value).toBe('');
+  });
+
+  it('keeps per-note invites when the member fetch fails', async () => {
+    wsState.activeId = 'ws-9';
+    api.listCollaborators.mockResolvedValue([
+      { userId: 'u1', username: 'owner', role: 'owner' },
+    ]);
+    api.getWorkspaceMembers.mockRejectedValue(new Error('offline'));
+
+    const sharing = useNoteSharing();
+    await sharing.fetchCollaborators('n1');
+
+    expect(sharing.collaborators.value).toEqual([
+      expect.objectContaining({ userId: 'u1', role: 'owner' }),
+    ]);
+    expect(sharing.error.value).toBe('');
   });
 });

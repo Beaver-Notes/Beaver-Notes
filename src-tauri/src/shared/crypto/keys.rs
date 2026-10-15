@@ -494,6 +494,11 @@ pub(crate) fn key_params_from_manifest(
     })
 }
 
+/// Raised when the sync file already wraps a different vault. Callers that can
+/// tolerate it (the cloud seed) match on this constant instead of the prose.
+pub(crate) const KEY_PARAMS_DIFFERENT_VAULT: &str =
+    "sync: keyParams.json already holds a different vault — refusing to overwrite";
+
 /// Whether `publish_key_params` may replace `existing` with the local
 /// manifest's params. Writing unconditionally let two devices mint divergent
 /// vaults: the second writer clobbered the first's `keyParams.json`, and every
@@ -522,9 +527,7 @@ pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<()
     // conflict instead of silently overwriting.
     if let Some(existing) = read_key_params(app, state)? {
         if !key_params_overwrite_allowed(Some(&existing), &manifest) {
-            return Err(AppError::Crypto(
-                "sync: keyParams.json already holds a different vault — refusing to overwrite".into(),
-            ));
+            return Err(AppError::Crypto(KEY_PARAMS_DIFFERENT_VAULT.into()));
         }
     }
     if let Some(parent) = path.parent() {

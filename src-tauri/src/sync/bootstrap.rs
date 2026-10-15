@@ -21,7 +21,7 @@ use crate::db::{self, DbPool};
 use crate::shared::{
     aead_decrypt_bytes, aead_decrypt_json, aead_encrypt_bytes, app_storage_dir, data_pool,
     publish_key_params, sync_key_params_path, write_barrier, AppError, AppState, SyncEnvelope,
-    PROTOCOL_VERSION, SHARED_PAYLOAD_VERSION, SYNC_PAYLOAD_VERSION,
+    KEY_PARAMS_DIFFERENT_VAULT, PROTOCOL_VERSION, SHARED_PAYLOAD_VERSION, SYNC_PAYLOAD_VERSION,
 };
 
 /// Local asset root (`ASSET_TYPES` in `src/utils/sync/constants.js`); mirrors
@@ -44,6 +44,21 @@ fn fail_str(e: &CloudFail) -> String {
     }
 }
 
+/// Detail beyond the status class, so a bare `unauthorized` at least says
+/// what the server actually objected to.
+fn e_short(e: &CloudFail) -> String {
+    match e {
+        CloudFail::Fatal(err) => err.to_string().chars().take(240).collect(),
+        _ => "no server detail captured".to_string(),
+    }
+}
+
+/// 409 from an endpoint, as `remote::status_fail` words it. `CloudFail` carries
+/// no status code, so the claim call reads it back out of the message.
+fn is_conflict(e: &CloudFail) -> bool {
+    matches!(e, CloudFail::Fatal(err) if err.to_string().contains("status 409"))
+}
+
 /// Build the JS-compatible snapshot envelope
 /// `{v:5, meta:{device,ts,sequence:0,noteId}, iv, enc}` for a merged Yjs state.
 /// AAD is `{note_id}-{ts}`, matching the JS seed (`cloud.js:988`) — the
@@ -61,7 +76,7 @@ fn seed_snapshot_envelope(
 /// Same envelope with an explicit `v`: v5 (items key) for personal notes, v6
 /// (shared note/workspace key) for collaborative ones, so a seeded shared
 /// workspace is readable by every member, not just the seeding account.
-fn seed_snapshot_envelope_versioned(
+pub(crate) fn seed_snapshot_envelope_versioned(
     key: &[u8; 32],
     version: u8,
     device: &str,
@@ -82,7 +97,7 @@ fn seed_snapshot_envelope_versioned(
 
 /// Key + envelope version to seal a snapshot with: a registered shared key
 /// (per-note key, or workspace key for `meta`) yields v6, else v5 + items key.
-fn snapshot_seal(
+pub(crate) fn snapshot_seal(
     app_key: &[u8; 32],
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     note_id: &str,
@@ -205,7 +220,22 @@ async fn publish_seed_key_params(
         let inner = state.inner();
         // Derived from the encryption manifest; JS base64s `readData(p)` and
         // derives the proof over that exact blob (`vault-key-params.js:80-93`).
-        publish_key_params(app, inner).map_err(CloudFail::Fatal)?;
+        // The file can already hold the account's params (JS wrote them from the
+        // cloud). Refusing to clobber a different vault is correct, but it must
+        // not fail the seed every tick: the blob published below is the file's,
+        // which the server already holds.
+        if let Err(err) = publish_key_params(app, inner) {
+            let other_vault = matches!(
+                &err,
+                AppError::Crypto(msg) if msg == KEY_PARAMS_DIFFERENT_VAULT
+            );
+            if !other_vault {
+                return Err(CloudFail::Fatal(err));
+            }
+            crate::rs_log!(
+                "[sync::bootstrap] key params already hold a different vault; keeping them"
+            );
+        }
         let path = sync_key_params_path(app, inner)
             .map_err(CloudFail::Fatal)?
             .ok_or_else(|| seed_fail("publish", "local vault key params path unavailable"))?;
@@ -486,6 +516,21 @@ pub(crate) async fn seed_cloud_workspace(
     let shared = crate::shared::shared_note_keys(app.state::<AppState>().inner())
         .map_err(CloudFail::Fatal)?;
 
+    // Assemble BEFORE claiming. A device with nothing to seed must never take
+    // the claim: the claim writes a 30-minute TTL, `/initialize/complete` is
+    // then never reached, and every client skips the workspace until the TTL
+    // lapses — at which point the same device claims again and parks it forever.
+    // The log showed 43 `state gate: proceed (status=initializing)` against
+    // hundreds of `skipping note <id>: Yjs blob decryption failed`, i.e. exactly
+    // that loop. Deciding here costs only local work.
+    let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
+    let snapshots =
+        assemble_snapshots(&pool, WriterKey::Session(app.clone()), &shared, now_ms).await?;
+    if snapshots.is_empty() {
+        crate::rs_log!("[sync::bootstrap] nothing to seed; not claiming initialization");
+        return Ok(false);
+    }
+
     // Claim. Any failure re-probes the state: if another device initialized
     // meanwhile, this device simply yields (`cloud.js:894-907`).
     let claim: serde_json::Value = match client
@@ -497,6 +542,14 @@ pub(crate) async fn seed_cloud_workspace(
     {
         Ok(claim) => claim,
         Err(e) => {
+            // A 409 means another device holds a live lease: nothing is broken,
+            // so wait for the next tick instead of surfacing a sync failure.
+            if is_conflict(&e) {
+                crate::rs_log!(
+                    "[sync::bootstrap] initialization lease held elsewhere; will retry later"
+                );
+                return Ok(false);
+            }
             // Only an exact `initialized` status means another device won; any
             // other state (initializing/recovering/empty-with-docs) is still
             // this workspace mid-init, so propagate the original claim error.
@@ -521,17 +574,46 @@ pub(crate) async fn seed_cloud_workspace(
         .ok_or_else(|| seed_fail("claim", "initialization claim missing token"))?
         .to_string();
 
-    publish_seed_key_params(app, &client, workspace_id).await?;
-
-    let now_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    let snapshots =
-        assemble_snapshots(&pool, WriterKey::Session(app.clone()), &shared, now_ms).await?;
-    if snapshots.is_empty() {
-        return Err(seed_fail("snapshot", "nothing to push"));
+    // Everything past the claim runs under a 30-minute server lease. Any failure
+    // here without a release leaves the row at `status=initializing` with no way
+    // back in until the TTL lapses, so the post-claim work is wrapped and the
+    // lease released on Err before the original error travels on.
+    let seeded = seed_after_claim(
+        app,
+        &client,
+        workspace_id,
+        &snapshots,
+        &shared,
+        &claim_token,
+    )
+    .await;
+    match seeded {
+        Ok(()) => {
+            crate::rs_log!("[sync::bootstrap] seed completed: {} snapshots", snapshots.len());
+            Ok(true)
+        }
+        Err(e) => {
+            release_initialize_claim(&client, workspace_id).await;
+            Err(e)
+        }
     }
+}
+
+/// Post-claim seeding: publish key params -> presign + upload snapshots ->
+/// assets -> `/initialize/complete` -> verify. Errors propagate unchanged; the
+/// caller releases the lease.
+async fn seed_after_claim(
+    app: &AppHandle,
+    client: &CloudClient,
+    workspace_id: &str,
+    snapshots: &[SeedSnapshot],
+    shared: &HashMap<String, Vec<[u8; 32]>>,
+    claim_token: &str,
+) -> Result<(), CloudFail> {
+    publish_seed_key_params(app, client, workspace_id).await?;
 
     let note_ids: Vec<String> = snapshots.iter().map(|s| s.note_id.clone()).collect();
-    let urls_resp: SnapshotUrlsResp = client
+    let urls_result = client
         .post_json(
             "/sync/initialize/snapshot-urls",
             &serde_json::json!({
@@ -540,7 +622,18 @@ pub(crate) async fn seed_cloud_workspace(
                 "noteIds": note_ids,
             }),
         )
-        .await?;
+        .await;
+    let urls_resp: SnapshotUrlsResp = match urls_result {
+        Ok(v) => v,
+        Err(e) => {
+            crate::rs_log!(
+                "[sync::bootstrap] snapshot-urls failed ({}): {}",
+                fail_str(&e),
+                e_short(&e)
+            );
+            return Err(e);
+        }
+    };
     let urls = urls_resp.urls.unwrap_or_default();
     if urls.len() != snapshots.len() {
         return Err(seed_fail("upload", "presign incomplete"));
@@ -548,7 +641,7 @@ pub(crate) async fn seed_cloud_workspace(
     let generation = urls_resp.generation;
 
     let mut documents = Vec::with_capacity(snapshots.len());
-    for snap in &snapshots {
+    for snap in snapshots {
         let Some(presigned) = urls.get(&snap.note_id) else {
             return Err(seed_fail("upload", "presign incomplete"));
         };
@@ -566,7 +659,7 @@ pub(crate) async fn seed_cloud_workspace(
     }
 
     let required_assets =
-        seed_assets(app, &client, &WriterKey::Session(app.clone()), &shared, workspace_id).await?;
+        seed_assets(app, client, &WriterKey::Session(app.clone()), shared, workspace_id).await?;
 
     let _: serde_json::Value = client
         .post_json(
@@ -594,15 +687,36 @@ pub(crate) async fn seed_cloud_workspace(
     if !initialized {
         return Err(seed_fail("verify", "server did not confirm initialization"));
     }
-    let readable = super::vault::fetch_cloud_key_params(&client, workspace_id)
+    let readable = super::vault::fetch_cloud_key_params(client, workspace_id)
         .await?
         .is_some();
     if !readable {
         return Err(seed_fail("verify", "vault key params not readable after publish"));
     }
+    Ok(())
+}
 
-    crate::rs_log!("[sync::bootstrap] seed completed: {} snapshots", snapshots.len());
-    Ok(true)
+/// Best-effort release of the initialization lease this device holds
+/// (`POST /sync/initialize/reset`). Never returns an error: the caller must
+/// surface the seeding failure, not a cleanup failure.
+async fn release_initialize_claim(client: &CloudClient, workspace_id: &str) {
+    let result = client
+        .post_json::<_, serde_json::Value>(
+            "/sync/initialize/reset",
+            &serde_json::json!({
+                "workspaceId": workspace_id,
+                "confirm": true,
+                "confirmWorkspaceId": workspace_id,
+            }),
+        )
+        .await;
+    match result {
+        Ok(_) => crate::rs_log!("[sync::bootstrap] released initialization lease"),
+        Err(e) => crate::rs_log!(
+            "[sync::bootstrap] could not release initialization lease: {}",
+            fail_str(&e)
+        ),
+    }
 }
 
 #[derive(Deserialize)]

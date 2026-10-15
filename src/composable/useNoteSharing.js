@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { getCurrentScope, onScopeDispose, ref } from 'vue';
 import { useAccountStore } from '@/store/account';
 import { useCollaboratorStore } from '@/store/collaborator';
 import { useWorkspaceStore } from '@/store/workspace';
@@ -18,6 +18,7 @@ import {
   approveNoteJoinRequest as apiApproveJoinRequest,
   denyNoteJoinRequest as apiDenyJoinRequest,
 } from '@/lib/api/collaboration';
+import { getWorkspaceMembers as apiGetWorkspaceMembers } from '@/lib/api/workspaces';
 import { getSettingSync } from '@/lib/settings';
 import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
@@ -32,13 +33,23 @@ import {
   buildNoteKeyPayload,
   rememberNoteKeyring,
 } from '@/utils/crypto/note-key';
-import { registerSharedSyncKey, expectSharedSyncNote } from '@/utils/sync/shared-keys';
+import { registerSharedSyncKey, expectSharedSyncNote, getActiveWsKey } from '@/utils/sync/shared-keys';
+import { resolveNoteWorkspaceId, isSharedNote } from '@/utils/sync/shared-notes';
+import { getWorkspaceDoc } from '@/lib/yjs/meta-doc';
 
 // The server refuses a bootstrap share when it cannot match the note to a
 // workspace (code `note_ownership_required`). Surface actionable copy instead
 // of the raw server string, which a user cannot act on.
 export const NOTE_WORKSPACE_UNCONFIRMED_MESSAGE =
   'Sharing needs a cloud workspace. Create one in Settings → Workspaces, or ask a teammate to invite you to theirs.';
+
+// Envelope-upload retry budget: 3 flat attempts as before for ordinary errors,
+// plus exponential backoff (1s doubling) and a hard stop after 5 consecutive
+// 429s so a rate limit can no longer starve its own recovery.
+const RETRY_MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1000;
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+const RATE_LIMIT_BASE_DELAY_MS = 1000;
 
 // Module-level so background tasks can resolve collaborator device keys
 // without spinning up the full composable.
@@ -57,6 +68,25 @@ export async function fetchCollaboratorPublicKeys(noteId) {
   }
 }
 
+// O7 Fix A: a note "lives in" the active workspace when its id is present in
+// the workspace meta doc's `notes` map. Only such notes seal under the
+// workspace key; ad-hoc shared notes (collaboration fan-out) never enter that
+// map and keep their per-note key.
+function isWorkspaceIndexedNote(noteId) {
+  if (!noteId) return false;
+  // A note shared *to* this account is stored in our meta doc, but it belongs
+  // to and is sealed by its owning workspace. Calling it "indexed here" would
+  // resolve it to our own active workspace key: we could not read the owner's
+  // updates, and our pushes would be sealed with a key no peer holds.
+  if (isSharedNote(noteId)) return false;
+  try {
+    const doc = getWorkspaceDoc();
+    return !!doc?.getMap('notes')?.has?.(noteId);
+  } catch {
+    return false;
+  }
+}
+
 export function useNoteSharing() {
   const accountStore = useAccountStore();
   const collaboratorStore = useCollaboratorStore();
@@ -70,6 +100,36 @@ export function useNoteSharing() {
   const joinRequests = ref([]);
   let fetchAbortController = null;
   const provisionRetries = new Set();
+
+  // Retry waits are tracked so scope teardown drops the pending timers instead
+  // of leaving one to fire (and hit the network) after the caller is gone.
+  // Resolving them alongside the clear keeps an in-flight `await` from hanging.
+  const pendingSleeps = new Map();
+  let disposed = false;
+  function sleep(ms) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        pendingSleeps.delete(timer);
+        resolve();
+      }, ms);
+      pendingSleeps.set(timer, resolve);
+    });
+  }
+  function dispose() {
+    disposed = true;
+    for (const [timer, resolve] of pendingSleeps) {
+      clearTimeout(timer);
+      resolve();
+    }
+    pendingSleeps.clear();
+  }
+  // Only register with the scope when one is active: called outside a
+  // component's setup (e.g. from a store or a plain function), `onScopeDispose`
+  // warns and cleans nothing. There, `dispose` is returned so the caller still
+  // drops the pending retry timers on unmount.
+  if (getCurrentScope()) {
+    onScopeDispose(dispose);
+  }
 
   function activeBaseUrl() {
     return accountStore.serverUrl;
@@ -128,6 +188,7 @@ export function useNoteSharing() {
 
     loading.value = true;
     error.value = '';
+    let inviteError = null;
     try {
       const raw = await apiList(noteId, { baseUrl: activeBaseUrl(), signal });
       if (signal.aborted) return;
@@ -137,36 +198,92 @@ export function useNoteSharing() {
             userId: inv.userId || inv.user_id,
             username: inv.username || null,
             email: inv.email || null,
-            role: inv.role || 'editor',
+            role: inv.role || 'viewer',
             invitedAt: inv.invitedAt || inv.invited_at || null,
           }))
         : [];
-      collaboratorStore.setCollaborators(noteId, collaborators.value);
     } catch (err) {
       // Ignore abort errors (expected during navigation)
       if (err?.name === 'AbortError' || signal.aborted) return;
-
-      // 403 means not invited: treat as no collaborators, not error.
-      if (err?.status === 403) {
-        collaborators.value = [];
-        return;
-      }
-
-      error.value = err?.message || 'Failed to load collaborators';
-      console.error('[useNoteSharing] fetchCollaborators failed:', err);
-    } finally {
-      if (!signal.aborted) {
-        loading.value = false;
-      }
+      // A 403 is expected for a workspace-key member who was never invited to
+      // this note, and a failed call (offline, server blip) still leaves the
+      // workspace readable — both fall through to the member list below
+      // instead of showing an empty panel.
+      inviteError = err;
+      collaborators.value = [];
     }
+
+    // Always merge: the member list is the only source that reflects who can
+    // actually read the note, whatever happened to the invitations call.
+    const merged = await mergeWorkspaceMembers(noteId, { signal });
+    if (signal.aborted) return;
+    collaboratorStore.setCollaborators(noteId, collaborators.value);
+
+    // Surface a failure only when the fallback could not cover it.
+    if (inviteError && !merged) {
+      error.value = inviteError.message || 'Failed to load collaborators';
+      console.error('[useNoteSharing] fetchCollaborators failed:', inviteError);
+    }
+
+    if (!signal.aborted) {
+      loading.value = false;
+    }
+  }
+
+  // Notes in a shared workspace are readable by every workspace member via
+  // the workspace key, not just per-note invitees. Merge those members into the
+  // collaborator list (marked `viaWorkspace`) so the share modal shows the
+  // people who can actually edit. Note invites stay authoritative for roles;
+  // a remove only detaches the per-note invite, never workspace membership.
+  // Returns true when the member list was actually loaded, false when it was
+  // skipped — the caller uses that to decide whether a failure is worth
+  // surfacing.
+  async function mergeWorkspaceMembers(noteId, { signal } = {}) {
+    const workspaceId = await resolveWorkspaceId(resolveNoteWorkspaceId(noteId, null));
+    if (!workspaceId) return false;
+    let members;
+    try {
+      const res = await apiGetWorkspaceMembers(workspaceId, {
+        baseUrl: activeBaseUrl(),
+        signal,
+      });
+      members = Array.isArray(res) ? res : res?.members;
+    } catch (err) {
+      // Members are context, not the source of truth: a non-member caller (or
+      // an offline workspace) just sees the per-note invites.
+      logger.debug?.('[notes] workspace member merge skipped:', err?.message || err);
+      return false;
+    }
+    if (!Array.isArray(members) || signal?.aborted) return false;
+    const seen = new Set(collaborators.value.map((c) => c.userId));
+    for (const m of members) {
+      const userId = m?.userId || m?.user_id || m?.accountId;
+      if (!userId || seen.has(userId)) continue;
+      seen.add(userId);
+      collaborators.value.push({
+        userId,
+        username: m.username || null,
+        email: m.email || null,
+        role: m.role || 'viewer',
+        viaWorkspace: true,
+      });
+    }
+    return true;
   }
 
   async function ensureKey(noteId) {
     if (!accountStore.isAuthenticated) return null;
     try {
+      // A note invited to this account lives in its OWNING workspace, not the
+      // caller's active one. Naming the active workspace here made the server
+      // see a caller that does not own the note, so the key bootstrap was
+      // refused and this device never got an envelope. The grant on the note is
+      // the authority; fall back to the active workspace only for own notes.
       const raw = await apiCreateKey(noteId, {
         baseUrl: activeBaseUrl(),
-        workspaceId: await resolveWorkspaceId(),
+        workspaceId: await resolveWorkspaceId(
+          resolveNoteWorkspaceId(noteId, null),
+        ),
       });
       if (raw?.key) {
         key.value = raw.key;
@@ -194,6 +311,18 @@ export function useNoteSharing() {
 
   async function ensureNoteKey(noteId, opts = {}) {
     if (!accountStore.isAuthenticated) return null;
+
+    // O7 Fix A: notes indexed in the active workspace seal under the
+    // workspace key (registered via registerWsKeyForNotes), so every workspace
+    // member can read note bodies, comments, activity and history — not just
+    // titles. Comments/activity/history resolve the key through this same
+    // function, so returning the ws key keeps them readable too. Per-note
+    // collaboration keys for ad-hoc shared notes (not in the ws doc) are
+    // untouched, matching the approved plan.
+    if (!opts?.skipWorkspaceKey) {
+      const wsKeyHex = getActiveWsKey();
+      if (wsKeyHex && isWorkspaceIndexedNote(noteId)) return wsKeyHex;
+    }
 
     // Per-note ML-KEM fan-out stays dormant on personal paths: it must never
     // fire unless team collaboration is explicitly enabled (teams phase).
@@ -374,18 +503,80 @@ export function useNoteSharing() {
   // this device yet. Retry on demand (bounded) instead of silently staying
   // unable to decrypt; a key-holding client that is online re-wraps it (see
   // rememberAndProvision), and the next ensureNoteKey call retries again.
+  //
+  // Observed: 429 was retried like any other error, so a rate-limited envelope
+  // upload starved itself — six to eight retries inside one second all landed
+  // in the same throttle window and the envelope never landed, with only a debug
+  // line to show for it. So: exponential backoff on 429 (1s, 2s, 4s, ...) and
+  // a bounded give-up after 5 consecutive 429s, warned loudly. Any other failure
+  // keeps the original flat 1s retry, and the counters are per call so a later
+  // edit can start a fresh attempt.
   async function retryRecoverNoteKey(noteId, identity, getKey) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    let attempts = 0;
+    let rateLimited = 0;
+    while (!disposed) {
+      if (rateLimited > 0) {
+        if (rateLimited >= RATE_LIMIT_MAX_ATTEMPTS) return null;
+      } else if (attempts >= RETRY_MAX_ATTEMPTS) {
+        return null;
+      }
+      await sleep(
+        rateLimited > 0
+          ? RATE_LIMIT_BASE_DELAY_MS * 2 ** (rateLimited - 1)
+          : RETRY_DELAY_MS,
+      );
+      if (disposed) return null;
+      attempts += 1;
       try {
         const raw = await getKey();
         const recovered = await recoverNoteKeyFromEnvelopes(raw?.wrappedKeys, identity, noteId);
         if (recovered) return recovered;
+        // The server answered: the attempt worked, so the pressure is gone.
+        rateLimited = 0;
       } catch (err) {
-        logger.debug?.('[notes] envelope retry failed:', err?.message || err);
+        const message = err?.message || err;
+        if (err?.isRateLimit) {
+          rateLimited += 1;
+          if (rateLimited >= RATE_LIMIT_MAX_ATTEMPTS) {
+            logger.warn(
+              `[notes] envelope upload abandoned after ${attempts} attempts ` +
+                `(${RATE_LIMIT_MAX_ATTEMPTS} rate-limited in a row):`,
+              message,
+            );
+            return null;
+          }
+          logger.debug?.('[notes] envelope retry failed:', message);
+          continue;
+        }
+        rateLimited = 0;
+        logger.debug?.('[notes] envelope retry failed:', message);
       }
     }
     return null;
+  }
+
+  // An invite grants membership but creates no envelope: only a device that
+  // already holds the plaintext key can wrap it, and the collaborator scan that
+  // would do so otherwise runs no earlier than this note's next open. Wrap for
+  // every device the server reports `hasEnvelope: false` right away, otherwise
+  // the invitee stays read-only until the key-holder reopens the note.
+async function wrapForNewCollaborators(noteId) {
+    let held = getCachedNoteKey(noteId) || key.value;
+    if (!held && isWorkspaceIndexedNote(noteId)) {
+      const wsKeyHex = getActiveWsKey();
+      if (wsKeyHex) held = wsKeyHex;
+    }
+    if (!held) return;
+    try {
+      const res = await fetchCollaboratorPublicKeys(noteId);
+      await provisionMissingEnvelopes(
+        noteId,
+        held,
+        Array.isArray(res?.collaborators) ? res.collaborators : [],
+      );
+    } catch (err) {
+      logger.debug?.('[notes] post-invite note-key wrap skipped:', err?.message || err);
+    }
   }
 
   async function invite(noteId, identifier, role = 'editor', { workspaceId } = {}) {
@@ -396,6 +587,7 @@ export function useNoteSharing() {
         workspaceId: await resolveWorkspaceId(workspaceId),
       });
       await fetchCollaborators(noteId);
+      await wrapForNewCollaborators(noteId);
       return result;
     } catch (err) {
       error.value = err?.code === 'note_ownership_required'
@@ -530,7 +722,11 @@ export function useNoteSharing() {
       return;
     }
     try {
-      joinRequests.value = await apiListJoinRequests(noteId, { baseUrl: activeBaseUrl() });
+      // Stamp the note id on each row: approval needs it to wrap for the new
+      // collaborator, and the row is gone by the time approval returns.
+      joinRequests.value = (await apiListJoinRequests(noteId, { baseUrl: activeBaseUrl() })).map(
+        (r) => ({ ...r, noteId: r.noteId || noteId }),
+      );
     } catch (err) {
       // A non-editor (viewer) gets 403: no queue to show, not an error.
       if (err?.status !== 403) {
@@ -540,9 +736,13 @@ export function useNoteSharing() {
     }
   }
 
+  // Approval inserts the same collaborator row an invite does, so it needs the
+  // same wrap. The queue row is gone once approval returns, so keep its note id.
   async function approveJoinRequest(requestId) {
+    const noteId = joinRequests.value.find((r) => r.id === requestId)?.noteId;
     await apiApproveJoinRequest(requestId, { baseUrl: activeBaseUrl() });
     joinRequests.value = joinRequests.value.filter((r) => r.id !== requestId);
+    if (noteId) await wrapForNewCollaborators(noteId);
   }
 
   async function denyJoinRequest(requestId) {
@@ -570,5 +770,6 @@ export function useNoteSharing() {
     fetchJoinRequests,
     approveJoinRequest,
     denyJoinRequest,
+    dispose,
   };
 }
