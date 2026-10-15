@@ -179,12 +179,16 @@ export function useAccountAuth() {
     return id;
   }
 
-  async function performSignIn({ token, user, subscription, refreshToken = null, persist = true }) {
-    if (!token) {
+  async function performSignIn({ token, sessionToken, user, subscription, refreshToken = null, persist = true }) {
+    // The passkey replies historically used `sessionToken` only; the server now
+    // sends both names, and accepting either keeps sign-in working across a
+    // version skew between this client and a deployed API.
+    const sessionId = token || sessionToken;
+    if (!sessionId) {
       throw new Error('Sign-in response did not include a session token.');
     }
     if (persist) {
-      await persistToken(token, user);
+      await persistToken(sessionId, user);
       // Keep the rotating refresh token beside the session so a later 401 can
       // be recovered silently instead of signing the user out.
       if (refreshToken) {
@@ -196,7 +200,7 @@ export function useAccountAuth() {
         }
       }
     }
-    accountStore.setToken(token);
+    accountStore.setToken(sessionId);
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
@@ -221,7 +225,7 @@ export function useAccountAuth() {
     } catch (err) {
       console.warn('[e2e] identity reconcile failed:', err?.message);
     }
-    return { token, user, subscription };
+    return { token: sessionId, user, subscription };
   }
 
   async function runAuthFlow(fn) {
