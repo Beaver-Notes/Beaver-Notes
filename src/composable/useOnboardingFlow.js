@@ -9,13 +9,7 @@ import {
 } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
-import { useOnboardingAppearance } from '@/composable/useOnboardingAppearance';
-import {
-  DEFAULT_UI_FONT_STACK,
-  getSetting,
-  invalidateSettingMirrors,
-  setSetting,
-} from '@/lib/settings';
+import { setSetting } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import { useDialog } from '@/lib/dialog';
 import { localNoteCount } from '@/utils/notes/local-note-count.js';
@@ -80,14 +74,7 @@ import { getApiClient } from '@/lib/api/client';
 import { loadSessionToken } from '@/lib/account-storage';
 import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
 
-const WIZARD_STEPS = [
-  'account',
-  'plans',
-  'password',
-  'import',
-  'sync',
-  'customize',
-];
+const WIZARD_STEPS = ['account', 'password', 'import'];
 
 export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   const { translations } = useTranslations();
@@ -134,17 +121,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   });
 
   const fresh = reactive({
-    theme: 'system',
-    language: 'en',
-    spellcheckEnabled: true,
-    openLastEdited: true,
-    openAfterCreation: true,
-    accentColor: 'blue',
-    zoomLevel: 1.0,
-    selectedFont: DEFAULT_UI_FONT_STACK,
     syncPath: '',
-    soundsEnabled: true,
-    spotlightEnabled: false,
   });
 
   const encryptionPassword = ref('');
@@ -238,7 +215,12 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     try {
       const workspaceId = useWorkspaceStore().activeId;
       const fetched = getFetchedCloudKeyParams();
-      if (workspaceId && vaultJoinMode.value && fetched) {
+      // Phase 2 account-scoped params carry no server-side passphrase proof and
+      // the workspace verify route cannot see them, so only legacy
+      // workspace-scoped params still need the challenge/verify round-trip.
+      // Account-scope adoption validates the key locally (WrongPassword on
+      // mismatch) — same as the settings import dialog.
+      if (workspaceId && vaultJoinMode.value && fetched?.scope === 'workspace') {
 
         let token = null;
         for (let i = 0; i < 20 && !token; i++) {
@@ -379,10 +361,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     ),
   );
 
-  const showPlansStep = computed(
-    () => accountStore.isAuthenticated && !accountStore.isPaidPlan,
-  );
-
   // One honest line about where notes will live, derived from the exact policy
   // that sets `syncTransport` in completeAccountStep. Inform, don't ask.
   const syncLocationCopy = computed(() => {
@@ -397,30 +375,17 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           'Local only — turn on sync in Settings.';
   });
 
-  const activeFlow = computed(() => {
-    const flow = [
-      'welcome',
-      'account',
-      'plans',
-      'sync',
-      'password',
-      'import',
-      'customize',
-      'finish',
-    ];
-    const base = isMobileRuntime ? flow : flow.filter((s) => s !== 'plans');
-    return base.filter(
-      (s) =>
-        (s !== 'plans' || showPlansStep.value) &&
-        (s !== 'sync' || !accountStore.isAuthenticated),
-    );
-  });
+  const activeFlow = computed(() => [
+    'welcome',
+    'account',
+    'password',
+    'import',
+    'finish',
+  ]);
 
-  const isCardStep = computed(
-    () =>
-      WIZARD_STEPS.includes(step.value) &&
-      (isMobileRuntime || step.value !== 'plans'),
-  );
+  const isCardStep = computed(() => WIZARD_STEPS.includes(step.value));
+
+  const isDark = computed(() => theme.isDark());
 
   const migrationDetectionCopy = computed(() => {
     if (customLegacyStatus.value?.hasLegacyData) {
@@ -499,17 +464,28 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       goToStep(activeFlow.value[i + 1]);
   };
 
+  // The Connect step commits both halves of the first-run setup in one place:
+  // the sync folder the user picked and, when signed in, the sync transport.
+  // detectVaultJoin then runs after the folder is committed so the vault step
+  // can show "join" vs "create" for whatever vault that folder holds.
   async function completeAccountStep() {
-    if (accountStore.isAuthenticated) {
-      const transport = getOnboardingSyncTransport({
-        isAuthenticated: true,
-        isPaidPlan: accountStore.isPaidPlan,
-      });
-      await setSetting('syncTransport', transport);
-      if (transport === 'remote') await setSyncPath('');
+    state.error = '';
+    state.savingPreferences = true;
+    try {
+      await applyOnboardingSyncPreferences(fresh);
+
+      if (accountStore.isAuthenticated) {
+        const transport = getOnboardingSyncTransport({
+          isAuthenticated: true,
+          isPaidPlan: accountStore.isPaidPlan,
+        });
+        await setSetting('syncTransport', transport);
+        if (transport === 'remote') await setSyncPath('');
+      }
+
       await detectVaultJoin();
 
-      if (isKeyLoaded()) {
+      if (accountStore.isAuthenticated && isKeyLoaded()) {
         try {
           const { useAccountAuth } =
             await import('@/composable/useAccountAuth');
@@ -518,16 +494,17 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
             .catch(() => {});
         } catch {}
       }
+      goToNextStep();
+    } catch (e) {
+      state.error = e?.message || String(e);
+    } finally {
+      state.savingPreferences = false;
     }
-    goToNextStep();
   }
 
   const handlePrimaryContinue = () => {
     goToStep('account');
   };
-
-  const appearance = useOnboardingAppearance({ fresh, state, theme, goToStep });
-  const { selectAccentColor, selectZoomLevel } = appearance;
 
   const resetImport = () => {
     importPhase.value = 'pick';
@@ -776,14 +753,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       state.migrationStatus =
         translations.value.onboarding?.allDone || 'All done!';
       state.migrationDone = true;
-      try {
-        await seedFreshFromSettings();
-      } catch (err) {
-        logger.warn(
-          '[onboarding] re-seed from imported settings failed:',
-          err,
-        );
-      }
 
       legacyPassword = '';
       importPhase.value = 'done';
@@ -866,14 +835,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         )
         .join('\n');
       state.migrationDone = true;
-      try {
-        await seedFreshFromSettings();
-      } catch (err) {
-        logger.warn(
-          '[onboarding] re-seed from imported settings failed:',
-          err,
-        );
-      }
       importPhase.value = 'done';
     } catch (e) {
       state.error = e?.message || String(e);
@@ -950,27 +911,8 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     fresh.syncPath = '';
   }
 
-  async function completeSyncStep() {
-    state.error = '';
-    state.savingPreferences = true;
-    try {
-      await applyOnboardingSyncPreferences(fresh);
-      await detectVaultJoin();
-      if (vaultJoinMode.value && !declinedVaultJoin.value) {
-        encryptionPassword.value = '';
-        encryptionConfirmPassword.value = '';
-        encryptionPasswordError.value = '';
-      }
-
-      goToNextStep();
-    } catch (e) {
-      state.error = e?.message || String(e);
-    } finally {
-      state.savingPreferences = false;
-    }
-  }
-
   async function completeAndOpenWorkspace() {
+    if (state.openingWorkspace) return;
     state.error = '';
     state.openingWorkspace = true;
     try {
@@ -1054,41 +996,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     }
   });
 
-  const SEED_SETTING_KEYS = [
-    'theme',
-    'colorScheme',
-    'zoomLevel',
-    'selectedFont',
-    'soundsEnabled',
-    'spotlightEnabled',
-    'selectedLanguage',
-    'directionPreference',
-  ];
-
-  async function seedFreshFromSettings() {
-
-    invalidateSettingMirrors(SEED_SETTING_KEYS);
-
-    const themeSetting = await getSetting('theme');
-    fresh.theme = themeSetting || fresh.theme;
-    fresh.accentColor = (await getSetting('colorScheme')) || fresh.accentColor;
-    fresh.zoomLevel =
-      parseFloat(await getSetting('zoomLevel')) || fresh.zoomLevel;
-    fresh.selectedFont =
-      (await getSetting('selectedFont')) || fresh.selectedFont;
-    fresh.language = (await getSetting('selectedLanguage')) || fresh.language;
-    fresh.soundsEnabled =
-      (await getSetting('soundsEnabled')) ?? fresh.soundsEnabled;
-    fresh.spotlightEnabled =
-      (await getSetting('spotlightEnabled')) ?? fresh.spotlightEnabled;
-    document.documentElement.style.setProperty(
-      '--selected-font',
-      fresh.selectedFont,
-    );
-    selectAccentColor(fresh.accentColor);
-    selectZoomLevel(fresh.zoomLevel);
-  }
-
   onMounted(async () => {
     if (prefersReducedMotion()) {
       logoIn.value = textIn.value = ctaIn.value = true;
@@ -1105,7 +1012,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     }
 
     theme.loadTheme();
-    await seedFreshFromSettings();
 
     try {
       await refreshStatus();
@@ -1155,7 +1061,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     navDirection,
 
     logoUrl,
-    ...appearance,
+    isDark,
 
     isMobileRuntime,
     isMacOS,
@@ -1185,7 +1091,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     copyMigrationIssues,
     chooseSyncPath,
     clearSyncPath,
-    completeSyncStep,
     completeAndOpenWorkspace,
     handleLegacyPasswordSubmit,
 

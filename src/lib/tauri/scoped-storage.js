@@ -478,13 +478,41 @@ async function stageFileToDisk(file, destination) {
   }
 }
 
+const MOBILE_IMPORT_STAGING_DIR = 'beaver-notes-mobile-imports';
+const STALE_STAGING_MS = 24 * 60 * 60 * 1000;
+
+// Staged import bytes are plaintext under the user's real filenames, so a
+// crash mid-import would leave them in temp forever. Sweep leftovers older than
+// a day: long enough that a concurrent in-flight import is never a candidate.
+async function sweepStaleImportStaging() {
+  try {
+    const tempDir = await invokeCommand('helper:get-path', 'temp');
+    const parent = buildPath(tempDir, MOBILE_IMPORT_STAGING_DIR);
+    if (!(await invokeCommand('fs:pathExists', parent))) return;
+
+    const entries = await invokeCommand('fs:readdir', parent);
+    const cutoff = Date.now() - STALE_STAGING_MS;
+    for (const entry of entries ?? []) {
+      const candidate = buildPath(parent, entry);
+      const stat = await invokeCommand('fs:stat', candidate);
+      if (stat?.mtimeMs < cutoff) {
+        await invokeCommand('fs:remove', candidate);
+      }
+    }
+  } catch {
+    // Best effort: never let cleanup block an import.
+  }
+}
+
 async function stageMobileSelectedFiles(files) {
   if (!files.length) return [];
+
+  sweepStaleImportStaging();
 
   const tempDir = await invokeCommand('helper:get-path', 'temp');
   const stagingRoot = buildPath(
     tempDir,
-    'beaver-notes-mobile-imports',
+    MOBILE_IMPORT_STAGING_DIR,
     uniqueToken()
   );
 
@@ -493,22 +521,34 @@ async function stageMobileSelectedFiles(files) {
   const usedNames = new Set();
   const stagedPaths = [];
 
-  for (const file of files) {
-    const rawName = sanitizeFileName(file?.name, 'file');
-    let candidateName = rawName;
-    let collisionIndex = 1;
+  // Staged bytes are plaintext, so a failure part-way through must not leave them
+  // behind under the user's real filenames. On success the directory has to
+  // outlive this call: callers copy the returned paths into the app afterwards.
+  try {
+    for (const file of files) {
+      const rawName = sanitizeFileName(file?.name, 'file');
+      let candidateName = rawName;
+      let collisionIndex = 1;
 
-    while (usedNames.has(candidateName)) {
-      const parsed = parseSync(rawName);
-      candidateName = `${parsed.name || 'file'}-${collisionIndex}${parsed.ext}`;
-      collisionIndex += 1;
+      while (usedNames.has(candidateName)) {
+        const parsed = parseSync(rawName);
+        candidateName = `${parsed.name || 'file'}-${collisionIndex}${parsed.ext}`;
+        collisionIndex += 1;
+      }
+
+      usedNames.add(candidateName);
+
+      const destination = buildPath(stagingRoot, candidateName);
+      await stageFileToDisk(file, destination);
+      stagedPaths.push(destination);
     }
-
-    usedNames.add(candidateName);
-
-    const destination = buildPath(stagingRoot, candidateName);
-    await stageFileToDisk(file, destination);
-    stagedPaths.push(destination);
+  } catch (error) {
+    try {
+      await invokeCommand('fs:remove', stagingRoot);
+    } catch (cleanupError) {
+      console.error('stageMobileSelectedFiles cleanup failed:', cleanupError);
+    }
+    throw error;
   }
 
   return stagedPaths;

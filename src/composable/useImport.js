@@ -5,6 +5,7 @@ import {
   importBear,
   importSimplenote,
   importGenericMarkdown,
+  importGoogleKeep,
   startRustImport,
 } from '@/utils/import/bulkImport';
 import { openDialog } from '@/lib/native/dialog';
@@ -187,6 +188,17 @@ export function useImport({
     );
   }
 
+  async function importGoogleKeepHandler(options = {}) {
+    return importDirectorySource(
+      'googleKeep',
+      translations.value?.settings?.selectGoogleKeepExport ||
+        'Select Google Keep Export',
+      (path, appDir, onProgress) =>
+        importGoogleKeep(path, noteStore, appDir, onProgress),
+      options
+    );
+  }
+
   async function runImportSource(key, options = {}) {
     switch (key) {
       case 'obsidian':
@@ -203,6 +215,8 @@ export function useImport({
         return importSimplenoteHandler(options);
       case 'genericMd':
         return importGenericMarkdownHandler(options);
+      case 'googleKeep':
+        return importGoogleKeepHandler(options);
       default:
         return null;
     }
@@ -253,6 +267,15 @@ export function useImport({
             description:
               'In Bear, go to File -> Export Notes -> Markdown. Select the exported folder below.',
             buttonLabel: 'Select Bear Export',
+          },
+          {
+            key: 'googleKeep',
+            title: 'Google Keep',
+            icon: 'riBookmarkFill',
+            group: 'Markdown',
+            description:
+              'In Google Takeout, choose Google Keep and download the archive. Unzip it, then select the Keep folder inside.',
+            buttonLabel: 'Select Keep Folder',
           },
           {
             key: 'genericMd',
@@ -356,6 +379,7 @@ export function useImport({
     importBearHandler,
     importEvernoteHandler,
     importGenericMarkdownHandler,
+    importGoogleKeepHandler,
     importNotionHandler,
     importObsidianHandler,
     importSimplenoteHandler,

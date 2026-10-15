@@ -28,4 +28,18 @@ describe('identity', () => {
     const second = await loadOrCreateIdentity();
     expect(first.publicKeyHex).toBe(second.publicKeyHex);
   });
+
+  // Regression: the public key must reach the account's own server. Without an
+  // explicit baseUrl, setKeypair falls back to DEFAULT_API_URL (production), the
+  // device never lands in accounts.deviceKeys, and shared notes open empty.
+  it('publishIdentity sends the keypair to the given baseUrl', async () => {
+    const { setKeypair } = await import('@/lib/api/auth');
+    const { publishIdentity } = await import('@/utils/crypto/identity');
+    const identity = { publicKeyHex: 'ab'.repeat(1184), privateKeyHex: 'cd' };
+    await publishIdentity(identity, 'device-1', 'http://localhost:4000');
+    expect(setKeypair).toHaveBeenCalledWith(identity.publicKeyHex, {
+      deviceId: 'device-1',
+      baseUrl: 'http://localhost:4000',
+    });
+  });
 });

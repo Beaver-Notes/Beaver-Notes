@@ -26,7 +26,8 @@ export function isError(err: unknown, kind: string): boolean {
  * errors.
  */
 export function errorMessage(err: unknown): string {
-  if (err != null && typeof err === 'object') {
+  if (err == null) return '';
+  if (typeof err === 'object') {
     const candidate = err as AppError;
     if (typeof candidate.message === 'string') {
       return candidate.message;

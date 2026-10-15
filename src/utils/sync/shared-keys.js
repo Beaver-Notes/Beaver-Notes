@@ -35,6 +35,26 @@ export async function registerSharedSyncKey(noteId, keyHex, previousKeys = []) {
   }
 }
 
+// The active workspace key, applied to workspace note ids as they appear (the
+// meta-doc observer and the initial sweep) so note bodies seal under the
+// workspace key every member can read, not the account items key.
+let activeWsKeyHex = null;
+
+export function setActiveWsKey(keyHex) {
+  activeWsKeyHex = typeof keyHex === 'string' && keyHex ? keyHex : null;
+}
+
+export function getActiveWsKey() {
+  return activeWsKeyHex;
+}
+
+export async function registerWsKeyForNotes(noteIds) {
+  if (!activeWsKeyHex) return;
+  for (const noteId of noteIds) {
+    await registerSharedSyncKey(noteId, activeWsKeyHex);
+  }
+}
+
 export async function clearSharedSyncKeys() {
   registered.clear();
   try {

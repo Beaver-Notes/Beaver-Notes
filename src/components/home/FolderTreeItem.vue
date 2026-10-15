@@ -86,6 +86,7 @@
         :selected-id="selectedId"
         :current-folder-ids="currentFolderIds"
         :disabled-ids="disabledIds"
+        :all-folders="allFolders"
         :level="level + 1"
         @select="$emit('select', $event)"
       />
@@ -106,6 +107,8 @@ const props = defineProps({
   currentFolderIds: { type: Object, default: () => new Set() }, // Set<string|null>
   disabledIds: { type: Object, default: () => new Set() }, // Set<string>
   level: { type: Number, default: 0 },
+  // Optional override for the folder universe (dev worst-case data).
+  allFolders: { type: Array, default: null },
 });
 
 defineEmits(['select']);
@@ -115,7 +118,9 @@ const { translations } = useTranslations();
 const isExpanded = ref(true);
 
 const sortedChildren = computed(() => {
-  const list = folderStore.getByParent(props.folder.id) || [];
+  const list = props.allFolders
+    ? props.allFolders.filter((f) => (f?.parentId ?? null) === props.folder.id)
+    : folderStore.getByParent(props.folder.id) || [];
   return [...list]
     .filter(Boolean)
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));

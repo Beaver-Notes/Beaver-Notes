@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 
 // Realtime is an accelerator, never a prerequisite: with no provisioned room
 // key the provider must not be constructed at all (no plaintext fallback), and
@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
   providerCount: 0,
   providerOptions: [],
   kickRustSync: vi.fn(),
+  noteData: {},
+  workspaceStore: {
+    activeId: 'ws-1',
+    workspaces: [{ id: 'ws-1', role: 'editor' }],
+    activeWorkspace: { id: 'ws-1', role: 'editor' },
+  },
 }))
 
 vi.mock('@/store/account', () => ({
@@ -19,17 +25,13 @@ vi.mock('@/store/account', () => ({
   })),
 }))
 vi.mock('@/store/workspace', () => ({
-  useWorkspaceStore: vi.fn(() => ({
-    activeId: 'ws-1',
-    workspaces: [{ id: 'ws-1', role: 'editor' }],
-    activeWorkspace: { id: 'ws-1', role: 'editor' },
-  })),
+  useWorkspaceStore: vi.fn(() => mocks.workspaceStore),
 }))
 vi.mock('@/store/collaborator', () => ({
   useCollaboratorStore: vi.fn(() => ({ noteId: '', collaborators: [] })),
 }))
 vi.mock('@/store/note', () => ({
-  useNoteStore: vi.fn(() => ({ data: {} })),
+  useNoteStore: vi.fn(() => ({ data: mocks.noteData })),
 }))
 vi.mock('y-protocols/awareness', () => ({
   Awareness: class { constructor(doc) { this.doc = doc } },
@@ -140,6 +142,56 @@ describe('ws-sync room-key gate', () => {
 
     expect(mocks.providerCount).toBe(1)
     expect(mocks.providerOptions.at(-1)?.disableBc).toBe(true)
+  })
+})
+
+describe('ws-sync note join parked without a workspace id', () => {
+  beforeEach(() => {
+    mocks.providerCount = 0
+    mocks.kickRustSync.mockClear()
+    mocks.noteData['note-parked'] = { id: 'note-parked', access: { role: 'editor', workspaceId: '' } }
+    // No owning workspace on the note AND no active workspace to fall back on,
+    // so joinNoteRoom takes the parked (missing-workspace-id) branch.
+    mocks.workspaceStore.activeId = ''
+    mocks.workspaceStore.activeWorkspace = null
+    getCachedWorkspaceKey.mockReturnValue(null)
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })))
+    getWsSync().disconnect()
+  })
+
+  afterEach(() => {
+    delete mocks.noteData['note-parked']
+    mocks.workspaceStore.activeId = 'ws-1'
+    mocks.workspaceStore.activeWorkspace = { id: 'ws-1', role: 'editor' }
+  })
+
+  // Silently returning here means the room is never joined and the note has no
+  // presence or live typing with nothing in the log to explain it. Park the join
+  // under a note-scoped sentinel so `setRoomKey` can re-run it, and say why.
+  it('parks the join and warns instead of returning with no trace', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const doc = { on: vi.fn(), off: vi.fn() }
+
+    await getWsSync().joinNoteRoom('note-parked', doc)
+
+    expect(mocks.providerCount).toBe(0)
+    expect(warn.mock.calls.flat().join(' ')).toMatch(/no workspace id for note room/)
+    expect(mocks.kickRustSync).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('runs the parked join once the note resolves a workspace and its key arrives', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const doc = { on: vi.fn(), off: vi.fn() }
+    await getWsSync().joinNoteRoom('note-parked', doc)
+    expect(mocks.providerCount).toBe(0)
+
+    mocks.noteData['note-parked'].access.workspaceId = 'ws-1'
+    await setRoomKey('workspace:ws-1:note:note-parked', 'ab'.repeat(32))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(mocks.providerCount).toBe(1)
+    warn.mockRestore()
   })
 })
 

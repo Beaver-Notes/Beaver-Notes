@@ -80,7 +80,6 @@ export const useWorkspaceStore = defineStore('workspace', {
         emoji: ws.emoji,
         color: ws.color,
       });
-      this.activeId = ws.id;
       return ws;
     },
 

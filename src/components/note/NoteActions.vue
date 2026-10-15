@@ -327,15 +327,19 @@
   </div>
 
   <share-modal v-model="showShareModal" :note-id="id" :share-actions="shareActions" />
-  <history-panel
-    v-if="showHistory"
-    :note-id="id"
-    :editor="editor"
-    @close="$emit('toggle-history'); $emit('preview', null)"
-    @restore="$emit('restore', $event)"
-    @preview="$emit('preview', $event)"
-    @review="$emit('review', $event)"
-  />
+  <!-- The transition lives here, not inside HistoryPanel: only the owner of the
+       v-if can animate both mount and unmount. -->
+  <transition name="slide-up">
+    <history-panel
+      v-if="showHistory"
+      :note-id="id"
+      :editor="editor"
+      @close="$emit('toggle-history'); $emit('preview', null)"
+      @restore="$emit('restore', $event)"
+      @preview="$emit('preview', $event)"
+      @review="$emit('review', $event)"
+    />
+  </transition>
 </template>
 
 <script>
@@ -365,7 +369,7 @@ export default {
     showSearch: { type: Boolean, default: false },
     peers: { type: [Map, Object], default: () => ({}) },
     localColor: { type: String, default: '' },
-    localName: { type: String, default: 'Anonymous' },
+    localName: { type: String, default: '' },
     showHistory: { type: Boolean, default: false },
     showComments: { type: Boolean, default: false },
   },

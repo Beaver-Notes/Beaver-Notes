@@ -207,6 +207,29 @@ describe('persist guard – dirty-signature optimization', () => {
     expect(indexNoteForSpotlight).not.toHaveBeenCalled();
     expect(rebuildLinkIndexForNote).not.toHaveBeenCalled();
   });
+
+  it('title edited during persist: meta commit uses the live note, not the pre-await snapshot', async () => {
+    const content = { type: 'doc', content: [] };
+    const store = createNote('note-1', content, 'Hi');
+    vi.clearAllMocks();
+
+    // saveNote is a module-local function so it cannot be spied on; gate on its
+    // side effect instead, which lands while persist is still suspended on the await.
+    let inSaveNote = false;
+    vi.mocked(upsertSearchEntry).mockImplementation(() => {
+      inSaveNote = true;
+    });
+
+    const pending = store.persist('note-1');
+    while (!inSaveNote) await Promise.resolve();
+
+    store.patchLocal('note-1', { title: 'A much longer title' });
+    await pending;
+
+    expect(syncNoteMeta).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: 'A much longer title' })
+    );
+  });
 });
 
 describe('addMany commits meta only after content is durable (L6)', () => {

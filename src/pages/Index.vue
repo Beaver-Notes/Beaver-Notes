@@ -1,6 +1,7 @@
 <template>
   <div>
     <mobile-sync-strip v-if="isMobile" />
+    <mobile-workspace-bar v-if="isMobile" />
 
     <div class="container pt-6">
       <h1 class="text-4xl mb-6 font-bold">
@@ -184,6 +185,7 @@ import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
 import MobileSyncStrip from '../components/app/MobileSyncStrip.vue';
+import MobileWorkspaceBar from '../components/app/MobileWorkspaceBar.vue';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
@@ -197,6 +199,7 @@ export default {
     Actions,
     EmptyState,
     MobileSyncStrip,
+    MobileWorkspaceBar,
   },
   setup() {
     const { translations } = useTranslations();

@@ -19,6 +19,7 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import LabelSuggestion from './exts/label-suggestion';
 import UserMention from './exts/user-mention';
+import { CommentExtension } from '@sereneinserenade/tiptap-comment-extension';
 import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
 import MermaidBlock from './exts/mermaid-block';
@@ -61,6 +62,7 @@ import FontSize from 'tiptap-extension-font-size';
 import TextAlign from '@tiptap/extension-text-align';
 import Paper from './exts/paper-block';
 import { dropFile } from './exts/drop-file';
+import YUndo from './exts/y-undo';
 import { getTranslations } from '@/utils/i18n/getTranslations';
 import { getSettingSync } from '@/lib/settings';
 const translations = getTranslations();
@@ -69,7 +71,7 @@ function getDefaultDirection() {
   return getSettingSync('directionPreference') === 'rtl' ? 'rtl' : 'ltr';
 }
 
-function createBaseExtensions({ yjs = false } = {}) {
+function createBaseExtensions({ yjs = false, direction = null } = {}) {
   return [
     LabelSuggestion,
     UserMention,
@@ -144,7 +146,11 @@ function createBaseExtensions({ yjs = false } = {}) {
     Superscript,
     TextDirection.configure({
       types: ['heading', 'paragraph', 'blockquote', 'listItem', 'codeBlock'],
-      defaultDirection: getDefaultDirection(),
+      // 'auto' (from the note's own dir field) lets the extension detect
+      // direction per block from the text itself, which is what a note in a
+      // different script than the UI needs. getDefaultDirection() stays as the
+      // fallback for editors built without a note.
+      defaultDirection: direction || getDefaultDirection(),
     }),
     Image,
     Audio,
@@ -179,13 +185,25 @@ function createBaseExtensions({ yjs = false } = {}) {
         'tiptap-url': 'true',
       },
     }),
+    ...(yjs ? [YUndo] : []),
   ];
 }
 
 const extensions = createBaseExtensions();
 const yjsExtensions = createBaseExtensions({ yjs: true });
 
-export { extensions, yjsExtensions, createBaseExtensions, CollapseHeading, heading, dropFile, Commands };
+// Comment anchors ride in the doc as a `comment` mark that only NoteEditor
+// registers (it needs `onCommentActivated`). Snapshot capture parses the same
+// JSON through generateHTML, so without the mark here the capture is dropped
+// with "There is no mark type comment in this schema". Not part of `extensions`
+// on purpose: a second registration would duplicate the extension name.
+// The rendered class matches NoteEditor's config; styles are in its global block.
+const snapshotExtensions = [
+  ...extensions,
+  CommentExtension.configure({ HTMLAttributes: { class: 'comment-highlight' } }),
+];
+
+export { extensions, yjsExtensions, snapshotExtensions, createBaseExtensions, CollapseHeading, heading, dropFile, Commands };
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

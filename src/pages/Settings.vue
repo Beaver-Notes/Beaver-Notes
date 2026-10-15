@@ -162,6 +162,12 @@ const settings = computed(() => {
       path: '/settings/account',
       keywords: [t.settings.account?.toLowerCase() || 'account'],
     },
+    'Settings-Workspace': {
+      name: t.settings.workspace || 'Workspace',
+      icon: 'riGroupLine',
+      path: '/settings/workspace',
+      keywords: ['workspace', 'team', 'members', 'invite', 'roles'],
+    },
     'Settings-Labels': {
       name: t.labels?.title || 'Labels',
       icon: 'riPriceTag3Line',

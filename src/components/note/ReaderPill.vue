@@ -4,8 +4,13 @@
       ref="pillRef"
       :fixed="false"
       aria-label="Reader controls"
-      class="transition-opacity duration-300 ease-[var(--ease-snappy)] motion-reduce:transition-none"
-      :class="{ 'opacity-0 pointer-events-none': !visible && !showAa }"
+      class="transition-opacity duration-300 ease-[var(--ease-snappy)] motion-reduce:transition-none max-w-[calc(100vw-2rem)]"
+      :class="{
+        // The sheet teleports over the dock (z-50 vs z-[70]); the pill must not
+        // float on top of its content. The sheet closes via overlay/Escape/swipe.
+        'opacity-0 pointer-events-none':
+          (!visible && !showAa) || (isMobile && showAa),
+      }"
     >
       <div class="flex items-center py-1 pl-1.5 pr-1.5">
         <button
@@ -33,202 +38,40 @@
           Aa
         </button>
         <div
-          class="flex items-center gap-0.5 overflow-hidden transition-[max-width,opacity] duration-300 ease-[var(--ease-snappy)] motion-reduce:transition-none"
+          v-if="!isMobile"
+          class="min-w-0 transition-[max-width,opacity] duration-300 ease-[var(--ease-snappy)] motion-reduce:transition-none"
           :class="
-            showAa ? 'max-w-[28rem] opacity-100 ml-1' : 'max-w-0 opacity-0'
+            showAa
+              ? 'max-w-[28rem] opacity-100 ml-1 overflow-x-auto overscroll-x-contain'
+              : 'max-w-0 opacity-0 overflow-hidden'
           "
           :inert="!showAa"
         >
-          <div class="flex items-center gap-1 shrink-0">
-            <div
-              class="flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 p-0.5"
-            >
-              <button
-                data-testid="theme-light"
-                class="rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
-                :class="
-                  prefs.theme === 'light'
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700'
-                "
-                @click="onTheme('light')"
-              >
-                Light
-              </button>
-              <button
-                data-testid="theme-sepia"
-                class="rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
-                :class="
-                  prefs.theme === 'sepia'
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700'
-                "
-                @click="onTheme('sepia')"
-              >
-                Sepia
-              </button>
-              <button
-                data-testid="theme-dark"
-                class="rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
-                :class="
-                  prefs.theme === 'dark'
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-700'
-                "
-                @click="onTheme('dark')"
-              >
-                Dark
-              </button>
-            </div>
-            <div class="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
-            <div
-              class="flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 p-0.5"
-            >
-              <button
-                data-testid="size-compact"
-                aria-label="Compact"
-                class="flex items-center justify-center rounded-full w-7 h-7 transition-colors"
-                :class="
-                  prefs.size === 14
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400'
-                "
-                @click="onSizePreset(14)"
-              >
-                <span class="font-semibold leading-none" style="font-size: 9px"
-                  >A</span
-                >
-              </button>
-              <button
-                data-testid="size-default"
-                aria-label="Default"
-                class="flex items-center justify-center rounded-full w-7 h-7 transition-colors"
-                :class="
-                  prefs.size === 18
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400'
-                "
-                @click="onSizePreset(18)"
-              >
-                <span class="font-semibold leading-none" style="font-size: 11px"
-                  >A</span
-                >
-              </button>
-              <button
-                data-testid="size-big"
-                aria-label="Big"
-                class="flex items-center justify-center rounded-full w-7 h-7 transition-colors"
-                :class="
-                  prefs.size === 21
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400'
-                "
-                @click="onSizePreset(21)"
-              >
-                <span class="font-semibold leading-none" style="font-size: 13px"
-                  >A</span
-                >
-              </button>
-              <button
-                data-testid="size-huge"
-                aria-label="Huge"
-                class="flex items-center justify-center rounded-full w-7 h-7 transition-colors"
-                :class="
-                  prefs.size === 26
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400'
-                "
-                @click="onSizePreset(26)"
-              >
-                <span class="font-semibold leading-none" style="font-size: 15px"
-                  >A</span
-                >
-              </button>
-              <input
-                data-testid="size-slider"
-                type="range"
-                min="12"
-                max="32"
-                :value="prefs.size"
-                class="hidden"
-                aria-hidden="true"
-                @input="onSizeSlider"
-              />
-              <span
-                data-testid="size-value"
-                class="hidden"
-                aria-hidden="true"
-                >{{ prefs.size }}</span
-              >
-              <button
-                data-testid="size-minus"
-                class="hidden"
-                aria-hidden="true"
-                @click="onSize(-1)"
-              ></button>
-              <button
-                data-testid="size-plus"
-                class="hidden"
-                aria-hidden="true"
-                @click="onSize(1)"
-              ></button>
-            </div>
-            <div class="h-5 w-px bg-neutral-200 dark:bg-neutral-700 mx-0.5" />
-            <div
-              class="flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 p-0.5"
-            >
-              <button
-                data-testid="family-default"
-                class="rounded-full px-2 py-1 text-xs font-medium transition-colors"
-                :class="
-                  prefs.family === 'default'
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400'
-                "
-                @click="onFamily('default')"
-              >
-                Aa
-              </button>
-              <button
-                data-testid="family-serif"
-                class="rounded-full px-2 py-1 text-xs font-medium transition-colors font-serif"
-                :class="
-                  prefs.family === 'serif'
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400'
-                "
-                @click="onFamily('serif')"
-              >
-                Serif
-              </button>
-              <button
-                data-testid="family-sans"
-                class="rounded-full px-2 py-1 text-xs font-medium transition-colors"
-                :class="
-                  prefs.family === 'sans'
-                    ? 'bg-white dark:bg-neutral-700 shadow-sm text-neutral-900 dark:text-neutral-100'
-                    : 'text-neutral-500 dark:text-neutral-400'
-                "
-                @click="onFamily('sans')"
-              >
-                Sans
-              </button>
-            </div>
-          </div>
+          <reader-controls @change="forward" />
         </div>
       </div>
     </ui-pill>
   </teleport>
+
+  <ui-modal
+    v-if="isMobile"
+    v-model="showAa"
+    title="Text appearance"
+    blur
+  >
+    <reader-controls @change="forward" />
+  </ui-modal>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { useReaderPrefs } from '@/composable/useReaderPrefs';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { backend } from '@/lib/tauri-bridge';
+import ReaderControls from '@/components/note/ReaderControls.vue';
 import { usePillDock } from '@/composable/usePillDock';
 
-const emit = defineEmits(['exit', 'change', 'update:prefs']);
-const { prefs, setTheme, setSize, setLine, setFamily } = useReaderPrefs();
+const emit = defineEmits(['exit', 'change']);
 const { expandedPill } = usePillDock();
+const isMobile = backend.isMobileRuntime();
 
 const visible = ref(true);
 const showAa = ref(false);
@@ -263,59 +106,27 @@ function reset() {
   startTimer();
 }
 
-function onTheme(t) {
-  setTheme(t);
-  emit('change', { theme: t });
-  emit('update:prefs', prefs.value);
-}
-
-function onSize(delta) {
-  const next = Math.min(32, Math.max(12, prefs.value.size + delta));
-  setSize(next);
-  emit('change', { size: next });
-  emit('update:prefs', prefs.value);
-}
-function onSizePreset(size) {
-  setSize(size);
-  emit('change', { size });
-  emit('update:prefs', prefs.value);
-}
-function onSizeSlider(e) {
-  const v = Number(e.target.value);
-  setSize(v);
-  emit('change', { size: v });
-  emit('update:prefs', prefs.value);
-}
-
-function onLine(delta) {
-  const next = Math.min(
-    2.4,
-    Math.max(1.2, Math.round((prefs.value.line + delta) * 10) / 10),
-  );
-  setLine(next);
-  emit('change', { line: next });
-  emit('update:prefs', prefs.value);
-}
-
-function onFamily(f) {
-  setFamily(f);
-  emit('change', { family: f });
-  emit('update:prefs', prefs.value);
+function forward(next) {
+  emit('change', next);
 }
 
 function toggleAa() {
   showAa.value = !showAa.value;
+}
+
+// The pill stays alive while controls are open (inline panel or modal sheet);
+// closing in either mode restarts the idle hide.
+watch(showAa, (open) => {
   visible.value = true;
   clearTimer();
-  if (!showAa.value) startTimer();
-}
+  if (!open) startTimer();
+});
 
 function onDocumentClick(e) {
   if (!showAa.value) return;
   const el = pillRef.value?.$el || pillRef.value;
   if (el && el.contains(e.target)) return;
   showAa.value = false;
-  startTimer();
 }
 
 onMounted(() => {
@@ -327,7 +138,9 @@ onMounted(() => {
   window.addEventListener('mousemove', reset);
   window.addEventListener('scroll', reset);
   window.addEventListener('touchstart', reset);
-  document.addEventListener('click', onDocumentClick);
+  // Mobile dismisses via the modal's own overlay/Escape/swipe, which live
+  // outside the pill — a document click there would close the sheet instantly.
+  if (!isMobile) document.addEventListener('click', onDocumentClick);
 });
 
 onUnmounted(() => {

@@ -114,7 +114,20 @@ export function createFileBlock({
       ];
     },
     renderHTML({ HTMLAttributes }) {
-      return ['span', mergeAttributes(HTMLAttributes)];
+      // Emit data-prefixed names so clipboard HTML round-trips through the
+      // parseHTML rules above (which only read data-src/data-file-name/...).
+      const renames = {
+        src: 'data-src',
+        fileName: 'data-file-name',
+        width: 'data-width',
+        layout: 'data-layout',
+      };
+      const attrs = {};
+      for (const [key, value] of Object.entries(HTMLAttributes)) {
+        if (value == null) continue;
+        attrs[renames[key] || key] = value;
+      }
+      return ['span', mergeAttributes(attrs)];
     },
     addNodeView() {
       return VueNodeViewRenderer(component);

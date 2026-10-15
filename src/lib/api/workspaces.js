@@ -6,6 +6,7 @@ import { bytesToHex } from '@/utils/crypto/hex';
 import { wrapNoteKeyForRecipient, recoverNoteKeyFromEnvelopes } from '@/utils/crypto/note-key';
 import { encryptName, decryptName } from '@/utils/crypto/comment-crypto';
 import { encryptJSON, decryptJSON } from '@/utils/sync/crypto';
+import { settingsMirrorKey } from '@/lib/settings';
 
 // AAD domain binding vault-wrapped workspace key envelopes to their purpose,
 // so they can never be replayed as (or from) regular sync payloads.
@@ -17,21 +18,56 @@ export const VAULT_WRAPPED_KEYS_AAD = 'beaver-workspace-keys:v1';
 // to the network fetch + ML-KEM unwrap path.
 const workspaceKeyCache = new Map();
 
+// Mirror of the cache in the per-instance settings namespace, so a restart
+// still has the key instead of having to re-unwrap it from the server.
+// One blob, not one key per workspace: sign-out clears it in a single call.
+const WORKSPACE_KEYS_MIRROR = 'workspace-keys';
+const WORKSPACE_KEY_HEX = /^[0-9a-f]{64}$/;
+
+function readPersistedWorkspaceKeys() {
+  try {
+    const raw = localStorage.getItem(settingsMirrorKey(WORKSPACE_KEYS_MIRROR));
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export function getCachedWorkspaceKey(workspaceId) {
-  return workspaceKeyCache.get(workspaceId) ?? null;
+  const cached = workspaceKeyCache.get(workspaceId);
+  if (cached) return cached;
+  // Cold start: nothing in the heap yet, so read the mirror. Anything that is
+  // not a well-formed key counts as absent rather than an error.
+  const persisted = readPersistedWorkspaceKeys()[workspaceId];
+  if (typeof persisted !== 'string' || !WORKSPACE_KEY_HEX.test(persisted)) return null;
+  workspaceKeyCache.set(workspaceId, persisted);
+  return persisted;
 }
 
 export function setCachedWorkspaceKey(workspaceId, workspaceKeyHex) {
   if (!workspaceId || typeof workspaceKeyHex !== 'string' || !workspaceKeyHex) return;
   workspaceKeyCache.set(workspaceId, workspaceKeyHex);
+  try {
+    const keys = readPersistedWorkspaceKeys();
+    keys[workspaceId] = workspaceKeyHex;
+    localStorage.setItem(settingsMirrorKey(WORKSPACE_KEYS_MIRROR), JSON.stringify(keys));
+  } catch {
+    // Mirror is best-effort; the in-memory cache still serves this session.
+  }
 }
 
 /**
- * Drop every cached workspace key. The cache outlives sign-out otherwise, so
- * the next account inherits the previous account's key material in the heap.
+ * Drop every cached workspace key, on disk too. The cache outlives sign-out
+ * otherwise, so the next account inherits the previous account's key material.
  */
 export function clearWorkspaceKeyCache() {
   workspaceKeyCache.clear();
+  try {
+    localStorage.removeItem(settingsMirrorKey(WORKSPACE_KEYS_MIRROR));
+  } catch {
+    // Nothing to clear if the mirror was never written.
+  }
 }
 
 /** Wrap workspace key under session AEK so members recovering passphrase re-derive locally. Returns base64 envelope. */

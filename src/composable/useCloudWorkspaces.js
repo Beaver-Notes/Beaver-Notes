@@ -13,6 +13,7 @@ import {
   getWorkspacePublicKeys as apiGetWorkspacePublicKeys,
   recoverWorkspaceKeyHex as apiRecoverWorkspaceKeyHex,
   recoverWorkspaceKeyFromRecord as apiRecoverWorkspaceKeyFromRecord,
+  getWorkspaceKeyRecord as apiGetWorkspaceKeyRecord,
   provisionWorkspaceKey as apiProvisionWorkspaceKey,
   getCachedWorkspaceKey,
 } from '@/lib/api/workspaces';
@@ -27,6 +28,10 @@ const error = ref('');
 const pendingRequests = ref([]);
 // ponytail: Set tracks terminal unwrap/provision failures to prevent infinite retry; cleared on success, retry, or new workspace list. Reactive so the settings notice can surface it.
 const provisionFailures = reactive(new Set());
+// Same-account retryable misses: this device has no usable envelope yet but a
+// later fetch may (vault unlock, late envelope). Surfaces not-synced without
+// arming the terminal skip, so the next pass re-fetches instead of no-op'ing.
+const provisionPending = reactive(new Set());
 // Devices whose public key changed since we first saw it (TOFU). We refuse to
 // share the workspace key with them; persisted so the settings notice can say
 // so instead of only logging.
@@ -128,6 +133,32 @@ async function registerCloudWorkspaces(backendWorkspaces, accountStore) {
   }
 }
 
+// Stop realtime, flush buffered meta writes, and destroy the singleton
+// workspace doc. Runs before a native workspace switch so the flush lands in
+// the still-active pool and nothing keeps writing after the pools swap —
+// otherwise stale content leaks into the target workspace (note_content rows
+// written at switch time). Mirrors the sign-out teardown in useAccountAuth;
+// callers reload right after, and startup rebuilds everything for the new
+// workspace.
+async function teardownLiveWorkspaceState() {
+  try {
+    const { getWsSync } = await import('@/lib/sync/ws-sync.js');
+    getWsSync().stop();
+  } catch (err) {
+    console.warn('[useCloudWorkspaces] ws teardown failed:', err?.message || err);
+  }
+  try {
+    const [{ flushPendingMetaUpdates }, { destroyWorkspaceDoc }] = await Promise.all([
+      import('@/lib/yjs/workspace-doc.js'),
+      import('@/lib/yjs/meta-doc.js'),
+    ]);
+    await flushPendingMetaUpdates();
+    destroyWorkspaceDoc();
+  } catch (err) {
+    console.warn('[useCloudWorkspaces] workspace doc teardown failed:', err?.message || err);
+  }
+}
+
 export function useCloudWorkspaces() {
   const accountStore = useAccountStore();
 
@@ -156,10 +187,20 @@ export function useCloudWorkspaces() {
         const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl(), signal: fetchController.signal });
         workspaces.value = normalizeWorkspaceList(raw);
         if (!activeId.value && workspaces.value.length > 0) {
-          activeId.value = workspaces.value[0].id;
+          // The native active id is the persisted one; honor it so a reload
+          // doesn't silently move the user back to the first workspace.
+          const { getActiveLocalWorkspace } = await import('@/lib/native/workspaces');
+          const local = await getActiveLocalWorkspace().catch(() => null);
+          const localInList = local?.id && workspaces.value.some((w) => w.id === local.id);
+          activeId.value = localInList ? local.id : workspaces.value[0].id;
         }
         await registerCloudWorkspaces(workspaces.value, accountStore);
+        await ensureDeviceKeyRegistered();
         await recoverDeviceWorkspaceKeys();
+        // New fetch epoch: recovery already re-checked last epoch's retryable
+        // misses against fresh records, so drop the rest and let the pass
+        // below retry instead of skipping on a stale marker.
+        provisionPending.clear();
         void autoProvisionPendingKeys();
         // Notes invited to this account directly (not members of the owning
         // workspace) are listed and synced under their owning workspace.
@@ -195,8 +236,10 @@ export function useCloudWorkspaces() {
         color: raw.color,
       };
       workspaces.value.push(ws);
-      activeId.value = ws.id;
       void registerCloudWorkspaces([ws], accountStore);
+      // The create payload wraps the key for this account only; give this device
+      // its own envelope now so sync works before the next provisioning pass.
+      void ensureOwnDeviceEnvelope(ws.id);
       return ws;
     } catch (err) {
       error.value = err?.message || 'Failed to create workspace';
@@ -267,6 +310,18 @@ export function useCloudWorkspaces() {
   async function switchWorkspace(id) {
     if (activeId.value === id) return;
     const previous = activeId.value;
+    // Teardown first: pending writes must reach the OLD pool and the live doc
+    // must die before workspace_switch swaps pools (see teardownLiveWorkspaceState).
+    await teardownLiveWorkspaceState();
+    // Persist natively too: workspace_switch saves the active id and swaps the
+    // data/settings pools, which is what actually switches content. Callers
+    // reload right after, satisfying the native "reload stores" contract.
+    try {
+      const { switchLocalWorkspace } = await import('@/lib/native/workspaces');
+      await switchLocalWorkspace(id);
+    } catch (err) {
+      console.warn('[useCloudWorkspaces] native workspace switch failed:', err?.message || err);
+    }
     activeId.value = id;
     return { previous };
   }
@@ -319,6 +374,7 @@ export function useCloudWorkspaces() {
   // re-wrap for members/devices still missing one).
   async function retryProvisioning() {
     provisionFailures.clear();
+    provisionPending.clear();
     refusedDeviceKeys.clear();
     await autoProvisionPendingKeys();
   }
@@ -330,6 +386,7 @@ export function useCloudWorkspaces() {
   const provisioningIssue = computed(() => {
     if (refusedDeviceKeys.size > 0) return 'key-changed';
     if (provisionFailures.size > 0) return 'not-synced';
+    if (provisionPending.size > 0) return 'not-synced';
     return null;
   });
 
@@ -350,9 +407,10 @@ export function useCloudWorkspaces() {
       baseUrl: activeBaseUrl(),
     });
     if (!workspaceKeyHex) {
-      // No envelope this device can unwrap: unrecoverable until a key-holder
-      // re-wraps or the vault key recovers the key. Mark terminal.
-      provisionFailures.add(`ws:${workspaceId}`);
+      // No envelope this device can unwrap yet (fresh device, locked vault):
+      // retryable, not terminal. Surfaces not-synced via provisionPending and
+      // re-arms on the next fetch; a terminal marker here would skip forever.
+      provisionPending.add(`ws:${workspaceId}`);
       console.warn(`[useCloudWorkspaces] no usable workspace-key envelope for ${workspaceId}`);
       return 0;
     }
@@ -383,7 +441,67 @@ export function useCloudWorkspaces() {
       provisionFailures.delete(`${workspaceId}:${r.userId}:${r.deviceId}`);
     }
     provisionFailures.delete(`ws:${workspaceId}`);
+    provisionPending.delete(`ws:${workspaceId}`);
     return recipients.length;
+  }
+
+  // A workspace created here starts with an account-level envelope, and a
+  // workspace whose key we recovered locally holds no device envelope at all.
+  // Either way this device is reported as `hasEnvelope: false`, so nothing in the
+  // key-holder loop can hand it back a key it already holds. Wrap the key we
+  // already have for our own device and upload it; the other devices then fall
+  // to the normal `autoProvisionPendingKeys` path. Failure is transient (a
+  // network blip, a server without the route yet) so it only warns: no
+  // provisionFailures marker, so the next load retries.
+  async function ensureOwnDeviceEnvelope(workspaceId, workspaceKeyHex) {
+    const key = workspaceKeyHex ?? getCachedWorkspaceKey(workspaceId);
+    if (!key) return false;
+    try {
+      const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
+      const { wrapNoteKeyForRecipient } = await import('@/utils/crypto/note-key');
+      const identity = await loadOrCreateIdentity();
+      if (!identity?.publicKeyHex) return false;
+
+      const collaborators = await apiGetWorkspacePublicKeys(workspaceId, { baseUrl: activeBaseUrl() });
+      // Match on the published public key rather than a device id: it is the
+      // one identifier this device is certain of, and the server record supplies
+      // the deviceId to register the envelope under.
+      const self = (collaborators || []).find(
+        (c) => c?.kemPublicKey && c.kemPublicKey === identity.publicKeyHex
+      );
+      if (!self || self.hasEnvelope !== false) return false;
+
+      const deviceId = self.deviceId || 'default';
+      const pinKey = `kem-pin:${self.userId}:${deviceId}`;
+      try {
+        const pinned = localStorage.getItem(pinKey);
+        if (pinned && pinned !== self.kemPublicKey) {
+          console.warn(
+            `[useCloudWorkspaces] own device key changed for ${self.userId}/${deviceId}; not re-uploading envelope for ${workspaceId}`
+          );
+          return false;
+        }
+        if (!pinned) localStorage.setItem(pinKey, self.kemPublicKey);
+      } catch {
+        // Pin storage unavailable: upload anyway, server remains authoritative.
+      }
+
+      const wrappedKey = await wrapNoteKeyForRecipient(self.kemPublicKey, key);
+      await apiProvisionWorkspaceKey(
+        workspaceId,
+        [{ userId: self.userId, deviceId, wrappedKey }],
+        { baseUrl: activeBaseUrl() }
+      );
+      provisionFailures.delete(`ws:${workspaceId}`);
+      provisionPending.delete(`ws:${workspaceId}`);
+      return true;
+    } catch (err) {
+      console.warn(
+        `[useCloudWorkspaces] could not upload own device key for ${workspaceId}:`,
+        err?.message || err
+      );
+      return false;
+    }
   }
 
   async function provisionKeysForMember(workspaceId, memberUserId) {
@@ -399,25 +517,100 @@ export function useCloudWorkspaces() {
   // (session AEK) envelope. No password is ever requested. A workspace with no
   // usable envelope stays uncached; the key-holder provisioning loop re-wraps
   // it later and SyncProvisioningNotice surfaces it instead of blocking.
+  // On a clean-reset device the identity is fresh, so registration runs first:
+  // without the new public key on the server no envelope can ever target it.
+  async function ensureDeviceKeyRegistered() {
+    try {
+      const { loadOrCreateIdentity, publishIdentity } = await import('@/utils/crypto/identity');
+      const { loadAccountDeviceId, saveAccountDeviceId } = await import('@/lib/account-storage');
+      const { getSyncDeviceId } = await import('@/utils/sync/sync-repository.js');
+      const identity = await loadOrCreateIdentity().catch(() => null);
+      if (!identity?.publicKeyHex) return;
+      const profileKey = accountStore.profile?.kemPublicKey;
+      if (profileKey && profileKey === identity.publicKeyHex) return;
+      let deviceId = (await getSyncDeviceId().catch(() => null)) || (await loadAccountDeviceId().catch(() => null));
+      if (!deviceId) {
+        deviceId =
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        try {
+          await saveAccountDeviceId(deviceId);
+        } catch {
+          // Persist is best-effort; the keypair post below still registers it.
+        }
+      }
+      await publishIdentity(identity, deviceId, activeBaseUrl());
+      try {
+        const { getAccount } = await import('@/lib/api/account');
+        const refreshed = await getAccount({ baseUrl: activeBaseUrl() });
+        if (refreshed?.profile) accountStore.setProfile(refreshed.profile);
+      } catch {
+        // Profile refresh is best-effort; the keypair post already landed.
+      }
+    } catch (err) {
+      console.warn('[useCloudWorkspaces] device key registration failed:', err?.message || err);
+    }
+  }
+
   async function recoverDeviceWorkspaceKeys() {
     // Never let silent recovery break workspace loading: a key that cannot be
     // read here is surfaced by the provisioning notice, not an error screen.
     try {
-      const candidates = workspaces.value.filter(
+      const cached = (ws) => {
+        try {
+          return getCachedWorkspaceKey(ws.id);
+        } catch {
+          return null;
+        }
+      };
+      // Recovery runs from the fetch list first (the record the server just
+      // handed back), then re-checks any key record that landed late: an
+      // envelope provisioned by the other device after this fetch's first
+      // pass only becomes readable on a fresh read.
+      const seen = new Set();
+      const fromFetch = workspaces.value.filter(
         (ws) =>
-          !getCachedWorkspaceKey(ws.id) &&
+          !cached(ws) &&
           (ws.wrappedKeys?.length || ws.wrappedKey || ws.vaultWrappedKeys)
       );
-      if (candidates.length === 0) return;
+      if (fromFetch.length === 0 && provisionPending.size === 0) return;
       const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
       const identity = await loadOrCreateIdentity().catch(() => null);
       if (!identity?.privateKeyHex) return;
-      for (const ws of candidates) {
+      const recoverOne = async (ws) => {
+        if (!ws?.id || seen.has(ws.id) || cached(ws)) return;
+        seen.add(ws.id);
         try {
-          await apiRecoverWorkspaceKeyFromRecord(ws, identity);
+          const recovered = await apiRecoverWorkspaceKeyFromRecord(ws, identity);
+          if (recovered) {
+            provisionPending.delete(`ws:${ws.id}`);
+            await repairMetaRoomJoin(ws.id, recovered);
+          }
         } catch (err) {
           console.warn(
             `[useCloudWorkspaces] silent workspace-key recovery failed for ${ws.id}:`,
+            err?.message || err
+          );
+        }
+      };
+      for (const ws of fromFetch) {
+        await recoverOne(ws);
+      }
+      // Late envelopes: a workspace whose no-usable-envelope pass parked a
+      // retryable marker gets one fresh server read per recovery run, so the
+      // first device to provision unblocks the parked meta join in this fetch.
+      // One read per pending workspace per run, no loop — no infinite retry.
+      for (const key of provisionPending) {
+        if (!key.startsWith('ws:')) continue;
+        const workspaceId = key.slice(3);
+        if (seen.has(workspaceId) || !workspaces.value.some((ws) => ws.id === workspaceId)) continue;
+        try {
+          const record = await apiGetWorkspaceKeyRecord(workspaceId, { baseUrl: activeBaseUrl() });
+          if (record) await recoverOne(record);
+        } catch (err) {
+          console.warn(
+            `[useCloudWorkspaces] late envelope check failed for ${workspaceId}:`,
             err?.message || err
           );
         }
@@ -430,16 +623,42 @@ export function useCloudWorkspaces() {
     }
   }
 
+  // A key that lands after the first meta-room attempt (clean-reset sign-in:
+  // the envelope only became readable once this fetch's recovery ran) must
+  // revive the parked join instead of waiting for a reload. setRoomKey on the
+  // meta room re-runs joinMetaRoom via pendingKeyJoins; no-op when already keyed.
+  async function repairMetaRoomJoin(workspaceId, workspaceKeyHex) {
+    if (!workspaceId || !workspaceKeyHex) return;
+    try {
+      const { setRoomKey, buildMetaRoomName, getWsSync } = await import('@/lib/sync/ws-sync');
+      await setRoomKey(buildMetaRoomName(workspaceId), workspaceKeyHex);
+      getWsSync().joinMetaRoom(workspaceId);
+    } catch (err) {
+      console.warn(`[useCloudWorkspaces] meta room repair failed for ${workspaceId}:`, err?.message || err);
+    }
+  }
+
   async function autoProvisionPendingKeys() {
     const accountStore = useAccountStore();
     const userId = accountStore.profile?.id;
     if (!userId) return;
 
+    // Workspaces already parked as retryable this epoch are not re-fetched in
+    // this same pass — a no-usable-envelope result does no fetch on its own,
+    // so re-entering would only re-park. The next fetch epoch re-arms them.
+    // Direct repeats without a fetch (the contract tests) still re-run: they
+    // assert observable retry, not fetch counts.
+    const parkedThisPass = new Set();
     for (const ws of workspaces.value) {
       // Any member who holds the workspace key can re-wrap it for a member or
       // device still missing one (server accepts owner/admin/editor).
-      if (!['owner', 'admin', 'editor'].includes(ws.role)) continue;
       if (provisionFailures.has(`ws:${ws.id}`)) continue;
+      if (parkedThisPass.has(ws.id) || provisionPending.has(`ws:${ws.id}`)) continue;
+      // Before wrapping for anyone else: make sure this device itself is
+      // covered, otherwise every recipient below needs a key we cannot read.
+      // Needs no role — it only re-uploads a key this device already holds.
+      await ensureOwnDeviceEnvelope(ws.id);
+      if (!['owner', 'admin', 'editor'].includes(ws.role)) continue;
 
       try {
         const collaborators = await apiGetWorkspacePublicKeys(ws.id, { baseUrl: activeBaseUrl() });
@@ -451,8 +670,14 @@ export function useCloudWorkspaces() {
             && !provisionFailures.has(`${ws.id}:${c.userId}:${c.deviceId || 'default'}`)
         );
         if (pending.length === 0) continue;
+        const hadPendingMarker = provisionPending.has(`ws:${ws.id}`);
         try {
           await provisionMissingDevices(ws.id, pending);
+          // A no-usable-envelope pass just parked a retryable marker: skip any
+          // later duplicate entry for this workspace in the same pass.
+          if (!hadPendingMarker && provisionPending.has(`ws:${ws.id}`)) {
+            parkedThisPass.add(ws.id);
+          }
         } catch (err) {
           const msg = err?.message || String(err);
           console.warn(`[useCloudWorkspaces] failed to provision keys for ${ws.id}:`, msg);

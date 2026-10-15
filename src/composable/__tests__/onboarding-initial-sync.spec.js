@@ -9,13 +9,6 @@ vi.mock('@/composable/useTheme', () => ({
   useTheme: () => ({ loadTheme: vi.fn() }),
 }));
 
-vi.mock('@/composable/useOnboardingAppearance', () => ({
-  useOnboardingAppearance: () => ({
-    selectAccentColor: vi.fn(),
-    selectZoomLevel: vi.fn(),
-  }),
-}));
-
 vi.mock('@/lib/settings', () => ({
   DEFAULT_UI_FONT_STACK: "'Inter'",
   getSetting: vi.fn(async () => null),

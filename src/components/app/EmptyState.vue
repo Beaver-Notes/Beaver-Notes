@@ -25,7 +25,15 @@
         }}
       </p>
 
-      <div class="flex items-center justify-center mt-4 gap-4 flex-wrap">
+      <ui-button
+        variant="primary"
+        data-testid="empty-state-create-note"
+        @click="emitter.emit('new-note')"
+      >
+        {{ translations.emptyState?.cta || 'Create your first note' }}
+      </ui-button>
+
+      <div class="flex items-center justify-center mt-6 gap-4 flex-wrap">
         <div
           v-for="sc in shortcuts"
           :key="sc.id"
@@ -45,7 +53,8 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed } from 'vue';
+import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 

@@ -86,9 +86,7 @@ impl SecureBlobCache {
         if let Some(ref dir) = state.files.portable_storage_dir {
             return Ok(dir.clone());
         }
-        Ok(dirs::data_local_dir()
-            .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))?
-            .join("com.beavernotes.beaver-notes"))
+        crate::shared::app_data_dir()
     }
 
     fn storage_path(state: &AppState) -> Result<PathBuf, AppError> {

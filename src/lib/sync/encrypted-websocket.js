@@ -1,16 +1,19 @@
 // End-to-end encryption for the realtime collaboration relay.
 //
 // y-websocket sends `[varuint messageType][payload]` binary frames. The relay
-// is a dumb forwarder for these frames (it only parses the JSON text frames it
-// multiplexes), so the payload can be encrypted end-to-end and decrypted by
-// the peer that holds the same per-room key. Both Yjs sync frames and
-// awareness (presence) frames are encrypted: awareness carries display names
-// and cursor/selection offsets, which the relay must not read either.
+// authenticates the connection and forwards those frames between peers without
+// being able to read them: it holds no room key, so it cannot decrypt. The
+// payload is encrypted end-to-end and decrypted by the peer holding the same
+// per-room key. Both Yjs sync frames and awareness (presence) frames are
+// encrypted: awareness carries display names and cursor/selection offsets,
+// which the relay must not read either. Durable storage is the HTTPS push and
+// pull path, not the relay, so nothing is lost if a realtime frame is dropped.
 //
 // Layout of an encrypted frame:
 //   MAGIC(2) || IV(12) || AES-256-GCM(frame)
 // MAGIC marks the frame as encrypted so plaintext control frames (from an
-// older client or the relay itself) can be passed through untouched.
+// older client or the relay itself) can be passed through untouched. Text
+// frames stay in the clear: they carry JSON notifications, no note content.
 
 import { encryptUpdate, decryptUpdate } from '@/utils/crypto/collab.js';
 

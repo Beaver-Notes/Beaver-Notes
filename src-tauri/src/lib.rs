@@ -7,6 +7,8 @@
 )]
 mod bootstrap;
 mod commands;
+#[cfg(feature = "webdriver-debug")]
+mod e2e_bridge;
 mod db;
 mod log_bridge;
 pub mod specta_setup;
@@ -118,7 +120,7 @@ pub fn run() {
 
     #[cfg(feature = "webdriver-debug")]
     {
-        builder = builder.plugin(tauri_plugin_webdriver_automation::init());
+        // Started in .setup below, where an AppHandle is available.
     }
 
     #[cfg(feature = "debug")]
@@ -304,9 +306,22 @@ pub fn run() {
             commands::workspace::workspace_rename,
             commands::workspace::workspace_detach,
             commands::workspace::workspace_delete,
-        ])
+        ]);
+
+    // WebKit only reports a killed renderer through this delegate. Without it the
+    // window survives, `window.eval` still returns Ok, and nothing logs why.
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.on_web_content_process_terminate(|_webview| {
+            crate::rs_log!("[webview] WEB CONTENT PROCESS TERMINATED (web-content-terminated)");
+        });
+    }
+
+    let mut builder = builder
         .setup(move |app| {
             crate::log_bridge::init(app.handle());
+            #[cfg(feature = "webdriver-debug")]
+            crate::e2e_bridge::start(app.handle().clone());
             #[cfg(target_os = "android")]
             crate::shared::set_android_app_handle(app.handle().clone());
 

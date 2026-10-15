@@ -185,9 +185,22 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
         "PRAGMA journal_mode=WAL;
         PRAGMA case_sensitive_like = OFF;
         PRAGMA synchronous=NORMAL;
-        PRAGMA busy_timeout = 5000;",
+        PRAGMA busy_timeout = 5000;
+        PRAGMA journal_size_limit = 8388608;
+        PRAGMA auto_vacuum = 2;",
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
+
+    // Read before `migrate` runs: a file this open created has no tables yet,
+    // which is what separates it from an existing database below.
+    let had_tables: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0)
+        > 0;
 
     let current: i64 = conn
         .query_row("PRAGMA user_version", [], |row| row.get(0))
@@ -197,6 +210,33 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
             .map_err(|e| AppError::Other(format!("migration v{current}→{SCHEMA_VERSION}: {e}")))?;
         conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
             .map_err(|e| AppError::Other(e.to_string()))?;
+    }
+
+    // `PRAGMA auto_vacuum` cannot flip a header that still says NONE — sqlite
+    // only rewrites it during a full VACUUM — so a database created before the
+    // pragma existed kept every page `yjs_compact` freed on the freelist and
+    // the file only ever grew (one workspace reached 1.2 GB holding 3 live
+    // rows). Rewrite the file once, then leave a kv marker so no later launch
+    // pays for it again; a database that fails or crashes mid-VACUUM simply
+    // gets converted on the next open instead of being skipped forever.
+    if had_tables {
+        let converted: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM kv WHERE key = 'db:auto_vacuum_converted'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0)
+            > 0;
+        if !converted {
+            conn.execute_batch("VACUUM")
+                .map_err(|e| AppError::Other(e.to_string()))?;
+            conn.execute(
+                "INSERT OR REPLACE INTO kv (key, value) VALUES ('db:auto_vacuum_converted', '1')",
+                [],
+            )
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        }
     }
 
     Ok(pool)

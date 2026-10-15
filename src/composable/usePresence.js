@@ -1,5 +1,6 @@
 import { computed, ref, isRef } from 'vue';
 import { logger } from '@/utils/logger';
+import { displayName } from '@/utils/displayName';
 
 const PEER_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
@@ -31,6 +32,11 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
   const getLocalId = () => resolveVal(localUserId);
   const getLocalName = () => resolveVal(localUserName);
   const localColor = computed(() => getColorFromId(getLocalId()));
+  // Fall back to the id-based name so the caret label and the toolbar avatar
+  // never claim a name the account does not have.
+  const localName = computed(
+    () => getLocalName() || displayName({ id: getLocalId() }),
+  );
   const getAw = () => resolveAwareness(awarenessOrRef);
 
   // True when the peer's user id is our own account: same human, not a
@@ -87,7 +93,7 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
       if (!byUser.has(key)) {
         byUser.set(key, {
           id: user.id,
-          name: user.name || 'Anonymous',
+          name: user.name || displayName({ id: user.id }),
           color: user.color || getColorFromId(user.id),
           cursor: state?.cursor || null,
         });
@@ -117,6 +123,7 @@ export function usePresence(awarenessOrRef, localUserId, localUserName) {
   return {
     peers,
     localColor,
+    localName,
     setLocalState,
     setCursor,
     init,

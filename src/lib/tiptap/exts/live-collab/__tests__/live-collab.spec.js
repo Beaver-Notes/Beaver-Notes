@@ -135,7 +135,7 @@ describe('origin classification', () => {
 });
 
 describe('remote edit attribution', () => {
-  it('highlights a remote edit in the author colour with a chip naming them', () => {
+  it('tints a remote edit in the author colour without an inline chip', () => {
     const { editor, pushPeer } = setup();
     expect(record(editor)).toBeNull();
 
@@ -148,11 +148,8 @@ describe('remote edit attribution', () => {
     expect(addedText(rec, editor.state.doc)).toBe(' world');
     expect(editor.state.doc.textContent).toBe('Hello world');
 
-    const chip = editor.view.dom.querySelector('.live-collab-chip');
-    expect(chip?.textContent).toContain('Alice');
-    expect(
-      editor.view.dom.querySelector('.live-collab-chip__undo')
-    ).toBeTruthy();
+    expect(editor.view.dom.querySelector('.live-collab-chip')).toBeNull();
+    expect(editor.view.dom.querySelector('.live-collab-chip__undo')).toBeNull();
     expect(editor.view.dom.querySelector('.live-collab-added')).toBeTruthy();
     // Unlike review mode, live attribution never locks the editor.
     expect(editor.isEditable).toBe(true);
@@ -306,7 +303,8 @@ describe('burst coalescing', () => {
     const text = addedText(rec, editor.state.doc);
     expect(text).toContain('A');
     expect(text).toContain('B');
-    expect(editor.view.dom.querySelectorAll('.live-collab-chip').length).toBe(1);
+    expect(editor.view.dom.querySelector('.live-collab-chip')).toBeNull();
+    expect(editor.view.dom.querySelector('.live-collab-added')).toBeTruthy();
   });
 
   it('records the first change of the batch as the annotation target', () => {
@@ -325,25 +323,16 @@ describe('burst coalescing', () => {
   });
 });
 
-describe('undo a specific remote change', () => {
-  it('reverts exactly that change and a peer Y.Doc converges', () => {
-    const { ydoc, editor, peerDoc, peerEditor, pushPeer } = setup();
+describe('no inline undo chip', () => {
+  it('renders no chip after a remote edit while the tint is applied', () => {
+    const { editor, pushPeer } = setup();
 
     pushPeer((ed) => ed.commands.insertContentAt(6, ' world'));
     expect(editor.state.doc.textContent).toBe('Hello world');
 
-    const undo = editor.view.dom.querySelector('.live-collab-chip__undo');
-    expect(undo).toBeTruthy();
-    undo.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-    expect(editor.state.doc.textContent).toBe('Hello');
-    expect(record(editor)).toBeNull();
-
-    Y.applyUpdate(
-      peerDoc,
-      Y.encodeStateAsUpdate(ydoc, Y.encodeStateVector(peerDoc))
-    );
-    expect(peerEditor.state.doc.textContent).toBe('Hello');
+    expect(editor.view.dom.querySelector('.live-collab-chip')).toBeNull();
+    expect(editor.view.dom.querySelector('.live-collab-chip__undo')).toBeNull();
+    expect(editor.view.dom.querySelector('.live-collab-added')).toBeTruthy();
   });
 });
 

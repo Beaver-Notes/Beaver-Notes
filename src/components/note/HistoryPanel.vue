@@ -1,9 +1,10 @@
 <template>
-  <transition name="slide-up">
-    <div
-      class="fixed inset-x-0 z-40 mx-2 transition-all duration-300 ease-[var(--ease-standard)] bottom-4 mobile:bottom-[var(--app-mobile-floating-offset)] md:pl-16"
-    >
-      <ui-card class="w-full max-w-4xl mx-auto">
+  <div
+    class="fixed inset-x-0 z-40 mx-2 bottom-4 mobile:bottom-[var(--app-mobile-floating-offset)] md:pl-16"
+  >
+      <ui-card
+        class="relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-xl overflow-hidden w-full p-2 mx-auto"
+      >
         <!-- Header (shared by both tabs) -->
         <div
           class="flex items-center justify-between gap-2 px-3 md:px-4 py-2 border-b border-neutral-200 dark:border-neutral-700"
@@ -251,67 +252,67 @@
               <!-- Scrubber -->
               <div class="min-w-0 flex-1 p-2 md:p-3">
                 <div class="flex items-center gap-1 md:gap-2">
-                <button
-                  :disabled="olderDisabled"
-                  :aria-label="tr.older || 'Older version'"
-                  @click="stepButton(1)"
-                  class="flex h-9 w-9 max-md:h-11 max-md:w-11 shrink-0 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-30 disabled:hover:bg-transparent dark:hover:bg-neutral-800 dark:hover:text-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
-                >
-                  <v-remixicon name="riArrowLeftLine" class="w-4 h-4" />
-                </button>
+                  <button
+                    :disabled="olderDisabled"
+                    :aria-label="tr.older || 'Older version'"
+                    @click="stepButton(1)"
+                    class="flex h-9 w-9 max-md:h-11 max-md:w-11 shrink-0 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-30 disabled:hover:bg-transparent dark:hover:bg-neutral-800 dark:hover:text-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
+                  >
+                    <v-remixicon name="riArrowLeftLine" class="w-4 h-4" />
+                  </button>
 
-              <div
-                ref="tlRoot"
-                role="slider"
-                tabindex="0"
-                data-testid="history-timeline"
-                :aria-label="tr.timeline || 'Version timeline'"
-                aria-orientation="horizontal"
-                aria-valuemin="0"
-                :aria-valuemax="Math.max(0, filteredCommits.length - 1)"
-                :aria-valuenow="timelineValueNow"
-                :aria-valuetext="timelineValueText"
-                class="relative h-[100px] min-w-0 flex-1 cursor-ew-resize touch-none select-none rounded-lg text-neutral-900 outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:bg-primary/5 dark:text-neutral-100"
-                @pointerdown="onPointerDown"
-                @pointermove="onPointerMove"
-                @pointerup="onPointerUp"
-                @pointercancel="onPointerUp"
-                @pointerenter="onPointerEnter"
-                @pointerleave="onPointerLeave"
-                @wheel.prevent="onWheel"
-                @keydown="onKeydown"
-                @contextmenu.prevent
-              >
-                <canvas
-                  ref="tlCanvas"
-                  class="absolute inset-0 h-full w-full"
-                ></canvas>
-                <span
-                  aria-hidden="true"
-                  class="text-primary pointer-events-none absolute h-0 w-0 overflow-hidden"
-                ></span>
-                <div
-                  ref="tlBubble"
-                  class="pointer-events-none absolute left-0 top-0 flex h-6 items-center rounded-full bg-neutral-900 px-2.5 text-[11px] font-semibold tabular-nums text-white shadow-md transition-opacity duration-150 dark:bg-white dark:text-neutral-900"
-                  :class="
-                    history.selectedCommitIndex.value < 0
-                      ? 'opacity-0'
-                      : 'opacity-100'
-                  "
-                  style="will-change: transform"
-                >
-                  {{ bubbleText }}
-                </div>
-              </div>
+                  <div
+                    ref="tlRoot"
+                    role="slider"
+                    tabindex="0"
+                    data-testid="history-timeline"
+                    :aria-label="tr.timeline || 'Version timeline'"
+                    aria-orientation="horizontal"
+                    aria-valuemin="0"
+                    :aria-valuemax="Math.max(0, filteredCommits.length - 1)"
+                    :aria-valuenow="timelineValueNow"
+                    :aria-valuetext="timelineValueText"
+                    class="relative h-[100px] min-w-0 flex-1 cursor-ew-resize touch-none select-none rounded-lg text-neutral-900 outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:bg-primary/5 dark:text-neutral-100"
+                    @pointerdown="onPointerDown"
+                    @pointermove="onPointerMove"
+                    @pointerup="onPointerUp"
+                    @pointercancel="onPointerUp"
+                    @pointerenter="onPointerEnter"
+                    @pointerleave="onPointerLeave"
+                    @wheel.prevent="onWheel"
+                    @keydown="onKeydown"
+                    @contextmenu.prevent
+                  >
+                    <canvas
+                      ref="tlCanvas"
+                      class="absolute inset-0 h-full w-full"
+                    ></canvas>
+                    <span
+                      aria-hidden="true"
+                      class="text-primary pointer-events-none absolute h-0 w-0 overflow-hidden"
+                    ></span>
+                    <div
+                      ref="tlBubble"
+                      class="pointer-events-none absolute left-0 top-0 flex h-6 items-center rounded-full bg-neutral-900 px-2.5 text-[11px] font-semibold tabular-nums text-white shadow-md transition-opacity duration-150 dark:bg-white dark:text-neutral-900"
+                      :class="
+                        history.selectedCommitIndex.value < 0
+                          ? 'opacity-0'
+                          : 'opacity-100'
+                      "
+                      style="will-change: transform"
+                    >
+                      {{ bubbleText }}
+                    </div>
+                  </div>
 
-              <button
-                :disabled="newerDisabled"
-                :aria-label="tr.newer || 'Newer version'"
-                @click="stepButton(-1)"
-                class="flex h-9 w-9 max-md:h-11 max-md:w-11 shrink-0 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-30 disabled:hover:bg-transparent dark:hover:bg-neutral-800 dark:hover:text-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
-              >
-                <v-remixicon name="riArrowRightSLine" class="w-4 h-4" />
-              </button>
+                  <button
+                    :disabled="newerDisabled"
+                    :aria-label="tr.newer || 'Newer version'"
+                    @click="stepButton(-1)"
+                    class="flex h-9 w-9 max-md:h-11 max-md:w-11 shrink-0 items-center justify-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-30 disabled:hover:bg-transparent dark:hover:bg-neutral-800 dark:hover:text-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
+                  >
+                    <v-remixicon name="riArrowRightSLine" class="w-4 h-4" />
+                  </button>
                 </div>
 
                 <!-- Keyboard/screen-reader list; also the contract for history-entry -->
@@ -416,7 +417,6 @@
         </div>
       </ui-card>
     </div>
-  </transition>
 </template>
 
 <script>
@@ -1133,13 +1133,16 @@ export default {
 
     // Changing the selected version drops any loaded snapshot and exits preview.
     // selectCommit() alone never clears selectedCommit, so clear it here.
-    watch(() => history.selectedCommitIndex.value, () => {
-      history.selectedCommit.value = null;
-      if (showPreview.value) {
-        showPreview.value = false;
-        emit('preview', null);
-      }
-    });
+    watch(
+      () => history.selectedCommitIndex.value,
+      () => {
+        history.selectedCommit.value = null;
+        if (showPreview.value) {
+          showPreview.value = false;
+          emit('preview', null);
+        }
+      },
+    );
 
     return {
       history,

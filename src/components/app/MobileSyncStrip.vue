@@ -3,7 +3,7 @@
     <div
       v-if="visible"
       data-testid="mobile-sync-strip"
-      class="fixed inset-x-0 top-0 z-30 w-full border-b border-neutral-200/80 bg-white/95 px-3 pb-1.5 pt-[calc(var(--app-safe-area-top)+0.5rem)] backdrop-blur dark:border-neutral-800/80 dark:bg-neutral-900/95"
+      class="mx-4 mt-[calc(var(--app-safe-area-top)+0.5rem)] rounded-2xl bg-white/95 px-3 py-2 shadow-lg ring-1 ring-black/5 backdrop-blur-xl dark:bg-neutral-900/95 dark:ring-white/10"
     >
       <div
         role="status"

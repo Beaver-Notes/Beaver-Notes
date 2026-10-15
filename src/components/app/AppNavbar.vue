@@ -42,6 +42,7 @@
           <button
             v-tooltip:right="translations.sidebar.newFolder || 'New Folder'"
             :aria-label="translations.sidebar.newFolder || 'New Folder'"
+            data-testid="add-folder-menu-item"
             class="flex h-12 w-16 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors duration-200"
             @click="addFolderAndClose"
           >
@@ -50,6 +51,7 @@
           <button
             v-tooltip:right="translations.sidebar.addNotes || 'New Note'"
             :aria-label="translations.sidebar.addNotes || 'New Note'"
+            data-testid="add-note-menu-item"
             class="flex h-12 w-16 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors duration-200"
             @click="addNoteAndClose"
           >
@@ -130,35 +132,6 @@
 
       <!-- Right Button -->
       <div v-if="!selectionBar.hasSelection" class="relative flex-shrink-0 flex items-center gap-2">
-        <!-- Workspace pill (mobile only) -->
-        <button
-          v-if="isAuthenticated && activeWorkspaceName"
-          class="flex h-8 items-center gap-1.5 rounded-full border border-neutral-200 bg-white/80 px-3 text-xs font-medium text-neutral-600 backdrop-blur dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-neutral-300"
-          @click="showWorkspacePicker = !showWorkspacePicker"
-        >
-          <span class="max-w-[80px] truncate">{{ activeWorkspaceName }}</span>
-          <v-remixicon name="riArrowDownSLine" size="12" />
-        </button>
-        <ui-popover
-          v-if="isAuthenticated"
-          v-model="showWorkspacePicker"
-          placement="bottom-end"
-        >
-          <template #content>
-            <div class="p-1 min-w-[180px]">
-              <button
-                v-for="ws in workspaces"
-                :key="ws.id"
-                class="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-left transition-colors"
-                :class="ws.id === activeWorkspaceId ? 'bg-primary/10 text-primary font-medium' : 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'"
-                @click="switchWs(ws.id)"
-              >
-                <span class="truncate">{{ ws.name || 'Workspace' }}</span>
-                <v-remixicon v-if="ws.id === activeWorkspaceId" name="riCheckLine" size="14" class="ltr:ml-auto rtl:mr-auto text-primary" />
-              </button>
-            </div>
-          </template>
-        </ui-popover>
         <button
           v-tooltip:right="
             showAddMenu
@@ -170,7 +143,7 @@
               ? translations.index.close || 'Close'
               : translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
           "
-          data-testid="add-note-button"
+          data-testid="add-notes-menu-button"
           class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-[transform,background-color] duration-300 ease-[var(--ease-snappy)] hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/100"
           :class="{ 'rotate-40 scale-95': showAddMenu }"
           @click="toggleAddMenu"
@@ -202,8 +175,6 @@ import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useDialog } from '@/lib/dialog';
-import { useAccountStore } from '@/store/account';
-import { useWorkspaceStore } from '@/store/workspace';
 
 export default {
   setup() {
@@ -229,23 +200,6 @@ export default {
     });
     const showAddMenu = ref(false);
     const selectionBar = useSelectionBar();
-    const accountStore = useAccountStore();
-    const workspaceStore = useWorkspaceStore();
-    const showWorkspacePicker = ref(false);
-
-    const isAuthenticated = computed(() => accountStore.isAuthenticated);
-    const workspaces = computed(() => workspaceStore.workspaces);
-    const activeWorkspaceId = computed(() => workspaceStore.activeId);
-    const activeWorkspaceName = computed(() => {
-      const ws = workspaces.value.find(w => w.id === activeWorkspaceId.value);
-      return ws?.name || '';
-    });
-
-    async function switchWs(id) {
-      showWorkspacePicker.value = false;
-      await workspaceStore.switchTo(id);
-      window.location.reload();
-    }
 
     const railWidthClass = computed(() => {
       if (selectionBar.hasSelection) return 'flex-1 min-w-0';
@@ -426,12 +380,6 @@ export default {
       handleClearSelection,
       handleDeleteSelection,
       handleMoveSelection,
-      isAuthenticated,
-      workspaces,
-      activeWorkspaceId,
-      activeWorkspaceName,
-      showWorkspacePicker,
-      switchWs,
     };
   },
 };

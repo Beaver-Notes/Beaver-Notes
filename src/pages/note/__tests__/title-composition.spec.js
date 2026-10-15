@@ -16,6 +16,17 @@ vi.mock('@/lib/yjs/helpers.js', async () => {
     applyUpdatesToDoc: () => {},
     toUint8Array: (x) => x,
     ensureSchema: vi.fn(),
+    // Same FNV-1a contract as the real helper: applyTitleDelta only takes the
+    // deterministic seed path while this id is still unused in the doc.
+    deterministicClientId: (seed) => {
+      let hash = 0x811c9dc5;
+      for (let i = 0; i < seed.length; i++) {
+        hash ^= seed.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193);
+      }
+      hash >>>= 0;
+      return hash === 0 ? 1 : hash;
+    },
     // applyTitleDelta seeds an empty Y.Text through this helper.
     seedDeterministically: (ydoc, seedKey, build, origin) => {
       const temp = new Y.Doc();

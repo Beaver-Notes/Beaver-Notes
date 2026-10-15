@@ -570,9 +570,11 @@
     "invalidAssetsStructure": "Invalid assets structure in the imported note.",
     "invalidFileFormat": "Invalid file format or empty file.",
     "limitedSupport": "Limited support",
+    "linkUrlUnavailable": "Enlace disponible solo en esta sesión",
     "missingEssentialFields": "Missing essential note fields in the imported file.",
     "noteExportedToPath": "Note \"{title}\" exported to \"{path}\".",
     "noteWithIdNotFound": "Note with ID {id} not found.",
+    "revokeLinkTitleNoUrl": "¿Revocar el enlace de invitación?",
     "selectExportFolderTitle": "Select export folder"
   },
   "shortcuts": {

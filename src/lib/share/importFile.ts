@@ -15,8 +15,11 @@ export async function importSharedFile(args: {
 
   if (name.endsWith('.bea')) {
     const parsed = JSON.parse(text);
-    if (!parsed || parsed.content?.type !== 'doc') throw new Error('Invalid .bea payload');
-    return { title: parsed.title || '', content: parsed.content };
+    // Files written by exportBEA wrap the note in a { data: {...} } envelope;
+    // hand-made or third-party files are flat. Unwrap, then validate.
+    const note = parsed?.data && typeof parsed.data === 'object' ? parsed.data : parsed;
+    if (!note || note.content?.type !== 'doc') throw new Error('Invalid .bea payload');
+    return { title: note.title || '', content: note.content };
   }
   if (name.endsWith('.md') || name.endsWith('.mdx') || name.endsWith('.markdown')) {
     const { title, content } = await convertMarkdownToTiptap(text, '', '');

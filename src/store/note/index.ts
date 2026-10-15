@@ -483,21 +483,29 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
   if (contentChanged) {
     await saveNote(id, note);
     rebuildLinkIndexForNote(id, note.content);
-    } else {
-      // Content unchanged: reindex only if title/searchText/labels changed.
-      const indexKey = `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`;
-      if (indexKey !== indexSignature.get(id)) {
-        await saveNote(id, note);
-      }
+  } else {
+    // Content unchanged: reindex only if title/searchText/labels changed.
+    const indexKey = `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`;
+    if (indexKey !== indexSignature.get(id)) {
+      await saveNote(id, note);
     }
+  }
 
-    syncNoteMeta(note);
+  // patchLocal replaces the note object instead of mutating it, so `note` above is
+  // a detached snapshot: an edit landing during the await would push the snapshot's
+  // stale title into the shared meta doc and overwrite the newer edit. Re-read the
+  // live note for the meta write.
+  const live = this.data[id] ?? note;
+  syncNoteMeta(live);
 
-    // Update signatures
-    contentSignature.set(id, note.content);
-    indexSignature.set(id, `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`);
+  // Signatures stay keyed to what was actually written above, so an edit that raced
+  // this persist is still seen as dirty by the next one.
+  contentSignature.set(id, note.content);
+  indexSignature.set(id, `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`);
 
-  return note;
+  scheduleSharedNotePush(id);
+
+  return live;
 }
 
 export async function persistMeta(this: NoteStoreThis, id: string): Promise<NoteData | null> {
@@ -508,6 +516,7 @@ export async function persistMeta(this: NoteStoreThis, id: string): Promise<Note
   // Content unchanged: skip preview/searchText walks, MiniSearch/Spotlight, link reindex.
 
   syncNoteMeta(note);
+  scheduleSharedNotePush(id);
   return note;
 }
 
@@ -646,6 +655,7 @@ export async function addLabel(this: NoteStoreThis, id: string, labelId: string)
 
     await saveNote(id, this.data[id]);
     syncNoteMeta(this.data[id]);
+    scheduleSharedNotePush(id);
 
     return labelId;
   } catch (error) {
@@ -676,6 +686,7 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
 
     await saveNote(id, this.data[id]);
     syncNoteMeta(this.data[id]);
+    scheduleSharedNotePush(id);
 
     return labelId;
   } catch (error) {
@@ -689,6 +700,21 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
 export function syncSearchIndex(note: NoteData): void {
   if (!note?.id || note.isLocked || isEncryptedContent(note.content)) return;
   upsertSearchEntry(note);
+}
+
+/**
+ * Queue a note-scoped push for a note shared with this account. The Rust
+ * workspace push skips notes this account only collaborates on and the shared
+ * note fetch is one-shot, so without this the write stays on this device.
+ * Fire-and-forget: a push that fails is a sync condition, not a failed save.
+ * Imported lazily because the composable pulls this store back in.
+ */
+function scheduleSharedNotePush(id: string): void {
+  void import('@/composable/useSharedNotes')
+    .then((m) => m.scheduleSharedNotePush(id))
+    .catch((error) => {
+      console.warn('[note] failed to schedule shared note push:', error);
+    });
 }
 
 export async function saveNote(id: string, noteData: NoteData): Promise<void> {

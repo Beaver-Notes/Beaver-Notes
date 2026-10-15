@@ -9,10 +9,11 @@
         <div
           v-if="expanded"
           ref="triggerEl"
-          class="transition-colors duration-150 rounded-xl flex items-center h-10 w-full px-2 gap-2 cursor-pointer text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100"
+          data-testid="workspace-switcher-trigger"
+          class="transition-colors duration-150 rounded-xl flex items-center h-10 w-full gap-2 cursor-pointer"
         >
           <span
-            class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
+            class="shrink-0 w-9 h-9 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
           >
             <span v-if="activeEmoji">{{ activeEmoji }}</span>
             <v-remixicon v-else name="riFolderLine" size="14" />
@@ -40,6 +41,7 @@
           v-else
           v-tooltip:right="'Workspaces'"
           aria-label="Workspaces"
+          data-testid="workspace-switcher-trigger"
           class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
         >
           <span
@@ -60,6 +62,7 @@
 
         <div v-for="ws in workspaces" :key="ws.id" class="group relative">
           <button
+            :data-testid="ws.id === activeId ? 'workspace-option-active' : 'workspace-option'"
             class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
             @click="switchWorkspace(ws.id)"
           >
@@ -143,12 +146,12 @@
         </template>
 
         <div
-          v-if="isPaid"
+          v-if="canCreateWorkspace"
           class="border-t border-neutral-200 dark:border-neutral-700 my-1"
         />
 
         <button
-          v-if="isPaid"
+          v-if="canCreateWorkspace"
           class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="promptCreate"
         >
@@ -217,19 +220,30 @@ export default {
     const formDialogWorkspace = ref(null);
 
     const workspaces = computed(() => workspaceStore.workspaces);
-    const pendingRequests = cloud.pendingRequests;
+    const pendingRequests = computed(() => cloud.pendingRequests);
     const activeId = computed(() => workspaceStore.activeId);
+    const activeWs = computed(
+      () =>
+        workspaces.value.find((w) => w.id === activeId.value) ??
+        workspaces.value[0],
+    );
     const activeName = computed(
-      () => workspaceStore.activeWorkspace?.name ?? 'Default',
+      () => activeWs.value?.name ?? 'Default',
     );
-    const activeEmoji = computed(
-      () => workspaceStore.activeWorkspace?.emoji ?? '',
-    );
-    const activeRole = computed(
-      () => workspaceStore.activeWorkspace?.role ?? null,
-    );
+    const activeEmoji = computed(() => activeWs.value?.emoji ?? '');
+    const activeRole = computed(() => activeWs.value?.role ?? null);
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const isPaid = computed(() => accountStore.isPaidPlan);
+    // teamWorkspaces is the plan capability that permits creating extra
+    // workspaces. Starter and pro get exactly one workspace, so they may still
+    // create it when they currently have none and the count is known.
+    const canCreateWorkspace = computed(() => {
+      if (accountStore.planLimits?.flags?.teamWorkspaces === true) return true;
+      if (!isPaid.value) return false;
+      const list = workspaces.value;
+      if (!list || workspaceStore.loading) return false;
+      return list.length === 0;
+    });
 
     function canManageWorkspace(ws) {
       return (
@@ -295,6 +309,8 @@ export default {
     }
 
     function promptCreate() {
+      // Stops a stale render from opening the dialog on a plan that cannot create workspaces.
+      if (!canCreateWorkspace.value) return;
       formDialogMode.value = 'create';
       formDialogWorkspace.value = null;
       formDialogShow.value = true;
@@ -331,9 +347,14 @@ export default {
           }
         }
       }
-      // Renaming/re-decorating updates in place; only a new workspace needs
-      // the reload to load its data.
-      if (wasCreate) reloadForWorkspace(name.trim());
+      // Renaming/re-decorating updates in place; a new workspace needs the
+      // reload to load its data. Land on the workspace settings page so the
+      // fresh (empty) workspace immediately offers the invite affordance
+      // instead of dumping the user into a blank workspace.
+      if (wasCreate) {
+        window.location.hash = '#/settings/workspace';
+        window.location.reload();
+      }
     }
 
     function promptRename(ws) {
@@ -391,6 +412,7 @@ export default {
       activeRole,
       isAuthenticated,
       isPaid,
+      canCreateWorkspace,
       canManageWorkspace,
       switchWorkspace,
       promptCreate,

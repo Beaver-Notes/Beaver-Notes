@@ -35,6 +35,10 @@ vi.mock('@/utils/sync/shared-keys', () => ({
   registerSharedSyncKey: vi.fn().mockResolvedValue(true),
   expectSharedSyncNote: vi.fn().mockResolvedValue(true),
   clearSharedSyncKeys: vi.fn(),
+  getActiveWsKey: vi.fn(() => null),
+  setActiveWsKey: vi.fn(),
+  registerWsKeyForNote: vi.fn(async () => true),
+  registerWsKeyForNotes: vi.fn(async () => {}),
 }));
 
 vi.mock('@/utils/crypto/identity', () => ({

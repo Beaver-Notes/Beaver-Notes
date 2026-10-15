@@ -59,7 +59,62 @@ fn count_files(dir: &std::path::Path) -> u64 {
     n
 }
 
+/// iOS hands Files-app documents over as security-scoped `file://` URLs: the
+/// grant only exists while `startAccessingSecurityScopedResource` is held, and
+/// the import dialog reads the file later through `fs_read_json`/`fs_read_file`
+/// once the event is long gone. So claim the scope here, copy the bytes into
+/// the app container while it is held, and hand the frontend the container
+/// path. Same staging step as the Share Extension's `copyIntoContainer`.
+#[cfg(target_os = "ios")]
+fn stage_security_scoped_file(app: &AppHandle, state: &AppState, path: &str) -> Option<String> {
+    use objc2_foundation::{NSString, NSURL};
+
+    let url = NSURL::fileURLWithPath(&NSString::from_str(path));
+    if !unsafe { url.startAccessingSecurityScopedResource() } {
+        crate::rs_log!("[file-open] no security scope for {path}");
+        return None;
+    }
+    let staged = copy_into_open_dir(app, state, path);
+    unsafe { url.stopAccessingSecurityScopedResource() };
+    staged
+}
+
+#[cfg(target_os = "ios")]
+fn copy_into_open_dir(app: &AppHandle, state: &AppState, path: &str) -> Option<String> {
+    let dir = state.files.external_open_dir();
+    let name = Path::new(path).file_name()?.to_string_lossy().to_string();
+    let dest = dir.join(format!("{}-{}", now_millis(), name));
+    if let Err(e) = assert_path_access(app, state, &dest, "stage file open") {
+        crate::rs_log!("[file-open] {e}");
+        return None;
+    }
+    if let Err(e) = fs::create_dir_all(&dir) {
+        crate::rs_log!("[file-open] {}: {e}", dir.display());
+        return None;
+    }
+    let raw = match fs::read(path) {
+        Ok(raw) => raw,
+        Err(e) => {
+            crate::rs_log!("[file-open] read {path}: {e}");
+            return None;
+        }
+    };
+    // Owner-only bytes: this is plaintext note content staged in the container.
+    if let Err(e) = write_private_bytes(&dest, &raw) {
+        crate::rs_log!("[file-open] {}: {e}", dest.display());
+        return None;
+    }
+    Some(dest.to_string_lossy().to_string())
+}
+
+#[cfg(not(target_os = "ios"))]
+fn stage_security_scoped_file(_app: &AppHandle, _state: &AppState, _path: &str) -> Option<String> {
+    None
+}
+
 pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: String) {
+    // Outside iOS this is None, so the original path flows through untouched.
+    let path = stage_security_scoped_file(app, state, &path).unwrap_or(path);
     grant_trusted_path(state, Path::new(&path));
     if app
         .emit_to(MAIN_WINDOW_LABEL, "file-opened", path.clone())

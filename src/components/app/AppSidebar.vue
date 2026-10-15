@@ -22,6 +22,14 @@
       </button>
     </div>
 
+    <div
+      v-if="showWorkspacePresence"
+      class="px-3 pb-3 shrink-0"
+      :class="expanded ? 'flex' : 'flex justify-center'"
+    >
+      <PresenceAvatars :peers="workspacePresence.peers.value" :max-visible="4" />
+    </div>
+
     <div class="px-3 mb-4 shrink-0">
       <button
         v-tooltip:right="
@@ -440,9 +448,12 @@ import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
 import FolderCustomizeModal from '../home/FolderCustomizeModal.vue';
 import { useSyncProgressStore } from '@/store/sync-progress';
 import { useSidebar } from '@/composable/useSidebar';
+import { useAccountStore } from '@/store/account';
+import { useWorkspacePresence } from '@/composable/useWorkspacePresence';
+import PresenceAvatars from '@/components/note/PresenceAvatars.vue';
 
 export default {
-  components: { WorkspaceSwitcher, FolderCustomizeModal },
+  components: { WorkspaceSwitcher, FolderCustomizeModal, PresenceAvatars },
   setup() {
     const { play } = useSounds();
     const router = useRouter();
@@ -468,6 +479,11 @@ export default {
     const theme = useTheme();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
+    const accountStore = useAccountStore();
+    const workspacePresence = useWorkspacePresence();
+    const showWorkspacePresence = computed(
+      () => accountStore.isAuthenticated && workspacePresence.peers.value.size > 0,
+    );
 
     // DOM Element pointers to calculate indicator pill transitions cleanly
     const homeBtn = ref(null);
@@ -668,6 +684,7 @@ export default {
       emitter.off('open-settings', openSettings);
       emitter.off('dark', enableDarkTheme);
       emitter.off('light', enableLightTheme);
+      workspacePresence.destroy();
 
       if (typeof window !== 'undefined' && window.addNote) {
         delete window.addNote;
@@ -742,6 +759,8 @@ export default {
       currentFolderId,
       openCreateFolderModal,
       onFolderCreated,
+      showWorkspacePresence,
+      workspacePresence,
     };
   },
 };

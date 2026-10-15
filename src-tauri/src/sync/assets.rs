@@ -24,7 +24,7 @@ use crate::commands::security::serialize_sync_envelope;
 use crate::db::DbPool;
 use crate::shared::{
     aead_decrypt_bytes, aead_decrypt_json, aead_encrypt_bytes, app_storage_dir, current_shared_key,
-    data_pool, write_barrier, AppError, AppState, SyncEnvelope, PROTOCOL_VERSION,
+    data_pool, encrypt_asset, write_barrier, AppError, AppState, SyncEnvelope, PROTOCOL_VERSION,
     SHARED_PAYLOAD_VERSION, SYNC_PAYLOAD_VERSION,
 };
 
@@ -1411,7 +1411,12 @@ pub(crate) async fn sync_cloud_assets(
     }
 
     transferred += upload_batches(&client, &key, &shared, &base, uploads).await?;
-    transferred += download_missing(&client, &key, &shared, &expected, &base, downloads).await?;
+    {
+        let state = app.state::<AppState>();
+        transferred +=
+            download_missing(app, state.inner(), &client, &key, &shared, &expected, &base, downloads)
+                .await?;
+    }
     Ok(transferred)
 }
 
@@ -1481,9 +1486,11 @@ async fn upload_batches(
 /// Download remote keys missing locally, sequentially. Presigned URLs are
 /// tried first; an absent URL or any presigned error (a 403 is an expired
 /// signature, never identity loss) falls back to the authenticated
-/// `download_asset`. Envelopes decrypt then write plaintext; legacy plaintext
+/// `download_asset`. Envelopes decrypt then write sealed; legacy plaintext
 /// writes as-is and is best-effort re-uploaded enveloped (self-healing).
 async fn download_missing(
+    app: &AppHandle,
+    state: &AppState,
     client: &CloudClient,
     key: &WriterKey,
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
@@ -1578,9 +1585,9 @@ async fn download_missing(
             std::fs::create_dir_all(parent).map_err(|e| CloudFail::Fatal(e.into()))?;
         }
         match plain {
-            Some(plain) => write_asset(&dest, &plain)?,
+            Some(plain) => write_asset(app, state, &dest, &plain)?,
             None => {
-                write_asset(&dest, &raw)?;
+                write_asset(app, state, &dest, &raw)?;
                 // Don't self-heal a legacy plaintext asset for a note that is
                 // expected-shared but keyless: the re-upload would seal v5 for
                 // peers (same policy as the upload differ, C1).
@@ -1608,17 +1615,25 @@ async fn download_missing(
     Ok(downloaded)
 }
 
-fn write_asset(dest: &Path, bytes: &[u8]) -> Result<(), CloudFail> {
-    super::local::atomic_write(dest, bytes).map_err(|e| CloudFail::Fatal(e.into()))
+/// Seals because this was the one local asset write path that did not, and
+/// downloads are the reason.
+fn write_asset(
+    app: &AppHandle,
+    state: &AppState,
+    dest: &Path,
+    bytes: &[u8],
+) -> Result<(), CloudFail> {
+    let sealed = encrypt_asset(app, state, dest, bytes).map_err(CloudFail::Fatal)?;
+    super::local::atomic_write(dest, &sealed).map_err(|e| CloudFail::Fatal(e.into()))
 }
 
 /// Mirror the local asset tree into the folder sync root and back, for notes
 /// still present in `note_content` (liveness replaces tombstones).
 ///
-/// Raw bytes are copied verbatim: local asset files are already encrypted with
-/// the shared vault items key, so any device that joined the vault decrypts
-/// them. Filesystem folders only (`scoped:` folders are handled by the scoped
-/// commit store path in Phase C).
+/// Raw bytes are copied verbatim: every file under the local asset roots is
+/// sealed with the vault items key, downloads included, so any device that
+/// joined the vault decrypts them. Filesystem folders only (`scoped:` folders
+/// are handled by the scoped commit store path in Phase C).
 pub(crate) fn sync_folder_assets(
     app: &AppHandle,
     state: &AppState,

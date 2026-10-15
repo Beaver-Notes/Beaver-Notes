@@ -17,7 +17,7 @@ use crate::db::{self, DbPool};
 use crate::shared::{
     SyncEnvelope, PROTOCOL_VERSION, SYNC_PAYLOAD_VERSION, aead_decrypt_bytes, aead_decrypt_json,
     aead_encrypt_bytes, assert_path_access, current_app_key, data_pool, decrypt_yjs_blob,
-    generate_key_id, AppError, AppState,
+    generate_key_id, AppError, AppState, DEFAULT_WORKSPACE_ID, WORKSPACES_DIR, WORKSPACES_JSON,
 };
 
 const UPDATE_EXT: &str = ".yjs.json";
@@ -28,6 +28,14 @@ const SCOPED_PREFIX: &str = "scoped:";
 const SCOPED_COMMITS_REL: &str = "BeaverNotesSync/commits";
 
 const DEVICE_ID_KEY: &str = "sync:local:device-id";
+/// Installation-level device id store, one file per app data dir shared by
+/// every workspace DB (finding F1). Kept as a plain sibling of the workspace
+/// databases instead of a kv row so the id survives workspace switches and
+/// never diverges between databases.
+const DEVICE_ID_FILE: &str = "device-id.json";
+/// Mirrors the file name `crate::shared::workspace_data_path` appends to a
+/// workspace directory; there is no shared constant to import.
+const WORKSPACE_DATA_DB: &str = "data.db";
 
 /// Compact this device's own commit files for a note into a single snapshot
 /// once it has accumulated this many, bounding folder growth (finding F11).
@@ -286,14 +294,126 @@ fn pull_commits(
     Ok(pulled_notes)
 }
 
+/// File this pool was opened from, via `PRAGMA database_list`: `DbPool` is an
+/// `r2d2` pool that exposes no connection path, and every caller of
+/// `get_or_create_device_id` holds no `AppHandle` to resolve one.
+fn pool_db_path(pool: &DbPool) -> Result<PathBuf, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let file: String = conn
+        .query_row(
+            "SELECT file FROM pragma_database_list WHERE name = 'main'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    if file.is_empty() {
+        return Err(AppError::Other("pool has no database file".into()));
+    }
+    Ok(PathBuf::from(file))
+}
+
+/// App data dir shared by every workspace of one installation: the dir holding
+/// `workspaces.json`, which `crate::shared::workspaces_json_path` also points at
+/// (so portable/env-overridden data dirs resolve the same way). Found by walking
+/// up from the pool because no `AppHandle` is available here.
+/// Pools opened outside any installation (unit-test temp dirs, pre-registry
+/// installs) fall back to the db file's own directory, which keeps such pools
+/// their own installation.
+// ponytail: walk stops after 8 levels; a deeper nesting falls back to per-pool ids.
+fn installation_root(pool: &DbPool) -> Result<PathBuf, AppError> {
+    let db_path = pool_db_path(pool)?;
+    let fallback = db_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| db_path.clone());
+    let mut dir = db_path.parent().map(Path::to_path_buf);
+    for _ in 0..8 {
+        let Some(candidate) = dir else { break };
+        if candidate.join(WORKSPACES_JSON).exists() {
+            return Ok(candidate);
+        }
+        dir = candidate.parent().map(Path::to_path_buf);
+    }
+    Ok(fallback)
+}
+
+fn device_id_path(pool: &DbPool) -> Result<PathBuf, AppError> {
+    Ok(installation_root(pool)?.join(DEVICE_ID_FILE))
+}
+
+fn read_device_id_file(path: &Path) -> Option<String> {
+    let text = fs::read_to_string(path).ok()?;
+    let id = serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v.get("deviceId")?.as_str().map(String::from))?;
+    (!id.trim().is_empty()).then_some(id)
+}
+
+fn write_device_id_file(path: &Path, id: &str) -> Result<(), AppError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, format!("{}\n", serde_json::json!({ "deviceId": id })))?;
+    Ok(())
+}
+
+/// Databases whose per-DB `DEVICE_ID_KEY` kv may hold this installation's
+/// device id, in adoption order: the default workspace first (the database the
+/// legacy flat layout migrated into), then the caller's pool, then every other
+/// workspace database of the same installation.
+fn device_id_adoption_candidates(pool: &DbPool) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = Vec::new();
+    let mut add = |p: PathBuf| {
+        if !paths.contains(&p) {
+            paths.push(p);
+        }
+    };
+    if let Ok(root) = installation_root(pool) {
+        add(root
+            .join(WORKSPACES_DIR)
+            .join(DEFAULT_WORKSPACE_ID)
+            .join(WORKSPACE_DATA_DB));
+        if let Ok(entries) = fs::read_dir(root.join(WORKSPACES_DIR)) {
+            let mut others: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path().join(WORKSPACE_DATA_DB))
+                .filter(|p| p.is_file())
+                .collect();
+            others.sort();
+            for p in others {
+                add(p);
+            }
+        }
+    }
+    if let Ok(p) = pool_db_path(pool) {
+        add(p);
+    }
+    paths
+}
+
 pub(crate) fn get_or_create_device_id(pool: &DbPool) -> Result<String, AppError> {
-    if let Some(id) = db::db_get(pool, DEVICE_ID_KEY, None)? {
-        if !id.trim().is_empty() {
-            return Ok(id);
+    let path = device_id_path(pool)?;
+    if let Some(id) = read_device_id_file(&path) {
+        return Ok(id);
+    }
+    // No installation id yet: adopt the id a workspace database already
+    // recorded, so the cloud session bound at login keeps matching.
+    for db_path in device_id_adoption_candidates(pool) {
+        if !db_path.is_file() {
+            continue;
+        }
+        let Ok(legacy) = crate::db::open_pool(&db_path) else {
+            continue;
+        };
+        if let Ok(Some(id)) = db::db_get(&legacy, DEVICE_ID_KEY, None) {
+            if !id.trim().is_empty() {
+                write_device_id_file(&path, &id)?;
+                return Ok(id);
+            }
         }
     }
     let id = generate_key_id();
-    db::db_set(pool, DEVICE_ID_KEY, &id, None)?;
+    write_device_id_file(&path, &id)?;
     Ok(id)
 }
 
@@ -314,15 +434,14 @@ pub(crate) async fn sync_device_id(
         seed
     };
     tokio::task::spawn_blocking(move || {
-        if let Some(id) = db::db_get(&pool, DEVICE_ID_KEY, None)? {
-            if !id.trim().is_empty() {
-                return Ok(id);
-            }
+        let path = device_id_path(&pool)?;
+        if let Some(id) = read_device_id_file(&path) {
+            return Ok(id);
         }
         if let Some(s) = seed {
             let s = s.trim().to_string();
             if !s.is_empty() {
-                db::db_set(&pool, DEVICE_ID_KEY, &s, None)?;
+                write_device_id_file(&path, &s)?;
                 return Ok(s);
             }
         }
@@ -1081,10 +1200,14 @@ mod tests {
             let _ = std::fs::remove_dir_all(&root);
             let commits = root.join("commits");
             std::fs::create_dir_all(&commits).unwrap();
-            let pool_a = crate::db::open_pool(&root.join("a.db")).expect("pool a");
-            let pool_b = crate::db::open_pool(&root.join("b.db")).expect("pool b");
+            // One directory per pool, as a real installation lays its workspace
+            // databases out, so each pool is its own installation.
+            let pool_a = crate::db::open_pool(&root.join("a").join("data.db")).expect("pool a");
+            let pool_b = crate::db::open_pool(&root.join("b").join("data.db")).expect("pool b");
             let dev_a = super::get_or_create_device_id(&pool_a).expect("device a");
             let dev_b = super::get_or_create_device_id(&pool_b).expect("device b");
+            // Two temp-dir pools without a workspaces.json: separate
+            // installations, so their device ids must differ.
             assert_ne!(dev_a, dev_b, "devices must differ across pools");
             Self {
                 root,
@@ -1499,6 +1622,95 @@ mod tests {
         let again = super::get_or_create_device_id(&t.pool_a).expect("device again");
         assert_eq!(again, t.dev_a);
         t.cleanup();
+    }
+
+    /// Scratch dir imitating one app data dir: `workspaces.json` plus two
+    /// workspace databases. Returns the dir and both pools.
+    fn one_installation_two_workspaces(
+        tag: &str,
+        default_kv: Option<&str>,
+        other_kv: Option<&str>,
+    ) -> (std::path::PathBuf, crate::db::DbPool, crate::db::DbPool) {
+        let root = std::env::temp_dir().join(format!("beaver-devid-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let ws = root.join(crate::shared::WORKSPACES_DIR);
+        std::fs::create_dir_all(ws.join(crate::shared::DEFAULT_WORKSPACE_ID)).unwrap();
+        std::fs::create_dir_all(ws.join("other")).unwrap();
+        std::fs::write(root.join(crate::shared::WORKSPACES_JSON), "{}\n").unwrap();
+        let default_pool =
+            crate::db::open_pool(&ws.join(crate::shared::DEFAULT_WORKSPACE_ID).join("data.db"))
+                .expect("default pool");
+        let other_pool = crate::db::open_pool(&ws.join("other").join("data.db")).expect("other pool");
+        if let Some(v) = default_kv {
+            crate::db::db_set(&default_pool, super::DEVICE_ID_KEY, v, None).expect("seed default");
+        }
+        if let Some(v) = other_kv {
+            crate::db::db_set(&other_pool, super::DEVICE_ID_KEY, v, None).expect("seed other");
+        }
+        (root, default_pool, other_pool)
+    }
+
+    /// F1: the device id belongs to the installation, not to a workspace, so
+    /// every workspace pool resolves the same id the cloud session binds.
+    #[test]
+    fn device_id_is_installation_scoped() {
+        let (root, default_pool, other_pool) =
+            one_installation_two_workspaces("install", None, None);
+
+        let first = super::get_or_create_device_id(&default_pool).expect("device default");
+        assert_eq!(
+            first,
+            super::get_or_create_device_id(&other_pool).expect("device other")
+        );
+        assert_eq!(
+            first,
+            super::get_or_create_device_id(&default_pool).expect("device again")
+        );
+        assert_eq!(
+            first,
+            super::read_device_id_file(&root.join(super::DEVICE_ID_FILE)).expect("stored id")
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Back-compat: installs that already carry a device id per workspace database
+    /// adopt it — default workspace preferred — instead of minting a new id, and
+    /// every other workspace then agrees with it.
+    #[test]
+    fn device_id_adopts_existing_workspace_value() {
+        let (root, default_pool, other_pool) =
+            one_installation_two_workspaces("adopt", Some("legacy-default"), Some("legacy-other"));
+
+        assert_eq!(
+            super::get_or_create_device_id(&other_pool).expect("adopted"),
+            "legacy-default"
+        );
+        assert_eq!(
+            super::get_or_create_device_id(&default_pool).expect("adopted again"),
+            "legacy-default"
+        );
+        assert_eq!(
+            super::read_device_id_file(&root.join(super::DEVICE_ID_FILE)).as_deref(),
+            Some("legacy-default")
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A workspace id is only adopted when the default workspace has none: the
+    /// default id must not lose to a later workspace in the registry.
+    #[test]
+    fn device_id_adopts_only_workspace_value_when_default_absent() {
+        let (root, _default_pool, other_pool) =
+            one_installation_two_workspaces("adopt-other", None, Some("legacy-other"));
+
+        assert_eq!(
+            super::get_or_create_device_id(&other_pool).expect("adopted"),
+            "legacy-other"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

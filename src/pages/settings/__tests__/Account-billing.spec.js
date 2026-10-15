@@ -170,7 +170,7 @@ describe('Account IAP handlers (mounted)', () => {
           'ui-input': true,
           'ui-button': { template: '<button><slot /></button>' },
           'ui-modal': { template: '<div><slot /></div>' },
-          'ui-card': true,
+          'ui-card': { template: '<div><slot /></div>' },
           'v-remixicon': true,
           SubscriptionDialog: { template: '<div />' },
         },

@@ -68,8 +68,8 @@
               <p
                 class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
               >
-                Let's get set up: sign in, secure your notes, then import and
-                customize.
+                Let's get set up: sign in or sync, secure your notes, then
+                import your notes.
               </p>
             </div>
           </div>
@@ -126,233 +126,8 @@
                 :key="step + '::' + (importPhase || '')"
                 class="flex flex-col gap-3"
               >
-                <!-- Customize -->
-                <template v-if="step === 'customize'">
-                  <div
-                    class="flex flex-col items-center gap-1.5 text-center mb-1"
-                  >
-                    <h2
-                      class="text-xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
-                    >
-                      Your starting defaults
-                    </h2>
-                    <p class="text-neutral-600 dark:text-neutral-400">
-                      Changed your mind? You can change these from Settings at
-                      any time.
-                    </p>
-                  </div>
-
-                  <div class="flex flex-col gap-2">
-                    <p
-                      class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                    >
-                      Appearance
-                    </p>
-                    <div
-                      class="grid grid-cols-3 gap-3 w-full text-neutral-600 dark:text-neutral-300"
-                    >
-                      <label
-                        v-for="item in themes"
-                        :key="item.name"
-                        class="cursor-pointer min-w-0 select-none"
-                      >
-                        <input
-                          type="radio"
-                          name="ob-theme"
-                          :value="item.name"
-                          class="peer sr-only"
-                          :checked="fresh.theme === item.name"
-                          @change="selectTheme(item.name)"
-                        />
-                        <div
-                          class="relative w-full h-[84px] rounded-2xl border-2 overflow-hidden transition-colors"
-                          :class="
-                            fresh.theme === item.name
-                              ? 'ring-2 ring-primary'
-                              : 'border-neutral-200 dark:border-neutral-700'
-                          "
-                        >
-                          <template v-if="item.name === 'light'">
-                            <div
-                              class="absolute inset-0 bg-[#f4f4f6]"
-                            ></div>
-                            <div
-                              class="absolute bottom-0 left-[14px] right-0 h-[56px] bg-white rounded-tl-2xl pt-2 pl-3 flex items-start"
-                            >
-                              <span
-                                class="text-xl font-extrabold text-black tracking-tight"
-                                >Aa</span
-                              >
-                            </div>
-                          </template>
-                          <template v-else-if="item.name === 'dark'">
-                            <div
-                              class="absolute inset-0 bg-[#3c3c3c]"
-                            ></div>
-                            <div
-                              class="absolute bottom-0 left-[14px] right-0 h-[56px] bg-[#121212] rounded-tl-2xl pt-2 pl-3 flex items-start"
-                            >
-                              <span
-                                class="text-xl font-extrabold text-white tracking-tight"
-                                >Aa</span
-                              >
-                            </div>
-                          </template>
-                          <template v-else>
-                            <div
-                              class="absolute inset-0 flex"
-                            >
-                              <div class="w-1/2 h-full bg-[#3c3c3c]"></div>
-                              <div class="w-1/2 h-full bg-[#f4f4f6]"></div>
-                            </div>
-                            <div
-                              class="absolute bottom-0 left-[14px] right-1/2 h-[56px] bg-[#121212] rounded-tl-2xl pt-2 pl-3"
-                            >
-                              <span
-                                class="text-xl font-extrabold text-white tracking-tight"
-                                >Aa</span
-                              >
-                            </div>
-                            <div
-                              class="absolute bottom-0 left-[52%] right-0 h-[56px] bg-white rounded-tl-2xl pt-2 pl-3 flex items-start"
-                            >
-                              <span
-                                class="text-xl font-extrabold text-black tracking-tight"
-                                >Aa</span
-                              >
-                            </div>
-                          </template>
-                        </div>
-                        <span
-                          class="mt-1.5 block text-xs font-medium text-center"
-                          :class="
-                            fresh.theme === item.name
-                              ? 'text-primary'
-                              : 'text-neutral-600 dark:text-neutral-400'
-                          "
-                          >{{ themeLabels[item.name] || item.label }}</span
-                        >
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="flex flex-row items-center justify-between gap-3">
-                    <p
-                      class="text-sm font-medium text-neutral-800 dark:text-neutral-200 shrink-0"
-                    >
-                      Accent color
-                    </p>
-                    <div class="flex flex-wrap justify-end gap-2.5">
-                      <button
-                        v-for="c in accentDots"
-                        :key="c.value"
-                        type="button"
-                        class="w-8 h-8 rounded-full transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-neutral-900"
-                        :class="c.class"
-                        :aria-label="c.label"
-                        :aria-pressed="fresh.accentColor === c.value"
-                        :title="c.label"
-                        @click="selectAccentColor(c.value)"
-                      >
-                        <span
-                          v-if="fresh.accentColor === c.value"
-                          class="flex items-center justify-center w-full h-full"
-                        >
-                          <v-remixicon
-                            name="riCheckLine"
-                            size="16"
-                            class="text-white drop-shadow"
-                          />
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="flex flex-col gap-2">
-                    <p
-                      class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                    >
-                      Language
-                    </p>
-                    <ui-select
-                      :options="languages"
-                      block
-                      :model-value="fresh.language"
-                      @update:model-value="selectLanguage"
-                    />
-                  </div>
-
-                  <div class="flex flex-col gap-2">
-                    <p
-                      class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                    >
-                      App font
-                    </p>
-                    <ui-select
-                      :model-value="fresh.selectedFont"
-                      class="w-full ob-font-select"
-                      :search="true"
-                      @update:model-value="selectFont"
-                    >
-                      <option
-                        v-for="font in fonts"
-                        :key="font.value"
-                        :value="font.value"
-                        :class="font.class"
-                      >
-                        {{ font.label }}
-                      </option>
-                    </ui-select>
-                  </div>
-
-                  <div class="space-y-1">
-                    <div
-                      class="flex flex-row gap-3 items-center justify-between"
-                    >
-                      <div class="min-w-0 flex-1">
-                        <p
-                          class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                        >
-                          Enable sounds
-                        </p>
-                        <p
-                          class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-                        >
-                          Enable sounds for interactions around the app.
-                        </p>
-                      </div>
-                      <ui-switch
-                        :model-value="fresh.soundsEnabled"
-                        @update:model-value="selectSounds"
-                      />
-                    </div>
-                    <div
-                      v-if="isMobileRuntime"
-                      class="flex flex-row gap-3 items-center justify-between"
-                    >
-                      <div class="min-w-0 flex-1">
-                        <p
-                          class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                        >
-                          Spotlight indexing
-                        </p>
-                        <p
-                          class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-                        >
-                          Let iOS / macOS Spotlight index your notes so they can
-                          be found via system search.
-                        </p>
-                      </div>
-                      <ui-switch
-                        :model-value="fresh.spotlightEnabled"
-                        @update:model-value="selectSpotlight"
-                      />
-                    </div>
-                  </div>
-                </template>
-
                 <!-- Import -->
-                <template v-else-if="step === 'import'">
+                <template v-if="step === 'import'">
                   <template v-if="importPhase === 'pick'">
                     <div
                       class="flex flex-col items-center gap-2 text-center mb-2"
@@ -1250,92 +1025,57 @@
                     </template>
                     </div>
                   </template>
-                </template>
 
-                <template v-else-if="step === 'plans' && isMobileRuntime">
-                  <div class="flex flex-col items-center gap-2 text-center mb-1">
-                    <h2 class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200">
-                      Choose a plan
-                    </h2>
-                    <p class="text-neutral-600 dark:text-neutral-400">
-                      Sync is free to try. Upgrade for more storage and history.
-                    </p>
-                  </div>
-                  <SubscriptionPlans
-                    :products="iapBilling.products.value"
-                    :loading="iapBilling.loading.value"
-                    :error="iapBilling.error.value"
-                    :busy="plansBusy"
-                    :interval="plansInterval"
-                    :is-paid="accountStore.isPaidPlan"
-                    :current-plan="accountStore.plan"
-                    :signed-in="accountStore.isAuthenticated"
-                    @update:interval="plansInterval = $event"
-                    @select="handlePlansSelect"
-                  />
-                  <div v-if="accountStore.isAuthenticated" class="flex justify-center">
-                    <ui-button variant="secondary" size="sm" :loading="plansBusy" :disabled="plansBusy" @click="handlePlansRestore">
-                      Restore purchases
-                    </ui-button>
-                  </div>
-                </template>
-
-                <!-- Sync -->
-                <template v-else-if="step === 'sync'">
+                  <!--
+                    Folder sync is part of the Connect step: sign-in is optional,
+                    but a signed-out or free user can still point sync at a folder.
+                    Cloud (paid) users get the honest location line instead.
+                  -->
                   <div
-                    class="flex flex-col items-center gap-2 text-center mb-1"
+                    v-if="showFolderSync"
+                    class="mt-5 border-t border-neutral-200 dark:border-neutral-700 pt-4 flex flex-col gap-3"
                   >
-                    <h2
-                      class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
-                    >
-                      Sync folder
-                    </h2>
-                    <p class="text-neutral-600 dark:text-neutral-400">
-                      Select a folder to sync your data with. You can skip this
-                      for now and set it up later.
-                    </p>
-                  </div>
-
-                  <div class="flex flex-col p-4">
-                    <div class="flex items-center justify-between gap-3">
-                      <div>
-                        <p
-                          class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                        >
-                          Folder
-                        </p>
-                        <p
-                          class="text-sm text-neutral-600 dark:text-neutral-400"
-                        >
-                          {{
-                            fresh.syncPath
-                              ? 'Beaver Notes syncs with this folder.'
-                              : 'Choose a folder to sync with.'
-                          }}
-                        </p>
-                      </div>
-                      <ui-button @click="chooseSyncPath">{{
-                        fresh.syncPath ? 'Change' : 'Choose folder'
-                      }}</ui-button>
+                    <div class="flex flex-col gap-1">
+                      <p
+                        class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                      >
+                        Sync folder (optional)
+                      </p>
+                      <p
+                        class="text-sm text-neutral-600 dark:text-neutral-400"
+                      >
+                        {{
+                          fresh.syncPath
+                            ? 'Beaver Notes will sync with this folder.'
+                            : 'Pick a folder to keep notes in sync across devices. You can set this up later in Settings.'
+                        }}
+                      </p>
                     </div>
 
-                    <div
-                      v-if="fresh.syncPath"
-                      class="flex items-center justify-between gap-3 mt-3"
-                    >
+                    <div class="flex items-center justify-between gap-3">
                       <div
-                        class="rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                        v-if="fresh.syncPath"
+                        class="min-w-0 rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
                       >
                         {{ fresh.syncPath }}
                       </div>
-                      <ui-button icon variant="danger" @click="clearSyncPath">
-                        <v-remixicon name="riDeleteBin6Line" />
-                      </ui-button>
+                      <div class="flex gap-2 shrink-0 ml-auto">
+                        <ui-button @click="chooseSyncPath">{{
+                          fresh.syncPath ? 'Change' : 'Choose folder'
+                        }}</ui-button>
+                        <ui-button
+                          v-if="fresh.syncPath"
+                          icon
+                          variant="danger"
+                          @click="clearSyncPath"
+                        >
+                          <v-remixicon name="riDeleteBin6Line" />
+                        </ui-button>
+                      </div>
                     </div>
 
                     <ui-input
                       v-model="fresh.syncPath"
-                      class="mt-3"
                       data-testid="onboarding-sync-path"
                       placeholder="Or type a folder path"
                     />
@@ -1590,8 +1330,6 @@ import { useSounds } from '@/composable/useSounds';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
-import SubscriptionPlans from '@/components/billing/SubscriptionPlans.vue';
-import { useIapBilling } from '@/composable/useIapBilling';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { CURTAIN_DURATIONS } from '@/utils/onboarding/index.js';
 
@@ -1599,7 +1337,6 @@ const { hold: CURTAIN_HOLD, open: CURTAIN_OPEN } = CURTAIN_DURATIONS;
 
 export default {
   name: 'AppOnboarding',
-  components: { SubscriptionPlans },
 
   setup() {
     const router = useRouter();
@@ -1622,37 +1359,6 @@ export default {
       );
     }
     const accountStore = useAccountStore();
-    const iapBilling = useIapBilling({ accountStore });
-    const plansInterval = ref('monthly');
-    const plansBusy = ref(false);
-    async function handlePlansSelect(plan, interval) {
-      plansBusy.value = true;
-      flow.state.error = '';
-      try {
-        const result = await iapBilling.buy(plan, interval);
-        if (!result) {
-          flow.state.error = 'Payment processing — your plan will activate shortly';
-        }
-      } catch (e) {
-        flow.state.error = e?.message || 'Purchase failed.';
-      } finally {
-        plansBusy.value = false;
-      }
-    }
-    async function handlePlansRestore() {
-      plansBusy.value = true;
-      flow.state.error = '';
-      try {
-        await iapBilling.restore();
-        if (!accountStore.isPaidPlan) {
-          flow.state.error = 'No purchases found for this account.';
-        }
-      } catch (e) {
-        flow.state.error = e?.message || 'Restore failed.';
-      } finally {
-        plansBusy.value = false;
-      }
-    }
 
     // Lazy-load useImportExport (tiptap, marked, ~13MB) only when import is triggered
     const importExportRef = ref(null);
@@ -1686,16 +1392,6 @@ export default {
       },
       { immediate: true },
     );
-    watch(
-      () => flow.step.value,
-      (s) => {
-        if (s === 'plans' && accountStore.isAuthenticated && !iapBilling.products.value.length) {
-          iapBilling.loadProducts();
-        }
-      },
-      { immediate: true },
-    );
-
     // Recycle the Settings account orchestration; errors surface through the onboarding toast.
     const account = useSettingsAccount({
       dialog: { alert() {}, confirm() {} },
@@ -1807,16 +1503,11 @@ export default {
     onBeforeUnmount(() => {
       if (verifyTimer) clearInterval(verifyTimer);
     });
-    // Same values/classes as the old dots; 'light' is the legacy amber alias.
-    const accentDots = [
-      { value: 'red', label: 'Red', class: 'bg-red-500' },
-      { value: 'light', label: 'Amber', class: 'bg-amber-400' },
-      { value: 'green', label: 'Green', class: 'bg-emerald-500' },
-      { value: 'blue', label: 'Blue', class: 'bg-blue-400' },
-      { value: 'purple', label: 'Purple', class: 'bg-purple-400' },
-      { value: 'pink', label: 'Pink', class: 'bg-pink-400' },
-      { value: 'neutral', label: 'Neutral', class: 'bg-neutral-400' },
-    ];
+    // Folder sync belongs on the Connect step whenever the resolved transport
+    // is folder-based (signed out, or signed in but not on a paid cloud plan).
+    const showFolderSync = computed(
+      () => !(accountStore.isAuthenticated && accountStore.isPaidPlan),
+    );
     const forgotEmail = ref('');
     const forgotBusy = ref(false);
     const forgotMessage = ref('');
@@ -1947,20 +1638,6 @@ export default {
       const s = flow.step.value;
       const t = translations.value;
 
-      if (s === 'customize') {
-        return [
-          {
-            key: 'continue',
-            label: 'Continue',
-            icon: 'riArrowRightLine',
-            variant: 'primary',
-            testid: 'onboarding-customize-next',
-            loading: flow.state.savingPreferences,
-            onClick: flow.prepareFreshWorkspace,
-          },
-        ];
-      }
-
       if (s === 'import') {
         const phase = flow.importPhase.value;
         if (phase === 'pick') {
@@ -2021,70 +1698,24 @@ export default {
         return [];
       }
 
+      // Connect is skippable: Continue commits the account + folder, Skip keeps
+      // everything local and moves straight on to the vault step.
       if (s === 'account') {
-        if (accountStore.isAuthenticated) {
-          return [
-            {
-              key: 'continue',
-              label: 'Continue',
-              icon: 'riArrowRightLine',
-              variant: 'primary',
-              onClick: flow.completeAccountStep,
-            },
-          ];
-        }
         return [
+          {
+            key: 'continue',
+            label: 'Continue',
+            icon: 'riArrowRightLine',
+            variant: 'primary',
+            testid: 'onboarding-connect-continue',
+            loading: flow.state.savingPreferences,
+            onClick: flow.completeAccountStep,
+          },
           {
             key: 'skip',
             label: t?.account?.skip || 'Skip for now',
-            testid: 'onboarding-account-skip',
+            testid: 'onboarding-connect-skip',
             onClick: flow.goToNextStep,
-          },
-        ];
-      }
-
-      if (s === 'plans') {
-        if (accountStore.isPaidPlan) {
-          return [
-            {
-              key: 'continue',
-              label: 'Continue',
-              icon: 'riArrowRightLine',
-              variant: 'primary',
-              testid: 'onboarding-plans-next',
-              onClick: flow.goToNextStep,
-            },
-          ];
-        }
-        return [
-          {
-            key: 'skip',
-            label: 'Skip for now',
-            testid: 'onboarding-plans-skip',
-            onClick: flow.goToNextStep,
-          },
-        ];
-      }
-
-      if (s === 'sync') {
-        if (flow.fresh.syncPath) {
-          return [
-            {
-              key: 'continue',
-              label: 'Continue',
-              icon: 'riArrowRightLine',
-              variant: 'primary',
-              testid: 'onboarding-sync-next',
-              loading: flow.state.savingPreferences,
-              onClick: flow.completeSyncStep,
-            },
-          ];
-        }
-        return [
-          {
-            key: 'skip',
-            label: 'Skip for now',
-            onClick: flow.completeSyncStep,
           },
         ];
       }
@@ -2187,7 +1818,7 @@ export default {
       verifySending,
       verifyCooldown,
       handleResendVerification,
-      accentDots,
+      showFolderSync,
       forgotEmail,
       forgotBusy,
       forgotMessage,
@@ -2215,11 +1846,6 @@ export default {
       retrySeed,
       logCopied,
       copyLogPath,
-      iapBilling,
-      plansInterval,
-      plansBusy,
-      handlePlansSelect,
-      handlePlansRestore,
     };
   },
 };

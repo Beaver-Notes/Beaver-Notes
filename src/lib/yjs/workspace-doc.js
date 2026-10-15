@@ -15,7 +15,7 @@ import { useWorkspaceStore } from '@/store/workspace';
 import { getCachedWorkspaceKey, recoverWorkspaceKeyHex } from '@/lib/api/workspaces';
 import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
-import { registerSharedSyncKey } from '@/utils/sync/shared-keys';
+import { registerSharedSyncKey, registerWsKeyForNotes, setActiveWsKey } from '@/utils/sync/shared-keys';
 
 // Re-export store hydration so consumers keep a single import path
 export {
@@ -139,9 +139,12 @@ export async function loadWorkspaceDoc() {
   const doc = getWorkspaceDoc();
 
   if (!persistHandlerAttached) {
-    doc.on('update', (update, origin) => {
+    doc.on('update', (update, origin, _doc, transaction) => {
       if (origin === 'load' || origin === 'sync' || origin === 'ws-relay')
         return;
+      // Remote transactions are already persisted by the native pull path;
+      // appending them here too echoes the same update back to the server.
+      if (!transaction?.local) return;
       pendingMetaUpdates.push(update);
       scheduleMetaFlush();
     });
@@ -219,6 +222,8 @@ export async function loadWorkspaceDoc() {
   const wsId = workspaceStore.activeId;
   if (wsId) {
     // Supply WORKSPACE key to Hocuspocus meta room before join, else inbound meta corrupts and grid goes blank.
+    // joinMetaRoom parks the join when the key is missing and setRoomKey
+    // revives it once the workspace fetch path repairs the envelope.
     await ensureMetaRoomKey(wsId).catch((err) => {
       console.warn(
         '[meta-yjs] could not derive workspace meta key:',
@@ -243,18 +248,24 @@ export async function ensureMetaRoomKey(wsId) {
     const identity = await loadOrCreateIdentity();
     if (!identity?.privateKeyHex) {
       console.warn('[meta-yjs] missing encryption identity for meta key');
-      return;
+      return null;
     }
     workspaceKeyHex = await recoverWorkspaceKeyHex(wsId, identity);
   }
   if (!workspaceKeyHex) {
     console.warn('[meta-yjs] no recoverable workspace key for this device', wsId);
-    return;
+    return null;
   }
   await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
   // Durable `meta` doc seals under the shared workspace key, not the account
   // items key, so every member can read folders/labels.
   await registerSharedSyncKey(META_DOC_ID, workspaceKeyHex);
+  // O7 Fix A: workspace note bodies seal under the workspace key too, so every
+  // member can read each other's content. Registered per existing note id now;
+  // new notes are covered by the meta-doc observer via registerWsKeyForNotes.
+  setActiveWsKey(workspaceKeyHex);
+  await registerWsKeyForNotes(getWorkspaceDoc().getMap('notes').keys());
+  return workspaceKeyHex;
 }
 
 let observerTimer = null;
@@ -299,6 +310,9 @@ export function observeWorkspace(callback, debounceMs = 150) {
       observerTimer = null;
       const changed = pendingChangedNoteIds;
       pendingChangedNoteIds = new Set();
+      // O7 Fix A: notes appearing after the initial join (created locally or
+      // synced from a teammate) must also seal under the workspace key.
+      void registerWsKeyForNotes([...changed]);
       const flags = metaFlags;
       metaFlags = { folders: false, labels: false, labelColors: false };
       callback(changed, flags);

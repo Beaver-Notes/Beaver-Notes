@@ -32,12 +32,12 @@ describe('errorMessage', () => {
     expect(errorMessage('plain failure')).toBe('plain failure');
   });
 
-  it('returns "null" for a null error', () => {
-    expect(errorMessage(null)).toBe('null');
+  it('returns "" for a null error (so callers can fall back)', () => {
+    expect(errorMessage(null)).toBe('');
   });
 
-  it('returns "undefined" for an undefined error', () => {
-    expect(errorMessage(undefined)).toBe('undefined');
+  it('returns "" for an undefined error (so callers can fall back)', () => {
+    expect(errorMessage(undefined)).toBe('');
   });
 
   it('falls back to String() for non-object, non-string values', () => {

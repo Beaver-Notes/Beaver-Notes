@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import { getSettingSync } from '@/lib/settings';
+import { getSetting } from '@/lib/settings';
 import Settings from './pages/Settings.vue';
 import Onboarding from './pages/Onboarding.vue';
 import SettingsIndex from './pages/settings/Index.vue';
@@ -27,7 +27,7 @@ const routeTitles = {
   'Settings-Shortcuts': `Shortcuts - ${APP_NAME}`,
   'Settings-About': `About - ${APP_NAME}`,
   'Settings-Labels': `Labels - ${APP_NAME}`,
-  'Settings-Team': `Team - ${APP_NAME}`,
+  'Settings-Workspace': `Team - ${APP_NAME}`,
   Onboarding: `Welcome - ${APP_NAME}`,
 };
 
@@ -74,7 +74,7 @@ const routes = [
       },
       {
         path: 'workspace',
-        name: 'Settings-Team',
+        name: 'Settings-Workspace',
         component: SettingsTeamAdmin,
       },
       {
@@ -156,13 +156,19 @@ const router = createRouter({
   },
 });
 
-router.beforeEach((to) => {
-  // Synchronous check: if onboarding hasn't completed and we're not
-  // already on the onboarding route, redirect there immediately.
-  // This prevents the sidebar from rendering before onboarding is shown.
-  const onboardingCompleted = getSettingSync('onboardingCompleted');
+router.beforeEach(async (to) => {
+  // Await the storage read: the localStorage mirror is only written once
+  // getSetting has run, so a synchronous read after a reload sees the false
+  // default and bounces a completed user back to onboarding.
+  const onboardingCompleted = await getSetting('onboardingCompleted');
   if (!onboardingCompleted && to.name !== 'Onboarding') {
     return { name: 'Onboarding' };
+  }
+  // Symmetric guard: a completed user parked on the onboarding route (e.g. a
+  // stale #/onboarding URL or a bounce from an older build) must not be stuck
+  // there — nothing else routes away from onboarding once it is done.
+  if (onboardingCompleted && to.name === 'Onboarding') {
+    return { name: 'Home' };
   }
 });
 

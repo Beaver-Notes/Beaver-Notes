@@ -128,10 +128,12 @@ export function useTeamAdmin(workspaceId) {
     const res = await apiAddMember(resolveWorkspaceId(), identifier, role, {
       baseUrl: activeBaseUrl(),
     });
-    // The invite deep link uses the app's registered custom scheme; the backend
-    // builds the same link with `INVITE_URL_SCHEME ?? 'beaver-notes://'`.
+    // Workspace invites use the `join-ws/` discriminator so the deep-link
+    // handler routes them to the workspace-join endpoint; note invites keep
+    // `join/`. Without the discriminator a workspace token was misrouted to
+    // `POST /collaboration/join/:token` and failed.
     return {
-      inviteUrl: res?.token ? `beaver-notes://join/${res.token}` : null,
+      inviteUrl: res?.token ? `beaver-notes://join-ws/${res.token}` : null,
       ...res,
     };
   }

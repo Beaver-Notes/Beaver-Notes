@@ -6,6 +6,7 @@ import { useAccountAuth } from '@/composable/useAccountAuth';
 import { updateUsername as apiUpdateUsername, getAccountExport } from '@/lib/api/account';
 import { logger } from '@/utils/logger';
 import { localNoteCount } from '@/utils/notes/local-note-count.js';
+import { getWsSync } from '@/lib/sync/ws-sync.js';
 
 export function useSettingsAccount({ dialog, translations }) {
   const accountStore = useAccountStore();
@@ -54,6 +55,17 @@ export function useSettingsAccount({ dialog, translations }) {
     }
     await setSetting('beaverAccountServerUrl', accountStore.serverUrl);
     showServerUrlEditor.value = false;
+    // Restart the relay here: the socket already holds the old host, and
+    // sign-in/onboarding only start it, so presence would stay on the old
+    // server while REST moved. Not awaited — the settings click must not hang
+    // on a reconnect.
+    Promise.resolve()
+      .then(() => {
+        const wsSync = getWsSync();
+        wsSync.stop();
+        wsSync.start();
+      })
+      .catch((e) => logger.warn('[settings] relay reconnect failed:', e));
   }
 
   function resetServerUrl() {

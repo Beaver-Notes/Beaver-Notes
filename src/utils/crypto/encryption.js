@@ -18,6 +18,7 @@ import {
   persistSecureBlobInBackground,
 } from './safeStorageBlob.js';
 import { getSettingSync } from '@/lib/settings';
+import { errorMessage } from '@/lib/tauri/errors';
 import { logger } from '@/utils/logger';
 
 const state = {
@@ -58,6 +59,14 @@ export async function ensureKeyReadyForWrite() {
       throw new Error(
         'This sync folder has an encrypted vault. Join it (or decline) before editing notes.'
       );
+    }
+    // Auto-minting mints a passphrase nobody chose: the onboarding vault step
+    // then takes the unlock path and rejects the typed key with
+    // "Wrong password.", with no way out of the wizard. A cloud seed can pull
+    // notes before that step runs, so refuse the write and let onboarding ask
+    // for the key first.
+    if (!getSettingSync('onboardingCompleted')) {
+      throw new Error('Set a vault key before writing notes.');
     }
     const result = await setupEncryption(generateRandomPassphrase());
     if (!result.ok) {
@@ -145,7 +154,7 @@ export async function setupEncryption(passphrase) {
     return { ok: true };
   } catch (err) {
     logger.error('[encryption] setup failed:', err);
-    return { ok: false, error: String(err) };
+    return { ok: false, error: errorMessage(err) || 'Unable to unlock this vault.' };
   }
 }
 
@@ -157,7 +166,7 @@ export async function verifyPassphrase(passphrase) {
   try {
     const result = await submitEncryptionPassword(passphrase, false);
     if (!result?.ok) {
-      return { ok: false, error: result?.error || 'Wrong vault key.' };
+      return { ok: false, error: errorMessage(result?.error) || 'Wrong vault key.' };
     }
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
@@ -192,7 +201,7 @@ export async function adoptVaultKey(passphrase, keyParams) {
       ? adoptKeyParams(passphrase)
       : adoptKeyParams(passphrase, keyParams));
     if (!result?.ok) {
-      return { ok: false, error: result?.error || 'Unable to join this vault.' };
+      return { ok: false, error: errorMessage(result?.error) || 'Unable to join this vault.' };
     }
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
@@ -206,7 +215,7 @@ export async function adoptVaultKey(passphrase, keyParams) {
     return { ok: true };
   } catch (err) {
     logger.error('[encryption] vault adopt failed:', err);
-    return { ok: false, error: String(err) };
+    return { ok: false, error: errorMessage(err) || 'Unable to join this vault.' };
   }
 }
 
@@ -398,7 +407,7 @@ export async function recoverWithRecoveryCode(code) {
       state.loaded = !!result?.state?.unlocked;
       return { ok: true };
     }
-    return { ok: false, error: result?.error || 'Vault recovery code is invalid.' };
+    return { ok: false, error: errorMessage(result?.error) || 'Vault recovery code is invalid.' };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }

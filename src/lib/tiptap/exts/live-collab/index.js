@@ -4,10 +4,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { ySyncPluginKey } from '@tiptap/y-tiptap';
 import * as Y from 'yjs';
 import { getColorFromId } from '@/composable/usePresence';
-import {
-  computeVersionChanges,
-  revertReviewChange,
-} from '../version-preview/index.js';
+import { computeVersionChanges } from '../version-preview/index.js';
 
 export const liveCollabKey = new PluginKey('liveCollab');
 
@@ -17,7 +14,7 @@ export const liveCollabKey = new PluginKey('liveCollab');
 // edit is fresh).
 export const LIVE_COLLAB_FADE_MS = 4000;
 // Typing burst window: remote edits within this gap extend the same highlight
-// (one baseline, one chip) instead of replacing it.
+// (one baseline) instead of replacing it.
 export const LIVE_COLLAB_COALESCE_MS = 250;
 // Activity entries coalesce on the same window as the tint, so one typing burst
 // becomes one durable log row instead of one per keystroke.
@@ -179,40 +176,9 @@ function resolveLiveDeletionActor(awareness) {
   return resolveLiveAuthor(remoteIds, awareness);
 }
 
-function createLiveChip(editor, record) {
-  const wrap = document.createElement('span');
-  wrap.className = 'live-collab-chip';
-  wrap.contentEditable = 'false';
-  wrap.style.setProperty('--live-collab-color', record.color);
-
-  const label = document.createElement('span');
-  label.className = 'live-collab-chip__label';
-  label.textContent = `${record.name} edited this`;
-  wrap.append(label);
-
-  const undo = document.createElement('button');
-  undo.type = 'button';
-  undo.className = 'live-collab-chip__undo';
-  undo.textContent = 'Undo';
-  undo.addEventListener('mousedown', (event) => event.preventDefault());
-  undo.addEventListener('click', (event) => {
-    event.preventDefault();
-    try {
-      // Fail safe: revertReviewChange returns false and touches nothing when the
-      // change no longer matches; the chip is removed either way.
-      revertReviewChange(editor, record.baseline, record.target);
-    } finally {
-      editor.commands.clearLiveCollab?.();
-    }
-  });
-
-  wrap.append(undo);
-  return wrap;
-}
-
-function buildLiveDecorations(state, editor) {
+function buildLiveDecorations(state) {
   const record = liveCollabKey.getState(state);
-  if (!record?.changes?.length || !record.target) return null;
+  if (!record?.changes?.length) return null;
   const decorations = [];
   for (const change of record.changes) {
     if (change.toB > change.fromB) {
@@ -224,13 +190,6 @@ function buildLiveDecorations(state, editor) {
       );
     }
   }
-  decorations.push(
-    Decoration.widget(
-      record.target.fromB,
-      () => createLiveChip(editor, record),
-      { side: -1, key: 'live-collab-chip' }
-    )
-  );
   return DecorationSet.create(state.doc, decorations);
 }
 
@@ -259,7 +218,6 @@ const LiveCollab = Extension.create({
   },
 
   addProseMirrorPlugins() {
-    const editor = this.editor;
     const awareness = this.options.awareness;
     return [
       new Plugin({
@@ -282,7 +240,7 @@ const LiveCollab = Extension.create({
           },
         },
         props: {
-          decorations: (state) => buildLiveDecorations(state, editor),
+          decorations: (state) => buildLiveDecorations(state),
         },
         view: (view) => {
           const sync = ySyncPluginKey.getState(view.state);

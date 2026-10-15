@@ -55,7 +55,7 @@
           Role: {{ result?.role }}
         </p>
         <button
-          @click="$router.push(`/note/${result?.noteId}`)"
+          @click="openNote"
           class="px-4 py-2 text-xs font-medium rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
         >
           Open Note
@@ -133,7 +133,22 @@ export default {
       router.push({ name: 'Settings-Account', query: { returnTo: route.fullPath } });
     }
 
-    return { loading, error, success, pending, result, isAuthenticated, join, goToSignIn };
+    // Refresh the shared-note grants before navigating: the note page bounces
+    // to home when the id is not yet in the local store, and a fresh join has
+    // never been fetched or materialized.
+    async function openNote() {
+      const noteId = result.value?.noteId;
+      if (!noteId) return;
+      try {
+        const { useSharedNotes } = await import('@/composable/useSharedNotes');
+        await useSharedNotes().refreshSharedNotes();
+      } catch {
+        // Navigation still attempts the note; the page shows its own error.
+      }
+      router.push(`/note/${noteId}`);
+    }
+
+    return { loading, error, success, pending, result, isAuthenticated, join, goToSignIn, openNote };
   },
 };
 </script>

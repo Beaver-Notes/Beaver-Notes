@@ -110,14 +110,16 @@ describe('MobileSyncStrip', () => {
     expect(wrapper.get('[data-testid="sync-progress"]').attributes('style')).toContain('width: 25%');
   });
 
-  it('renders as a flat full-width top bar with an icon and status text', async () => {
+  it('renders as an in-flow status card that never overlays the page', async () => {
     const wrapper = await mountStrip();
     pullToReveal();
     await nextTick();
 
     const root = wrapper.get('[data-testid="mobile-sync-strip"]');
-    expect(root.classes()).toContain('inset-x-0');
-    expect(root.classes()).toContain('w-full');
+    expect(root.classes()).toContain('rounded-2xl');
+    expect(root.classes()).toContain('mx-4');
+    expect(root.classes()).not.toContain('fixed');
+    expect(root.classes()).not.toContain('inset-x-0');
 
     expect(wrapper.find('[data-testid="sync-icon"]').exists()).toBe(true);
     expect(wrapper.get('[data-testid="sync-status"]').text().trim().length).toBeGreaterThan(0);

@@ -20,13 +20,6 @@ vi.mock('@/composable/useTheme', () => ({
   useTheme: () => ({ loadTheme: vi.fn() }),
 }));
 
-vi.mock('@/composable/useOnboardingAppearance', () => ({
-  useOnboardingAppearance: () => ({
-    selectAccentColor: vi.fn(),
-    selectZoomLevel: vi.fn(),
-  }),
-}));
-
 vi.mock('@/lib/settings', () => ({
   DEFAULT_UI_FONT_STACK: "'Inter'",
   getSetting: vi.fn(async () => null),
@@ -152,7 +145,7 @@ vi.mock('@/lib/account-storage', () => ({
 
 import { useOnboardingFlow } from '../useOnboardingFlow.js';
 
-describe('useOnboardingFlow.completeSyncStep with an existing folder vault', () => {
+describe('useOnboardingFlow.completeAccountStep with an existing folder vault', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dialogState.confirm.length = 0;
@@ -168,12 +161,12 @@ describe('useOnboardingFlow.completeSyncStep with an existing folder vault', () 
 
   it('lands on the password step in join mode instead of finishing with a fresh key', async () => {
     const flow = makeFlow();
-    flow.goToStep('sync');
+    flow.goToStep('account');
     flow.fresh.syncPath = '/existing-vault';
     // The picked folder holds another device's vault.
     hasRemoteVaultKeyParamsMock.mockResolvedValue(true);
 
-    await flow.completeSyncStep();
+    await flow.completeAccountStep();
 
     expect(flow.vaultJoinMode.value).toBe(true);
     expect(flow.step.value).toBe('password');
@@ -181,10 +174,10 @@ describe('useOnboardingFlow.completeSyncStep with an existing folder vault', () 
 
   it('moves to the passphrase step when the picked folder holds no vault', async () => {
     const flow = makeFlow();
-    flow.goToStep('sync');
+    flow.goToStep('account');
     flow.fresh.syncPath = '/fresh-folder';
 
-    await flow.completeSyncStep();
+    await flow.completeAccountStep();
 
     expect(flow.vaultJoinMode.value).toBe(false);
     expect(flow.step.value).toBe('password');
@@ -192,17 +185,17 @@ describe('useOnboardingFlow.completeSyncStep with an existing folder vault', () 
 
   it('respects an explicit start-fresh choice and stays in create mode', async () => {
     const flow = makeFlow();
-    flow.goToStep('sync');
+    flow.goToStep('account');
     flow.fresh.syncPath = '/existing-vault';
     hasRemoteVaultKeyParamsMock.mockResolvedValue(true);
 
-    await flow.completeSyncStep();
+    await flow.completeAccountStep();
     expect(flow.step.value).toBe('password');
 
     // User explicitly declines the join, moves forward, picks the folder again.
     flow.startFreshVault();
-    flow.goToStep('sync');
-    await flow.completeSyncStep();
+    flow.goToStep('account');
+    await flow.completeAccountStep();
 
     expect(flow.vaultJoinMode.value).toBe(false);
     expect(flow.step.value).toBe('password');
@@ -245,14 +238,14 @@ describe('useOnboardingFlow.completeSyncStep with an existing folder vault', () 
     const { publishLocalKeyParamsToFolder, setDeclinedVaultJoin } =
       await import('@/utils/crypto/encryption.js');
     const flow = makeFlow();
-    flow.goToStep('sync');
+    flow.goToStep('account');
     flow.fresh.syncPath = '/existing-vault';
     hasRemoteVaultKeyParamsMock.mockResolvedValue(true);
 
-    await flow.completeSyncStep();
+    await flow.completeAccountStep();
     flow.startFreshVault();
-    flow.goToStep('sync');
-    await flow.completeSyncStep();
+    flow.goToStep('account');
+    await flow.completeAccountStep();
 
     flow.encryptionPassword.value = 'password123';
     flow.encryptionConfirmPassword.value = 'password123';

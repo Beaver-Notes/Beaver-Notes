@@ -26,6 +26,10 @@ export function isSharedNote(noteId) {
   return Boolean(accessOf(noteId)?.workspaceId);
 }
 
+export function sharedNoteRole(noteId) {
+  return normalizeRole(accessOf(noteId)?.role);
+}
+
 // The workspace a note must sync/join against: its owning workspace when shared
 // with this account, else the caller's active workspace.
 export function resolveNoteWorkspaceId(noteId, fallback) {

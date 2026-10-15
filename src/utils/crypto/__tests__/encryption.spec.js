@@ -79,6 +79,25 @@ describe('adoptVaultKey', () => {
     expect(res.error).toBe('WrongPassword');
   });
 
+  it('flattens a structured AppError into a readable string', async () => {
+    adoptKeyParams.mockResolvedValue({
+      ok: false,
+      error: { kind: 'WrongPassword', message: 'Wrong password.' },
+    });
+    const res = await adoptVaultKey('wrong');
+    expect(res.error).toBe('Wrong password.');
+  });
+
+  it('flattens a rejected AppError instead of printing [object Object]', async () => {
+    adoptKeyParams.mockRejectedValue({
+      kind: 'WrongPassword',
+      message: 'Wrong password.',
+    });
+    const res = await adoptVaultKey('the-vault-passphrase');
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Wrong password.');
+  });
+
   it('rejects empty passphrases without calling the backend', async () => {
     const res = await adoptVaultKey('   ');
     expect(adoptKeyParams).not.toHaveBeenCalled();
@@ -146,7 +165,9 @@ describe('ensureKeyReadyForWrite vault-join guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSyncPath.mockResolvedValue('');
-    getSettingSync.mockReturnValue(null);
+    getSettingSync.mockImplementation((key) =>
+      key === 'onboardingCompleted' ? 'true' : null
+    );
   });
 
   // A joining device that writes before adopting would mint a random vault
@@ -159,6 +180,18 @@ describe('ensureKeyReadyForWrite vault-join guard', () => {
 
     await expect(ensureKeyReadyForWrite()).resolves.toBe(true);
     expect(submitEncryptionPassword).toHaveBeenCalled();
+  });
+
+  // The cloud seed can pull notes while the wizard still owes the user a vault
+  // key choice. Minting there would publish a passphrase nobody typed and make
+  // the vault step fail with "Wrong password." forever.
+  it('refuses to auto-mint before onboarding completed', async () => {
+    getEncryptionState.mockResolvedValue({ enabled: false, unlocked: false });
+    hasRemoteKeyParams.mockResolvedValue(false);
+    getSettingSync.mockReturnValue(null);
+
+    await expect(ensureKeyReadyForWrite()).rejects.toThrow(/vault key/i);
+    expect(submitEncryptionPassword).not.toHaveBeenCalled();
   });
 
   it('blocks auto-mint when a remote vault waits to be joined', async () => {

@@ -957,8 +957,8 @@ th.is-active {
   pointer-events: auto;
 }
 
-/* Multi-user collaboration cursors */
-.collaboration-cursor__caret {
+/* Multi-user collaboration carets */
+.collaboration-carets__caret {
   border-left: 2px solid;
   margin-left: -1px;
   margin-right: -1px;
@@ -967,13 +967,14 @@ th.is-active {
   word-break: normal;
 }
 
-.collaboration-cursor__label {
+/* Label must not hang off the caret's left: a caret at offset zero would push it outside the editor and get clipped */
+.collaboration-carets__label {
   border-radius: 3px;
   color: white;
   font-size: 11px;
   font-style: normal;
   font-weight: 600;
-  left: -1px;
+  left: 0;
   line-height: normal;
   padding: 2px 6px;
   position: absolute;
@@ -981,6 +982,7 @@ th.is-active {
   user-select: none;
   white-space: nowrap;
   pointer-events: none;
+  z-index: 1;
 }
 
 .editor[data-reader-theme] {

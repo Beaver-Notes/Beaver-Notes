@@ -694,3 +694,170 @@ export async function importGenericMarkdown(
   await flushImportedNotes();
   return { imported, folders: createdFolderIds.size, errors };
 }
+
+// Keep exports `labels` as `{ name }` objects in some vintages and plain
+// strings in others; both shapes are accepted.
+function keepLabelNames(labels) {
+  return (Array.isArray(labels) ? labels : [])
+    .map((label) => (typeof label === 'string' ? label : label?.name))
+    .filter(Boolean);
+}
+
+// Keep timestamps are microseconds-since-epoch numbers, sometimes ISO strings.
+function keepTimestamp(note, ...keys) {
+  for (const key of keys) {
+    const value = note?.[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value / 1000;
+    if (typeof value === 'string' && value.trim()) return parseDateValue(value);
+  }
+  return undefined;
+}
+
+function keepPlainTextContent(text) {
+  const blocks = String(text || '')
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => ({
+      type: 'paragraph',
+      content: [{ type: 'text', text: block }],
+    }));
+  return { type: 'doc', content: blocks.length > 0 ? blocks : [{ type: 'paragraph' }] };
+}
+
+function keepTaskListContent(listContent) {
+  const items = listContent
+    .filter((item) => String(item?.text || '').trim())
+    .map((item) => ({
+      type: 'taskItem',
+      attrs: { checked: item?.isChecked === true },
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: item.text }] },
+      ],
+    }));
+  return { type: 'doc', content: [{ type: 'taskList', content: items }] };
+}
+
+async function copyKeepAttachments(attachments, exportPath, appDirectory, noteId) {
+  const copied = [];
+  for (const attachment of Array.isArray(attachments) ? attachments : []) {
+    const relative =
+      typeof attachment === 'string' ? attachment : attachment?.fileFullPath;
+    if (!relative) continue;
+    const sourcePath = path.join(exportPath, relative);
+    if (!(await pathExists(sourcePath))) continue;
+
+    const fileName = sanitizeFilename(path.basename(sourcePath));
+    try {
+      const destDir = path.join(appDirectory, 'assets', noteId);
+      await ensureDir(destDir);
+      await writeFile(
+        path.join(destDir, fileName),
+        await readFileBinaryBytes(sourcePath)
+      );
+      copied.push({
+        fileName,
+        isImage: String(attachment?.mimetype || '')
+          .toLowerCase()
+          .startsWith('image/'),
+      });
+    } catch (error) {
+      console.warn('Keep attachment copy failed:', error);
+    }
+  }
+  return copied;
+}
+
+export async function importGoogleKeep(
+  exportPath,
+  noteStore,
+  appDirectory,
+  onProgress
+) {
+  const resolvedAppDirectory = await ensureAppDirectory(appDirectory);
+  const files = await listFilesRecursive(exportPath, ['.json'], {
+    ignoreHidden: true,
+  });
+  const errors = [];
+  let imported = 0;
+  let done = 0;
+
+  for (const filePath of files) {
+    const fileName = path.basename(filePath);
+    // `list.json` is the optional Takeout index, not a note.
+    const fallbackTitle = stripExtension(fileName);
+    try {
+      if (fileName.toLowerCase() === 'list.json') {
+        onProgress?.({ done: done + 1, total: files.length, current: fileName });
+        continue;
+      }
+
+      const note = JSON.parse(await readFile(filePath));
+      const title =
+        String(note?.title || '').trim() || fallbackTitle || 'Untitled';
+
+      if (note?.isTrashed === true) {
+        onProgress?.({ done: done + 1, total: files.length, current: title });
+        continue;
+      }
+
+      const id = uuidv4();
+      const listContent = note?.listContent;
+      const html = String(note?.textContentHtml || '').trim();
+      let content;
+      if (Array.isArray(listContent) && listContent.length > 0) {
+        content = keepTaskListContent(listContent);
+      } else if (html) {
+        content = htmlToTiptap(html, id, resolvedAppDirectory);
+      } else {
+        content = keepPlainTextContent(note?.textContent);
+      }
+
+      const copied = await copyKeepAttachments(
+        note?.attachments,
+        exportPath,
+        resolvedAppDirectory,
+        id
+      );
+      for (const attachment of copied) {
+        const src = `assets://${id}/${attachment.fileName}`;
+        content.content.push(
+          attachment.isImage
+            ? { type: 'image', attrs: { src, alt: '' } }
+            : { type: 'fileEmbed', attrs: { src, fileName: attachment.fileName } }
+        );
+      }
+
+      addImportedNote(noteStore, {
+        id,
+        title,
+        content,
+        labels: mergeLabels(keepLabelNames(note?.labels)),
+        folderId: null,
+        createdAt:
+          keepTimestamp(note, 'createTimestamp', 'createTimestampUsec') ??
+          Date.now(),
+        updatedAt:
+          keepTimestamp(
+            note,
+            'editTimestamp',
+            'lastModifiedUsec',
+            'userEditedTimestampUsec'
+          ) ?? Date.now(),
+      });
+      imported += 1;
+      onProgress?.({ done: done + 1, total: files.length, current: title });
+    } catch (error) {
+      errors.push({
+        title: fallbackTitle || fileName,
+        reason: error?.message || String(error),
+      });
+      onProgress?.({ done: done + 1, total: files.length, current: fileName });
+    } finally {
+      done += 1;
+    }
+  }
+
+  await flushImportedNotes();
+  return { imported, folders: 0, errors };
+}

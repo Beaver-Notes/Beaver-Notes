@@ -18,11 +18,11 @@ import {
 import { getWsSync, setRoomKey } from '@/lib/sync/ws-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';
-import { resolveNoteWorkspaceId } from '@/utils/sync/shared-notes.js';
+import { resolveNoteWorkspaceId, isSharedNote, syncSharedNote } from '@/utils/sync/shared-notes.js';
 import { speed } from '@/utils/speed.js';
 
 export { registerActiveDoc, applyRemote } from '@/lib/yjs/shared.js';
-import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared.js';
+import { registerActiveDoc, unregisterActiveDoc, getActiveDoc } from '@/lib/yjs/shared.js';
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
@@ -160,6 +160,10 @@ export function useNoteYjs() {
   // Monotonic load id. An in-flight load whose id is stale may never install
   // its doc or buffer its updates under the current note id.
   let loadGeneration = 0;
+  // Set by onUnmounted. loadGeneration is per instance, so on its own an
+  // unmounted instance could still resume its in-flight load and register an
+  // orphan doc over the one a remounted page owns.
+  let disposed = false;
 
   // Buffered deltas are keyed by note id, not by the currently displayed note:
   // a failed/queued flush from note A must never be persisted to note B after
@@ -251,8 +255,16 @@ export function useNoteYjs() {
       compactNote(oldNoteId).catch(() => {
         // non-critical
       });
-      unregisterActiveDoc(oldNoteId);
-      getWsSync().leaveNoteRoom(oldNoteId);
+      // Unmount awaits a flush, so a later mount of the same note can register
+      // its doc while this instance is suspended. Only give up the shared entry
+      // if it is still ours; otherwise the live editor would silently stop
+      // receiving remote updates — and leaveNoteRoom destroys the room's
+      // provider, which would kill the one the remounted page just joined.
+      const active = getActiveDoc(oldNoteId);
+      if (!active || active === oldDoc) {
+        unregisterActiveDoc(oldNoteId);
+        getWsSync().leaveNoteRoom(oldNoteId);
+      }
     }
     oldDoc.destroy();
   }
@@ -294,7 +306,7 @@ export function useNoteYjs() {
     // otherwise leave currentNoteId pointing at one note while another note's
     // doc is displayed and persisted to the wrong rows.
     const generation = ++loadGeneration;
-    const isStale = () => generation !== loadGeneration;
+    const isStale = () => disposed || generation !== loadGeneration;
 
     // Reset up front so a stale `true` from a previous note can't leak into
     // this one if key resolution throws before the result is applied.
@@ -363,22 +375,23 @@ export function useNoteYjs() {
       }
       if (seed) {
         try {
-          // Deterministic author: two devices migrating the same legacy title
-          // merge into one copy instead of concatenating it.
-          seedDeterministically(newDoc, `${noteId}:legacy-title`, (temp) => {
-            temp.getText('title').insert(0, seed);
-          });
+          // Authored under this doc's own clientID so a later title edit on
+          // either device can delete it, same as any typed title.
+          newDoc.transact(() => newDoc.getText('title').insert(0, seed), 'local');
         } catch (e) {
           console.warn('[yjs] failed to migrate legacy title to YText:', e);
         }
       }
     }
     // The store/meta title is NOT seeded into the collaborative Y.Text here.
-    // The title is carried by the workspace meta doc; applyTitleDelta seeds the
-    // first real edit deterministically so two clients don't double it.
+    // The title is carried by the workspace meta doc; the first real edit goes
+    // through applyTitleDelta, which authors it as a normal diff.
 
-    newDoc.on('update', (update, origin) => {
+    newDoc.on('update', (update, origin, _doc, transaction) => {
       if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
+      // Remote transactions are already persisted in note_content by the native
+      // pull path; re-appending them here echoes them back to the server.
+      if (!transaction?.local) return;
       if (isStale()) return;
       // Never drop a local edit while the shared key is unresolved: the note is
       // editable under the items key and self-heals to the shared key when the
@@ -387,14 +400,44 @@ export function useNoteYjs() {
       scheduleFlush();
     });
 
+    // Activate the doc before key recovery: a durable snapshot that lands
+    // while the key is still in flight must apply into the live doc (buffered
+    // updates replay on register) instead of parking behind an empty editor
+    // until the next open. Edits stay local meanwhile via pendingSetup.
+    pendingSetup.value = true;
+    if (isStale()) {
+      newDoc.destroy();
+      t?.end();
+      return;
+    }
+    currentNoteId = noteId;
+    currentDoc = newDoc;
+    registerActiveDoc(noteId, newDoc);
+    doc.value = newDoc;
+    ready.value = true;
+
     let noteKeyHex = null;
+    const refreshSharedContent = async () => {
+      if (isStale() || !isSharedNote(noteId)) return;
+      try {
+        const { useAccountStore } = await import('@/store/account');
+        const accountStore = useAccountStore();
+        await syncSharedNote(noteId, {
+          serverUrl: accountStore.serverUrl || '',
+          token: accountStore.token || '',
+        });
+      } catch (err) {
+        console.warn('[yjs] shared-note refresh after key skipped:', err?.message || err);
+      }
+    };
     try {
       const workspaceStore = useWorkspaceStore();
       const sharing = useNoteSharing();
       // Fired by the background envelope recovery once the key actually lands:
       // clear the advisory flag and re-key the realtime room with the shared
       // key so subsequent updates seal under it (durable sealing is registered
-      // by rememberAndProvision in the same path).
+      // by rememberAndProvision in the same path). A first-open pull that ran
+      // before the key landed could not decrypt, so re-pull once it resolves.
       const onKeyResolved = async (hex) => {
         if (!hex || isStale()) return;
         pendingSetup.value = false;
@@ -404,12 +447,16 @@ export function useNoteYjs() {
         if (ownerId) {
           await setRoomKey(`workspace:${ownerId}:note:${noteId}`, hex);
         }
+        await refreshSharedContent();
       };
       noteKeyHex = await sharing.ensureNoteKey(noteId, { backgroundRetry: true, onKeyResolved });
       const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
       if (noteKeyHex && ownerId) {
         await setRoomKey(`workspace:${ownerId}:note:${noteId}`, noteKeyHex);
       }
+      // Same re-pull for the foreground path: the key may have resolved only
+      // now, after the fetch-time durable sync already ran keyless.
+      if (noteKeyHex) await refreshSharedContent();
     } catch (err) {
       console.warn('[yjs] note-key provisioning skipped:', err);
     }
@@ -417,19 +464,13 @@ export function useNoteYjs() {
     // just records that this device hasn't been handed the shared key *yet*.
     pendingSetup.value = applyNoteKeyResult(noteKeyHex);
     if (isStale()) {
-      newDoc.destroy();
+      if (currentDoc === newDoc) teardownActiveDoc();
+      else newDoc.destroy();
       t?.end();
       return;
     }
 
-    // Register in the global active-docs map so that WS updates are applied.
     // Room join (with awareness) is owned by the page watcher (per-doc awareness guard).
-    currentNoteId = noteId;
-    currentDoc = newDoc;
-    registerActiveDoc(noteId, newDoc);
-
-    doc.value = newDoc;
-    ready.value = true;
     t?.end();
   }
 
@@ -441,6 +482,8 @@ export function useNoteYjs() {
     while (endPrev > start && endNext > start && prev[endPrev - 1] === next[endNext - 1]) { endPrev--; endNext--; }
     return { pos: start, del: endPrev - start, ins: next.slice(start, endNext) };
   }
+  // A Yjs seed under a fixed clientID is insert-only and can never converge, so
+  // the title is only ever authored as a normal client-authored diff.
   // ponytail: exported for test
   function applyTitleDelta(next) {
     if (!currentDoc) return;
@@ -448,22 +491,8 @@ export function useNoteYjs() {
     const prev = ytext.toString();
     const n = next ?? '';
     if (prev === n) return;
-    // Empty Y.Text but a non-empty title (meta-only title, Y.Text never seeded):
-    // seed under a deterministic client id so two clients applying the same
-    // title concurrently merge into one copy instead of concatenating it.
-    // Origin 'local' (not 'load') so the seed is buffered and persisted.
-    if (prev === '' && n) {
-      seedDeterministically(
-        currentDoc,
-        `${currentNoteId || 'note'}:title`,
-        (temp) => {
-          temp.getText('title').insert(0, n);
-        },
-        'local'
-      );
-      return;
-    }
     const { pos, del, ins } = titleDiff(prev, n);
+
     currentDoc.transact(() => {
       if (del) ytext.delete(pos, del);
       if (ins) ytext.insert(pos, ins);
@@ -481,6 +510,10 @@ export function useNoteYjs() {
   }
 
   onUnmounted(async () => {
+    // Retire this instance before the flush await: a load still in flight must
+    // not register an orphan doc once teardown returns.
+    disposed = true;
+    loadGeneration++;
     flushHandlers.delete(flushHandler);
     // Flush buffered updates before compacting.
     if (flushTimer) {
@@ -493,8 +526,13 @@ export function useNoteYjs() {
     }
     removeLifecycleFlush?.();
     removeLifecycleFlush = null;
-    await flushPendingUpdates();
+    // Retire the doc BEFORE the flush await. The flush retries, sleeps 200ms and
+    // can compact; for that whole window this dying doc was still the registry's
+    // answer for the note id, so remote updates were applied to a doc nobody can
+    // see. `flushPendingUpdates` works off its own per-note buffer, not the doc,
+    // so it stays correct after teardown.
     teardownActiveDoc();
+    await flushPendingUpdates();
   });
 
   return { doc, ready, pendingSetup, load, getTitle, setTitle, observeTitle, applyTitleDelta };

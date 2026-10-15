@@ -176,6 +176,11 @@ export default {
       async (authenticated) => {
         if (authenticated) {
           await cloudWorkspaces.fetchWorkspaces();
+          // Auth is restored asynchronously by `shell.initializeWorkspace()`
+          // (loadSessionToken), so `onMounted` runs `start()` before the token
+          // exists and it bails. Start here too, or a restored session never
+          // gets realtime or presence until the user signs out and back in.
+          getWsSync().start();
         }
       },
       { immediate: true },
@@ -237,7 +242,6 @@ export default {
         const wsSync = getWsSync();
         wsSync.stop();
       }
-      if (cooldownTimer) clearInterval(cooldownTimer);
     });
 
     return {

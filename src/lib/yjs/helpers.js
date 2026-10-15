@@ -10,8 +10,8 @@ let cachedDeviceId = null;
 try {
   cachedDeviceId = localStorage.getItem('deviceId');
 } catch {}
-// Warm the Rust-owned id in the background; kv adopts the localStorage seed
-// so the sync cached value stays the correct identity.
+// Warm the Rust-owned installation id in the background. The localStorage
+// value is only a pre-Rust seed, so it must never outlive a successful command.
 Promise.resolve()
   .then(() => getSyncDeviceId())
   .then((id) => {

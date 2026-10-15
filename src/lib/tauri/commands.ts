@@ -382,6 +382,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('token', payload?.token),
         ...withKeyVariants('folder_id', payload?.folderId ?? payload?.folder_id),
         ...withKeyVariants('transport', payload?.transport),
+        ...withKeyVariants('device_label', payload?.deviceLabel ?? payload?.device_label),
       };
     case 'encryption:reconcileKeyParams':
       return withKeyVariants('passphrase', payload?.passphrase);

@@ -63,7 +63,10 @@ fn master_key_enc_path() -> Result<PathBuf, AppError> {
     Ok(app_data_dir()?.join(MASTER_KEY_ENC_FILE))
 }
 
-fn app_data_dir() -> Result<PathBuf, AppError> {
+/// Resolves the per-instance app data dir, including the Android fallback where
+/// `dirs::data_local_dir()` is `None` (no `$HOME`). Shared so every on-disk
+/// artifact (master key, secure blobs, …) lands in the same directory.
+pub(crate) fn app_data_dir() -> Result<PathBuf, AppError> {
     // Android data_local_dir is None (no HOME), so legacy and enc-file paths would fail before Keystore.
     // Use tauri path resolver, matching master_key_wrapped_path.
     #[cfg(target_os = "android")]

@@ -48,6 +48,9 @@ vi.mock('@/lib/api/workspaces', () => ({
 }));
 vi.mock('@/utils/sync/shared-keys', () => ({
   registerSharedSyncKey: vi.fn(),
+  registerWsKeyForNotes: vi.fn(async () => {}),
+  setActiveWsKey: vi.fn(),
+  getActiveWsKey: vi.fn(() => null),
 }));
 vi.mock('@/utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },

@@ -19,11 +19,15 @@ vi.mock('@/store/account', () => ({
   }),
 }));
 
-vi.mock('@/lib/api/types', () => ({
+vi.mock('@/lib/api/types', async (importOriginal) => ({
+  ...(await importOriginal()),
   PLAN_NAMES: { TEAM: 'team', ENTERPRISE: 'enterprise' },
 }));
 
-vi.mock('@/lib/settings', () => ({ setSetting: vi.fn(async () => {}) }));
+vi.mock('@/lib/settings', async (importOriginal) => ({
+  ...(await importOriginal()),
+  setSetting: vi.fn(async () => {}),
+}));
 
 vi.mock('@/lib/api/account', () => ({
   updateUsername: vi.fn(async () => {}),

@@ -184,7 +184,18 @@ function buildDecorations(state, preview, options, editor) {
         isReview
           ? createReviewHeader(preview.meta, options, changes.length)
           : createBanner(preview.meta, options),
-      { side: -1, key: 'version-banner' }
+      // The key decides whether ProseMirror reuses the banner's DOM node. A
+      // constant key froze the label at whatever version was opened first, so
+      // the heading never updated when a different commit was selected. Fold
+      // the rendered content into the key: same version keeps its node stable
+      // across doc edits, a different version (or a new review change count)
+      // remounts it.
+      {
+        side: -1,
+        key: `version-banner:${isReview ? 'review' : 'preview'}:${
+          preview.meta?.label || ''
+        }:${isReview ? changes.length : 0}`,
+      }
     ),
   ];
 

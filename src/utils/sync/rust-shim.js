@@ -43,12 +43,19 @@ async function getSyncConfig() {
   // only special-cases `"folder"` to disable the cloud path.
   const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
 
+  let deviceLabel = '';
+  try {
+    const { getDeviceModel } = await import('@/utils/device/device-model');
+    deviceLabel = getDeviceModel() || '';
+  } catch {}
+
   return {
     workspace_id: useWorkspaceStore().activeId || '',
     server_url: useAccountStore().serverUrl || '',
     token: useAccountStore().token || '',
     folder_id: folderId,
     transport,
+    device_label: deviceLabel,
   };
 }
 

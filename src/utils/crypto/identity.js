@@ -18,7 +18,19 @@ export async function generateIdentity() {
 }
 
 export async function loadOrCreateIdentity() {
-  const stored = await loadSecureBlob(BLOB_KEY);
+  let stored = null;
+  try {
+    stored = await loadSecureBlob(BLOB_KEY);
+  } catch (err) {
+    // Backend unreadable (missing dir, keyring error). Falling through mints a
+    // fresh identity; throwing instead left every caller's catch silently
+    // bailing, so the device never published its public key and no collaborator
+    // could wrap a key for it.
+    // ponytail: a backend that stays unreadable mints a new identity per launch
+    // (churn replaces the device's published key). Acceptable while unreadable
+    // == unusable; revisit if a persistent backend failure path appears.
+    console.warn('[identity] secure blob unreadable; minting fresh identity', err);
+  }
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
@@ -32,7 +44,12 @@ export async function loadOrCreateIdentity() {
   return identity;
 }
 
-export async function publishIdentity(identity = null, deviceId = null) {
+// ponytail: baseUrl is threaded in rather than read from the account store here,
+// because this module is imported by the auth composable that owns the store and
+// importing it back would be circular. Omitting it silently posts the public key
+// to DEFAULT_API_URL (production), which is how devices ended up missing from
+// accounts.deviceKeys and every shared note opened empty.
+export async function publishIdentity(identity = null, deviceId = null, baseUrl) {
   const id = identity ?? (await loadOrCreateIdentity());
-  return setKeypair(id.publicKeyHex, { deviceId });
+  return setKeypair(id.publicKeyHex, { deviceId, baseUrl });
 }

@@ -11,6 +11,7 @@ import {
   RiArchiveDrawerLine,
   RiArchiveLine,
   RiChat3Line,
+  RiChatSmile3Line,
   RiUserAddLine,
   RiArrowDownLine,
   RiArrowDownSLine,
@@ -41,6 +42,7 @@ import {
   RiCupLine,
   RiDeleteBackLine,
   RiDeleteBin6Line,
+  RiDeleteBinLine,
   RiDeleteColumn,
   RiDeleteRow,
   RiDoubleQuotesR,
@@ -83,6 +85,7 @@ import {
   RiForward5Line,
   RiGithubFill,
   RiGlobalLine,
+  RiGroupLine,
   RiHeading,
   RiHeartLine,
   RiH1,
@@ -175,6 +178,7 @@ import {
   RiMicrosoftFill,
   RiSpaceShip2Line,
   RiEqualizer3Line,
+  RiExpandUpDownLine,
   RiExpandWidthLine,
   RiPrinterLine,
   RiFileAddLine,
@@ -190,6 +194,8 @@ import {
   RiQrCodeLine,
   RiShieldStarLine,
   RiDatabase2Line,
+  RiLockPasswordLine,
+  RiMailLine,
 } from '@remixicon/vue';
 
 const RemixIcons = {
@@ -227,6 +233,7 @@ const RemixIcons = {
   riCupLine: RiCupLine,
   riDeleteBackLine: RiDeleteBackLine,
   riDeleteBin6Line: RiDeleteBin6Line,
+  riDeleteBinLine: RiDeleteBinLine,
   riDeleteColumn: RiDeleteColumn,
   riDeleteRow: RiDeleteRow,
   riDoubleQuotesR: RiDoubleQuotesR,
@@ -268,6 +275,7 @@ const RemixIcons = {
   riFootballLine: RiFootballLine,
   riGithubFill: RiGithubFill,
   riGlobalLine: RiGlobalLine,
+  riGroupLine: RiGroupLine,
   riHeading: RiHeading,
   riHeartLine: RiHeartLine,
   riH1: RiH1,
@@ -322,6 +330,7 @@ const RemixIcons = {
   riShareLine: RiShareLine,
   riShapesLine: RiShapesLine,
   riChat3Line: RiChat3Line,
+  riChatSmile3Line: RiChatSmile3Line,
   riUserAddLine: RiUserAddLine,
   riUserSharedLine: RiUserSharedLine,
   riHistoryLine: RiHistoryLine,
@@ -368,6 +377,7 @@ const RemixIcons = {
   riSpaceShipLine: RiSpaceShip2Line,
   riLayoutColumnLine: RiLayoutColumnLine,
   riEqualizer3Line: RiEqualizer3Line,
+  riExpandUpDownLine: RiExpandUpDownLine,
   riExpandWidthLine: RiExpandWidthLine,
   riPrinterLine: RiPrinterLine,
   riFileAddLine: RiFileAddLine,
@@ -383,6 +393,8 @@ const RemixIcons = {
   riQrCodeLine: RiQrCodeLine,
   riShieldStarLine: RiShieldStarLine,
   riDatabase2Line: RiDatabase2Line,
+  riLockPasswordLine: RiLockPasswordLine,
+  riMailLine: RiMailLine,
 };
 
 const customIconPaths = {
