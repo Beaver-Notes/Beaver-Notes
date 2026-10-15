@@ -54,6 +54,9 @@ pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
     // Rotating refresh token. Without this every store/clear call is rejected,
     // so the token never reaches the OS keychain and can never be discarded.
     "accountRefreshTokenBlob",
+    // The install-level account list: one store for the whole install, unlike
+    // the per-account keys above and below.
+    "accountsIndex",
 ];
 /// Per-account keys of the form `<prefix><accountId>`. Stays a bound list — never
 /// an arbitrary key — so a caller cannot invent its own storage slot.
@@ -61,7 +64,6 @@ pub(crate) const ALLOWED_BLOB_PREFIXES: &[&str] = &[
     "accountSession:",
     "accountRefreshToken:",
     "accountProfile:",
-    "accountDeviceId:",
     "e2eIdentityKeypair:",
 ];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
