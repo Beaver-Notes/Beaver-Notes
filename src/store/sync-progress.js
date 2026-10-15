@@ -39,6 +39,11 @@ const STATUS_TAXONOMY = {
     tone: 'action',
     text: 'Session expired. Sign in again.',
   },
+  // A 403, not a dead credential: signing in again would change nothing.
+  forbidden: {
+    tone: 'action',
+    text: 'You don’t have permission to sync this workspace.',
+  },
   'workspace-reset': {
     tone: 'action',
     text: 'Workspace was reset on the server',
@@ -76,6 +81,14 @@ function readLastSyncAt() {
 export function isPlanUpgradeRequired(message) {
   if (typeof message !== 'string') return false;
   return /plan_upgrade_required|plan[- ]upgrade[- ]required/i.test(message) || /\b402\b/.test(message);
+}
+
+// A dead session (revoked device, rotated signing key, idle timeout) aborts the
+// tick as a `sync:error` rather than a typed status; map it back to the
+// `authorization-failed` taxonomy entry so the user is told to sign in again.
+export function isSessionExpired(message) {
+  if (typeof message !== 'string') return false;
+  return /unauthori[sz]ed|\b401\b/i.test(message);
 }
 
 export function describeStatus(status, message) {
@@ -182,7 +195,12 @@ export const useSyncProgressStore = defineStore('syncProgress', {
       const unlistenError = listen('sync:error', (event) => {
         const raw = event.payload?.message;
         const planUpgrade = isPlanUpgradeRequired(raw);
-        const status = planUpgrade ? 'plan-upgrade-required' : 'sync-failed';
+        const sessionExpired = !planUpgrade && isSessionExpired(raw);
+        const status = planUpgrade
+          ? 'plan-upgrade-required'
+          : sessionExpired
+            ? 'authorization-failed'
+            : 'sync-failed';
         const described = describeStatus(status);
         this.status = status;
         this.lastAction = {
@@ -190,7 +208,7 @@ export const useSyncProgressStore = defineStore('syncProgress', {
           text: described.text,
           // Keep the engine's raw string behind the banner's "Details" only for
           // the unmapped fallback; the plan block stays as it was.
-          detail: planUpgrade ? undefined : raw || '',
+          detail: planUpgrade || sessionExpired ? undefined : raw || '',
           at: Date.now(),
         };
         this.phase = '';

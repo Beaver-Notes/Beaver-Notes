@@ -44,6 +44,10 @@ pub(crate) enum SyncError {
     /// was never stored, so its push cursor must not move: this is a gate, not a
     /// skip, and it is retried after the note shrinks.
     ItemTooLarge,
+    /// The server answered 403: the credential is fine, this device simply may
+    /// not sync this workspace (a viewer, or no longer a member). Kept separate
+    /// from `Unauthorized` so the banner never asks a permitted user to sign in.
+    Forbidden,
 }
 
 impl SyncError {
@@ -55,6 +59,7 @@ impl SyncError {
             SyncError::ICloudPending => "pending-icloud",
             SyncError::Throttled => "throttled",
             SyncError::ItemTooLarge => "item-too-large",
+            SyncError::Forbidden => "forbidden",
         }
     }
 }
@@ -447,19 +452,19 @@ fn collect_dirty_filtered(
         let since: i64 = db::db_get(pool, &pushed_key(&note), None)?
             .and_then(|s| s.parse().ok())
             .unwrap_or(0);
-        let rows: Vec<(i64, Vec<u8>)> = {
+        let rows: Vec<(i64, Vec<u8>, String)> = {
             let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, data FROM note_content WHERE note_id = ?1 AND id > ?2 ORDER BY id ASC",
+                    "SELECT id, data, device FROM note_content WHERE note_id = ?1 AND id > ?2 ORDER BY id ASC",
                 )
                 .map_err(|e| AppError::Other(e.to_string()))?;
             let mapped = stmt
                 .query_map(rusqlite::params![note, since], |row| {
-                    Ok((row.get(0)?, row.get(1)?))
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
                 })
                 .map_err(|e| AppError::Other(e.to_string()))?;
-            let rows: Result<Vec<(i64, Vec<u8>)>, _> = mapped.collect();
+            let rows: Result<Vec<(i64, Vec<u8>, String)>, _> = mapped.collect();
             rows.map_err(|e| AppError::Other(e.to_string()))?
         };
         if rows.is_empty() {
@@ -493,7 +498,15 @@ fn collect_dirty_filtered(
             Some(k) => (k, SHARED_PAYLOAD_VERSION),
             None => (*app_key, SYNC_PAYLOAD_VERSION),
         };
-        for (idx, (_, stored)) in rows.iter().enumerate() {
+        for (idx, (_, stored, row_device)) in rows.iter().enumerate() {
+            // A row a pull wrote carries the authoring device behind this prefix.
+            // Re-sealing it under our own device id with a fresh sequence would
+            // make the server accept it as a new commit and fan it back out, so
+            // the two devices would echo the same update at each other forever.
+            // The cursor still advances past it via `attempted` above.
+            if row_device.starts_with("remote:") {
+                continue;
+            }
             let update = match decrypt_yjs_blob(app_key, stored) {
                 Ok(u) => u,
                 Err(e) => {
@@ -729,11 +742,15 @@ async fn push_items(
             .map(|n| serde_json::json!({ "noteId": n, "updates": by_note[n.as_str()] }))
             .collect();
         let body = serde_json::json!({ "workspaceId": workspace_id, "notes": notes }).to_string();
+        // Real device model from JS when available (e.g. "Pixel 9 · Android");
+        // empty before sync_start runs or on the script-driven test paths.
+        let label = super::scheduler::active_device_label();
+        let label = if label.is_empty() { DEVICE_LABEL } else { label.as_str() };
         let resp = client
             .post(&url)
             .header(reqwest::header::AUTHORIZATION, format!("Bearer {token}"))
             .header(device_id_header(), device)
-            .header(device_label_header(), DEVICE_LABEL)
+            .header(device_label_header(), label)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .header(reqwest::header::ACCEPT, "application/json")
             .body(body)
@@ -895,9 +912,12 @@ async fn pull_all(
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
             return Err(CloudFail::Typed(SyncError::Throttled));
         }
-        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        if status == reqwest::StatusCode::UNAUTHORIZED {
             return Err(CloudFail::Unauthorized);
         }
+        // 403 here means the workspace is no longer reachable (removed from the
+        // team): the branch below already treats it as empty state, and the 401
+        // check that used to sit above was shadowing it.
         if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::FORBIDDEN {
             return Ok((Vec::new(), HashMap::new(), Vec::new()));
         }
@@ -979,10 +999,11 @@ async fn pull_all(
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
                 return Err(CloudFail::Typed(SyncError::Throttled));
             }
-            if status == reqwest::StatusCode::UNAUTHORIZED
-                || status == reqwest::StatusCode::FORBIDDEN
-            {
+            if status == reqwest::StatusCode::UNAUTHORIZED {
                 return Err(CloudFail::Unauthorized);
+            }
+            if status == reqwest::StatusCode::FORBIDDEN {
+                return Err(CloudFail::Typed(SyncError::Forbidden));
             }
             if !status.is_success() {
                 return Err(CloudFail::Fatal(AppError::Other(status_snapshot(status))));
@@ -1201,7 +1222,10 @@ fn decode_append_store(
         for (n, u, d) in decoded {
             a.push(n);
             b.push(u);
-            c.push(d);
+            // Rows a pull writes are the remote device's own commits. Tagging
+            // them here (rather than skipping the write) keeps the local doc
+            // whole while marking them out of the push path.
+            c.push(format!("remote:{d}"));
         }
         (a, b, c)
     };

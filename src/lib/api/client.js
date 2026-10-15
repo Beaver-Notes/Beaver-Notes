@@ -246,6 +246,18 @@ export function createApiClient({
         } catch (err) {
           console.warn('[api] failed to clear token on 401:', err);
         }
+        // The credential is dead. Clearing only the stored copy left the store
+        // reporting `authenticated`, so the app looked signed in while nothing
+        // could succeed. Sign the local state out so it asks for a new sign-in
+        // (the sync banner already says so) instead of failing silently.
+        try {
+          const { useAccountStore } = await import('@/store/account');
+          const store = useAccountStore();
+          store.setToken(null);
+          store.setStatus('anonymous');
+        } catch (err) {
+          console.warn('[api] could not reset the account store after a dead session:', err);
+        }
       }
       throw normalizeError(response.status, body2);
     }

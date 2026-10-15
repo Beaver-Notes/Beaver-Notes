@@ -101,7 +101,7 @@ impl CloudClient {
     pub(crate) async fn put_bytes(&self, path: &str, bytes: Vec<u8>) -> Result<(), CloudFail> {
         let status = self.put_bytes_with_status(path, bytes).await?;
         if !status.is_success() {
-            return Err(status_fail(status));
+            return Err(status_fail(&self.url(path), status));
         }
         Ok(())
     }
@@ -158,7 +158,7 @@ impl CloudClient {
             return Err(fail);
         }
         if !status.is_success() {
-            return Err(status_fail(status));
+            return Err(status_fail(resp.url().as_str(), status));
         }
         Ok(())
     }
@@ -188,13 +188,42 @@ impl CloudClient {
     }
 }
 
+/// 401/403 arrive as a bare `Unauthorized` with no endpoint and no server
+/// message, which makes every auth failure look identical in the log. The
+/// server already returns a distinguishing `error` string, so read the body
+/// before discarding the response and name both.
+/// Snapshot-promote is owner-only (`requireWorkspaceOwner` on the server); a
+/// non-owner's 403 is permanent for this identity, so arm the session skip
+/// instead of re-logging the same rejection on every compaction.
+fn is_owner_only_promote_rejection(url: &str, body: &str) -> bool {
+    url.contains("/snapshot-promote") && body.contains("not_workspace_owner")
+}
+
+async fn log_auth_failure(resp: reqwest::Response) {
+    let url = resp.url().as_str().to_string();
+    let body = resp
+        .text()
+        .await
+        .map(|t| t.chars().take(200).collect::<String>())
+        .unwrap_or_else(|e| format!("<body unreadable: {e}>"));
+    crate::rs_log!("[sync::remote] auth rejected at {url}: {body}");
+    if is_owner_only_promote_rejection(&url, &body) {
+        super::scheduler::note_promote_forbidden();
+    }
+}
+
 async fn decode_json<T: DeserializeOwned>(resp: reqwest::Response) -> Result<T, CloudFail> {
     let status = resp.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        log_auth_failure(resp).await;
+        // Let map_status decide: 401 is a dead session, 403 is a permission no.
+        return Err(map_status(status).unwrap_or(CloudFail::Unauthorized));
+    }
     if let Some(fail) = map_status(status) {
         return Err(fail);
     }
     if !status.is_success() {
-        return Err(status_fail(status));
+        return Err(status_fail(resp.url().as_str(), status));
     }
     let text = resp.text().await.map_err(|e| map_reqwest_error(&e))?;
     serde_json::from_str(&text).map_err(|e| CloudFail::Fatal(AppError::Serialization(e.to_string())))
@@ -211,7 +240,7 @@ async fn decode_json_opt<T: DeserializeOwned>(
         return Ok(None);
     }
     if !status.is_success() {
-        return Err(status_fail(status));
+        return Err(status_fail(resp.url().as_str(), status));
     }
     let text = resp.text().await.map_err(|e| map_reqwest_error(&e))?;
     serde_json::from_str(&text)
@@ -228,7 +257,7 @@ async fn decode_bytes(resp: reqwest::Response) -> Result<Option<Vec<u8>>, CloudF
         return Ok(None);
     }
     if !status.is_success() {
-        return Err(status_fail(status));
+        return Err(status_fail(resp.url().as_str(), status));
     }
     let bytes = resp.bytes().await.map_err(|e| map_reqwest_error(&e))?;
     Ok(Some(bytes.to_vec()))
@@ -236,24 +265,44 @@ async fn decode_bytes(resp: reqwest::Response) -> Result<Option<Vec<u8>>, CloudF
 
 fn ensure_success(resp: &reqwest::Response) -> Result<(), CloudFail> {
     let status = resp.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        // The vault key-params publish is the only authed call routed here, and
+        // `map_status` used to collapse it to a bare `Unauthorized` with no
+        // endpoint named - so a dead session looked identical to any other 401.
+        // Name the url, and let map_status keep 401 dead-session and 403
+        // permission apart, while `is_conflict`'s "status 409" match still holds.
+        crate::rs_log!(
+            "[sync::remote] auth rejected at {} ({status})",
+            resp.url()
+        );
+        return Err(map_status(status).unwrap_or(CloudFail::Unauthorized));
+    }
     if let Some(fail) = map_status(status) {
         return Err(fail);
     }
     if !status.is_success() {
-        return Err(status_fail(status));
+        return Err(status_fail(resp.url().as_str(), status));
     }
     Ok(())
 }
 
-fn status_fail(status: reqwest::StatusCode) -> CloudFail {
+/// Names the endpoint in the error: without the url a 409 from the
+/// initialization handshake is indistinguishable from any other 409, and the
+/// sync banner then reports a bare status with no hint which call failed.
+fn status_fail(url: &str, status: reqwest::StatusCode) -> CloudFail {
     CloudFail::Fatal(AppError::Other(format!(
-        "sync: cloud request failed with status {status}"
+        "sync: {url} failed with status {status}"
     )))
 }
 
 pub(crate) fn map_status(status: reqwest::StatusCode) -> Option<CloudFail> {
-    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+    if status == reqwest::StatusCode::UNAUTHORIZED {
         Some(CloudFail::Unauthorized)
+    } else if status == reqwest::StatusCode::FORBIDDEN {
+        // 403 answers "may this device do this", not "is this credential alive".
+        // Collapsing it into `Unauthorized` made viewers and expelled members
+        // read "Session expired. Sign in again." for a permission failure.
+        Some(CloudFail::Typed(SyncError::Forbidden))
     } else if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
         Some(CloudFail::Typed(SyncError::Throttled))
     } else {
@@ -290,7 +339,7 @@ mod tests {
         ));
         assert!(matches!(
             map_status(StatusCode::FORBIDDEN),
-            Some(CloudFail::Unauthorized)
+            Some(CloudFail::Typed(SyncError::Forbidden))
         ));
         assert!(map_status(StatusCode::OK).is_none());
         assert!(map_status(StatusCode::NOT_FOUND).is_none());
