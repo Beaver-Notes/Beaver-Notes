@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -15,6 +16,7 @@ use super::cloud::{
     CloudFail, SyncError, SyncStatus, DEFAULT_API_URL, local_cloud_flags, sync_cloud_pull,
     sync_cloud_push,
 };
+use crate::db;
 use crate::shared::{AppError, AppState, current_app_key, data_pool};
 
 /// Full-cycle cadence (mirrors the JS engine 30s pull timer).
@@ -26,6 +28,11 @@ const DIRTY_COALESCE: Duration = Duration::from_millis(600);
 /// Pushes closer than this after a successful push are skipped unless forced
 /// (mirrors JS `CLOUD_PUSH_MIN_INTERVAL_MS`).
 const PUSH_MIN_INTERVAL: Duration = Duration::from_secs(30);
+/// A note's local `note_content` log is folded back into one row once it grows
+/// past this many rows (the meta doc hit 1.8M rows before a manual compaction).
+/// Hundreds, not thousands: a single document's log stays small without
+/// compacting on every edit.
+const MAX_NOTE_UPDATES_BEFORE_COMPACTION: i64 = 500;
 
 /// Exponential backoff budget for transports: 1s floor, doubling per
 /// consecutive failure, 60s cap. `record_success` resets to the floor.
@@ -71,6 +78,10 @@ struct StoredConfig {
     /// Active transport name from JS (`"folder"` or `"remote"`); `None` means
     /// unknown and is treated as cloud-enabled.
     transport: Option<String>,
+    /// Human device label (e.g. "Pixel 9 · Android") from JS; empty when the
+    /// client did not send one. Sent as `x-device-label` on push so the server
+    /// can show a real name in the admin instead of the hardcoded fallback.
+    device_label: String,
 }
 
 /// Folder-only transport means the Rust tick must not touch the cloud.
@@ -133,11 +144,32 @@ fn sched() -> &'static Mutex<SchedState> {
 /// the JS authority, which re-probes on every pull) and reset on `sync_stop`.
 static SEED_ATTEMPTED: AtomicBool = AtomicBool::new(false);
 static BOOTSTRAP_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+/// Set when the server rejects an owner-only sync call (`/sync/initialize/claim`
+/// or `/sync/snapshot-promote`) with `not_workspace_owner` (role is not `owner`):
+/// both are owner-only by policy, so every retry is futile for this identity.
+/// Cleared wherever the seed/bootstrap flags clear.
+static OWNER_ONLY_FORBIDDEN: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn owner_only_forbidden() -> bool {
+    OWNER_ONLY_FORBIDDEN.load(Ordering::Relaxed)
+}
+
+pub(crate) fn note_owner_only_forbidden() {
+    OWNER_ONLY_FORBIDDEN.store(true, Ordering::Relaxed);
+}
 
 /// Serializes whole sync cycles. The 30s loop, a manual `sync_tick`, and a
 /// dirty push can otherwise overlap and race the same cursors/rows; whichever
 /// starts first wins and the rest no-op until it finishes.
 static CYCLE_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Notes with a compaction task in flight. A note still in here is skipped by
+/// the next pass, so two compactions of one note never overlap.
+static COMPACTING: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+fn compacting() -> &'static Mutex<HashSet<String>> {
+    COMPACTING.get_or_init(|| Mutex::new(HashSet::new()))
+}
 
 /// Test-only lock serializing the handful of unit tests that mutate the
 /// process-global [`CYCLE_RUNNING`] flag directly (`local_cycle_guard_*`,
@@ -406,8 +438,9 @@ fn local_cloud_state(app: &AppHandle) -> Option<(bool, bool)> {
 }
 
 /// Fold a cloud failure into the tick exactly like the pull/push arms:
-/// Throttled → backoff + status, Unauthorized → stop-push + status, Fatal →
-/// emit + abort. Only Fatal returns `Err`.
+/// Throttled → backoff + status, Unauthorized/Fatal → emit + abort. A dead
+/// session is an expected condition, not a success, so it aborts the tick like
+/// any other error instead of retrying silently.
 fn absorb_cloud_fail(
     app: &AppHandle,
     fail: CloudFail,
@@ -424,13 +457,56 @@ fn absorb_cloud_fail(
         CloudFail::Unauthorized => {
             note_auth_blocked();
             *status = "authorization-failed";
-            Ok(())
+            let e = cloud_fail_to_app(CloudFail::Unauthorized);
+            emit_error(app, &e.to_string());
+            Err(e)
         }
         CloudFail::Fatal(e) => {
             emit_error(app, &e.to_string());
             Err(e)
         }
     }
+}
+
+/// Compact every note whose local update log grew past
+/// [`MAX_NOTE_UPDATES_BEFORE_COMPACTION`] rows. Deliberately spawned off the
+/// tick: compaction rewrites a note's whole log under an IMMEDIATE write
+/// transaction, and awaiting it inline would hold the cycle open and block the
+/// sync loop's own writes. A locked vault is skipped silently and retried on a
+/// later tick; a failed compaction (validation refusal, transient DB error) just
+/// leaves the note over threshold for the next pass — never a user-facing error.
+fn queue_compaction(app: &AppHandle) {
+    if is_locked(app) {
+        return;
+    }
+    let state = app.state::<AppState>();
+    let Ok(pool) = data_pool(app, state.inner()) else {
+        return;
+    };
+    let Ok(note_ids) = super::assets::live_note_ids(&pool) else {
+        return;
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        for note_id in note_ids {
+            if db::yjs_row_count(&pool, &note_id).unwrap_or(0)
+                <= MAX_NOTE_UPDATES_BEFORE_COMPACTION
+            {
+                continue;
+            }
+            let first = compacting()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(note_id.clone());
+            if !first {
+                continue;
+            }
+            let _ = super::merge::compact_note(app.clone(), note_id.clone()).await;
+            if let Ok(mut set) = compacting().lock() {
+                set.remove(&note_id);
+            }
+        }
+    });
 }
 
 async fn run_tick(app: &AppHandle, force: bool) -> Result<SyncStatus, AppError> {
@@ -448,6 +524,7 @@ async fn run_tick(app: &AppHandle, force: bool) -> Result<SyncStatus, AppError> 
             s.pending_icloud,
         );
     }
+    queue_compaction(app);
     out
 }
 
@@ -528,7 +605,19 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
                     // initialized.
                     crate::rs_log!("[sync] cloud seed skipped: workspace not seedable yet");
                 }
-                Err(fail) => absorb_cloud_fail(app, fail, &mut status)?,
+                Err(fail) => {
+                    // ponytail: temporary — Typed failures reach
+                    // absorb_cloud_fail without logging, so a permanently
+                    // failing seed retries silently forever. Drop once seeding
+                    // failures surface through sync status alone.
+                    let why = match &fail {
+                        CloudFail::Typed(t) => t.status_str().to_string(),
+                        CloudFail::Unauthorized => "unauthorized".to_string(),
+                        CloudFail::Fatal(e) => e.to_string(),
+                    };
+                    crate::rs_log!("[sync] seed failed: {}", why);
+                    absorb_cloud_fail(app, fail, &mut status)?
+                }
             }
         }
 
@@ -774,6 +863,7 @@ fn ensure_loop(
     token: String,
     folder_id: Option<String>,
     transport: Option<String>,
+    device_label: Option<String>,
 ) -> Result<tokio::sync::mpsc::UnboundedSender<KickKind>, AppError> {
     let cfg = StoredConfig {
         workspace_id,
@@ -781,6 +871,7 @@ fn ensure_loop(
         token,
         folder_id: folder_id.filter(|s| !s.trim().is_empty()),
         transport: transport.filter(|s| !s.trim().is_empty()),
+        device_label: device_label.unwrap_or_default(),
     };
     let mut state = sched_lock()?;
     let identity_changed = state.config.as_ref().map(|c| {
@@ -794,6 +885,8 @@ fn ensure_loop(
         // New workspace/account: allow seed/bootstrap to probe once again.
         SEED_ATTEMPTED.store(false, Ordering::Relaxed);
         BOOTSTRAP_ATTEMPTED.store(false, Ordering::Relaxed);
+        // New identity may be the owner: allow owner-only calls again.
+        OWNER_ONLY_FORBIDDEN.store(false, Ordering::Relaxed);
     }
     state.config = Some(cfg);
     let folder = state.config.as_ref().and_then(|c| c.folder_id.clone());
@@ -819,6 +912,30 @@ pub(crate) fn active_workspace_id() -> Option<String> {
             .as_ref()
             .map(|c| c.workspace_id.clone())
             .filter(|w| !w.trim().is_empty())
+    })
+}
+
+/// Human device label for `x-device-label` on push. Empty when JS did not
+/// send one; the push path falls back to the hardcoded engine label then.
+pub(crate) fn active_device_label() -> String {
+    sched()
+        .lock()
+        .ok()
+        .and_then(|s| s.config.as_ref().map(|c| c.device_label.clone()))
+        .unwrap_or_default()
+}
+
+/// Cloud identity the scheduler was configured with — (workspace id, server
+/// url, bearer token) — or `None` when sync has not been started. Lets work
+/// outside the tick (the post-compaction snapshot upload) authenticate with
+/// the same credentials instead of holding a second copy of them.
+pub(crate) fn cloud_identity() -> Option<(String, String, String)> {
+    sched().lock().ok().and_then(|s| {
+        let c = s.config.as_ref()?;
+        if c.workspace_id.trim().is_empty() || c.token.is_empty() {
+            return None;
+        }
+        Some((c.workspace_id.clone(), c.server_url.clone(), c.token.clone()))
     })
 }
 
@@ -853,8 +970,17 @@ pub(crate) async fn sync_start(
     token: String,
     folder_id: Option<String>,
     transport: Option<String>,
+    device_label: Option<String>,
 ) -> Result<SyncStatusPayload, AppError> {
-    ensure_loop(&app, workspace_id, server_url, token, folder_id, transport)?;
+    ensure_loop(
+        &app,
+        workspace_id,
+        server_url,
+        token,
+        folder_id,
+        transport,
+        device_label,
+    )?;
     Ok(SyncStatusPayload {
         status: "started".to_string(),
     })
@@ -869,6 +995,7 @@ pub(crate) async fn sync_stop() -> Result<(), AppError> {
     }
     SEED_ATTEMPTED.store(false, Ordering::Relaxed);
     BOOTSTRAP_ATTEMPTED.store(false, Ordering::Relaxed);
+    OWNER_ONLY_FORBIDDEN.store(false, Ordering::Relaxed);
     drop_folder_watcher();
     if let Some(tx) = tx {
         let _ = tx.send(KickKind::Shutdown);
@@ -888,6 +1015,7 @@ pub(crate) fn stop_for_workspace_change() {
     }
     SEED_ATTEMPTED.store(false, Ordering::Relaxed);
     BOOTSTRAP_ATTEMPTED.store(false, Ordering::Relaxed);
+    OWNER_ONLY_FORBIDDEN.store(false, Ordering::Relaxed);
     drop_folder_watcher();
     if let Some(tx) = tx {
         let _ = tx.send(KickKind::Shutdown);
@@ -905,8 +1033,17 @@ pub(crate) async fn sync_kick(
     token: String,
     folder_id: Option<String>,
     transport: Option<String>,
+    device_label: Option<String>,
 ) -> Result<(), AppError> {
-    let tx = ensure_loop(&app, workspace_id, server_url, token, folder_id, transport)?;
+    let tx = ensure_loop(
+        &app,
+        workspace_id,
+        server_url,
+        token,
+        folder_id,
+        transport,
+        device_label,
+    )?;
     let _ = tx.send(KickKind::Kick);
     Ok(())
 }
@@ -922,8 +1059,17 @@ pub(crate) async fn sync_kick_dirty(
     token: String,
     folder_id: Option<String>,
     transport: Option<String>,
+    device_label: Option<String>,
 ) -> Result<(), AppError> {
-    let tx = ensure_loop(&app, workspace_id, server_url, token, folder_id, transport)?;
+    let tx = ensure_loop(
+        &app,
+        workspace_id,
+        server_url,
+        token,
+        folder_id,
+        transport,
+        device_label,
+    )?;
     let _ = tx.send(KickKind::Dirty);
     Ok(())
 }
@@ -1045,6 +1191,7 @@ mod tests {
                 token: "token".into(),
                 folder_id: None,
                 transport: None,
+                device_label: String::new(),
             });
             s.running = true;
         }

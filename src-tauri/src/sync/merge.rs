@@ -7,6 +7,7 @@ use yrs::{
 
 use crate::db::{self, DbPool};
 use crate::shared::{AppError, AppState, current_app_key, data_pool};
+use super::cloud::CloudFail;
 
 pub fn merge_updates(updates: &[Vec<u8>]) -> Vec<u8> {
     let doc = Doc::new();
@@ -159,9 +160,10 @@ pub(crate) fn refresh_vector(
     store_vector(pool, note_id, &encode_vector(&blobs))
 }
 
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn sync_compact_note(app: AppHandle, note_id: String) -> Result<(), AppError> {
+/// Fold a note's whole local update log into one merged row. Shared by the
+/// manual `sync_compact_note` command and the scheduler's threshold pass; a
+/// locked vault fails with `EncryptionLocked` and the caller retries later.
+pub(crate) async fn compact_note(app: AppHandle, note_id: String) -> Result<(), AppError> {
     let state = app.state::<AppState>();
     let pool = data_pool(&app, state.inner())?;
     let key = {
@@ -171,21 +173,191 @@ pub(crate) async fn sync_compact_note(app: AppHandle, note_id: String) -> Result
         }
         current_app_key(state.inner())?.ok_or(AppError::EncryptionLocked)?
     };
-    tokio::task::spawn_blocking(move || {
-        let rows = db::yjs_get_updates(&pool, &note_id, Some(key))?;
+    let shared = crate::shared::shared_note_keys(state.inner()).unwrap_or_default();
+    let upload_pool = pool.clone();
+    let upload_note_in_closure = note_id.clone();
+    let upload = tokio::task::spawn_blocking(move || -> Result<Option<((Vec<u8>, u64), i64)>, AppError> {
+        let rows = db::yjs_get_updates(&upload_pool, &upload_note_in_closure, Some(key))?;
         if rows.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
-        let blobs: Vec<Vec<u8>> = rows.into_iter().map(|(_, b)| b).collect();
+        // The stored snapshot has to lead the merge: the log rows are usually
+        // incremental diffs, and applying them to an empty doc parks every
+        // struct in the yrs pending queue, so without the base the merged
+        // update would encode an empty state and the compaction would throw
+        // the note's history away.
+        let mut blobs: Vec<Vec<u8>> = Vec::with_capacity(rows.len() + 1);
+        let base = db::yjs_get_snapshot(&upload_pool, &upload_note_in_closure, Some(key))?;
+        if !base.is_empty() {
+            blobs.push(base);
+        }
+        blobs.extend(rows.into_iter().map(|(_, b)| b));
         let merged = merge_updates(&blobs);
-        db::yjs_compact(&pool, &note_id, &merged, Some(key))?;
-        let _ = store_vector(&pool, &note_id, &encode_vector(&[merged]));
-        Ok(())
+        db::yjs_compact(&upload_pool, &upload_note_in_closure, &merged, Some(key))?;
+        let _ = store_vector(&upload_pool, &upload_note_in_closure, &encode_vector(&[merged.clone()]));
+        // `yjs_compact` deleted the old rows, but the pages they occupied only
+        // reach the filesystem if auto_vacuum is on and this reclaim runs; it
+        // takes no exclusive lock, so it belongs here rather than in a VACUUM.
+        // A database still carrying auto_vacuum=NONE in its header makes it a
+        // no-op.
+        let conn = upload_pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+        conn.execute_batch("PRAGMA incremental_vacuum")
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        // Sealing is post-compaction bookkeeping, so it never fails the
+        // compaction either: a note that cannot be sealed simply uploads
+        // nothing and keeps its server rows for the next pass.
+        let upload = match seal_compaction_snapshot(&upload_pool, &key, &shared, &upload_note_in_closure, &merged) {
+            Ok(sealed) => Some((sealed, last_generation(&upload_pool, &upload_note_in_closure))),
+            Err(e) => {
+                crate::rs_log!("[sync::merge] snapshot seal failed for {upload_note_in_closure}: {e}");
+                None
+            }
+        };
+        Ok(upload)
     })
     .await
-    .map_err(|e| AppError::Other(e.to_string()))?
+    .map_err(|e| AppError::Other(e.to_string()))??;
+
+    // The upload must not fail the compaction: the local merge is the
+    // safety-critical half, and a server that never records the generation only
+    // leaves the update rows for a later pass. Detached for the same reason the
+    // scheduler compacts off-tick — no network I/O inside the DB closure, and no
+    // caller waiting on it.
+    if let Some(((sealed, snapshot_ts), last_generation)) = upload {
+        let upload_pool = pool.clone();
+        let upload_note = note_id.clone();
+        tauri::async_runtime::spawn(async move {
+            upload_compaction_snapshot(
+                upload_pool,
+                upload_note,
+                last_generation.saturating_add(1),
+                snapshot_ts,
+                sealed,
+            )
+            .await;
+        });
+    }
+    Ok(())
 }
 
+/// Seal a merged state into the snapshot envelope the server is expected to
+/// hand back: `bootstrap_from_snapshots` decrypts exactly this shape, so an
+/// unsealed object would be unreadable to every other device. Same key
+/// choice and AAD the seeding path uses (`bootstrap.rs`).
+fn seal_compaction_snapshot(
+    pool: &DbPool,
+    key: &[u8; 32],
+    shared: &std::collections::HashMap<String, Vec<[u8; 32]>>,
+    note_id: &str,
+    merged: &[u8],
+) -> Result<(Vec<u8>, u64), AppError> {
+    let ts = chrono::Utc::now().timestamp_millis().max(0) as u64;
+    let device = super::local::get_or_create_device_id(pool)?;
+    let (seal, version) = super::bootstrap::snapshot_seal(key, shared, note_id);
+    let sealed =
+        super::bootstrap::seed_snapshot_envelope_versioned(&seal, version, &device, note_id, ts, merged)?;
+    Ok((sealed, ts))
+}
+
+fn generation_key(note_id: &str) -> String {
+    format!("sync:gen:{note_id}")
+}
+
+/// Last generation this client published for a note; 0 when it never has.
+/// The server derives its own next generation as `recorded + 1`
+/// (Beaver-Sync `jobs/yjs-gc.js:141`), so the client numbers from the same
+/// local record rather than a counter the two sides could disagree about: a
+/// mismatched generation publishes a key the GC never matches.
+fn last_generation(pool: &DbPool, note_id: &str) -> i64 {
+    db::db_get(pool, &generation_key(note_id), None)
+        .ok()
+        .flatten()
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .unwrap_or(0)
+}
+
+fn store_generation(pool: &DbPool, note_id: &str, generation: i64) {
+    let _ = db::db_set(pool, &generation_key(note_id), &generation.to_string(), None);
+}
+
+fn fail_str(e: &CloudFail) -> String {
+    match e {
+        CloudFail::Typed(t) => t.status_str().to_string(),
+        CloudFail::Unauthorized => "unauthorized".to_string(),
+        CloudFail::Fatal(err) => err.to_string(),
+    }
+}
+
+/// Tell the server a compaction happened, so its GC job can retire the
+/// update rows the merged snapshot supersedes and net the storage quota
+/// down. A single promote call (`routes/sync-state.js` /snapshot-promote)
+/// records the per-note snapshot generation on a live workspace; the old
+/// claim -> snapshot -> complete chain only matched a never-initialized
+/// workspace and 409'd on an already-initialized one, so no generation
+/// was ever recorded and the GC refund never fired. Best-effort by
+/// design: every failure is logged and swallowed. Promote is owner-only
+/// on the server, so a non-owner device logs the 403 once and then skips
+/// (`OWNER_ONLY_FORBIDDEN` in scheduler.rs) until the identity changes.
+async fn upload_compaction_snapshot(
+    pool: DbPool,
+    note_id: String,
+    generation: i64,
+    snapshot_ts: u64,
+    sealed: Vec<u8>,
+) {
+    if super::scheduler::owner_only_forbidden() {
+        return;
+    }
+    let Some((workspace_id, server_url, token)) = super::scheduler::cloud_identity() else {
+        crate::rs_log!(
+            "[sync::merge] snapshot upload skipped for {note_id}: cloud identity unavailable"
+        );
+        return;
+    };
+    let Ok(client) = super::remote::CloudClient::new(&server_url, &token) else {
+        crate::rs_log!(
+            "[sync::merge] snapshot upload skipped for {note_id}: http client unavailable"
+        );
+        return;
+    };
+    let promoted: serde_json::Value = match client
+        .post_json(
+            "/sync/snapshot-promote",
+            &serde_json::json!({
+                "workspaceId": workspace_id,
+                "noteId": note_id,
+                "generation": generation,
+                "snapshotTs": snapshot_ts,
+                "data": BASE64.encode(&sealed),
+            }),
+        )
+        .await
+    {
+        Ok(promoted) => promoted,
+        Err(e) => {
+            crate::rs_log!(
+                "[sync::merge] snapshot promote failed for {note_id} (generation {generation}): {}",
+                fail_str(&e)
+            );
+            return;
+        }
+    };
+    // Persist the server's authoritative generation. The server may
+    // already be ahead when another device compacted first, so storing
+    // the recorded value (not the requested one) keeps the next
+    // compaction advancing from the true server state.
+    let recorded = promoted
+        .get("generation")
+        .and_then(|g| g.as_i64())
+        .unwrap_or(generation);
+    store_generation(&pool, &note_id, recorded);
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn sync_compact_note(app: AppHandle, note_id: String) -> Result<(), AppError> {
+    compact_note(app, note_id).await
+}
 #[cfg(test)]
 mod tests {
     use yrs::{Doc, ReadTxn, StateVector, Text, Transact};

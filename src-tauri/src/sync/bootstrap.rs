@@ -14,7 +14,7 @@ use tauri::{AppHandle, Manager};
 use yrs::{updates::decoder::Decode, Doc, Transact, Update};
 
 use super::assets::{encode_asset_key, live_note_ids, list_remote_assets, seed_batch_upload_assets};
-use super::cloud::{valid_note_id, CloudFail, META_DOC_ID, WriterKey};
+use super::cloud::{valid_note_id, CloudFail, SyncError, META_DOC_ID, WriterKey};
 use super::local::get_or_create_device_id;
 use super::remote::CloudClient;
 use crate::db::{self, DbPool};
@@ -57,6 +57,13 @@ fn e_short(e: &CloudFail) -> String {
 /// no status code, so the claim call reads it back out of the message.
 fn is_conflict(e: &CloudFail) -> bool {
     matches!(e, CloudFail::Fatal(err) if err.to_string().contains("status 409"))
+}
+
+/// A 403 from an owner-only endpoint. `map_status` keeps 403 as
+/// `Typed(Forbidden)` rather than folding it into `Unauthorized` (PR-14), so
+/// the seed can tell "not my job" apart from "credential is dead".
+fn is_forbidden(e: &CloudFail) -> bool {
+    matches!(e, CloudFail::Typed(SyncError::Forbidden))
 }
 
 /// Build the JS-compatible snapshot envelope
@@ -503,6 +510,12 @@ pub(crate) async fn seed_cloud_workspace(
     if workspace_id.trim().is_empty() || token.is_empty() {
         return Ok(false);
     }
+    // Claim is owner-only on the server, and a member's 403 is permanent for
+    // this identity (a role change arrives as a new `sync_start`, which clears
+    // this). Skip the whole seed instead of re-asking on every tick.
+    if super::scheduler::owner_only_forbidden() {
+        return Ok(false);
+    }
     let client = CloudClient::new(server_url, token).map_err(CloudFail::Fatal)?;
 
     match state_gate(&client, workspace_id).await? {
@@ -547,6 +560,17 @@ pub(crate) async fn seed_cloud_workspace(
             if is_conflict(&e) {
                 crate::rs_log!(
                     "[sync::bootstrap] initialization lease held elsewhere; will retry later"
+                );
+                return Ok(false);
+            }
+            // Not our job: claim is owner-only, so a member can never win it —
+            // the owner's device seeds the workspace. Returning `Ok(false)`
+            // rather than the error keeps a normal role from raising a sync
+            // failure banner, and `OWNER_ONLY_FORBIDDEN` (armed by the 403
+            // handler) stops the next tick asking again.
+            if is_forbidden(&e) {
+                crate::rs_log!(
+                    "[sync::bootstrap] claim refused: this identity is not the workspace owner"
                 );
                 return Ok(false);
             }

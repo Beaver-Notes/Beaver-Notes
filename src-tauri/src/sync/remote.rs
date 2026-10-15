@@ -192,11 +192,12 @@ impl CloudClient {
 /// message, which makes every auth failure look identical in the log. The
 /// server already returns a distinguishing `error` string, so read the body
 /// before discarding the response and name both.
-/// Snapshot-promote is owner-only (`requireWorkspaceOwner` on the server); a
-/// non-owner's 403 is permanent for this identity, so arm the session skip
-/// instead of re-logging the same rejection on every compaction.
-fn is_owner_only_promote_rejection(url: &str, body: &str) -> bool {
-    url.contains("/snapshot-promote") && body.contains("not_workspace_owner")
+/// Claim and snapshot-promote are owner-only on the server; a non-owner's 403
+/// is permanent for this identity, so arm the session skip instead of
+/// re-asking on every seed attempt and every compaction.
+fn is_owner_only_rejection(url: &str, body: &str) -> bool {
+    (url.contains("/snapshot-promote") || url.contains("/sync/initialize/claim"))
+        && body.contains("not_workspace_owner")
 }
 
 async fn log_auth_failure(resp: reqwest::Response) {
@@ -207,8 +208,8 @@ async fn log_auth_failure(resp: reqwest::Response) {
         .map(|t| t.chars().take(200).collect::<String>())
         .unwrap_or_else(|e| format!("<body unreadable: {e}>"));
     crate::rs_log!("[sync::remote] auth rejected at {url}: {body}");
-    if is_owner_only_promote_rejection(&url, &body) {
-        super::scheduler::note_promote_forbidden();
+    if is_owner_only_rejection(&url, &body) {
+        super::scheduler::note_owner_only_forbidden();
     }
 }
 
@@ -343,5 +344,28 @@ mod tests {
         ));
         assert!(map_status(StatusCode::OK).is_none());
         assert!(map_status(StatusCode::NOT_FOUND).is_none());
+    }
+
+    #[test]
+    fn owner_only_rejection_matches_claim_and_promote_only() {
+        let body = r#"{"error":"not_workspace_owner"}"#;
+        assert!(is_owner_only_rejection(
+            "http://localhost:4000/sync/initialize/claim",
+            body
+        ));
+        assert!(is_owner_only_rejection(
+            "http://localhost:4000/sync/snapshot-promote",
+            body
+        ));
+        // A 403 from any other endpoint must not disable seeding for the session.
+        assert!(!is_owner_only_rejection(
+            "http://localhost:4000/yjs/push-batch",
+            body
+        ));
+        // Same endpoints, different reason: not the owner-only rejection.
+        assert!(!is_owner_only_rejection(
+            "http://localhost:4000/sync/initialize/claim",
+            r#"{"error":"workspace_write_forbidden"}"#
+        ));
     }
 }
