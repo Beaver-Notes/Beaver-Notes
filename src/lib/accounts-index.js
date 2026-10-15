@@ -36,7 +36,9 @@ const MIRROR_KEY =
  */
 
 // Reactive so the switcher's active marker follows a switch without a reload.
-let cache = reactive(emptyIndex());
+// Mutated in place (never reassigned): a component computed tracks this proxy,
+// so replacing it would leave every computed reading the previous list.
+const cache = reactive(emptyIndex());
 
 function emptyIndex() {
   return { accounts: [], activeAccountId: null };
@@ -84,6 +86,15 @@ function normalize(index) {
   return { accounts, activeAccountId };
 }
 
+// Apply in place so the reactive proxy identity (and therefore every component
+// computed reading it) survives the write.
+function apply(index) {
+  const next = normalize(index);
+  cache.accounts = next.accounts;
+  cache.activeAccountId = next.activeAccountId;
+  return cache;
+}
+
 async function persist() {
   const json = JSON.stringify(cache);
   // Always save the encrypted mirror: it survives a backend that is unavailable.
@@ -107,8 +118,7 @@ export async function loadIndex() {
       try {
         const cipher = await fetchSecureBlob(BLOB_KEY);
         if (cipher) {
-          cache = normalize(JSON.parse(fromBase64(await decryptString(cipher))));
-          return cache;
+          return apply(JSON.parse(fromBase64(await decryptString(cipher))));
         }
       } catch {
         // Fall through to the mirror.
@@ -117,8 +127,7 @@ export async function loadIndex() {
     const mirror = localStorage.getItem(MIRROR_KEY);
     if (mirror) {
       try {
-        cache = normalize(JSON.parse(fromBase64(await decryptString(mirror))));
-        return cache;
+        return apply(JSON.parse(fromBase64(await decryptString(mirror))));
       } catch {
         // Decryption failed, no plaintext fallback exists.
       }
@@ -126,12 +135,11 @@ export async function loadIndex() {
   } catch (err) {
     console.error('[accountsIndex] loadIndex failed:', err);
   }
-  cache = reactive(emptyIndex());
-  return cache;
+  return apply(emptyIndex());
 }
 
 export async function saveIndex(index) {
-  cache = reactive(normalize(index));
+  apply(index);
   await persist();
   return cache;
 }
@@ -152,7 +160,7 @@ export function getActiveAccountId() {
 // fire-and-forget so a render never waits on the backend.
 export function setActiveAccountId(id) {
   if (cache.activeAccountId === id) return;
-  cache = reactive(normalize({ ...cache, activeAccountId: id }));
+  apply({ ...cache, activeAccountId: id });
   void persist();
 }
 
@@ -165,25 +173,23 @@ export async function upsertAccount(record) {
   } else {
     accounts[at] = { ...accounts[at], ...record };
   }
-  cache = reactive(normalize({ ...cache, accounts }));
+  apply({ ...cache, accounts });
   await persist();
   return cache;
 }
 
 export async function removeAccountRecord(id) {
-  cache = reactive(
-    normalize({
-      accounts: cache.accounts.filter((a) => a.id !== id),
-      activeAccountId:
-        cache.activeAccountId === id ? null : cache.activeAccountId,
-    }),
-  );
+  apply({
+    accounts: cache.accounts.filter((a) => a.id !== id),
+    activeAccountId:
+      cache.activeAccountId === id ? null : cache.activeAccountId,
+  });
   await persist();
   return cache;
 }
 
 export async function clearIndex() {
-  cache = reactive(emptyIndex());
+  apply(emptyIndex());
   try {
     await clearSecureBlob(BLOB_KEY);
   } catch (err) {

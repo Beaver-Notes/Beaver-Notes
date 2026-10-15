@@ -840,6 +840,11 @@ export function useAccountAuth() {
     hydrate().catch((err) => console.error('[auth] hydrate failed:', err));
   });
 
+  // Bridges for components outside this composable's setup (the workspace
+  // switcher): the live instance owns the real state, so it is the one to move.
+  liveSwitchAccount = switchAccount;
+  liveSignOutAccount = signOutAccount;
+
   return {
     signInWithPasskey,
     signUpWithPasskey,
@@ -861,4 +866,23 @@ export function useAccountAuth() {
     deriveDeviceLabel,
     triggerSeed,
   };
+}
+
+// The mounted composable registers itself here so the workspace switcher can
+// move accounts without holding its own auth state.
+let liveSwitchAccount = null;
+let liveSignOutAccount = null;
+
+export function switchAccount(options = {}) {
+  if (!liveSwitchAccount) {
+    return Promise.resolve({ switched: false, reason: 'not-ready' });
+  }
+  return liveSwitchAccount(options);
+}
+
+export function signOutAccount(accountId) {
+  if (!liveSignOutAccount) {
+    return Promise.resolve({ switched: false, reason: 'not-ready' });
+  }
+  return liveSignOutAccount(accountId);
 }

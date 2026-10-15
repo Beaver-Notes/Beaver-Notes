@@ -2,7 +2,10 @@
 <template>
   <div class="mb-14 w-full max-w-xl space-y-6">
     <!-- ───────────── Signed out ───────────── -->
-    <section v-if="accountStore.isAnonymous" class="space-y-2">
+    <section
+      v-if="accountStore.isAnonymous || addingAccount"
+      class="space-y-2"
+    >
       <h2 class="acct-heading">
         {{ translations.account?.title || 'Beaver Account' }}
       </h2>
@@ -1737,6 +1740,10 @@ export default {
       return Math.min(100, Math.round((uploaded / total) * 100));
     });
 
+    // ?addAccount=1 asks for the sign-out form even while signed in, so the
+    // switcher can add a second account without signing the first one out.
+    const addingAccount = computed(() => route.query.addAccount === '1');
+
     return {
       translations,
       tr,
@@ -1746,6 +1753,7 @@ export default {
       planLabel,
       planLimitsText,
       accountStore,
+      addingAccount,
       seedPhaseLabel,
       seedProgressPercent,
       showVaultImportPrompt,
