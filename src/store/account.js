@@ -1,6 +1,15 @@
 import { defineStore } from 'pinia';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { PAID_PLANS, PLAN_NAMES } from '@/lib/api/types';
+import {
+  getActiveAccountId,
+  listAccounts,
+  loadIndex,
+  removeAccountRecord,
+  setActiveAccountId,
+  upsertAccount,
+} from '@/lib/accounts-index';
+import { clearAllAccountStorage, loadSessionToken } from '@/lib/account-storage';
 
 const PLAN_LIMITS_KEY = 'accountPlanLimits';
 
@@ -110,7 +119,10 @@ export const useAccountStore = defineStore('account', {
       return true;
     },
 
-    setToken(token) {
+    setToken(token, accountId = this.activeAccountId) {
+      // A refresh can land after the user switched away; the token belongs to the
+      // account that made the call, not to whichever one is active by then.
+      if (accountId && accountId !== this.activeAccountId) return;
       this.token = token || null;
     },
 
@@ -137,17 +149,68 @@ export const useAccountStore = defineStore('account', {
     },
 
     // Multi-account actions
-    removeAccount(accountId) {
-      this.accounts = this.accounts.filter((a) => a.id !== accountId);
-      if (this.activeAccountId === accountId) {
-        this.activeAccountId = this.accounts[0]?.id ?? null;
-        if (this.activeAccountId) {
-          const account = this.accounts[0];
-          this.activeOrgId = account.organizations?.[0]?.id ?? null;
-          this.activeWorkspaceId =
-            account.organizations?.[0]?.workspaces?.[0]?.id ?? null;
-        }
+
+    // Restart path: the accounts and their cached lists come back from the index,
+    // and whichever one was active is re-selected.
+    async hydrateAccounts() {
+      await loadIndex();
+      this.accounts = listAccounts();
+      const activeId = getActiveAccountId();
+      if (activeId) await this.activateAccount(activeId);
+    },
+
+    // Swaps every per-account field in one pass. Unknown ids are refused: an id
+    // that is not in the index must never become active.
+    async activateAccount(accountId) {
+      const account = listAccounts().find((a) => a.id === accountId);
+      if (!account) return;
+      this.accounts = listAccounts();
+      setActiveAccountId(accountId);
+      this.activeAccountId = accountId;
+      this.token = await loadSessionToken(accountId);
+      this.profile = account.profile ?? null;
+      this.subscription = account.subscription ?? null;
+      this.activeOrgId = account.activeOrgId ?? null;
+      this.activeWorkspaceId = account.activeWorkspaceId ?? null;
+      // Direct assignment: setPlanLimits would rewrite the install-level cache.
+      this.planLimits = account.planLimits ?? null;
+      // Only some API callers pass a base URL, so it has to follow the account.
+      if (account.serverUrl) this.serverUrl = account.serverUrl;
+      this.status = this.token ? 'authenticated' : 'anonymous';
+    },
+
+    // Signing in is what makes an account active, so saving the record of the
+    // account just signed in also selects it.
+    async persistActiveAccount(patch) {
+      await upsertAccount(patch);
+      await this.activateAccount(patch.id);
+    },
+
+    async forgetAccount(accountId) {
+      const wasActive = this.activeAccountId === accountId;
+      await removeAccountRecord(accountId);
+      // Per-account slots only: the device registration is install-level and
+      // belongs to the accounts that remain.
+      await clearAllAccountStorage(accountId);
+      const remaining = listAccounts();
+      this.accounts = remaining;
+      if (!wasActive) return;
+      if (remaining.length) {
+        await this.activateAccount(remaining[0].id);
+        return;
       }
+      this.activeAccountId = null;
+      this.activeOrgId = null;
+      this.activeWorkspaceId = null;
+      this.token = null;
+      this.profile = null;
+      this.subscription = null;
+      this.planLimits = null;
+      this.status = 'anonymous';
+    },
+
+    removeAccount(accountId) {
+      return this.forgetAccount(accountId);
     },
 
     setSeedStatus(status) {
