@@ -55,6 +55,15 @@ pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
     // so the token never reaches the OS keychain and can never be discarded.
     "accountRefreshTokenBlob",
 ];
+/// Per-account keys of the form `<prefix><accountId>`. Stays a bound list — never
+/// an arbitrary key — so a caller cannot invent its own storage slot.
+pub(crate) const ALLOWED_BLOB_PREFIXES: &[&str] = &[
+    "accountSession:",
+    "accountRefreshToken:",
+    "accountProfile:",
+    "accountDeviceId:",
+    "e2eIdentityKeypair:",
+];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
 /// Consecutive failed passphrase attempts before unlock is rate-limited, and
 /// the base lockout duration; each further failure extends by

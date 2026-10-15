@@ -697,12 +697,21 @@ pub(crate) fn safe_storage_decrypt_bytes(value: &str) -> Result<Vec<u8>, AppErro
 
 pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
     if super::super::ALLOWED_BLOB_KEYS.contains(&key) {
-        Ok(())
-    } else {
-        Err(AppError::Other(format!(
-            "[safeStorage] Unsupported blob key: {key}"
-        )))
+        return Ok(());
     }
+    // `<prefix><accountId>`: the suffix may be anything except another colon, so
+    // a prefix cannot be smuggled into a deeper namespace, and an empty suffix
+    // (the bare prefix) is not a key.
+    for prefix in super::super::ALLOWED_BLOB_PREFIXES {
+        if let Some(suffix) = key.strip_prefix(prefix) {
+            if !suffix.is_empty() && !suffix.contains(':') {
+                return Ok(());
+            }
+        }
+    }
+    Err(AppError::Other(format!(
+        "[safeStorage] Unsupported blob key: {key}"
+    )))
 }
 
 #[cfg(test)]
@@ -1092,5 +1101,21 @@ mod tests {
         // A readable key (e.g. keyring reachable) means no re-entry required.
         assert!(!device_password_required_core(true, true));
         assert!(!device_password_required_core(false, true));
+    }
+
+    #[test]
+    fn blob_keys_accept_allowlisted_prefix_with_suffix_only() {
+        // Exact keys keep working.
+        assert!(allowed_blob_key("beaverAccountSession").is_ok());
+        assert!(allowed_blob_key("accountRefreshTokenBlob").is_ok());
+        // Per-account keys are accepted...
+        assert!(allowed_blob_key("accountSession:0f0e-1234").is_ok());
+        assert!(allowed_blob_key("e2eIdentityKeypair:0f0e-1234").is_ok());
+        // ...but only with a non-empty suffix,
+        assert!(allowed_blob_key("accountSession:").is_err());
+        // and only for an allowlisted prefix.
+        assert!(allowed_blob_key("accountSessionExtra:abc").is_err());
+        assert!(allowed_blob_key("arbitrary:abc").is_err());
+        assert!(allowed_blob_key("../escape:abc").is_err());
     }
 }
