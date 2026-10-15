@@ -2,6 +2,7 @@ import {
   loadSessionToken,
   clearSessionToken,
 } from '@/lib/account-storage';
+import { getActiveAccountId } from '@/lib/accounts-index';
 
 async function defaultGetDeviceId() {
   try {
@@ -130,8 +131,8 @@ function normalizeError(status, body) {
 
 export function createApiClient({
   baseUrl,
-  getToken = loadSessionToken,
-  clearToken = clearSessionToken,
+  getToken = (accountId = getActiveAccountId()) => loadSessionToken(accountId),
+  clearToken = (accountId = getActiveAccountId()) => clearSessionToken(accountId),
   getDeviceId = defaultGetDeviceId,
   getDeviceLabel = defaultGetDeviceLabel,
   defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
@@ -174,8 +175,13 @@ export function createApiClient({
       }
     }
 
+    let requestAccountId = null;
     if (auth) {
-      const token = await getToken();
+      // Remember which account this request is for: a 401 can land after the
+      // user switched away, and the refresh must rotate the credentials of the
+      // account that made the call, not of whatever is active by then.
+      requestAccountId = getActiveAccountId();
+      const token = await getToken(requestAccountId);
       if (token) {
         finalHeaders['Authorization'] = `Bearer ${token}`;
       }
@@ -234,7 +240,7 @@ export function createApiClient({
         // out when that fails.
         let refreshed = false;
         try {
-          refreshed = await tryRefreshToken();
+          refreshed = await tryRefreshToken(requestAccountId);
         } catch (err) {
           console.warn('[api] refresh attempt failed:', err);
         }
@@ -242,7 +248,7 @@ export function createApiClient({
           return request(method, path, { ...options, retriedAfterRefresh: true });
         }
         try {
-          await clearToken();
+          await clearToken(requestAccountId);
         } catch (err) {
           console.warn('[api] failed to clear token on 401:', err);
         }
@@ -253,8 +259,12 @@ export function createApiClient({
         try {
           const { useAccountStore } = await import('@/store/account');
           const store = useAccountStore();
-          store.setToken(null);
-          store.setStatus('anonymous');
+          // Only if that account is still the active one: signing out the
+          // account the user just switched to would be a bug, not a fix.
+          if (getActiveAccountId() === requestAccountId) {
+            store.setToken(null);
+            store.setStatus('anonymous');
+          }
         } catch (err) {
           console.warn('[api] could not reset the account store after a dead session:', err);
         }
@@ -269,11 +279,11 @@ export function createApiClient({
   // concurrent 401s must not each rotate the token, or the loser of the race
   // would present an already-rotated value and trip the replay guard, killing
   // the whole family.
-  function tryRefreshToken() {
+  function tryRefreshToken(accountId = getActiveAccountId()) {
     if (!refreshInFlight) {
       refreshInFlight = (async () => {
         const { loadRefreshToken, saveRefreshToken, saveSessionToken, clearRefreshToken } = await import('@/lib/account-storage');
-        const refreshToken = await loadRefreshToken();
+        const refreshToken = await loadRefreshToken(accountId);
         if (!refreshToken) return false;
         let data;
         try {
@@ -281,17 +291,17 @@ export function createApiClient({
         } catch (err) {
           // A rejected refresh token is dead for good; clearing it stops every
           // later request retrying a burnt credential.
-          if (err?.status === 401) await clearRefreshToken();
+          if (err?.status === 401) await clearRefreshToken(accountId);
           return false;
         }
         if (!data?.token) return false;
-        await saveSessionToken(data.token);
-        if (data.refreshToken) await saveRefreshToken(data.refreshToken);
+        await saveSessionToken(data.token, accountId);
+        if (data.refreshToken) await saveRefreshToken(data.refreshToken, accountId);
         // The rest of the app reads the token from the store, so a refreshed
         // session has to land there too or nothing but this HTTP client recovers.
         try {
           const { useAccountStore } = await import('@/store/account');
-          useAccountStore().setToken(data.token);
+          useAccountStore().setToken(data.token, accountId);
         } catch (err) {
           console.warn('[api] could not sync refreshed token to the store:', err);
         }
