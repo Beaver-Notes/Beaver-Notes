@@ -60,7 +60,11 @@ pub(crate) fn workspace_create(
         if let Ok(current_pool) = settings_pool(&app, &state) {
             let kv_key = kv_encryption_key(&state).ok().flatten();
             if let Ok(all_settings) = crate::db::db_all(&current_pool, kv_key) {
-                let _ = crate::db::db_replace_all(&new_settings_pool, all_settings, kv_key);
+                let kept: serde_json::Map<String, serde_json::Value> = all_settings
+                    .into_iter()
+                    .filter(|(key, _)| !is_sync_routing_setting(key))
+                    .collect();
+                let _ = crate::db::db_replace_all(&new_settings_pool, kept, kv_key);
             }
         }
     }
@@ -319,4 +323,26 @@ fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, Ap
     Err(AppError::Other(
         "Too many workspaces with similar names".into(),
     ))
+}
+
+/// Settings that choose where a workspace reads and writes synced data. They are
+/// never copied between workspaces: an inherited folder makes the new workspace
+/// ingest another account's notes and push them to its own cloud workspace.
+fn is_sync_routing_setting(key: &str) -> bool {
+    key == "syncPath" || key == "syncTransport" || key.starts_with("sync:")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_sync_routing_setting;
+
+    #[test]
+    fn sync_routing_settings_are_not_copyable() {
+        assert!(is_sync_routing_setting("syncPath"));
+        assert!(is_sync_routing_setting("syncTransport"));
+        assert!(is_sync_routing_setting("sync:local:folder"));
+        assert!(!is_sync_routing_setting("theme"));
+        assert!(!is_sync_routing_setting("selectedFont"));
+        assert!(!is_sync_routing_setting("default-path"));
+    }
 }

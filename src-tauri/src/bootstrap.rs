@@ -808,6 +808,66 @@ fn ensure_default_workspace_in_registry(app: &AppHandle, state: &AppState) -> Re
     Ok(())
 }
 
+/// Workspaces whose sync folder must be cleared because more than one workspace
+/// claims the same path. The folder format carries no workspace identity, so a
+/// shared path mixes one account's notes into another: clear it everywhere and
+/// let the user re-pick, rather than guess which workspace owns it.
+fn shared_sync_folders(entries: &[(String, String)]) -> Vec<(String, String)> {
+    let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for (_, path) in entries {
+        *counts.entry(path.as_str()).or_default() += 1;
+    }
+    entries
+        .iter()
+        .filter(|(_, path)| counts.get(path.as_str()).copied().unwrap_or(0) > 1)
+        .cloned()
+        .collect()
+}
+
+/// One-time: drop a sync folder that two workspaces share. `workspace_create`
+/// used to copy every setting, so a workspace made while another account had a
+/// folder configured inherited it and pulled that account's notes in.
+fn clear_inherited_sync_folders(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("bootstrap.clear_inherited_sync_folders");
+    let app_dir = crate::shared::app_storage_dir(app, state)?;
+    let marker = app_dir.join(".sync-folder-cleanup");
+    if marker.exists() {
+        return Ok(());
+    }
+
+    let ws_root = crate::shared::workspace_root(app, state)?;
+    let registry = crate::shared::load_workspace_registry(app, state)?;
+    let mut entries: Vec<(String, String)> = Vec::new();
+    for ws in &registry {
+        let settings_path = ws_root.join(&ws.id).join("settings.db");
+        if !settings_path.exists() {
+            continue;
+        }
+        let Ok(pool) = crate::db::open_pool(&settings_path) else {
+            continue;
+        };
+        let Ok(Some(raw)) = crate::db::db_get(&pool, "syncPath", None) else {
+            continue;
+        };
+        let path = serde_json::from_str::<String>(&raw).unwrap_or_default();
+        if !path.trim().is_empty() {
+            entries.push((ws.id.clone(), path));
+        }
+    }
+
+    for (id, path) in shared_sync_folders(&entries) {
+        eprintln!("[bootstrap] clearing shared sync folder {path} from workspace {id}");
+        let settings_path = ws_root.join(&id).join("settings.db");
+        if let Ok(pool) = crate::db::open_pool(&settings_path) {
+            let _ = crate::db::db_delete(&pool, "syncPath");
+            let _ = crate::db::db_delete(&pool, "syncTransport");
+        }
+    }
+
+    fs::write(&marker, b"ok")?;
+    Ok(())
+}
+
 pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("bootstrap.setup_app");
     let state = app.state::<AppState>();
@@ -835,6 +895,10 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
 
     // Workspace migration (must run BEFORE any settings_pool call)
     migrate_to_workspace_layout(app.handle(), state.inner())?;
+
+    // A folder belongs to one workspace: drop an inherited duplicate before the
+    // scheduler can read it and pull another account's notes in.
+    clear_inherited_sync_folders(app.handle(), state.inner())?;
 
     // Retired separate app-password store: one workspace passphrase protects
     // everything now. Delete legacy `password.enc` on first launch; absence is fine.
@@ -953,6 +1017,27 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn duplicate_sync_folders_clear_every_sharer() {
+        let e = |id: &str, path: &str| (id.to_string(), path.to_string());
+        // Distinct folders: nothing to clear.
+        assert!(shared_sync_folders(&[e("a", "/tmp/x"), e("b", "/tmp/y")]).is_empty());
+        // Shared folder: both lose it — no owner guess (created_at proved
+        // unreliable: an older workspace can inherit a newer one's folder).
+        assert_eq!(
+            shared_sync_folders(&[e("copy", "/tmp/x"), e("source", "/tmp/x")]),
+            vec![
+                ("copy".to_string(), "/tmp/x".to_string()),
+                ("source".to_string(), "/tmp/x".to_string()),
+            ]
+        );
+        // Three sharers: all three.
+        assert_eq!(
+            shared_sync_folders(&[e("a", "/tmp/x"), e("b", "/tmp/x"), e("c", "/tmp/x")]).len(),
+            3
+        );
+    }
 
     #[test]
     fn range_absent_returns_none() {
