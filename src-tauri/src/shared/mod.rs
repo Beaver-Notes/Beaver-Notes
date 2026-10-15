@@ -51,6 +51,9 @@ pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
     "beaverAccountProfile",
     "beaverAccountDeviceId",
     "e2eIdentityKeypair",
+    // Rotating refresh token. Without this every store/clear call is rejected,
+    // so the token never reaches the OS keychain and can never be discarded.
+    "accountRefreshTokenBlob",
 ];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
 /// Consecutive failed passphrase attempts before unlock is rate-limited, and

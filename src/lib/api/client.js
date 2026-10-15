@@ -22,6 +22,11 @@ async function defaultGetDeviceLabel() {
 }
 
 const DEFAULT_TIMEOUT_MS = 15000;
+
+// Shared by every client instance: `getApiClient(overrides)` hands out more
+// than one, and two instances refreshing at once each present the same
+// pre-rotation token — the second looks like a replay and burns the family.
+let refreshInFlight = null;
 const DEFAULT_API_URL =
   (typeof import.meta !== 'undefined' &&
     import.meta.env?.VITE_BEAVER_SYNC_API_URL) ||
@@ -248,17 +253,25 @@ export function createApiClient({
     return body2;
   }
 
-  // One refresh at a time: concurrent 401s must not each rotate the token, or
-  // the loser of the race would present an already-rotated value and trip the
-  // replay guard, killing the whole family.
-  let refreshInFlight = null;
+  // One refresh at a time (see the module-scoped `refreshInFlight` above):
+  // concurrent 401s must not each rotate the token, or the loser of the race
+  // would present an already-rotated value and trip the replay guard, killing
+  // the whole family.
   function tryRefreshToken() {
     if (!refreshInFlight) {
       refreshInFlight = (async () => {
-        const { loadRefreshToken, saveRefreshToken, saveSessionToken } = await import('@/lib/account-storage');
+        const { loadRefreshToken, saveRefreshToken, saveSessionToken, clearRefreshToken } = await import('@/lib/account-storage');
         const refreshToken = await loadRefreshToken();
         if (!refreshToken) return false;
-        const data = await request('POST', '/auth/refresh', { auth: false, body: { refreshToken } });
+        let data;
+        try {
+          data = await request('POST', '/auth/refresh', { auth: false, body: { refreshToken } });
+        } catch (err) {
+          // A rejected refresh token is dead for good; clearing it stops every
+          // later request retrying a burnt credential.
+          if (err?.status === 401) await clearRefreshToken();
+          return false;
+        }
         if (!data?.token) return false;
         await saveSessionToken(data.token);
         if (data.refreshToken) await saveRefreshToken(data.refreshToken);

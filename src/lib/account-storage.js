@@ -175,12 +175,14 @@ export async function loadRefreshToken() {
 }
 
 export async function clearRefreshToken() {
+  // The mirror removal must not depend on the secure store: if clearing the
+  // blob throws, a dead refresh token would survive and be retried forever.
   try {
     await clearSecureBlob(REFRESH_BLOB_KEY);
-    localStorage.removeItem(REFRESH_MIRROR_KEY);
   } catch (err) {
-    console.error('[accountStorage] clearRefreshToken failed:', err);
+    console.error('[accountStorage] clearRefreshToken blob failed:', err);
   }
+  localStorage.removeItem(REFRESH_MIRROR_KEY);
 }
 
 export async function saveCachedProfile(profile) {
