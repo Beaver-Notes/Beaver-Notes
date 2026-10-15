@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
 // Stateful blob mock: identity + credentials only reach storage through it.
-const { blobs, teardownSpy, switchSpy, runInitSpy } = vi.hoisted(() => ({
+const { blobs, teardownSpy, switchSpy, runInitSpy, fetchWsSpy } = vi.hoisted(() => ({
   blobs: new Map(),
   teardownSpy: vi.fn(async () => {}),
   switchSpy: vi.fn(async () => {}),
   runInitSpy: vi.fn(async () => {}),
+  fetchWsSpy: vi.fn(async () => {}),
 }));
 
 vi.mock('@/lib/native/security', () => ({
@@ -31,6 +32,7 @@ vi.mock('@/composable/useCloudWorkspaces', async (importOriginal) => {
     useCloudWorkspaces: () => ({
       ...actual.useCloudWorkspaces(),
       teardownLiveWorkspaceState: teardownSpy,
+      fetchWorkspaces: fetchWsSpy,
     }),
   };
 });
@@ -85,8 +87,10 @@ beforeEach(async () => {
   vi.clearAllMocks();
   switchSpy.mockImplementation(async () => {});
   runInitSpy.mockImplementation(async () => {});
+  fetchWsSpy.mockImplementation(async () => {});
   await clearIndex();
   useCloudWorkspaces().activeId.value = null;
+  useCloudWorkspaces().workspaces.value = [];
   switchAccount = useAccountAuth().switchAccount;
   window.location.hash = '';
 });
@@ -166,7 +170,21 @@ describe('switching account in place', () => {
     expect(getActiveAccountId()).toBe('t1');
   });
 
-  it('an account with no workspace lands on the local default workspace', async () => {
+  it('an account with no workspace of its own asks for its list first', async () => {
+    await seed([PERSONAL, { id: 't1', email: 'team@test.test', workspaces: [] }], 'p1');
+    fetchWsSpy.mockImplementation(async () => {
+      const cloud = useCloudWorkspaces();
+      cloud.workspaces.value = [{ id: 'w-fetched', name: 'Untitled Workspace' }];
+      cloud.activeId.value = 'w-fetched';
+    });
+
+    await switchAccount({ accountId: 't1' });
+
+    expect(switchSpy).toHaveBeenCalledWith('w-fetched');
+    expect(useAccountStore().activeWorkspaceId).toBe('w-fetched');
+  });
+
+  it('falls back to the local default when the account has no workspace at all', async () => {
     await seed([PERSONAL, { id: 't1', email: 'team@test.test', workspaces: [] }], 'p1');
 
     await switchAccount({ accountId: 't1' });

@@ -156,6 +156,30 @@ async function teardownLocalAccountState() {
   }
 }
 
+// The index record names a workspace only for accounts that belong to an org;
+// a personal account has none, and its home is the first workspace the server
+// lists for it. The cloud module keeps that list in module state, so it is
+// reset first, and the arriving account has to be live before the fetch or the
+// API client would send the leaving account's token.
+async function resolveAccountWorkspace(accountId, record, workspaceId) {
+  const explicit = workspaceId || record?.activeWorkspaceId || record?.workspaces?.[0]?.id;
+  if (explicit) return explicit;
+  try {
+    const accountStore = useAccountStore();
+    if (getActiveAccountId() !== accountId) await accountStore.activateAccount(accountId);
+    const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
+      '@/composable/useCloudWorkspaces.js'
+    );
+    resetWorkspaceModuleState();
+    const cloud = useCloudWorkspaces();
+    await cloud.fetchWorkspaces();
+    return cloud.activeId.value || DEFAULT_WORKSPACE_ID;
+  } catch (err) {
+    console.warn('[auth] workspace lookup for the arriving account failed:', err?.message || err);
+    return DEFAULT_WORKSPACE_ID;
+  }
+}
+
 // In place, no reload: the leaving account is flushed and torn down while it
 // is still the active one, so nothing pending can be posted under the
 // arriving account's token.
@@ -172,16 +196,13 @@ async function performSwitch({ accountId, workspaceId, force = false } = {}) {
   const record = listAccounts().find((account) => account.id === accountId);
   if (!record) return { switched: false, reason: 'unknown-account' };
 
-  const targetWorkspaceId =
-    workspaceId ||
-    record.activeWorkspaceId ||
-    record.workspaces?.[0]?.id ||
-    DEFAULT_WORKSPACE_ID;
-
   // The pair, not the workspace alone: one workspace can legitimately appear
-  // under two accounts.
+  // under two accounts. Read before the target is resolved, because resolving
+  // may activate the arriving account and reset the workspace module state.
   const currentWorkspaceId =
     useWorkspaceStore().activeId || cloud.activeId.value || accountStore.activeWorkspaceId;
+  const targetWorkspaceId = await resolveAccountWorkspace(accountId, record, workspaceId);
+
   if (!force && getActiveAccountId() === accountId && currentWorkspaceId === targetWorkspaceId) {
     return { switched: false, reason: 'already-active' };
   }
@@ -464,32 +485,10 @@ export function useAccountAuth() {
     }
     // Adding an account used to end in a reload, which re-derived the active
     // workspace for the arriving account. In place nothing did, so the notes
-    // list and the sync scope stayed on the account we just left. Hand over
-    // explicitly: the record's workspace if it has one, otherwise the arriving
-    // account's own first workspace.
+    // list and the sync scope stayed on the account we just left.
     if (persist && accountId) {
       try {
-        const record = listAccounts().find((account) => account.id === accountId);
-        let targetWorkspaceId =
-          record?.activeWorkspaceId || record?.workspaces?.[0]?.id || '';
-        if (!targetWorkspaceId) {
-          const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
-            '@/composable/useCloudWorkspaces.js'
-          );
-          // The module-level list still holds the previous account's rows, and
-          // the fetch below only picks a workspace when it has none.
-          resetWorkspaceModuleState();
-          const cloud = useCloudWorkspaces();
-          await cloud.fetchWorkspaces();
-          targetWorkspaceId = cloud.activeId.value || '';
-        }
-        if (targetWorkspaceId) {
-          await performSwitch({
-            accountId,
-            workspaceId: targetWorkspaceId,
-            force: true,
-          });
-        }
+        await performSwitch({ accountId, force: true });
       } catch (err) {
         console.warn('[auth] workspace handover after sign-in failed:', err?.message || err);
       }
