@@ -505,6 +505,17 @@ export function useAppShell(onboardingCompleted = true) {
   const initializeWorkspace = async () => {
     performance.mark('init:start');
 
+    // Credentials became per-account slots; a pre-existing single-account install
+    // is adopted into the account index before anything reads a credential, and
+    // the store then hydrates from that index.
+    try {
+      const { migrateSingleAccountToIndex } = await import('@/lib/accounts-migrate');
+      await migrateSingleAccountToIndex();
+      await useAccountStore().hydrateAccounts();
+    } catch (err) {
+      console.warn('[app] account migration failed:', err);
+    }
+
     // Set immediately: UI renders while onboarding checked (no white screen).
     retrieved.value = true;
 

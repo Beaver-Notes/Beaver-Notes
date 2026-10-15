@@ -99,24 +99,24 @@ export function useAccountAuth() {
     accountStore.setStatus(status);
   }
 
-  async function persistToken(token, profile) {
+  async function persistToken(token, profile, accountId) {
     if (token) {
       try {
-        await saveSessionToken(token);
+        await saveSessionToken(token, accountId);
       } catch (err) {
         console.error('[auth] persistToken failed:', err);
       }
     } else {
-      await clearSessionToken();
+      await clearSessionToken(accountId);
     }
     if (profile) {
       try {
-        await saveCachedProfile(profile);
+        await saveCachedProfile(profile, accountId);
       } catch (err) {
         console.error('[auth] persist profile failed:', err);
       }
     } else if (!token) {
-      await clearCachedProfile();
+      await clearCachedProfile(accountId);
     }
     resetApiClient();
   }
@@ -191,14 +191,18 @@ export function useAccountAuth() {
     if (!sessionId) {
       throw new Error('Sign-in response did not include a session token.');
     }
+    // The account id keys every credential slot. When the reply omits the user
+    // the install keeps today's single-slot behaviour rather than recording an
+    // account whose session it never wrote.
+    const accountId = user?.id || null;
     if (persist) {
-      await persistToken(sessionId, user);
+      await persistToken(sessionId, user, accountId);
       // Keep the rotating refresh token beside the session so a later 401 can
       // be recovered silently instead of signing the user out.
       if (refreshToken) {
         try {
           const { saveRefreshToken } = await import('@/lib/account-storage');
-          await saveRefreshToken(refreshToken);
+          await saveRefreshToken(refreshToken, accountId);
         } catch (err) {
           console.error('[auth] persist refresh token failed:', err);
         }
@@ -208,7 +212,7 @@ export function useAccountAuth() {
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
-    await fetchProfile();
+    const accountData = await fetchProfile();
     // Re-arm realtime: a prior sign-out called `stop()`, which dropped every
     // provider. Without this, rooms stay dead until an app restart (L7).
     try {
@@ -228,6 +232,27 @@ export function useAccountAuth() {
       }
     } catch (err) {
       console.warn('[e2e] identity reconcile failed:', err?.message);
+    }
+    // The account list is what the switcher renders, so every sign-in records
+    // itself there; persistActiveAccount also makes it the active one.
+    if (persist && accountId) {
+      try {
+        const profile = accountData?.profile || user || {};
+        await accountStore.persistActiveAccount({
+          id: accountId,
+          email: profile.email || null,
+          serverUrl: accountStore.serverUrl,
+          profile,
+          subscription: accountStore.subscription,
+          planLimits: accountStore.planLimits,
+          organizations: accountData?.organizations || [],
+          activeOrgId: accountStore.activeOrgId,
+          activeWorkspaceId: accountStore.activeWorkspaceId,
+          workspaces: (accountData?.organizations || []).flatMap((org) => org.workspaces || []),
+        });
+      } catch (err) {
+        console.warn('[auth] account record persist failed:', err?.message || err);
+      }
     }
     return { token: sessionId, user, subscription };
   }
@@ -438,7 +463,7 @@ export function useAccountAuth() {
   // In place, no reload: the leaving account is flushed and torn down while it
   // is still the active one, so nothing pending can be posted under the
   // arriving account's token.
-  async function performSwitch({ accountId, workspaceId } = {}) {
+  async function performSwitch({ accountId, workspaceId, force = false } = {}) {
     const accountStore = useAccountStore();
     const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
       '@/composable/useCloudWorkspaces.js'
@@ -461,7 +486,7 @@ export function useAccountAuth() {
     // under two accounts.
     const currentWorkspaceId =
       useWorkspaceStore().activeId || cloud.activeId.value || accountStore.activeWorkspaceId;
-    if (getActiveAccountId() === accountId && currentWorkspaceId === targetWorkspaceId) {
+    if (!force && getActiveAccountId() === accountId && currentWorkspaceId === targetWorkspaceId) {
       return { switched: false, reason: 'already-active' };
     }
 
@@ -530,6 +555,39 @@ export function useAccountAuth() {
     accountStore.setPlanLimits(null);
     accountStore.setDevices([]);
     accountStore.setActiveSessions([]);
+  }
+
+  // Sign out of one account while the others stay signed in. The live state is
+  // torn down only when the leaving account was the active one; the app then
+  // moves to a remaining account in place.
+  async function signOutAccount(accountId) {
+    const wasActive = getActiveAccountId() === accountId;
+    if (wasActive) {
+      try {
+        await authApi.logout({ baseUrl: activeBaseUrl() });
+      } catch (err) {
+        console.warn('[auth] logout server call failed:', err);
+      }
+      try {
+        const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
+        await stopRustSync();
+      } catch {}
+      await teardownLocalAccountState();
+      resetApiClient();
+    }
+    // Drops the record and that account's own credentials. The install-level
+    // device registration stays, so the remaining accounts keep theirs.
+    await accountStore.forgetAccount(accountId);
+    const remaining = listAccounts();
+    if (!remaining.length) return { switched: false, reason: 'no-accounts' };
+    if (!wasActive) return { switched: false, reason: 'other-account-active' };
+    // force: the note store was just torn down, so the arriving account has to
+    // re-init even when its workspace id is the one already in the pool.
+    return switchAccount({
+      accountId: remaining[0].id,
+      workspaceId: remaining[0].activeWorkspaceId,
+      force: true,
+    });
   }
 
   async function signOutEverywhere() {
@@ -791,6 +849,7 @@ export function useAccountAuth() {
     pollQuickConnect,
     authorizeQuickConnect,
     signOut,
+    signOutAccount,
     signOutEverywhere,
     switchAccount,
     listActiveSessions,
