@@ -475,6 +475,23 @@ pub(crate) fn reset_transport_push_cursors(pool: &DbPool) -> Result<u64, AppErro
     Ok(deleted as u64)
 }
 
+/// Delete the local (folder) push cursors so the next cycle publishes every
+/// stored row again. The cursors key on the note alone, not on the target, so a
+/// switch to a different sync folder would otherwise hand the new folder only
+/// the changes made after the switch. Cloud cursors are left alone: the cloud
+/// already holds those rows and re-pushing them costs traffic.
+pub(crate) fn reset_local_push_cursors(pool: &DbPool) -> Result<u64, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let deleted = conn
+        .execute(
+            "DELETE FROM kv WHERE key LIKE 'sync:local:pushed:%' \
+                OR key LIKE 'sync:local:wseq:%'",
+            [],
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(deleted as u64)
+}
+
 pub(crate) fn db_clear(pool: &DbPool) -> Result<(), AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
 
@@ -1384,6 +1401,28 @@ mod tests {
         let _ = fs::create_dir_all(&root);
         let pool = open_pool(&root.join("data.db")).expect("pool");
         (pool, root)
+    }
+
+    #[test]
+    fn reset_local_push_cursors_keeps_cloud_and_pull_state() {
+        let (pool, root) = test_pool("beaver-notes-db-local-cursors");
+        for key in [
+            "sync:local:pushed:n1",
+            "sync:local:wseq:n1",
+            "sync:cloud:pushed:n1",
+            "sync:local:ckpt:n1",
+            "sync:local:seen:abc",
+        ] {
+            db_set(&pool, key, "7", None).expect("set");
+        }
+
+        assert_eq!(reset_local_push_cursors(&pool).expect("reset"), 2);
+        assert!(db_get(&pool, "sync:local:pushed:n1", None).expect("get").is_none());
+        assert!(db_get(&pool, "sync:local:wseq:n1", None).expect("get").is_none());
+        assert!(db_get(&pool, "sync:cloud:pushed:n1", None).expect("get").is_some());
+        assert!(db_get(&pool, "sync:local:ckpt:n1", None).expect("get").is_some());
+        assert!(db_get(&pool, "sync:local:seen:abc", None).expect("get").is_some());
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

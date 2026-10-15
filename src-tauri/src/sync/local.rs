@@ -143,6 +143,11 @@ fn wseq_key(note_id: &str) -> String {
     format!("sync:local:wseq:{note_id}")
 }
 
+/// The folder the local push cursors were last used with. The cursors are per
+/// note and name no destination, so the scheduler keeps this to tell one folder
+/// from another.
+pub(crate) const LOCAL_FOLDER_KEY: &str = "sync:local:folder";
+
 fn store_cursor(pool: &DbPool, note_id: &str, ts: u64, seq: u64) -> Result<(), AppError> {
     db::db_set(
         pool,

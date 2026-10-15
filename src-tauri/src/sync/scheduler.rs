@@ -16,6 +16,7 @@ use super::cloud::{
     CloudFail, SyncError, SyncStatus, DEFAULT_API_URL, local_cloud_flags, sync_cloud_pull,
     sync_cloud_push,
 };
+use super::local::LOCAL_FOLDER_KEY;
 use crate::db;
 use crate::shared::{AppError, AppState, current_app_key, data_pool};
 
@@ -890,6 +891,33 @@ fn ensure_loop(
     }
     state.config = Some(cfg);
     let folder = state.config.as_ref().and_then(|c| c.folder_id.clone());
+    // The local push cursors key on the note alone, so they only say "published
+    // somewhere". A different folder is a different destination and has to be
+    // handed the whole backlog once; the folder they were last used with is
+    // remembered in the workspace pool so a restart (or a switch made while the
+    // app was closed) still re-publishes. Cloud cursors are left alone.
+    if let Some(current) = folder.clone() {
+        let app_state = app.state::<AppState>();
+        match data_pool(app, app_state.inner()) {
+            Ok(pool) => {
+                let last = db::db_get(&pool, LOCAL_FOLDER_KEY, None).ok().flatten();
+                if last.as_deref() != Some(current.as_str()) {
+                    match crate::db::reset_local_push_cursors(&pool) {
+                        Ok(n) => {
+                            let _ = db::db_set(&pool, LOCAL_FOLDER_KEY, &current, None);
+                            crate::rs_log!(
+                                "[sync] local sync folder changed: re-publishing {n} push cursor(s)"
+                            );
+                        }
+                        Err(e) => {
+                            crate::rs_log!("[sync] local sync folder reset failed: {e}")
+                        }
+                    }
+                }
+            }
+            Err(e) => crate::rs_log!("[sync] local sync folder check skipped: {e}"),
+        }
+    }
     if let Some(tx) = state.tx.clone() {
         refresh_folder_watcher(&tx, folder.as_deref());
         return Ok(tx);
