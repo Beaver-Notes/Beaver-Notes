@@ -12,10 +12,14 @@ import {
   clearAllAccountStorage,
 } from '@/lib/account-storage';
 import { resetApiClient } from '@/lib/api/client';
+import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
 import * as authApi from '@/lib/api/auth';
 import * as accountApi from '@/lib/api/account';
 import { loadOrCreateIdentity, publishIdentity } from '@/utils/crypto/identity';
 import { logger } from '@/utils/logger';
+
+// The local workspace every install has (src-tauri/src/shared/mod.rs).
+const DEFAULT_WORKSPACE_ID = 'default';
 
 function deriveDeviceLabel() {
   if (typeof navigator === 'undefined') return 'Unknown device';
@@ -431,6 +435,81 @@ export function useAccountAuth() {
     }
   }
 
+  // In place, no reload: the leaving account is flushed and torn down while it
+  // is still the active one, so nothing pending can be posted under the
+  // arriving account's token.
+  async function performSwitch({ accountId, workspaceId } = {}) {
+    const accountStore = useAccountStore();
+    const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
+      '@/composable/useCloudWorkspaces.js'
+    );
+    const cloud = useCloudWorkspaces();
+    const [{ useWorkspaceStore }, { runWorkspaceInit }] = await Promise.all([
+      import('@/store/workspace'),
+      import('@/composable/useAppShell'),
+    ]);
+    const record = listAccounts().find((account) => account.id === accountId);
+    if (!record) return { switched: false, reason: 'unknown-account' };
+
+    const targetWorkspaceId =
+      workspaceId ||
+      record.activeWorkspaceId ||
+      record.workspaces?.[0]?.id ||
+      DEFAULT_WORKSPACE_ID;
+
+    // The pair, not the workspace alone: one workspace can legitimately appear
+    // under two accounts.
+    const currentWorkspaceId =
+      useWorkspaceStore().activeId || cloud.activeId.value || accountStore.activeWorkspaceId;
+    if (getActiveAccountId() === accountId && currentWorkspaceId === targetWorkspaceId) {
+      return { switched: false, reason: 'already-active' };
+    }
+
+    await cloud.teardownLiveWorkspaceState();
+    try {
+      const [{ clearWorkspaceKeyCache }, { clearSharedSyncKeys }] = await Promise.all([
+        import('@/lib/api/workspaces'),
+        import('@/utils/sync/shared-keys'),
+      ]);
+      clearWorkspaceKeyCache();
+      await clearSharedSyncKeys();
+    } catch (err) {
+      console.warn('[auth] leaving key material cleanup failed:', err?.message || err);
+    }
+
+    // The durable half first: if the pool swap fails the index still points at
+    // the leaving account, so a relaunch is coherent.
+    try {
+      const { switchLocalWorkspace } = await import('@/lib/native/workspaces');
+      await switchLocalWorkspace(targetWorkspaceId);
+    } catch (err) {
+      console.warn('[auth] workspace switch failed:', err?.message || err);
+      await runWorkspaceInit().catch(() => {});
+      return { switched: false, reason: 'workspace-switch-failed' };
+    }
+
+    await accountStore.activateAccount(accountId);
+    accountStore.activeWorkspaceId = targetWorkspaceId;
+    resetWorkspaceModuleState();
+    cloud.activeId.value = targetWorkspaceId;
+    // Re-runs the live init for the arriving account: profile, plans, identity
+    // republish and the meta-room join all ride on it.
+    await runWorkspaceInit();
+    return { switched: true };
+  }
+
+  let switchInFlight = null;
+  function switchAccount(options = {}) {
+    // shortcut: a switch during a switch joins the first (a double-click);
+    // upgrade to a queue if two different targets must both land.
+    if (!switchInFlight) {
+      switchInFlight = performSwitch(options).finally(() => {
+        switchInFlight = null;
+      });
+    }
+    return switchInFlight;
+  }
+
   async function signOut() {
     try {
       await authApi.logout({ baseUrl: activeBaseUrl() });
@@ -713,6 +792,7 @@ export function useAccountAuth() {
     authorizeQuickConnect,
     signOut,
     signOutEverywhere,
+    switchAccount,
     listActiveSessions,
     revokeActiveSession,
     refreshProfile,

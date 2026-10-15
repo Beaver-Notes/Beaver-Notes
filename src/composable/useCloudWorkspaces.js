@@ -18,6 +18,7 @@ import {
   getCachedWorkspaceKey,
 } from '@/lib/api/workspaces';
 import { normalizeWorkspaceList } from '@/lib/api/types';
+import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
 
 const workspaces = ref([]);
 const activeId = ref(null);
@@ -39,6 +40,34 @@ const refusedDeviceKeys = reactive(new Set());
 
 let fetchController = null;
 let fetchInFlight = null;
+
+/**
+ * Drop every list this module holds in memory. An account switch must not let
+ * the leaving account's workspace rows paint for the arriving one; the arriving
+ * account fetches its own list afterwards.
+ */
+export function resetWorkspaceModuleState() {
+  workspaces.value = [];
+  activeId.value = null;
+  pendingRequests.value = [];
+  provisionFailures.clear();
+  provisionPending.clear();
+  refusedDeviceKeys.clear();
+  fetchController = null;
+  fetchInFlight = null;
+}
+
+/**
+ * The account a workspace belongs to, for the switcher's grouping. A note
+ * shared to us by single-note invite lives under whichever account is active,
+ * so an unlisted workspace falls back to the active account rather than none.
+ */
+export function findWorkspaceAccount(workspaceId) {
+  const owner = listAccounts().find((account) =>
+    (account.workspaces || []).some((ws) => ws.id === workspaceId),
+  );
+  return owner?.id ?? getActiveAccountId();
+}
 
 export function computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspaces) {
   const backendIds = new Set((backendWorkspaces || []).map((w) => w.id));
@@ -717,5 +746,7 @@ export function useCloudWorkspaces() {
     autoProvisionPendingKeys,
     retryProvisioning,
     provisioningIssue,
+    resetWorkspaceModuleState,
+    findWorkspaceAccount,
   };
 }

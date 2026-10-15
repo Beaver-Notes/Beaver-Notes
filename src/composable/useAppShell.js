@@ -109,6 +109,15 @@ function applyDocumentSettings() {
   document.documentElement.classList.add(getSettingSync('colorScheme'));
 }
 
+// App.vue mounts one shell; it owns the live workspace init (the encryption
+// gate's callback and the listener disposer). An account switch re-runs that
+// same closure rather than building a second shell.
+let liveWorkspaceInit = null;
+
+export function runWorkspaceInit() {
+  return liveWorkspaceInit ? liveWorkspaceInit() : undefined;
+}
+
 export function useAppShell(onboardingCompleted = true) {
   const { translations } = useTranslations();
   const theme = useTheme();
@@ -537,6 +546,14 @@ export function useAppShell(onboardingCompleted = true) {
     await finishWorkspaceInit();
   };
 
+  // A switch re-runs the init in this same window, so the listeners are removed
+  // before they are added again. Both the unmount handler and the switch dispose
+  // through here.
+  const disposeWorkspaceInitListeners = () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('focus', refreshSharedNotesQuietly);
+  };
+
   const finishWorkspaceInit = async () => {
     const migrationStatus = await settingsStorage.get(
       'app_encryption_migration',
@@ -679,12 +696,17 @@ export function useAppShell(onboardingCompleted = true) {
       console.warn('[app] pre-sync auth/workspace hydrate failed:', err);
     }
     initAppSync();
+    disposeWorkspaceInitListeners();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', refreshSharedNotesQuietly);
 
     performance.mark('init:done');
     logStartupTiming();
   };
+
+  // App.vue mounts one shell and it owns this init; an account switch re-runs
+  // the same closure instead of building a second shell.
+  liveWorkspaceInit = finishWorkspaceInit;
 
   const encryptionGate = useAppEncryptionGate({
     finishWorkspaceInit,
@@ -913,8 +935,8 @@ export function useAppShell(onboardingCompleted = true) {
   onUnmounted(() => {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    window.removeEventListener('focus', refreshSharedNotesQuietly);
+    disposeWorkspaceInitListeners();
+    liveWorkspaceInit = null;
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())
