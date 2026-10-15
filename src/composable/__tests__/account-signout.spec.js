@@ -86,6 +86,7 @@ import { useAccountAuth } from '@/composable/useAccountAuth';
 import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 import { useAccountStore } from '@/store/account';
 import { clearIndex, getActiveAccountId, listAccounts, saveIndex } from '@/lib/accounts-index';
+import { getAccount } from '@/lib/api/account';
 import { loadRefreshToken, loadSessionToken, saveRefreshToken, saveSessionToken } from '@/lib/account-storage';
 
 const PERSONAL = {
@@ -131,6 +132,36 @@ describe('signInWithPassword', () => {
     const store = useAccountStore();
     expect(store.token).toBe('tok');
     expect(store.status).toBe('authenticated');
+  });
+
+  it('activates the arriving account before fetching its profile', async () => {
+    // The API client picks the credential by the active account id. Fetching
+    // before the switch sent the previous account's token, so `/account` came
+    // back with the previous account's profile under the new account's id.
+    await saveIndex({ accounts: [PERSONAL], activeAccountId: 'p1' });
+    await saveSessionToken('personal-token', 'p1');
+
+    let atFetch = null;
+    getAccount.mockImplementationOnce(async () => {
+      const activeId = getActiveAccountId();
+      atFetch = { activeId, token: await loadSessionToken(activeId) };
+      return {
+        profile: { id: 'n1', email: 'new@test.test', kemPublicKey: 'pk' },
+        subscription: { plan: 'pro' },
+        organizations: [],
+        devices: [],
+      };
+    });
+
+    await signIn('new@test.test', 'password');
+
+    expect(atFetch).toEqual({ activeId: 'n1', token: 'tok' });
+    // And the record that stays behind belongs to the account that just signed
+    // in, not the one that was active before.
+    expect(listAccounts()).toEqual([
+      expect.objectContaining({ id: 'p1', email: 'me@test.test' }),
+      expect.objectContaining({ id: 'n1', email: 'new@test.test' }),
+    ]);
   });
 });
 

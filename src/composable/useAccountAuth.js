@@ -212,6 +212,22 @@ export function useAccountAuth() {
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
+    // Record and activate the account *before* talking to the server: the API
+    // client picks the credential by the active account id, so a fetch issued
+    // while the previous account is still active would come back with the
+    // previous account's profile and store it under the new id.
+    if (persist && accountId) {
+      try {
+        await accountStore.persistActiveAccount({
+          id: accountId,
+          email: user?.email || null,
+          serverUrl: accountStore.serverUrl,
+          profile: user || {},
+        });
+      } catch (err) {
+        console.warn('[auth] account record seed failed:', err?.message || err);
+      }
+    }
     const accountData = await fetchProfile();
     // Re-arm realtime: a prior sign-out called `stop()`, which dropped every
     // provider. Without this, rooms stay dead until an app restart (L7).
