@@ -747,6 +747,9 @@ export function useCloudWorkspaces() {
     retryProvisioning,
     provisioningIssue,
     resetWorkspaceModuleState,
+    // The account switch tears the live workspace down itself (it swaps pools
+    // directly), so it needs this one by name.
+    teardownLiveWorkspaceState,
     findWorkspaceAccount,
   };
 }

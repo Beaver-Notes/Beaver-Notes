@@ -88,6 +88,7 @@ beforeEach(async () => {
   await clearIndex();
   useCloudWorkspaces().activeId.value = null;
   switchAccount = useAccountAuth().switchAccount;
+  window.location.hash = '';
 });
 
 describe('switching account in place', () => {
@@ -171,6 +172,24 @@ describe('switching account in place', () => {
     await switchAccount({ accountId: 't1' });
 
     expect(switchSpy).toHaveBeenCalledWith('default');
+  });
+
+  it('leaves a note route for home so the arriving workspace is what shows', async () => {
+    await seed();
+    window.location.hash = '#/note/p9a0JhsEihdqx5OtIfb4G';
+
+    await switchAccount({ accountId: 't1', workspaceId: 'w-team' });
+
+    expect(window.location.hash).toBe('#/');
+  });
+
+  it('leaves every other route alone', async () => {
+    await seed();
+    window.location.hash = '#/settings/appearance';
+
+    await switchAccount({ accountId: 't1', workspaceId: 'w-team' });
+
+    expect(window.location.hash).toBe('#/settings/appearance');
   });
 });
 

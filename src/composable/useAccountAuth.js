@@ -80,6 +80,198 @@ async function stopSeedWatch() {
   }
 }
 
+// Account switching and per-account sign-out live at module scope, not inside
+// the composable: the workspace switcher runs on pages that never instantiate
+// `useAccountAuth`, and both only touch stores and singletons.
+
+// Tear down everything owned by the signed-in account so the next account
+// cannot read or write the previous account's doc, store, or live rooms.
+async function teardownLocalAccountState() {
+  // Persist buffered per-note Yjs deltas first: an edit inside the 300ms/2s
+  // debounce window would otherwise be dropped when the store/doc are cleared.
+  try {
+    const { flushAllNoteYjsPending } = await import('@/composable/useNoteYjs.js');
+    await flushAllNoteYjsPending();
+  } catch (err) {
+    console.warn('[auth] note delta flush failed:', err);
+  }
+
+  // Stop realtime providers first: no further remote updates land on a doc
+  // that is about to be destroyed. Also clears room keys / unwrapped cache.
+  try {
+    const { getWsSync } = await import('@/lib/sync/ws-sync.js');
+    getWsSync().stop();
+  } catch (err) {
+    console.warn('[auth] ws teardown failed:', err);
+  }
+
+  // Flush buffered meta writes before destroying the workspace doc singleton.
+  try {
+    const [{ flushPendingMetaUpdates }, { destroyWorkspaceDoc }] =
+      await Promise.all([
+        import('@/lib/yjs/workspace-doc.js'),
+        import('@/lib/yjs/meta-doc.js'),
+      ]);
+    await flushPendingMetaUpdates();
+    destroyWorkspaceDoc();
+  } catch (err) {
+    console.warn('[auth] workspace doc teardown failed:', err);
+  }
+
+  // Drop the previous account's notes from the in-memory store; the next
+  // account hydrates its own from the workspace doc.
+  try {
+    const { useNoteStore, clearNoteContentSignatures } = await import('@/store/note');
+    const noteStore = useNoteStore();
+    noteStore.data = {};
+    noteStore.syncInProgress = false;
+    // The signatures hold note plaintext and outlive `data`, so they need
+    // their own teardown.
+    clearNoteContentSignatures();
+  } catch (err) {
+    console.warn('[auth] note store teardown failed:', err);
+  }
+
+  // Drop the collaboration state that carries decrypted text and emails.
+  try {
+    const [{ useCommentStore }, { useCollaboratorStore }, { useWorkspaceStore }] =
+      await Promise.all([
+        import('@/store/comment'),
+        import('@/store/collaborator'),
+        import('@/store/workspace'),
+      ]);
+    useCommentStore().reset();
+    useCollaboratorStore().reset();
+    useWorkspaceStore().reset();
+  } catch (err) {
+    console.warn('[auth] collaboration store teardown failed:', err);
+  }
+
+  // Drop the previous account's search index so search can't surface it.
+  try {
+    const { clearSearchIndex } = await import('@/utils/note/search.js');
+    clearSearchIndex();
+  } catch (err) {
+    console.warn('[auth] search index teardown failed:', err);
+  }
+}
+
+// In place, no reload: the leaving account is flushed and torn down while it
+// is still the active one, so nothing pending can be posted under the
+// arriving account's token.
+async function performSwitch({ accountId, workspaceId, force = false } = {}) {
+  const accountStore = useAccountStore();
+  const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
+    '@/composable/useCloudWorkspaces.js'
+  );
+  const cloud = useCloudWorkspaces();
+  const [{ useWorkspaceStore }, { runWorkspaceInit }] = await Promise.all([
+    import('@/store/workspace'),
+    import('@/composable/useAppShell'),
+  ]);
+  const record = listAccounts().find((account) => account.id === accountId);
+  if (!record) return { switched: false, reason: 'unknown-account' };
+
+  const targetWorkspaceId =
+    workspaceId ||
+    record.activeWorkspaceId ||
+    record.workspaces?.[0]?.id ||
+    DEFAULT_WORKSPACE_ID;
+
+  // The pair, not the workspace alone: one workspace can legitimately appear
+  // under two accounts.
+  const currentWorkspaceId =
+    useWorkspaceStore().activeId || cloud.activeId.value || accountStore.activeWorkspaceId;
+  if (!force && getActiveAccountId() === accountId && currentWorkspaceId === targetWorkspaceId) {
+    return { switched: false, reason: 'already-active' };
+  }
+
+  await cloud.teardownLiveWorkspaceState();
+  try {
+    const [{ clearWorkspaceKeyCache }, { clearSharedSyncKeys }] = await Promise.all([
+      import('@/lib/api/workspaces'),
+      import('@/utils/sync/shared-keys'),
+    ]);
+    clearWorkspaceKeyCache();
+    await clearSharedSyncKeys();
+  } catch (err) {
+    console.warn('[auth] leaving key material cleanup failed:', err?.message || err);
+  }
+
+  // The durable half first: if the pool swap fails the index still points at
+  // the leaving account, so a relaunch is coherent.
+  try {
+    const { switchLocalWorkspace } = await import('@/lib/native/workspaces');
+    await switchLocalWorkspace(targetWorkspaceId);
+  } catch (err) {
+    console.warn('[auth] workspace switch failed:', err?.message || err);
+    await runWorkspaceInit().catch(() => {});
+    return { switched: false, reason: 'workspace-switch-failed' };
+  }
+
+  await accountStore.activateAccount(accountId);
+  accountStore.activeWorkspaceId = targetWorkspaceId;
+  resetWorkspaceModuleState();
+  cloud.activeId.value = targetWorkspaceId;
+  // Re-runs the live init for the arriving account: profile, plans, identity
+  // republish and the meta-room join all ride on it.
+  await runWorkspaceInit();
+  // Notes and folders belong to a workspace, so the id in the address bar is
+  // almost never in the arriving one; the note view only re-checks its id when
+  // the route changes, which an in-place switch does not do, and would show
+  // blank. Home re-renders for whichever workspace just arrived.
+  if (/^#\/(note|folder)\//.test(window.location.hash)) {
+    window.location.hash = '#/';
+  }
+  return { switched: true };
+}
+
+let switchInFlight = null;
+export function switchAccount(options = {}) {
+  // shortcut: a switch during a switch joins the first (a double-click);
+  // upgrade to a queue if two different targets must both land.
+  if (!switchInFlight) {
+    switchInFlight = performSwitch(options).finally(() => {
+      switchInFlight = null;
+    });
+  }
+  return switchInFlight;
+}
+
+// Sign out of one account while the others stay signed in. The live state is
+// torn down only when the leaving account was the active one; the app then
+// moves to a remaining account in place.
+export async function signOutAccount(accountId) {
+  const accountStore = useAccountStore();
+  const wasActive = getActiveAccountId() === accountId;
+  if (wasActive) {
+    try {
+      await authApi.logout({ baseUrl: accountStore.serverUrl });
+    } catch (err) {
+      console.warn('[auth] logout server call failed:', err);
+    }
+    try {
+      const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
+      await stopRustSync();
+    } catch {}
+    await teardownLocalAccountState();
+    resetApiClient();
+  }
+  // Drops the record and that account's own credentials. The install-level
+  // device registration stays, so the remaining accounts keep theirs.
+  await accountStore.forgetAccount(accountId);
+  const remaining = listAccounts();
+  if (!remaining.length) return { switched: false, reason: 'no-accounts' };
+  if (!wasActive) return { switched: false, reason: 'other-account-active' };
+  // force: the note store was just torn down, so the arriving account has to
+  // re-init even when its workspace id is the one already in the pool.
+  return switchAccount({
+    accountId: remaining[0].id,
+    workspaceId: remaining[0].activeWorkspaceId,
+    force: true,
+  });
+}
+
 export function useAccountAuth() {
   const accountStore = useAccountStore();
 
@@ -404,153 +596,6 @@ export function useAccountAuth() {
     }
   }
 
-  // Tear down everything owned by the signed-in account so the next account
-  // cannot read or write the previous account's doc, store, or live rooms.
-  async function teardownLocalAccountState() {
-    // Persist buffered per-note Yjs deltas first: an edit inside the 300ms/2s
-    // debounce window would otherwise be dropped when the store/doc are cleared.
-    try {
-      const { flushAllNoteYjsPending } = await import('@/composable/useNoteYjs.js');
-      await flushAllNoteYjsPending();
-    } catch (err) {
-      console.warn('[auth] note delta flush failed:', err);
-    }
-
-    // Stop realtime providers first: no further remote updates land on a doc
-    // that is about to be destroyed. Also clears room keys / unwrapped cache.
-    try {
-      const { getWsSync } = await import('@/lib/sync/ws-sync.js');
-      getWsSync().stop();
-    } catch (err) {
-      console.warn('[auth] ws teardown failed:', err);
-    }
-
-    // Flush buffered meta writes before destroying the workspace doc singleton.
-    try {
-      const [{ flushPendingMetaUpdates }, { destroyWorkspaceDoc }] =
-        await Promise.all([
-          import('@/lib/yjs/workspace-doc.js'),
-          import('@/lib/yjs/meta-doc.js'),
-        ]);
-      await flushPendingMetaUpdates();
-      destroyWorkspaceDoc();
-    } catch (err) {
-      console.warn('[auth] workspace doc teardown failed:', err);
-    }
-
-    // Drop the previous account's notes from the in-memory store; the next
-    // account hydrates its own from the workspace doc.
-    try {
-      const { useNoteStore, clearNoteContentSignatures } = await import('@/store/note');
-      const noteStore = useNoteStore();
-      noteStore.data = {};
-      noteStore.syncInProgress = false;
-      // The signatures hold note plaintext and outlive `data`, so they need
-      // their own teardown.
-      clearNoteContentSignatures();
-    } catch (err) {
-      console.warn('[auth] note store teardown failed:', err);
-    }
-
-    // Drop the collaboration state that carries decrypted text and emails.
-    try {
-      const [{ useCommentStore }, { useCollaboratorStore }, { useWorkspaceStore }] =
-        await Promise.all([
-          import('@/store/comment'),
-          import('@/store/collaborator'),
-          import('@/store/workspace'),
-        ]);
-      useCommentStore().reset();
-      useCollaboratorStore().reset();
-      useWorkspaceStore().reset();
-    } catch (err) {
-      console.warn('[auth] collaboration store teardown failed:', err);
-    }
-
-    // Drop the previous account's search index so search can't surface it.
-    try {
-      const { clearSearchIndex } = await import('@/utils/note/search.js');
-      clearSearchIndex();
-    } catch (err) {
-      console.warn('[auth] search index teardown failed:', err);
-    }
-  }
-
-  // In place, no reload: the leaving account is flushed and torn down while it
-  // is still the active one, so nothing pending can be posted under the
-  // arriving account's token.
-  async function performSwitch({ accountId, workspaceId, force = false } = {}) {
-    const accountStore = useAccountStore();
-    const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
-      '@/composable/useCloudWorkspaces.js'
-    );
-    const cloud = useCloudWorkspaces();
-    const [{ useWorkspaceStore }, { runWorkspaceInit }] = await Promise.all([
-      import('@/store/workspace'),
-      import('@/composable/useAppShell'),
-    ]);
-    const record = listAccounts().find((account) => account.id === accountId);
-    if (!record) return { switched: false, reason: 'unknown-account' };
-
-    const targetWorkspaceId =
-      workspaceId ||
-      record.activeWorkspaceId ||
-      record.workspaces?.[0]?.id ||
-      DEFAULT_WORKSPACE_ID;
-
-    // The pair, not the workspace alone: one workspace can legitimately appear
-    // under two accounts.
-    const currentWorkspaceId =
-      useWorkspaceStore().activeId || cloud.activeId.value || accountStore.activeWorkspaceId;
-    if (!force && getActiveAccountId() === accountId && currentWorkspaceId === targetWorkspaceId) {
-      return { switched: false, reason: 'already-active' };
-    }
-
-    await cloud.teardownLiveWorkspaceState();
-    try {
-      const [{ clearWorkspaceKeyCache }, { clearSharedSyncKeys }] = await Promise.all([
-        import('@/lib/api/workspaces'),
-        import('@/utils/sync/shared-keys'),
-      ]);
-      clearWorkspaceKeyCache();
-      await clearSharedSyncKeys();
-    } catch (err) {
-      console.warn('[auth] leaving key material cleanup failed:', err?.message || err);
-    }
-
-    // The durable half first: if the pool swap fails the index still points at
-    // the leaving account, so a relaunch is coherent.
-    try {
-      const { switchLocalWorkspace } = await import('@/lib/native/workspaces');
-      await switchLocalWorkspace(targetWorkspaceId);
-    } catch (err) {
-      console.warn('[auth] workspace switch failed:', err?.message || err);
-      await runWorkspaceInit().catch(() => {});
-      return { switched: false, reason: 'workspace-switch-failed' };
-    }
-
-    await accountStore.activateAccount(accountId);
-    accountStore.activeWorkspaceId = targetWorkspaceId;
-    resetWorkspaceModuleState();
-    cloud.activeId.value = targetWorkspaceId;
-    // Re-runs the live init for the arriving account: profile, plans, identity
-    // republish and the meta-room join all ride on it.
-    await runWorkspaceInit();
-    return { switched: true };
-  }
-
-  let switchInFlight = null;
-  function switchAccount(options = {}) {
-    // shortcut: a switch during a switch joins the first (a double-click);
-    // upgrade to a queue if two different targets must both land.
-    if (!switchInFlight) {
-      switchInFlight = performSwitch(options).finally(() => {
-        switchInFlight = null;
-      });
-    }
-    return switchInFlight;
-  }
-
   async function signOut() {
     try {
       await authApi.logout({ baseUrl: activeBaseUrl() });
@@ -571,39 +616,6 @@ export function useAccountAuth() {
     accountStore.setPlanLimits(null);
     accountStore.setDevices([]);
     accountStore.setActiveSessions([]);
-  }
-
-  // Sign out of one account while the others stay signed in. The live state is
-  // torn down only when the leaving account was the active one; the app then
-  // moves to a remaining account in place.
-  async function signOutAccount(accountId) {
-    const wasActive = getActiveAccountId() === accountId;
-    if (wasActive) {
-      try {
-        await authApi.logout({ baseUrl: activeBaseUrl() });
-      } catch (err) {
-        console.warn('[auth] logout server call failed:', err);
-      }
-      try {
-        const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
-        await stopRustSync();
-      } catch {}
-      await teardownLocalAccountState();
-      resetApiClient();
-    }
-    // Drops the record and that account's own credentials. The install-level
-    // device registration stays, so the remaining accounts keep theirs.
-    await accountStore.forgetAccount(accountId);
-    const remaining = listAccounts();
-    if (!remaining.length) return { switched: false, reason: 'no-accounts' };
-    if (!wasActive) return { switched: false, reason: 'other-account-active' };
-    // force: the note store was just torn down, so the arriving account has to
-    // re-init even when its workspace id is the one already in the pool.
-    return switchAccount({
-      accountId: remaining[0].id,
-      workspaceId: remaining[0].activeWorkspaceId,
-      force: true,
-    });
   }
 
   async function signOutEverywhere() {
@@ -856,11 +868,6 @@ export function useAccountAuth() {
     hydrate().catch((err) => console.error('[auth] hydrate failed:', err));
   });
 
-  // Bridges for components outside this composable's setup (the workspace
-  // switcher): the live instance owns the real state, so it is the one to move.
-  liveSwitchAccount = switchAccount;
-  liveSignOutAccount = signOutAccount;
-
   return {
     signInWithPasskey,
     signUpWithPasskey,
@@ -882,23 +889,4 @@ export function useAccountAuth() {
     deriveDeviceLabel,
     triggerSeed,
   };
-}
-
-// The mounted composable registers itself here so the workspace switcher can
-// move accounts without holding its own auth state.
-let liveSwitchAccount = null;
-let liveSignOutAccount = null;
-
-export function switchAccount(options = {}) {
-  if (!liveSwitchAccount) {
-    return Promise.resolve({ switched: false, reason: 'not-ready' });
-  }
-  return liveSwitchAccount(options);
-}
-
-export function signOutAccount(accountId) {
-  if (!liveSignOutAccount) {
-    return Promise.resolve({ switched: false, reason: 'not-ready' });
-  }
-  return liveSignOutAccount(accountId);
 }
