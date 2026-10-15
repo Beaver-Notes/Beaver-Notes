@@ -151,7 +151,12 @@ pub(crate) fn workspace_switch(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), AppError> {
-    validate_workspace_id(&id)?;
+    // The default workspace is a real registered directory, so it can be
+    // switched to; `validate_workspace_id` only blocks creating or deleting it
+    // (the constant itself needs no path checks).
+    if id != DEFAULT_WORKSPACE_ID {
+        validate_workspace_id(&id)?;
+    }
     let registry = load_workspace_registry(&app, &state)?;
     if !registry.iter().any(|w| w.id == id) {
         return Err(AppError::Other(format!("Workspace not found: {id}")));
