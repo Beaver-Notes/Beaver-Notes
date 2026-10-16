@@ -563,6 +563,7 @@ export function useAppShell(onboardingCompleted = true) {
   const disposeWorkspaceInitListeners = () => {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('focus', refreshSharedNotesQuietly);
+    window.removeEventListener('focus', refreshPlanQuietly);
   };
 
   const finishWorkspaceInit = async () => {
@@ -710,6 +711,7 @@ export function useAppShell(onboardingCompleted = true) {
     disposeWorkspaceInitListeners();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', refreshSharedNotesQuietly);
+    window.addEventListener('focus', refreshPlanQuietly);
 
     performance.mark('init:done');
     logStartupTiming();
@@ -941,12 +943,52 @@ export function useAppShell(onboardingCompleted = true) {
       .catch(() => {});
   }
 
+  // A tier change happens on another device or through the billing webhook;
+  // nothing pushes it to a running app, and the plan is otherwise read once at
+  // boot. Refetch on return-to-window so an upgrade or downgrade lands without a
+  // reload. `accountPlan` in the switcher reads the stored account record, so
+  // both that record and the live limits have to be updated.
+  // Throttled: focus fires often, and this is two authenticated GETs.
+  let lastPlanRefresh = 0;
+  function refreshPlanQuietly() {
+    const now = Date.now();
+    if (now - lastPlanRefresh < 60000) return;
+    const store = useAccountStore();
+    if (!store.isAuthenticated || !store.activeAccountId) return;
+    lastPlanRefresh = now;
+    void (async () => {
+      try {
+        const [{ getAccount }, { getPlans }] = await Promise.all([
+          import('@/lib/api/account'),
+          import('@/lib/api/plans'),
+        ]);
+        const [data, plans] = await Promise.all([
+          getAccount({ baseUrl: store.serverUrl }),
+          getPlans({ baseUrl: store.serverUrl }),
+        ]);
+        const patch = { id: store.activeAccountId };
+        if (plans) {
+          store.setPlanLimits(plans);
+          patch.planLimits = plans;
+        }
+        if (data?.subscription) {
+          store.setSubscription(data.subscription);
+          patch.subscription = data.subscription;
+        }
+        await store.persistActiveAccount(patch);
+      } catch {
+        /* non-critical: the next focus retries. */
+      }
+    })();
+  }
+
   function handleVisibilityChange() {
     if (document.hidden) {
       kickRustDirty();
     } else {
       kickRustSync();
       refreshSharedNotesQuietly();
+      refreshPlanQuietly();
     }
   }
 
