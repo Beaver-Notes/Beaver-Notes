@@ -48,6 +48,10 @@ pub(crate) enum SyncError {
     /// not sync this workspace (a viewer, or no longer a member). Kept separate
     /// from `Unauthorized` so the banner never asks a permitted user to sign in.
     Forbidden,
+    /// The server answered 402: the workspace's owner has no cloud storage on
+    /// their plan. Retrying can never succeed, so this must not become a
+    /// throttle loop; the user has to upgrade.
+    PlanUpgradeRequired,
 }
 
 impl SyncError {
@@ -60,6 +64,7 @@ impl SyncError {
             SyncError::Throttled => "throttled",
             SyncError::ItemTooLarge => "item-too-large",
             SyncError::Forbidden => "forbidden",
+            SyncError::PlanUpgradeRequired => "plan-upgrade-required",
         }
     }
 }
@@ -800,6 +805,13 @@ async fn push_items(
                 return Err(CloudFail::Typed(SyncError::ItemTooLarge));
             }
             continue;
+        }
+        // 402 means the workspace's owner has no cloud storage on their plan.
+        // Retrying can never succeed, so keep it out of the throttle loop and
+        // out of the generic Fatal path: it is a gate the user must clear.
+        if status == reqwest::StatusCode::PAYMENT_REQUIRED {
+            crate::rs_log!("[sync::cloud] push rejected 402 (plan upgrade required)");
+            return Err(CloudFail::Typed(SyncError::PlanUpgradeRequired));
         }
         if !status.is_success() {
             return Err(CloudFail::Fatal(AppError::Other(status_snapshot(status))));
