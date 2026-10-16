@@ -1,5 +1,6 @@
 import { logger } from '@/utils/logger';
 import { useNoteStore } from '@/store/note';
+import { useWorkspaceStore } from '@/store/workspace';
 
 // Notes invited to this account by a single note's owner, without workspace
 // membership. They live in the active workspace's meta doc (one local store),
@@ -65,7 +66,10 @@ export async function registerSharedNoteLocation(noteId, workspaceId) {
 
 // Durable pull+push of exactly one shared note under its owning workspace id.
 export async function syncSharedNote(noteId, { serverUrl = '', token = '' } = {}) {
-  const workspaceId = accessOf(noteId)?.workspaceId;
+  // A note the account owns (not just one shared with it) syncs against its
+  // own workspace too — a second device reads the account's workspace, so a
+  // key that resolves late still needs this re-pull to see the content.
+  const workspaceId = accessOf(noteId)?.workspaceId || resolveNoteWorkspaceId(noteId, useWorkspaceStore().activeId);
   if (!noteId || !workspaceId) return false;
   try {
     const backend = await getBackend();
@@ -82,10 +86,15 @@ export async function syncSharedNote(noteId, { serverUrl = '', token = '' } = {}
 // on each shared note, drop it from any note that is no longer shared, and
 // mirror the result into the Rust session. No-op when nothing changed, so the
 // caller's `updatedAt` is left alone.
-export async function applySharedNoteAccess(rows) {
+export async function applySharedNoteAccess(rows, { selfId = null } = {}) {
   const noteStore = useNoteStore();
   const next = new Map();
   for (const row of rows || []) {
+    // A note this account OWNS carries an invitation row addressed to itself
+    // (the owner's editor row on the server). That is not a share: treating it
+    // as one marks the note as foreign and re-pulls it into whatever workspace
+    // is active at fetch time.
+    if (selfId && row?.invitedBy === selfId) continue;
     if (row?.noteId && row.workspaceId) next.set(row.noteId, row);
   }
 
