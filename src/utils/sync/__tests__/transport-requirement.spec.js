@@ -14,10 +14,18 @@ describe('transportRequirement', () => {
   });
 
   it('explains the missing folder on folder sync', () => {
-    expect(transportRequirement(FOLDER, { isPaid: true, hasSyncPath: '' })).toEqual({
+    expect(transportRequirement(FOLDER, { isPaid: false, hasSyncPath: '' })).toEqual({
       kind: 'folder',
       text: 'Requires a folder',
       action: 'Browse',
+    });
+  });
+
+  it('tells a paid account it does not need a folder', () => {
+    expect(transportRequirement(FOLDER, { isPaid: true, hasSyncPath: '/tmp/sync' })).toEqual({
+      kind: 'included',
+      text: 'Cloud sync is included in your plan',
+      action: '',
     });
   });
 

@@ -1,7 +1,7 @@
 import { applyRemote } from '@/lib/yjs/shared.js';
 import { base64ToBuf } from '@/utils/crypto/codec.js';
 import { getSettingSync } from '@/lib/settings';
-import { normalizeSyncTransport } from '@/lib/api/types';
+import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types';
 import { logger } from '@/utils/logger';
 
 let rustSyncActive = false;
@@ -28,6 +28,61 @@ export async function refreshRustOwnership() {
   return rustFolderOwned;
 }
 
+// A sync folder carries no workspace identity — commits are named
+// `<note>~~<device>~~<ts>.yjs.json` (see `sync/local.rs`) — so it belongs to one
+// account. `owner.json` records whose it is. A folder with no marker is claimed
+// by whoever is configured today, so this can never make an existing install
+// worse; an `anonymous` marker is not an identity, so signing in takes it over.
+const FOLDER_OWNER_FILE = 'owner.json';
+
+async function checkFolderOwner(syncPath) {
+  const { useAccountStore } = await import('@/store/account');
+  const { readJson, writeJson } = await import('@/lib/native/fs');
+  const { path } = await import('@/lib/tauri-bridge');
+
+  const owner = useAccountStore().activeAccountId || 'anonymous';
+  const markerPath = path.join(syncPath, 'BeaverNotesSync', FOLDER_OWNER_FILE);
+
+  let claimedBy = '';
+  try {
+    claimedBy = (await readJson(markerPath))?.accountId || '';
+  } catch {
+    claimedBy = '';
+  }
+
+  if (claimedBy && claimedBy !== 'anonymous' && claimedBy !== owner) {
+    return { allowed: false, claimedBy };
+  }
+
+  if (claimedBy !== owner) {
+    // Best-effort: a read-only folder still syncs, it just cannot be claimed,
+    // which is exactly the behaviour before this marker existed.
+    try {
+      await writeJson(markerPath, {
+        accountId: owner,
+        claimedAt: new Date().toISOString(),
+      });
+    } catch {}
+  }
+
+  return { allowed: true, claimedBy };
+}
+
+async function reportForeignFolder(claimedBy) {
+  try {
+    const { useSyncProgressStore, describeStatus } = await import(
+      '@/store/sync-progress'
+    );
+    const status = 'folder-owned-by-other-account';
+    useSyncProgressStore().lastAction = {
+      status,
+      text: describeStatus(status).text,
+      detail: `Folder belongs to account ${claimedBy}.`,
+      at: Date.now(),
+    };
+  } catch {}
+}
+
 async function getSyncConfig() {
   const { useAccountStore } = await import('@/store/account');
   const { useWorkspaceStore } = await import('@/store/workspace');
@@ -40,8 +95,25 @@ async function getSyncConfig() {
   }
 
   // Canonical transport decision mirrors `app-sync.js` (`wantsCloud`); Rust
-  // only special-cases `"folder"` to disable the cloud path.
-  const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
+  // only special-cases `"folder"` to disable the cloud path. A paid account
+  // always syncs to the cloud, and never reads a folder left on this install.
+  const paid = useAccountStore().isPaidPlan;
+  const transport = paid
+    ? SYNC_TRANSPORT.REMOTE
+    : normalizeSyncTransport(getSettingSync('syncTransport'));
+  if (paid) folderId = '';
+
+  // Never ingest a folder that belongs to another account: the folder format
+  // carries no workspace identity, so mixing two vaults is a data leak. A blank
+  // folder_id makes the Rust tick a no-op (`cloud_enabled` is false and the
+  // dirty-push path returns early on an empty folder).
+  if (folderId) {
+    const { allowed, claimedBy } = await checkFolderOwner(folderId);
+    if (!allowed) {
+      await reportForeignFolder(claimedBy);
+      folderId = '';
+    }
+  }
 
   let deviceLabel = '';
   try {

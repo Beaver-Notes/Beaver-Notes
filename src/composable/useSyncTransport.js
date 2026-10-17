@@ -10,11 +10,13 @@ export function useSyncTransport() {
     normalizeSyncTransport(getSettingSync('syncTransport'))
   );
 
-  const isFolder = computed(() => transport.value === SYNC_TRANSPORT.FOLDER);
-  const isRemote = computed(
-    () =>
-      transport.value === SYNC_TRANSPORT.REMOTE && accountStore.isPaidPlan
+  // Folder sync is the free/anonymous transport. A paid account syncs to the
+  // cloud even if a folder path is still stored on this install, so a paid
+  // workspace can never ingest a folder that belongs to a free one.
+  const isFolder = computed(
+    () => transport.value === SYNC_TRANSPORT.FOLDER && !accountStore.isPaidPlan
   );
+  const isRemote = computed(() => accountStore.isPaidPlan);
 
   // Reflects live Yjs engine transports, derived from same state at sync time: never drifts.
   const description = computed(() => {
@@ -31,7 +33,7 @@ export function useSyncTransport() {
   });
 
   const activeTransportNames = computed(() => {
-    if (transport.value === SYNC_TRANSPORT.FOLDER) return ['local'];
+    if (isFolder.value) return ['local'];
     return ['cloud'];
   });
 
@@ -42,6 +44,7 @@ export function useSyncTransport() {
     ) {
       return;
     }
+    if (value === SYNC_TRANSPORT.FOLDER && accountStore.isPaidPlan) return;
     transport.value = value;
     await setSetting('syncTransport', value);
     if (accountStore.isAuthenticated) {

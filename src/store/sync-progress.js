@@ -52,6 +52,11 @@ const STATUS_TAXONOMY = {
     tone: 'action',
     text: 'Upgrade required to sync this workspace',
   },
+  // A sync folder carries no workspace identity, so it belongs to one account.
+  'folder-owned-by-other-account': {
+    tone: 'action',
+    text: 'This sync folder belongs to a different account.',
+  },
   'sync-failed': { tone: 'action', text: 'Sync stopped unexpectedly' },
   retrying: { tone: 'transient', text: 'Retrying…' },
   offline: {

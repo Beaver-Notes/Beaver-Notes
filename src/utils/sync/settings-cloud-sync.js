@@ -20,6 +20,15 @@ const TRANSPORT_OPTIONS = [
 // A disabled transport option must say what is missing so the user is not left
 // staring at a greyed-out row. Returns null when the option is selectable.
 export function transportRequirement(opt, { isPaid, hasSyncPath } = {}) {
+  // Folder sync is the free/anonymous transport: a paid account syncs to the
+  // cloud, so a folder path left over from before the upgrade is not offered.
+  if (opt.value === SYNC_TRANSPORT.FOLDER && isPaid) {
+    return {
+      kind: 'included',
+      text: 'Cloud sync is included in your plan',
+      action: '',
+    };
+  }
   const disabled =
     (opt.value !== SYNC_TRANSPORT.FOLDER && !isPaid) ||
     (opt.value !== SYNC_TRANSPORT.REMOTE && !hasSyncPath);
@@ -40,6 +49,9 @@ export function useSettingsCloudSync() {
 
   function selectTransport(value) {
     if (value === SYNC_TRANSPORT.REMOTE && !accountStore.isPaidPlan) {
+      return false;
+    }
+    if (value === SYNC_TRANSPORT.FOLDER && accountStore.isPaidPlan) {
       return false;
     }
     transport.setTransport(value);

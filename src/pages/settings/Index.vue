@@ -309,12 +309,15 @@
                 v-if="transportRequirement(opt)"
                 class="mt-1 text-xs text-amber-600 dark:text-amber-400"
               >
-                {{ transportRequirement(opt).text }} —
-                <button
-                  type="button"
-                  class="font-medium text-primary hover:underline"
-                  @click.stop="transportRequirement(opt).onClick()"
-                >{{ transportRequirement(opt).action }}</button>
+                {{ transportRequirement(opt).text }}
+                <template v-if="transportRequirement(opt).onClick">
+                  —
+                  <button
+                    type="button"
+                    class="font-medium text-primary hover:underline"
+                    @click.stop="transportRequirement(opt).onClick()"
+                  >{{ transportRequirement(opt).action }}</button>
+                </template>
               </p>
             </div>
             <div
@@ -771,7 +774,8 @@ export default {
     function isTransportDisabled(opt) {
       return (
         (opt.value !== SYNC_TRANSPORT.FOLDER && !cloudSync.isPaid) ||
-        (opt.value !== SYNC_TRANSPORT.REMOTE && !dataSettings.state.syncPath)
+        (opt.value !== SYNC_TRANSPORT.REMOTE && !dataSettings.state.syncPath) ||
+        (opt.value === SYNC_TRANSPORT.FOLDER && cloudSync.isPaid)
       );
     }
     function transportRequirement(opt) {
@@ -780,6 +784,7 @@ export default {
         hasSyncPath: dataSettings.state.syncPath,
       });
       if (!unmet) return null;
+      if (unmet.kind === 'included') return unmet;
       return {
         ...unmet,
         onClick:
@@ -804,6 +809,11 @@ export default {
         return { label: 'Get support', onClick: copyLogPath };
       if (status === 'sync-failed')
         return { label: 'Retry sync', onClick: onSyncNow };
+      if (status === 'folder-owned-by-other-account')
+        return {
+          label: 'Choose folder',
+          onClick: () => dataSettings.chooseDefaultPath(),
+        };
       return null;
     });
 

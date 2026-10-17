@@ -15,9 +15,12 @@ export async function initAppSync() {
   useSyncProgressStore().startListening();
 
   const syncPath = await getSyncPath();
+  // A paid account syncs to the cloud whatever the stored transport says:
+  // folder sync is the free/anonymous transport.
   const wantsCloud =
+    useAccountStore().isPaidPlan ||
     normalizeSyncTransport(getSettingSync('syncTransport')) !==
-    SYNC_TRANSPORT.FOLDER;
+      SYNC_TRANSPORT.FOLDER;
   const hasSyncTarget =
     Boolean(syncPath) || (wantsCloud && useAccountStore().isAuthenticated);
   if (!hasSyncTarget) return;
