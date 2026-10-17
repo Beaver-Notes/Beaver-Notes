@@ -109,6 +109,8 @@
 
   <ui-dialog />
 
+  <ui-toast-host />
+
   <import-folder-picker
     v-model="showImportDialog"
     :note-title="importNoteTitle"

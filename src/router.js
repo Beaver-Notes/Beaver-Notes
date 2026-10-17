@@ -9,7 +9,6 @@ import SettingsAbout from './pages/settings/About.vue';
 import SettingsLabels from './pages/settings/Labels.vue';
 import SettingsAccount from './pages/settings/Account.vue';
 import SettingsTeamAdmin from './pages/settings/TeamAdmin.vue';
-import JoinNote from './pages/join/[token].vue';
 import VerifyEmail from './pages/VerifyEmail.vue';
 import ResetPassword from './pages/ResetPassword.vue';
 import Home from './pages/Index.vue';
@@ -95,10 +94,10 @@ const routes = [
     ],
   },
   {
+    // Legacy invite-link URLs preserve entry: rewrite them into the
+    // `?join=<token>` modal shape the Index page hosts.
     path: '/join/:token',
-    name: 'JoinNote',
-    component: JoinNote,
-    meta: { guest: true },
+    redirect: (to) => ({ path: '/', query: { join: to.params.token } }),
   },
   {
     path: '/verify-email',

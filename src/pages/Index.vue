@@ -163,6 +163,11 @@
       @move="bulkMove"
       @clear="clearSelection"
     />
+    <join-invite-dialog
+      :show="showJoinDialog"
+      :token="joinToken"
+      @close="closeJoinDialog"
+    />
     <folder-customize-modal v-model="showCustomizeModal" :folder="customizeFolder" @saved="clearSelection" />
   </div>
 </template>
@@ -190,6 +195,7 @@ import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
 import MobileSyncStrip from '../components/app/MobileSyncStrip.vue';
 import WorkspaceSwitcher from '../components/app/WorkspaceSwitcher.vue';
+import JoinInviteDialog from '../components/app/JoinInviteDialog.vue';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
@@ -204,6 +210,7 @@ export default {
     EmptyState,
     MobileSyncStrip,
     WorkspaceSwitcher,
+    JoinInviteDialog,
   },
   setup() {
     const { translations } = useTranslations();
@@ -387,6 +394,27 @@ export default {
     const selectionBar = useSelectionBar();
     const showCustomizeModal = ref(false);
     const customizeFolder = ref(null);
+
+    // Invite links land here as `?join=<token>`; the redirect from the old
+    // /join/:token route rewrites the URL to this shape. Closing the modal
+    // strips the query so a reload doesn't resurrect the dialog.
+    const showJoinDialog = ref(false);
+    const joinToken = ref('');
+    watch(
+      () => route.query.join,
+      (token) => {
+        if (typeof token === 'string' && token) {
+          joinToken.value = token;
+          showJoinDialog.value = true;
+        }
+      },
+      { immediate: true }
+    );
+    function closeJoinDialog() {
+      showJoinDialog.value = false;
+      router.replace({ query: { ...route.query, join: undefined } });
+    }
+
     function openCustomizeFor(id) {
       customizeFolder.value = folderStore.getById(id) || null;
       if (customizeFolder.value) showCustomizeModal.value = true;
@@ -416,6 +444,9 @@ export default {
       showCustomizeModal,
       customizeFolder,
       openCustomizeFor,
+      showJoinDialog,
+      joinToken,
+      closeJoinDialog,
       ...noteMove,
       resolveMoveModalParams,
       ...pageController,

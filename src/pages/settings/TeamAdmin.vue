@@ -7,7 +7,7 @@
     <!-- Upgrade gate: the dashboard flag is team/enterprise-only -->
     <section v-if="plansLoaded && !flags.dashboard" class="space-y-2">
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-6"
+        class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-6"
       >
         <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
           {{ tr.dashboardRequires || 'Team dashboard requires the Team or Enterprise plan' }}
@@ -50,14 +50,14 @@
             <div class="flex flex-col gap-2 sm:flex-row">
               <ui-button
                 variant="primary"
-                class="max-md:h-11"
+                class="motion-press max-md:h-11"
                 @click="handleApproveRequest(req)"
               >
                 {{ tr.approve || 'Approve' }}
               </ui-button>
               <ui-button
                 variant="secondary"
-                class="max-md:h-11"
+                class="motion-press max-md:h-11"
                 @click="handleDenyRequest(req)"
               >
                 {{ tr.deny || 'Deny' }}
@@ -69,7 +69,7 @@
 
       <!-- Plan overview -->
       <section class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <div class="col-span-2 rounded-xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900 sm:col-span-1">
+        <div class="col-span-2 rounded-xl border bg-white px-4 py-3.5 dark:bg-neutral-950 sm:col-span-1">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.storage || 'Storage' }}</p>
           <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ quotaGB }} GB pooled</p>
           <div
@@ -85,11 +85,11 @@
             ></div>
           </div>
         </div>
-        <div class="rounded-xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+        <div class="rounded-xl border bg-white px-4 py-3.5 dark:bg-neutral-950">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.plan || 'Plan' }}</p>
           <p class="mt-0.5 text-xs capitalize text-neutral-500 dark:text-neutral-400">{{ plan }}</p>
         </div>
-        <div class="rounded-xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+        <div class="rounded-xl border bg-white px-4 py-3.5 dark:bg-neutral-950">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.history || 'History' }}</p>
           <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ historyLabel }}</p>
         </div>
@@ -98,7 +98,7 @@
       <!-- Members -->
       <section class="space-y-2">
         <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.members || 'Members' }}</p>
-        <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
+        <div class="divide-y divide-neutral-200 rounded-xl border bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-950">
           <div class="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center">
             <ui-input
               v-model="inviteInput"
@@ -114,6 +114,7 @@
             </ui-select>
             <ui-button
               variant="primary"
+              class="motion-press"
               :disabled="addingMember"
               :title="!isEmailVerified ? verifyTooltip : undefined"
               @click="handleAddMember"
@@ -122,6 +123,8 @@
             </ui-button>
             <ui-button
               variant="secondary"
+              class="motion-press"
+              :class="inviteLinkCopied ? 'motion-copy-sweep' : ''"
               :disabled="addingMember"
               :title="!isEmailVerified ? verifyTooltip : (tr.copyInviteLink || 'Copy invite link')"
               @click="handleCopyInviteLink"
@@ -141,7 +144,11 @@
             {{ inviteSuccess }}
           </p>
 
-          <div v-for="m in members" :key="m.userId" class="flex items-center gap-3 px-4 py-3.5">
+          <div
+            v-for="m in members"
+            :key="m.userId"
+            class="motion-spring-enter flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-neutral-50 motion-reduce:transition-none dark:hover:bg-neutral-900"
+          >
             <ui-user-avatar :name="memberLabel(m)" :size="32" />
             <div class="min-w-0 flex-1">
               <p
@@ -154,42 +161,31 @@
                 {{ fmt('roleLabel', { role: displayRole(m.role), count: m.deviceCount }) }}
               </p>
             </div>
-            <ui-select
-              :model-value="m.role"
-              class="w-32 max-md:hidden"
-              :disabled="m.userId === currentUserId && m.role === 'owner'"
-              :aria-label="fmt('roleFor', { user: memberLabel(m) })"
-              @change="($event) => handleChangeRole(m.userId, $event)"
-            >
-              <option value="owner">{{ tr.owner || 'Owner' }}</option>
-              <option value="admin">{{ tr.admin || 'Admin' }}</option>
-              <option value="editor">{{ tr.editor || 'Editor' }}</option>
-              <option value="viewer">{{ tr.viewer || 'Viewer' }}</option>
-            </ui-select>
-            <ui-button
-              icon
-              variant="danger"
-              class="max-md:hidden"
-              :aria-label="fmt('removeUser', { user: memberLabel(m) })"
-              @click="handleRemoveMember(m)"
-            >
-              <v-remixicon name="riDeleteBin6Line" />
-            </ui-button>
-            <!-- Phones: role + remove live in a tap-to-open sheet -->
+            <!-- Static role pill: role selection stays in the tap-to-open sheet,
+                 the only place a ui-select changes a member's role. -->
             <span
               v-if="m.userId === currentUserId && m.role === 'owner'"
-              class="inline-flex h-9 max-md:h-11 items-center rounded-lg border border-neutral-200 px-2.5 text-xs font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400 md:hidden"
+              class="shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
             >{{ displayRole(m.role) }}</span>
             <button
               v-else
               type="button"
-              class="inline-flex h-9 max-md:h-11 items-center gap-1 rounded-lg border border-neutral-200 px-2.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-secondary dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800 md:hidden"
+              class="motion-press shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
               :aria-label="fmt('roleFor', { user: memberLabel(m) })"
               @click="openMemberSheet(m)"
             >
               {{ displayRole(m.role) }}
               <v-remixicon name="riArrowRightSLine" size="14" class="rtl:rotate-180" />
             </button>
+            <ui-button
+              icon
+              variant="danger"
+              class="motion-press"
+              :aria-label="fmt('removeUser', { user: memberLabel(m) })"
+              @click="handleRemoveMember(m)"
+            >
+              <v-remixicon name="riDeleteBin6Line" />
+            </ui-button>
           </div>
           <p v-if="error" class="px-4 py-3">
             <span class="text-sm text-red-500" role="alert">{{ error }}</span>
@@ -229,7 +225,7 @@
 
       <!-- Devices & Sessions -->
       <section class="space-y-2">
-        <div class="flex items-center justify-between gap-3 rounded-xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+        <div class="flex items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3.5 dark:bg-neutral-950">
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
               {{ tr.devicesAndSessions || 'Devices & Sessions' }}
@@ -242,14 +238,14 @@
             {{ showDevices ? (tr.hide || 'Hide') : (tr.review || 'Review') }}
           </ui-button>
         </div>
-        <div v-if="showDevices" class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
+        <div v-if="showDevices" class="divide-y divide-neutral-200 rounded-xl border bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-950">
           <div class="flex items-center justify-end px-4 pt-3">
             <ui-button variant="secondary" @click="handleLoadDevices">{{ tr.refresh || 'Refresh' }}</ui-button>
           </div>
           <div
             v-for="s in sessions"
             :key="s.idHash"
-            class="flex items-center gap-3 px-4 py-3.5"
+            class="motion-spring-enter flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-neutral-50 motion-reduce:transition-none dark:hover:bg-neutral-900"
           >
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
@@ -274,6 +270,7 @@
             <ui-button
               icon
               variant="danger"
+              class="motion-press"
               :aria-label="fmt('revokeSession', { id: sessionLabel(s) })"
               @click="handleRevoke(s)"
             >
@@ -283,7 +280,7 @@
           <div
             v-for="d in devices"
             :key="d.deviceId"
-            class="flex items-center gap-3 px-4 py-3.5"
+            class="motion-spring-enter flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-neutral-50 motion-reduce:transition-none dark:hover:bg-neutral-900"
           >
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
@@ -310,7 +307,7 @@
 
       <!-- Audit -->
       <section class="space-y-2">
-        <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-3.5">
+        <div class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-3.5">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.auditLogs || 'Audit logs' }}</p>
@@ -345,7 +342,7 @@
           </button>
         </div>
 
-        <div v-if="!flags.audit" class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-6">
+        <div v-if="!flags.audit" class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-6">
           <p class="text-sm text-neutral-500 dark:text-neutral-400">
             {{ tr.ssoRequiresEnterprise || 'SSO requires the Enterprise plan.' }}
           </p>
@@ -354,13 +351,13 @@
         <template v-else>
           <div v-if="sso.loading" class="text-xs text-neutral-500 py-4">{{ tr.ssoLoading || 'Loading…' }}</div>
 
-          <div v-else-if="sso.configs.length === 0 && !sso.showForm" class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-6">
+          <div v-else-if="sso.configs.length === 0 && !sso.showForm" class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-6">
             <p class="text-sm text-neutral-500 dark:text-neutral-400">
               {{ tr.noSso || 'No SSO configurations yet. Add one to enable single sign-on for your workspace members.' }}
             </p>
           </div>
 
-          <div v-for="cfg in sso.configs" :key="cfg.id" class="bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-3.5">
+          <div v-for="cfg in sso.configs" :key="cfg.id" class="bg-white dark:bg-neutral-950 rounded-xl border px-4 py-3.5">
             <div class="flex items-center justify-between">
               <div class="space-y-1">
                 <div class="flex items-center gap-2">
@@ -382,7 +379,7 @@
           </div>
 
           <!-- Create / Edit form -->
-          <div v-if="sso.showForm" class="bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-4 space-y-4">
+          <div v-if="sso.showForm" class="bg-white dark:bg-neutral-950 rounded-xl border px-4 py-4 space-y-4">
             <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
               {{ sso.editingId ? (tr.editSso || 'Edit SSO Configuration') : (tr.newSso || 'New SSO Configuration') }}
             </p>
@@ -439,6 +436,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/lib/dialog';
 import { useClipboard } from '@/composable/clipboard';
 import { roleLabel } from '@/utils/roleLabel';
+import { triggerInteractionHaptic } from '@/lib/native/haptics';
 
 export default {
   setup() {
@@ -627,9 +625,10 @@ export default {
       if (!Number.isFinite(pct)) return 0;
       return Math.min(100, Math.max(0, pct));
     });
+    // Only the figure getPlans actually returns: an em dash when the plan
+    // response doesn't state a retention, never a fabricated "Unlimited".
     const historyLabel = computed(() => {
-      if (flags.value.audit) return 'Enterprise (negotiated)';
-      if (historyDays.value === null) return 'Unlimited';
+      if (historyDays.value === null) return copy('historyNotSpecified', '—');
       return `${historyDays.value} days`;
     });
     const devicesSummary = computed(() => {
@@ -766,6 +765,7 @@ export default {
         cancelText: translations.value?.dialog?.cancel || 'Cancel',
         okVariant: 'danger',
         onConfirm: async () => {
+          triggerInteractionHaptic('danger');
           try {
             await admin.removeMember(member.userId);
           } catch (err) {
@@ -789,6 +789,7 @@ export default {
         cancelText: translations.value?.dialog?.cancel || 'Cancel',
         okVariant: 'danger',
         onConfirm: async () => {
+          triggerInteractionHaptic('danger');
           try {
             await admin.revoke(session.idHash);
           } catch (err) {

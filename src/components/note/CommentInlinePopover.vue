@@ -7,7 +7,7 @@
     placement="bottom-start"
     @update:model-value="onOpenChange"
   >
-    <div data-testid="inline-popover" class="w-[320px] max-w-[86vw]">
+    <div data-testid="inline-popover" class="w-[320px] max-w-[86vw] motion-spring-enter">
       <div class="flex items-center gap-2 px-3 pt-2.5">
         <div class="flex -space-x-1.5">
           <ui-user-avatar
@@ -98,6 +98,7 @@
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useCommentStore } from '@/store/comment';
 import { useAccountStore } from '@/store/account';
+import { triggerSelectionHaptic } from '@/lib/native/haptics';
 import ReactionBar from '@/components/note/ReactionBar.vue';
 
 function escapeAttr(s) {
@@ -166,6 +167,7 @@ export default {
     function onToggleReaction(commentId, emoji) {
       commentStore
         .toggleReaction(commentId, emoji, { baseUrl: accountStore.serverUrl })
+        .then(() => triggerSelectionHaptic())
         .catch((err) => console.error('[comment] Failed to toggle reaction from popover:', err));
     }
 
@@ -180,6 +182,7 @@ export default {
           baseUrl: accountStore.serverUrl,
         });
         replyText.value = '';
+        triggerSelectionHaptic();
       } catch (err) {
         console.error('[comment] Failed to reply from popover:', err);
       }
@@ -198,6 +201,7 @@ export default {
         await commentStore.toggleResolve(thread.value.id, {
           baseUrl: accountStore.serverUrl,
         });
+        triggerSelectionHaptic();
       } catch (err) {
         console.error('[comment] Failed to toggle resolve from popover:', err);
       }

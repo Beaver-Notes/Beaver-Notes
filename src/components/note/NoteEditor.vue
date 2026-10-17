@@ -534,17 +534,23 @@ export default {
   -webkit-box-decoration-break: clone;
   cursor: pointer;
   position: relative;
-  transition: background 140ms var(--ease-standard);
+  transition:
+    background 140ms var(--ease-standard),
+    outline-color 140ms var(--ease-standard);
 }
 .comment-highlight:hover {
   background: rgba(254, 240, 138, 0.62);
+  outline: 2px solid hsl(var(--twc-primary) / 0.35);
+  outline-offset: 2px;
 }
-/* active thread (clicked in sidebar) */
+/* active thread (clicked in sidebar) — ring matches the sidebar card's
+  MARK_ACTIVE_CLASSES outline-primary/2/offset-2 flow */
 .comment-highlight.is-active,
 .comment-highlight[data-active='true'] {
   background: rgba(254, 249, 195, 0.95);
   border-bottom-color: #eab308;
-  box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.14);
+  outline: 2px solid hsl(var(--twc-primary) / 0.6);
+  outline-offset: 2px;
 }
 .comment-highlight[data-comment-id]::after {
   content: '';
@@ -571,19 +577,29 @@ export default {
 }
 :root.dark .comment-highlight:hover {
   background: rgba(202, 138, 4, 0.32);
+  outline-color: hsl(var(--twc-primary) / 0.35);
+}
+:root.dark .comment-highlight.is-active,
+:root.dark .comment-highlight[data-active='true'] {
+  outline-color: hsl(var(--twc-primary) / 0.6);
 }
 
+/* Version preview: blueprint pill styling. Structure/classes are the CE
+   contract; only the look is tuned here. */
 .version-preview-banner {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 0 0 12px;
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 9999px;
   border: 1px solid hsl(var(--twc-primary) / 0.35);
   background: hsl(var(--twc-primary) / 0.08);
   font-size: 0.8rem;
   color: rgb(82 82 91);
+  transition:
+    opacity var(--motion-base) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
 }
 .version-preview-banner__label {
   flex: 1;
@@ -593,11 +609,17 @@ export default {
   border: 1px solid hsl(var(--twc-primary) / 0.4);
   background: hsl(var(--twc-primary));
   color: #fff;
-  border-radius: 7px;
-  padding: 3px 10px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
   cursor: pointer;
+  transition:
+    filter var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+.version-preview-banner__action:hover {
+  filter: brightness(1.08);
 }
 .version-preview-banner__exit {
   background: transparent;
@@ -608,6 +630,7 @@ export default {
   position: sticky;
   top: 0;
   z-index: 5;
+  backdrop-filter: blur(6px);
 }
 .version-review-banner__done {
   background: hsl(var(--twc-primary));
@@ -624,12 +647,15 @@ export default {
   border: 1px solid rgba(0, 0, 0, 0.15);
   background: transparent;
   color: inherit;
-  border-radius: 6px;
-  padding: 1px 8px;
-  font-size: 0.7rem;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 0.68rem;
   font-weight: 600;
   line-height: 1.5;
   cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
 }
 .version-preview-chunk__revert {
   border-color: rgba(239, 68, 68, 0.4);
@@ -645,6 +671,41 @@ export default {
 .version-preview-added {
   background: rgba(34, 197, 94, 0.18);
   border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+/* Whole added block (list, paragraph, …) as a soft green pill. */
+.version-preview-added-block {
+  position: relative;
+  background: rgba(34, 197, 94, 0.14);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.3);
+}
+/* Format/attribute-only delta: dashed inline marker. */
+.version-preview-attr {
+  outline: 1.5px dashed rgba(168, 162, 158, 0.7);
+  outline-offset: 1px;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+/* Ghost preview of deleted structured content (image, block, …). */
+.version-preview-ghost {
+  display: block;
+  margin: 4px 0;
+  padding: 4px 8px;
+  border: 1.5px dashed rgba(239, 68, 68, 0.5);
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.06);
+  opacity: 0.75;
+  max-width: 100%;
+  overflow: hidden;
+  cursor: progress;
+  transition: opacity var(--motion-base) var(--ease-standard);
+}
+.version-preview-ghost > * {
+  pointer-events: none;
+  max-width: 100%;
 }
 .version-preview-removed {
   background: rgba(239, 68, 68, 0.14);
@@ -659,7 +720,126 @@ export default {
 :root.dark .version-preview-banner__exit {
   border-color: rgba(255, 255, 255, 0.2);
 }
+:root.dark .version-preview-attr {
+  outline-color: rgba(120, 113, 108, 0.9);
+}
+:root.dark .version-preview-ghost {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(248, 113, 113, 0.08);
+}
+:root.dark .version-preview-added-block {
+  background: rgba(34, 197, 94, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.35);
+}
 :root.dark .version-preview-removed {
+  color: #fca5a5;
+}
+/* Blueprint legend: a static row inside the banner naming each mark category
+   with the same swatch treatment the marks themselves use. No transitions. */
+.version-preview-banner {
+  flex-wrap: wrap;
+}
+.version-preview-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: inherit;
+}
+.version-preview-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.version-preview-legend__swatch {
+  flex-shrink: 0;
+  width: 14px;
+  line-height: 1;
+}
+.version-preview-legend__swatch--added {
+  height: 9px;
+  border-radius: 3px;
+  background: rgba(34, 197, 94, 0.18);
+}
+.version-preview-legend__swatch--removed {
+  width: auto;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #b91c1c;
+  text-decoration: line-through;
+}
+.version-preview-legend__swatch--format {
+  height: 9px;
+  border-radius: 3px;
+  outline: 1.5px dashed rgba(168, 162, 158, 0.7);
+  outline-offset: 0;
+}
+:root.dark .version-preview-legend__swatch--removed {
+  color: #fca5a5;
+}
+:root.dark .version-preview-legend__swatch--format {
+  outline-color: rgba(120, 113, 108, 0.9);
+}
+/* Category chips floating at each block/attr mark's start position. */
+.version-preview-label-anchor {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+  vertical-align: baseline;
+}
+.version-preview-block-label,
+.version-preview-attr-label {
+  position: absolute;
+  top: -2px;
+  left: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+.version-preview-block-label {
+  background: rgba(34, 197, 94, 0.18);
+  color: #166534;
+}
+.version-preview-attr-label {
+  background: rgba(245, 245, 244, 0.8);
+  color: rgb(115 115 115);
+  outline: 1.5px dashed rgba(168, 162, 158, 0.7);
+  outline-offset: 0;
+}
+:root.dark .version-preview-block-label {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+}
+:root.dark .version-preview-attr-label {
+  background: rgba(23, 23, 23, 0.8);
+  color: #a8a29e;
+  outline-color: rgba(120, 113, 108, 0.9);
+}
+/* Removed-block ghost carries its own "Removed" chip above the slice. */
+.version-preview-ghost__label {
+  display: block;
+  width: fit-content;
+  margin: 0 0 4px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1.6;
+  pointer-events: none;
+}
+:root.dark .version-preview-ghost__label {
+  background: rgba(248, 113, 113, 0.14);
   color: #fca5a5;
 }
 :root.dark .version-preview-chunk__revert {
@@ -668,6 +848,44 @@ export default {
 }
 :root.dark .version-preview-chunk__btn {
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Added file cards (node views) use opaque neutral backgrounds that would
+   hide the added pill entirely; cut through so the tint shows. */
+.version-preview-added-block div[class*='bg-neutral'] {
+  background-color: transparent !important;
+}
+/* Ghosted removed file blocks serialize to a bare span with the file's data
+   attributes; give it the same dashed red ghost shape as other structured
+   deleted content, named by its data-file-name. */
+.version-preview-ghost span[data-src] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 4px 0;
+  padding: 8px 12px;
+  border: 1px dashed rgba(239, 68, 68, 0.5);
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.version-preview-ghost span[data-src]::before {
+  content: '📄';
+}
+.version-preview-ghost span[data-src]::after {
+  content: attr(data-file-name);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root.dark .version-preview-ghost span[data-src] {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fca5a5;
 }
 
 /* Live collaboration attribution: translucent author tint + inline chip. */

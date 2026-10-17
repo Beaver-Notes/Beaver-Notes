@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   revokeCalls: [],
   generateCalls: [],
   confirm: [],
+  haptics: [],
   errorRef: null,
 }));
 
@@ -24,6 +25,11 @@ vi.mock('@/lib/dialog', () => ({
     alert: vi.fn(),
     prompt: vi.fn(),
   }),
+}));
+
+vi.mock('@/lib/native/haptics', () => ({
+  triggerInteractionHaptic: (...a) => { state.haptics.push(a); },
+  triggerSelectionHaptic: vi.fn(),
 }));
 
 vi.mock('@/composable/useNoteSharing', async () => {
@@ -66,6 +72,11 @@ vi.mock('@/store/workspace', () => ({
   useWorkspaceStore: () => ({ activeId: 'ws-1' }),
 }));
 
+// blueprint-fidelity rename: ShareModal now resolves `Share "<title>"` via the note store
+vi.mock('@/store/note', () => ({
+  useNoteStore: () => ({ data: {} }),
+}));
+
 import ShareModal from '../ShareModal.vue';
 
 describe('ShareModal', () => {
@@ -86,6 +97,7 @@ describe('ShareModal', () => {
     state.revokeCalls.length = 0;
     state.generateCalls.length = 0;
     state.confirm.length = 0;
+    state.haptics.length = 0;
     if (state.errorRef) state.errorRef.value = '';
   });
 
@@ -150,7 +162,7 @@ describe('ShareModal', () => {
       { name: 'bea', title: 'BEA', icon: 'riFileTextFill', handler: vi.fn() },
     ]);
     expect(wrapper.text()).not.toContain('Export');
-    expect(wrapper.text()).toContain('Collaborate');
+    expect(wrapper.text()).toContain('People with access');
   });
 
   it('keeps invite-link creation enabled when the account email is unverified', async () => {
@@ -312,5 +324,23 @@ describe('ShareModal', () => {
 
     expect(wrapper.text()).toContain(friendly);
     expect(wrapper.text()).not.toContain(raw);
+  });
+
+  it('plays haptics on successful invite and collaborator removal', async () => {
+    state.collaborators = [
+      { userId: 'u2', username: 'alice', email: 'alice@example.com', role: 'editor' },
+    ];
+    const wrapper = mountModal();
+    await flushPromises();
+
+    wrapper.vm.inviteInput = 'tester@example.com';
+    await wrapper.vm.handleInvite();
+    await flushPromises();
+    expect(state.haptics).toEqual([['noteCreate']]);
+
+    wrapper.vm.handleRemove(state.collaborators[0]);
+    await state.confirm[0].onConfirm();
+    await flushPromises();
+    expect(state.haptics).toEqual([['noteCreate'], ['delete']]);
   });
 });

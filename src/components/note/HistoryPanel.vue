@@ -53,19 +53,29 @@
               {{ tr.clearActivity || 'Clear activity' }}
             </button>
             <div
-              class="flex items-center gap-0.5 rounded-xl bg-neutral-100 p-0.5 dark:bg-neutral-800"
+              class="relative flex items-center rounded-full bg-neutral-100 p-0.5 dark:bg-neutral-800"
               role="tablist"
               :aria-label="tr.history || 'History'"
             >
+              <!-- Sliding active-segment thumb; dir-aware so RTL mirrors it -->
+              <span
+                aria-hidden="true"
+                class="absolute inset-y-0.5 start-0.5 w-[calc(50%-2px)] rounded-full bg-white shadow-sm dark:bg-neutral-900 transition-transform duration-300 ease-[var(--ease-spring)] motion-reduce:transition-none"
+                :class="
+                  tab === 'history'
+                    ? 'translate-x-0'
+                    : 'ltr:translate-x-full rtl:-translate-x-full'
+                "
+              ></span>
               <button
                 type="button"
                 role="tab"
                 :aria-selected="tab === 'history'"
                 @click="tab = 'history'"
-                class="h-8 max-md:h-9 rounded-lg px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
+                class="relative z-10 h-8 max-md:h-9 w-16 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
                 :class="
                   tab === 'history'
-                    ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-900 dark:text-neutral-100'
+                    ? 'text-neutral-900 dark:text-neutral-100'
                     : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200'
                 "
               >
@@ -77,10 +87,10 @@
                 data-testid="history-activity-tab"
                 :aria-selected="tab === 'activity'"
                 @click="tab = 'activity'"
-                class="h-8 max-md:h-9 rounded-lg px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
+                class="relative z-10 h-8 max-md:h-9 w-16 rounded-full text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary"
                 :class="
                   tab === 'activity'
-                    ? 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-900 dark:text-neutral-100'
+                    ? 'text-neutral-900 dark:text-neutral-100'
                     : 'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200'
                 "
               >
@@ -135,10 +145,10 @@
             <div class="flex flex-col md:flex-row-reverse">
               <!-- Version details -->
               <transition
-                enter-active-class="transition-all duration-200 ease-out"
+                enter-active-class="transition-all duration-300 ease-[var(--ease-spring)] motion-reduce:transition-none"
                 enter-from-class="opacity-0 max-md:translate-y-2 md:translate-x-4"
                 enter-to-class="opacity-100 md:translate-x-0"
-                leave-active-class="transition-[transform,opacity] duration-150 ease-out"
+                leave-active-class="transition-all duration-150 ease-out motion-reduce:transition-none"
                 leave-from-class="opacity-100 md:translate-x-0"
                 leave-to-class="opacity-0 max-md:translate-y-2 md:translate-x-4"
               >
@@ -151,24 +161,25 @@
                   <div class="space-y-3 p-3">
                     <div class="flex items-start justify-between gap-2">
                       <div class="min-w-0">
-                        <p
-                          class="text-sm font-semibold text-neutral-900 dark:text-neutral-100"
+                        <span
+                          class="inline-flex max-w-full items-center rounded-full bg-neutral-900 px-2.5 py-1 text-xs font-semibold text-white dark:bg-white dark:text-neutral-900"
                         >
                           {{ tr.version || 'Version' }}
                           <span data-testid="history-panel-title">{{
                             filteredCommits.length -
                             history.selectedCommitIndex.value
                           }}</span>
-                        </p>
+                        </span>
                         <p
                           data-testid="history-panel-meta"
-                          class="text-xs text-neutral-500 dark:text-neutral-400"
+                          class="truncate text-xs text-neutral-500 dark:text-neutral-400"
                         >
-                          {{ formatDateTime(selectedCommitData.createdAt) }}
-                          <template v-if="selectedCommitData.authorName">
-                            &middot;
-                            {{ selectedCommitData.authorName }}</template
-                          >
+                          {{ versionsCountLabel }}<template
+                            v-if="selectedCommitData.authorName"
+                            >{{ selectedCommitData.authorName }} &middot;
+                          </template>{{
+                            formatDateTime(selectedCommitData.createdAt)
+                          }}
                         </p>
                       </div>
                       <button
@@ -180,22 +191,27 @@
                       </button>
                     </div>
 
-                    <p class="text-xs text-neutral-600 dark:text-neutral-300">
-                      {{ wordCount.toLocaleString() }}
-                      {{ (tr.words || 'Words').toLowerCase() }}
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span
+                        class="inline-flex items-center rounded-full bg-neutral-200/70 px-2 py-0.5 text-[11px] font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+                      >
+                        {{ wordCount.toLocaleString() }}
+                        {{ (tr.words || 'Words').toLowerCase() }}
+                      </span>
                       <span
                         v-if="wordDiff !== null && wordDiff !== 0"
-                        class="font-medium"
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
                         :class="
                           wordDiff > 0
-                            ? 'text-primary'
-                            : 'text-red-600 dark:text-red-400'
+                            ? 'bg-primary/10 text-primary'
+                            : 'bg-red-500/10 text-red-600 dark:text-red-400'
                         "
                       >
-                        ({{ wordDiff > 0 ? '+' : ''
-                        }}{{ wordDiff.toLocaleString() }})
+                        {{ wordDiff > 0 ? '+' : '' }}{{
+                          wordDiff.toLocaleString()
+                        }}
                       </span>
-                    </p>
+                    </div>
 
                     <p
                       v-if="snippet"
@@ -208,7 +224,7 @@
                       <ui-button
                         v-if="!showPreview"
                         variant="primary"
-                        class="w-full"
+                        class="motion-press w-full"
                         :loading="previewLoading"
                         @click="startPreview"
                       >
@@ -217,7 +233,7 @@
                       <template v-else>
                         <ui-button
                           variant="primary"
-                          class="w-full"
+                          class="motion-press w-full"
                           @click="
                             $emit('restore', {
                               ...selectedCommitData,
@@ -225,22 +241,22 @@
                             })
                           "
                         >
-                          {{ tr.restore || 'Restore' }}
+                          {{ tr.restoreVersion || 'Restore this version' }}
                         </ui-button>
                         <div class="flex gap-2">
                           <ui-button
                             variant="secondary"
-                            class="flex-1"
+                            class="motion-press flex-1"
                             @click="reviewCommit"
                           >
                             {{ tr.reviewChanges || 'Review changes' }}
                           </ui-button>
                           <ui-button
                             variant="secondary"
-                            class="flex-1"
+                            class="motion-press flex-1"
                             @click="hidePreview"
                           >
-                            {{ tr.hidePreview || 'Hide preview' }}
+                            {{ tr.backToCurrent || tr.hidePreview || 'Back to current' }}
                           </ui-button>
                         </div>
                       </template>
@@ -468,6 +484,16 @@ export default {
 
     const filteredCommits = computed(() => history.filteredCommits.value);
     const activityEntries = computed(() => activity.entries.value);
+
+    // Real version count first in the meta line; only when there is history.
+    const versionsCountLabel = computed(() => {
+      const count = filteredCommits.value.length;
+      if (!count) return '';
+      return (
+        tr.value.versionsCount?.replace('{n}', String(count)) ||
+        `${count} versions · `
+      );
+    });
 
     function fmt(key, params) {
       const raw = tr.value[key] ?? key;
@@ -808,6 +834,16 @@ export default {
         const len =
           (tk.major ? LEN.major : LEN.minor) + LIFT * g + (isSel ? 4 : 0);
 
+        // Blueprint "selected" tick: a soft accent halo behind the solid tick
+        if (isSel) {
+          ctx.lineWidth = 7;
+          ctx.strokeStyle = `rgba(${colors.accent},0.18)`;
+          ctx.beginPath();
+          ctx.moveTo(x, base);
+          ctx.lineTo(x, base - len);
+          ctx.stroke();
+        }
+
         ctx.lineWidth = (isSel ? 3 : 2) + g * 1.2;
         ctx.strokeStyle = isSel
           ? `rgb(${colors.accent})`
@@ -1147,6 +1183,7 @@ export default {
     return {
       history,
       filteredCommits,
+      versionsCountLabel,
       activity,
       activityEntries,
       activityGroups,
