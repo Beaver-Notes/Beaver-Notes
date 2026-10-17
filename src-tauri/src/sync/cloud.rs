@@ -173,6 +173,39 @@ fn ckpt_key(note_id: &str) -> String {
     format!("sync:cloud:ckpt:{note_id}")
 }
 
+/// A note whose updates stay undecryptable (missing shared key, corrupt row)
+/// holds its server checkpoint forever, re-delivering the same rows every
+/// cycle. After `HOLD_CYCLE_LIMIT` consecutive held cycles the checkpoint
+/// advances past the held page so the device keeps making progress; the
+/// server rows are kept — a later key landing (note-scoped `sync:cloud-note`
+/// re-pull) still recovers the content.
+const HOLD_CYCLE_LIMIT: u32 = 3;
+
+fn hold_key(note_id: &str) -> String {
+    format!("sync:hold:{note_id}")
+}
+
+/// Increments the note's held-cycle counter; true when the limit is reached
+/// (the counter is consumed so the next hold starts a fresh cycle).
+fn hold_breach(pool: &DbPool, note: &str) -> bool {
+    let count: u32 = db::db_get(pool, &hold_key(note), None)
+        .ok()
+        .flatten()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let next = count + 1;
+    if next < HOLD_CYCLE_LIMIT {
+        let _ = db::db_set(pool, &hold_key(note), &next.to_string(), None);
+        return false;
+    }
+    let _ = db::db_delete(pool, &hold_key(note));
+    true
+}
+
+fn clear_hold(pool: &DbPool, note: &str) {
+    let _ = db::db_delete(pool, &hold_key(note));
+}
+
 fn pushed_key(note_id: &str) -> String {
     format!("sync:cloud:pushed:{note_id}")
 }
@@ -1176,6 +1209,23 @@ fn decode_append_store(
         fully_decoded_counts(&raw_count, &decoded_count, note)
     };
     if decoded.is_empty() {
+        // Nothing decoded this cycle: advance checkpoints only for fully
+        // decoded notes, or for notes held past the limit so a device whose
+        // keys are missing does not wedge on the same page forever.
+        for (note, cp) in &pending {
+            if fully_decoded(note) {
+                db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
+                clear_hold(pool, note);
+            } else if hold_breach(pool, note) {
+                crate::rs_log!(
+                    "[sync::cloud] note {note}: checkpoint advanced past held updates after {HOLD_CYCLE_LIMIT} cycles; server rows kept"
+                );
+                db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
+            }
+        }
+        for note in &stale {
+            let _ = db::db_delete(pool, &ckpt_key(note));
+        }
         return Ok((Vec::new(), 0));
     }
     // Delta pull: drop updates the stored per-note vector (`sync:vec:{note}`)
@@ -1210,6 +1260,12 @@ fn decode_append_store(
         // checkpoints (data seen, nothing new) but report nothing applied.
         for (note, cp) in &pending {
             if fully_decoded(note) {
+                db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
+                clear_hold(pool, note);
+            } else if hold_breach(pool, note) {
+                crate::rs_log!(
+                    "[sync::cloud] note {note}: checkpoint advanced past held updates after {HOLD_CYCLE_LIMIT} cycles; server rows kept"
+                );
                 db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
             }
         }
@@ -1259,6 +1315,12 @@ fn decode_append_store(
     // not skipped.
     for (note, cp) in &pending {
         if fully_decoded(note) {
+            db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
+            clear_hold(pool, note);
+        } else if hold_breach(pool, note) {
+            crate::rs_log!(
+                "[sync::cloud] note {note}: checkpoint advanced past held updates after {HOLD_CYCLE_LIMIT} cycles; server rows kept"
+            );
             db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
         }
     }
