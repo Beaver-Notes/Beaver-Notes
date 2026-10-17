@@ -183,58 +183,7 @@ describe('useOnboardingFlow.completeAccountStep with an existing folder vault', 
     expect(flow.step.value).toBe('password');
   });
 
-  it('respects an explicit start-fresh choice and stays in create mode', async () => {
-    const flow = makeFlow();
-    flow.goToStep('account');
-    flow.fresh.syncPath = '/existing-vault';
-    hasRemoteVaultKeyParamsMock.mockResolvedValue(true);
-
-    await flow.completeAccountStep();
-    expect(flow.step.value).toBe('password');
-
-    // User explicitly declines the join, moves forward, picks the folder again.
-    flow.startFreshVault();
-    flow.goToStep('account');
-    await flow.completeAccountStep();
-
-    expect(flow.vaultJoinMode.value).toBe(false);
-    expect(flow.step.value).toBe('password');
-  });
-
-  it('confirms before starting a fresh vault and explains the consequence', async () => {
-    const { setDeclinedVaultJoin } = await import(
-      '@/utils/crypto/encryption.js'
-    );
-    const flow = makeFlow();
-    flow.fresh.syncPath = '/existing-vault';
-
-    flow.confirmStartFreshVault();
-
-    expect(dialogState.confirm).toHaveLength(1);
-    expect(dialogState.confirm[0].body).toMatch(/new vault/i);
-    expect(dialogState.confirm[0].body).toMatch(/existing|stops using/i);
-    // Nothing happens until the user confirms.
-    expect(setDeclinedVaultJoin).not.toHaveBeenCalled();
-
-    dialogState.confirm[0].onConfirm();
-
-    expect(flow.vaultJoinMode.value).toBe(false);
-    expect(setDeclinedVaultJoin).toHaveBeenCalledWith('/existing-vault');
-  });
-
-  it('persists the decline marker on start-fresh so the engine pauses', async () => {
-    const { setDeclinedVaultJoin } = await import(
-      '@/utils/crypto/encryption.js'
-    );
-    const flow = makeFlow();
-    flow.fresh.syncPath = '/existing-vault';
-
-    flow.startFreshVault();
-
-    expect(setDeclinedVaultJoin).toHaveBeenCalledWith('/existing-vault');
-  });
-
-  it('publishes fresh params and clears the marker after the passphrase is set (start-fresh)', async () => {
+  it('publishes fresh params and clears the marker after the passphrase is set', async () => {
     const { publishLocalKeyParamsToFolder, setDeclinedVaultJoin } =
       await import('@/utils/crypto/encryption.js');
     const flow = makeFlow();
@@ -242,9 +191,6 @@ describe('useOnboardingFlow.completeAccountStep with an existing folder vault', 
     flow.fresh.syncPath = '/existing-vault';
     hasRemoteVaultKeyParamsMock.mockResolvedValue(true);
 
-    await flow.completeAccountStep();
-    flow.startFreshVault();
-    flow.goToStep('account');
     await flow.completeAccountStep();
 
     flow.encryptionPassword.value = 'password123';

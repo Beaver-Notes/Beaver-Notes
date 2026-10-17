@@ -131,8 +131,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
 
   const vaultJoinMode = ref(false);
 
-  const declinedVaultJoin = ref(false);
-
   async function detectVaultJoin() {
     vaultJoinMode.value = false;
     try {
@@ -168,7 +166,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       if (!detected && fresh.syncPath) {
         detected = await hasRemoteVaultKeyParams();
       }
-      vaultJoinMode.value = detected && !declinedVaultJoin.value;
+      vaultJoinMode.value = detected;
       logger.debug('[onboarding][vault-detect] result:', {
         detected: !!detected,
         joinMode: vaultJoinMode.value,
@@ -283,32 +281,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     }
   }
 
-  function startFreshVault() {
-    declinedVaultJoin.value = true;
-
-    setDeclinedVaultJoin(fresh.syncPath).catch(() => {});
-    vaultJoinMode.value = false;
-    encryptionPassword.value = '';
-    encryptionConfirmPassword.value = '';
-    encryptionPasswordError.value = '';
-  }
-
-  // Starting fresh is destructive to this device's link to the existing vault,
-  // so ask first and spell out what happens to the vault that stays behind.
-  function confirmStartFreshVault() {
-    const t = translations.value;
-    dialog.confirm({
-      title: t?.onboarding?.startFreshTitle || 'Start a new vault?',
-      body:
-        t?.onboarding?.startFreshBody ||
-        'A new vault key is created for this device. Your existing vault stays as it is, so notes shared under the old vault will not be readable here.',
-      icon: 'riShieldKeyholeLine',
-      okText: t?.onboarding?.startFresh || 'Start fresh',
-      cancelText: t?.dialog?.cancel || 'Cancel',
-      onConfirm: () => startFreshVault(),
-    });
-  }
-
   async function setupEncryptionPassword() {
     encryptionPasswordError.value = '';
     const t = translations.value;
@@ -337,7 +309,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           result.error || 'Failed to set up encryption.';
         return;
       }
-      declinedVaultJoin.value = false;
       await publishLocalKeyParamsToFolder();
       await setDeclinedVaultJoin('').catch(() => {});
       goToNextStep();
@@ -900,7 +871,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
       });
       if (canceled || !dir) return;
       fresh.syncPath = dir;
-      declinedVaultJoin.value = false;
       setDeclinedVaultJoin('').catch(() => {});
     } catch (error) {
       state.error = error?.message || String(error);
@@ -1102,8 +1072,6 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     vaultJoinMode,
     detectVaultJoin,
     adoptVaultPassword,
-    startFreshVault,
-    confirmStartFreshVault,
 
     trackedSteps,
     showStepProgress,

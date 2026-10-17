@@ -526,34 +526,34 @@
                           'Signed in'
                         }}
                       </p>
-                      <p
-                        class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-                      >
-                        {{ syncLocationCopy }}
-                      </p>
                     </div>
 
-                    <!-- Email verification lives inside this step, not in a global pill -->
+                    <!-- One status line: the most urgent thing that is
+                         actually true about this account, and nothing else. -->
                     <div
-                      v-if="accountStore.profile?.emailVerified === false"
-                      class="mt-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+                      class="mt-4 rounded-xl border px-4 py-3"
+                      :class="signedInStatus.box"
                     >
-                      <div class="flex items-center gap-2 justify-center">
+                      <div class="flex items-center gap-2.5">
                         <v-remixicon
-                          name="riMailLine"
-                          class="text-amber-600 dark:text-amber-400"
+                          :name="signedInStatus.icon"
                           size="18"
+                          class="shrink-0"
+                          :class="[
+                            signedInStatus.iconClass,
+                            { 'animate-spin': signedInStatus.spin },
+                          ]"
                         />
                         <p
-                          class="text-sm font-medium text-amber-700 dark:text-amber-300"
+                          class="min-w-0 flex-1 text-left text-sm font-medium"
+                          :class="signedInStatus.textClass"
                         >
-                          Please verify your email. Check your inbox for a
-                          verification link.
+                          {{ signedInStatus.text }}
                         </p>
-                      </div>
-                      <div class="flex justify-center mt-3">
+
                         <button
-                          class="rounded-full px-4 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          v-if="signedInStatus.key === 'verify'"
+                          class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           :disabled="verifySending || verifyCooldown > 0"
                           @click="handleResendVerification"
                         >
@@ -565,99 +565,49 @@
                                 : 'Resend email'
                           }}
                         </button>
-                      </div>
-                    </div>
 
-                    <!-- Seeding Progress -->
-                    <div
-                      v-if="accountStore.seedStatus === 'seeding'"
-                      class="mt-4 p-4 rounded-xl bg-primary/5 border border-primary/20"
-                    >
-                      <div class="flex items-center gap-3 mb-3">
-                        <div class="animate-spin">
-                          <v-remixicon
-                            name="riLoader4Line"
-                            class="text-primary"
-                            size="20"
-                          />
-                        </div>
-                        <p
-                          class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                        >
-                          Setting up cloud sync...
-                        </p>
-                      </div>
-                      <div class="space-y-2">
-                        <div
-                          class="flex justify-between text-xs text-neutral-600 dark:text-neutral-400"
-                        >
-                          <span>{{ seedPhaseLabel }}</span>
-                          <span
-                            >{{ accountStore.seedProgress.uploaded }} /
-                            {{ accountStore.seedProgress.total }}</span
-                          >
-                        </div>
-                        <div
-                          class="h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
-                        >
-                          <div
-                            class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
-                            :style="{ width: seedProgressPercent + '%' }"
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      v-else-if="accountStore.seedStatus === 'done'"
-                      class="mt-4 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                    >
-                      <div class="flex items-center gap-2 justify-center">
-                        <v-remixicon
-                          name="riCheckLine"
-                          class="text-green-600 dark:text-green-400"
-                          size="18"
-                        />
-                        <p
-                          class="text-sm font-medium text-green-700 dark:text-green-300"
-                        >
-                          Cloud sync ready
-                        </p>
-                      </div>
-                    </div>
-
-                    <div
-                      v-else-if="accountStore.seedStatus === 'error'"
-                      class="mt-4 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-                    >
-                      <div
-                        class="flex flex-wrap items-center justify-center gap-2 text-center"
-                      >
-                        <v-remixicon
-                          name="riErrorWarningLine"
-                          class="text-red-600 dark:text-red-400"
-                          size="18"
-                        />
-                        <p
-                          class="text-sm font-medium text-red-700 dark:text-red-300"
-                        >
-                          {{ accountStore.seedError || 'Sync setup failed.' }}
-                        </p>
                         <ui-button
+                          v-if="signedInStatus.key === 'error'"
                           size="sm"
+                          class="shrink-0"
                           :loading="seedRetrying"
                           :disabled="seedRetrying"
                           @click="retrySeed"
                         >
                           {{ tr.retrySyncSetup || 'Retry' }}
                         </ui-button>
-                        <ui-button size="sm" @click="copyLogPath">
+
+                        <button
+                          v-if="signedInStatus.key === 'error'"
+                          class="shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+                          @click="copyLogPath"
+                        >
                           {{
                             logCopied
                               ? tr.logPathCopied || 'Log path copied'
                               : tr.copyLogPath || 'Copy log path'
                           }}
-                        </ui-button>
+                        </button>
+                      </div>
+
+                      <div
+                        v-if="signedInStatus.key === 'seeding'"
+                        class="mt-2.5 flex items-center gap-2"
+                      >
+                        <div
+                          class="h-1.5 flex-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+                        >
+                          <div
+                            class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                            :style="{ width: seedProgressPercent + '%' }"
+                          ></div>
+                        </div>
+                        <span
+                          class="shrink-0 text-xs text-neutral-500 dark:text-neutral-400"
+                        >
+                          {{ accountStore.seedProgress.uploaded }} /
+                          {{ accountStore.seedProgress.total }}
+                        </span>
                       </div>
                     </div>
                   </template>
@@ -1157,19 +1107,6 @@
                       "
                       autofocus
                     />
-
-                    <button
-                      class="mt-1 text-xs text-primary hover:underline"
-                      type="button"
-                      data-testid="vault-start-fresh"
-                      :disabled="encryptionPasswordLoading"
-                      @click="confirmStartFreshVault"
-                    >
-                      {{
-                        translations.onboarding?.startFresh ||
-                        'Start fresh with a new vault instead'
-                      }}
-                    </button>
                   </template>
 
                   <p
@@ -1415,6 +1352,66 @@ export default {
       const { uploaded, total } = accountStore.seedProgress || {};
       if (!total) return 0;
       return Math.min(100, Math.round((uploaded / total) * 100));
+    });
+
+    const SIGNED_IN_STATUS_TONES = {
+      error: {
+        box: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+        iconClass: 'text-red-600 dark:text-red-400',
+        textClass: 'text-red-700 dark:text-red-300',
+      },
+      seeding: {
+        box: 'bg-primary/5 border-primary/20',
+        iconClass: 'text-primary',
+        textClass: 'text-neutral-800 dark:text-neutral-200',
+      },
+      verify: {
+        box: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800',
+        iconClass: 'text-amber-600 dark:text-amber-400',
+        textClass: 'text-amber-700 dark:text-amber-300',
+      },
+      done: {
+        box: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
+        iconClass: 'text-green-600 dark:text-green-400',
+        textClass: 'text-green-700 dark:text-green-300',
+      },
+      info: {
+        box: 'bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700',
+        iconClass: 'text-neutral-500 dark:text-neutral-400',
+        textClass: 'text-neutral-600 dark:text-neutral-400',
+      },
+    };
+
+    // The signed-in step shows one line, not a stack of alerts: whatever is
+    // most urgent about this account right now.
+    const signedInStatus = computed(() => {
+      const seedStatus = accountStore.seedStatus;
+      let key = 'info';
+      let icon = 'riCloudLine';
+      let text = flow.syncLocationCopy.value;
+      let spin = false;
+
+      if (seedStatus === 'error') {
+        key = 'error';
+        icon = 'riErrorWarningLine';
+        text = accountStore.seedError || 'Sync setup failed.';
+      } else if (seedStatus === 'seeding') {
+        key = 'seeding';
+        icon = 'riLoader4Line';
+        spin = true;
+        text = seedPhaseLabel.value;
+      } else if (accountStore.profile?.emailVerified === false) {
+        key = 'verify';
+        icon = 'riMailLine';
+        text =
+          'Please verify your email. Check your inbox for a verification link.';
+      } else if (seedStatus === 'done') {
+        key = 'done';
+        icon = 'riCheckLine';
+        text = 'Cloud sync ready';
+      }
+
+      return { key, icon, spin, text, ...SIGNED_IN_STATUS_TONES[key] };
     });
 
     // Inline recovery for a failed seed: same retry + log-path affordances as
@@ -1842,6 +1839,7 @@ export default {
       footerButtons,
       seedPhaseLabel,
       seedProgressPercent,
+      signedInStatus,
       seedRetrying,
       retrySeed,
       logCopied,
