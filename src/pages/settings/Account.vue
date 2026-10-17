@@ -1,6 +1,81 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="mb-14 w-full max-w-xl space-y-6">
+    <!-- ───────────── Accounts ───────────── -->
+    <section v-if="accounts.length && !addingAccount" class="space-y-2">
+      <h2 class="acct-heading">
+        {{ translations.account?.accounts || 'Accounts' }}
+      </h2>
+
+      <ui-card padding="p-0">
+        <div
+          v-for="(acct, index) in accounts"
+          :key="acct.id"
+          class="acct-row flex items-center gap-3"
+          :class="{ 'acct-divided': index > 0 }"
+        >
+          <button
+            class="flex min-w-0 flex-1 items-center gap-3 text-left"
+            :data-testid="
+              acct.id === activeAccountId
+                ? 'account-manager-active'
+                : 'account-manager-option'
+            "
+            @click="selectAccount(acct.id)"
+          >
+            <span
+              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm leading-none uppercase"
+              :class="
+                acct.id === activeAccountId
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800'
+              "
+            >
+              {{ accountInitial(acct) }}
+            </span>
+            <span class="min-w-0 flex-1">
+              <span
+                class="block truncate text-sm"
+                :class="
+                  acct.id === activeAccountId
+                    ? 'font-medium text-primary'
+                    : 'text-neutral-700 dark:text-neutral-300'
+                "
+              >
+                {{ accountLabel(acct) }}
+              </span>
+              <span class="acct-desc block truncate">
+                {{ planLabel(accountPlan(acct)) }} · {{ acct.serverUrl }}
+              </span>
+            </span>
+            <v-remixicon
+              v-if="acct.id === activeAccountId"
+              name="riCheckLine"
+              size="16"
+              class="shrink-0 text-primary"
+            />
+          </button>
+
+          <button
+            class="shrink-0 text-xs font-medium text-neutral-500 transition-colors hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400"
+            @click="promptSignOutAccount(acct)"
+          >
+            {{ translations.account?.signOut || 'Sign out' }}
+          </button>
+        </div>
+
+        <div class="acct-row acct-divided">
+          <button
+            class="flex items-center gap-2 text-sm font-medium text-primary"
+            @click="addAccount"
+          >
+            <v-remixicon name="riAddLine" size="16" />
+            {{ translations.account?.addAccount || 'Add account' }}
+          </button>
+        </div>
+      </ui-card>
+    </section>
+
     <!-- ───────────── Signed out ───────────── -->
     <section
       v-if="accountStore.isAnonymous || addingAccount"
@@ -262,6 +337,12 @@
           <p class="text-sm text-red-500" role="alert">
             {{ accountStore.error }}
           </p>
+        </div>
+
+        <div v-if="addingAccount" class="acct-divided px-4 py-3">
+          <ui-button @click="cancelAddAccount">
+            {{ translations.account?.cancel || 'Cancel' }}
+          </ui-button>
         </div>
       </ui-card>
     </section>
@@ -1096,6 +1177,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
+import {
+  signOutAccount,
+  switchAccount,
+} from '@/composable/useAccountAuth';
+import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES, planLabel, planLimitsText } from '@/lib/api/types';
 import {
@@ -1744,6 +1830,46 @@ export default {
     // switcher can add a second account without signing the first one out.
     const addingAccount = computed(() => route.query.addAccount === '1');
 
+    const accounts = computed(() => listAccounts());
+    const activeAccountId = computed(() => getActiveAccountId());
+
+    // Read the account record, not the store, so each row is right for its own
+    // account rather than for whichever one happens to be active.
+    function accountLabel(acct) {
+      return acct?.label || acct?.email || 'Account';
+    }
+    function accountInitial(acct) {
+      return accountLabel(acct).trim().charAt(0) || '?';
+    }
+    function accountPlan(acct) {
+      const plan = acct?.subscription?.plan || acct?.planLimits?.plan;
+      return typeof plan === 'string' ? plan : '';
+    }
+
+    async function selectAccount(accountId) {
+      if (accountId === activeAccountId.value) return;
+      await switchAccount({ accountId });
+    }
+
+    function promptSignOutAccount(acct) {
+      dialog.confirm({
+        title: 'Sign out?',
+        body: `${accountLabel(acct)} stops syncing. Notes already on this device stay, and you can sign back in later.`,
+        okText: 'Sign out',
+        cancelText: 'Cancel',
+        icon: 'riLogoutBoxRLine',
+        onConfirm: () => signOutAccount(acct.id),
+      });
+    }
+
+    function addAccount() {
+      router.push({ path: '/settings/account', query: { addAccount: '1' } });
+    }
+
+    function cancelAddAccount() {
+      router.push({ path: '/settings/account' });
+    }
+
     return {
       translations,
       tr,
@@ -1754,6 +1880,15 @@ export default {
       planLimitsText,
       accountStore,
       addingAccount,
+      accounts,
+      activeAccountId,
+      accountLabel,
+      accountInitial,
+      accountPlan,
+      selectAccount,
+      promptSignOutAccount,
+      addAccount,
+      cancelAddAccount,
       seedPhaseLabel,
       seedProgressPercent,
       showVaultImportPrompt,
