@@ -321,10 +321,15 @@ export async function backfillNotePreviews() {
       const content = await yXmlFragmentToProsemirrorJSON(
         tmp.getXmlFragment('content'),
       );
+      // The store may have moved while the content was decoding (note
+      // deleted, or a fresh meta write landed): carry the result onto the
+      // live entry and skip when it is gone.
+      const live = noteStore.data[id];
+      if (!live) continue;
       if (!content || !content.content?.length) {
         if (note.title) {
-          await saveNote(id, note);
-          syncNoteMeta(note);
+          await saveNote(id, live);
+          syncNoteMeta(live);
         }
         continue;
       }
@@ -334,10 +339,10 @@ export async function backfillNotePreviews() {
         content,
         preview: previewText,
       });
-      note.cardPreview = cardPreview;
-      note.preview = preview;
-      await saveNote(id, note);
-      syncNoteMeta(note);
+      live.cardPreview = cardPreview;
+      live.preview = preview;
+      await saveNote(id, live);
+      syncNoteMeta(live);
     } catch (err) {
       console.warn('[meta-yjs] preview backfill failed for', id, err);
     } finally {
