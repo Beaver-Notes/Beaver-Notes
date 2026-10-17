@@ -53,10 +53,6 @@ pub(crate) struct EncryptionSubmitResult {
     pub(crate) state: EncryptionStateResult,
 }
 
-fn sync_scope_path(sync_path: &str) -> PathBuf {
-    PathBuf::from(sync_path)
-}
-
 fn is_ignored_asset_entry(name: &str) -> bool {
     name.is_empty() || name.starts_with('.') || name == "Thumbs.db"
 }

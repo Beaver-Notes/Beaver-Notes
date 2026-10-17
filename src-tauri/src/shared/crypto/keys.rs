@@ -56,9 +56,6 @@ pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
 /// AAD binding for note-content encryption. Bound to note identity to prevent
 /// cross-note ciphertext transplantation.
 pub(crate) const NOTE_AAD: &str = "beaver-notes:note-content:v1";
-fn note_aad(note_key: &str) -> String {
-    format!("{}:{}", NOTE_AAD, note_key)
-}
 /// Envelope version for raw-byte note payloads. v6 encrypts raw UTF-8 bytes
 /// directly instead of round-tripping through serde_json. v3 envelopes are
 /// still decrypted for backward compatibility.

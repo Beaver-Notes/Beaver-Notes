@@ -129,7 +129,7 @@
 </template>
 
 <script>
-import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import SharePreviewModal from '@/components/share/SharePreviewModal.vue';

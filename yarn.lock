@@ -3782,7 +3782,7 @@ lazystream@^1.0.0:
   dependencies:
     readable-stream "^2.0.5"
 
-lib0@^0.2.100, lib0@^0.2.102, lib0@^0.2.42, lib0@^0.2.85, lib0@^0.2.99:
+lib0@^0.2.100, lib0@^0.2.102, lib0@^0.2.85, lib0@^0.2.99:
   version "0.2.117"
   resolved "https://registry.yarnpkg.com/lib0/-/lib0-0.2.117.tgz#6c3f926475d28904af05b590703cbbbc29475716"
   integrity sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==
@@ -5833,7 +5833,7 @@ wrap-ansi@^9.0.0:
     string-width "^7.0.0"
     strip-ansi "^7.1.0"
 
-ws@^8, ws@^8.21.0:
+ws@^8.21.0:
   version "8.21.3"
   resolved "https://registry.yarnpkg.com/ws/-/ws-8.21.3.tgz#660b4faddb6a3e575c86e078126919961f4de4fc"
   integrity sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==
@@ -5842,13 +5842,6 @@ xml-naming@^0.3.0:
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/xml-naming/-/xml-naming-0.3.0.tgz#46c1e18bfe2858479982dd2accf34d16e749eda2"
   integrity sha512-ghig2TBE/H11aOVgmahA3MhimvkBr6JIYknH/Dhdk10nXwdbIqBJsbfMxpvFPG8bAw77gN29aQWvKpmVoPlvPQ==
-
-y-prosemirror@1.2.6:
-  version "1.2.6"
-  resolved "https://registry.yarnpkg.com/y-prosemirror/-/y-prosemirror-1.2.6.tgz#a324991cc158a6ff3b3f5902111b3dbf8928e603"
-  integrity sha512-rGz8kX4v/uFJrLaqZvsezY1JGN/zTDSPMO76zRbNcpE63OEiw2PBCEQi9ZlfbEwgCMoeJLUT+otNyO/Oj73TGQ==
-  dependencies:
-    lib0 "^0.2.42"
 
 y-protocols@^1.0.5, y-protocols@^1.0.7:
   version "1.0.7"

@@ -226,7 +226,6 @@ import {
   isBiometricAvailable,
   authenticateWithBiometrics,
 } from '@/lib/native/biometric.js';
-import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';

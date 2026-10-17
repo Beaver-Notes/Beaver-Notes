@@ -37,7 +37,7 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { BubbleMenu } from '@tiptap/vue-3/menus';
 import {
   computePosition,

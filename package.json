@@ -72,8 +72,7 @@
     "typescript": "^5.6.0",
     "vite": "^8.2.2",
     "vitest": "^5.0.0",
-    "vue-tsc": "^3.3.7",
-    "ws": "^8"
+    "vue-tsc": "^3.3.7"
   },
   "dependencies": {
     "@choochmeque/tauri-plugin-biometry-api": "0.2.8",
@@ -154,7 +153,6 @@
     "uuid": "^14",
     "vue": "^3.4.6",
     "vue-router": "^4.0.11",
-    "y-prosemirror": "1.2.6",
     "y-protocols": "^1.0.7",
     "y-websocket": "^3.1.0",
     "yjs": "^13.6.31"
