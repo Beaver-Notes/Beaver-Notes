@@ -255,6 +255,24 @@ export async function seedWorkspaceDocFromData(
   return { seededNotes, seededFolders, seededLabels };
 }
 
+/** Reader adoption for a received note: when the meta mirror never carried a
+ * title, take the sharer's authored `title` Y.Text (they author it on every
+ * keystroke). Legacy docs keep the title as an XmlFragment, which getText
+ * rejects — same guard as useNoteYjs's migration path. */
+export function adoptDocTitle(note, doc) {
+  if (!note || note.title || !doc) return false;
+  try {
+    const docTitle = doc.getText('title').toString();
+    if (docTitle) {
+      note.title = docTitle;
+      return true;
+    }
+  } catch {
+    /* legacy XmlFragment title: leave the mirror as-is */
+  }
+  return false;
+}
+
 /**
  * One-time backfill: rebuild missing cardPreview plus preview from Yjs snapshots. Deferred, non-blocking, once per device.
  * Returns true when some snapshots were still missing (the caller should retry; a first pass that ran
@@ -297,10 +315,19 @@ export async function backfillNotePreviews() {
     const tmp = new Y.Doc();
     try {
       Y.applyUpdate(tmp, toUint8Array(snapshot));
+      // A received note whose meta entry never carried a title: adopt the
+      // sharer's authored title instead of leaving the card "Untitled".
+      adoptDocTitle(note, tmp);
       const content = await yXmlFragmentToProsemirrorJSON(
         tmp.getXmlFragment('content'),
       );
-      if (!content || !content.content?.length) continue;
+      if (!content || !content.content?.length) {
+        if (note.title) {
+          await saveNote(id, note);
+          syncNoteMeta(note);
+        }
+        continue;
+      }
 
       const previewText = extractTextFromContent(content);
       const { cardPreview, preview } = buildNotePreview({

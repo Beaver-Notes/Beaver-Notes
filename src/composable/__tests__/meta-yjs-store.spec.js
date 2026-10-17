@@ -201,3 +201,32 @@ describe('seedWorkspaceDocFromData (frontend-led import)', () => {
     expect(yNote.get('title')).toBe('Correct');
   });
 });
+
+describe('adoptDocTitle', () => {
+  it('adopts a missing store title from the doc title', async () => {
+    const { adoptDocTitle } = await import('@/lib/yjs/meta-store.js');
+    const doc = new Y.Doc();
+    doc.getText('title').insert(0, 'Shared note');
+    const note = { title: '' };
+    expect(adoptDocTitle(note, doc)).toBe(true);
+    expect(note.title).toBe('Shared note');
+  });
+
+  it('keeps a real store title untouched', async () => {
+    const { adoptDocTitle } = await import('@/lib/yjs/meta-store.js');
+    const doc = new Y.Doc();
+    doc.getText('title').insert(0, 'Doc title');
+    const note = { title: 'Store title' };
+    expect(adoptDocTitle(note, doc)).toBe(false);
+    expect(note.title).toBe('Store title');
+  });
+
+  it('does not crash on a legacy XmlFragment title doc', async () => {
+    const { adoptDocTitle } = await import('@/lib/yjs/meta-store.js');
+    const doc = new Y.Doc();
+    doc.getXmlFragment('title');
+    const note = { title: '' };
+    expect(adoptDocTitle(note, doc)).toBe(false);
+    expect(note.title).toBe('');
+  });
+});
