@@ -191,10 +191,10 @@ describe('onboarding wizard structure', () => {
     expect(vue).not.toMatch(/useIapBilling/);
   });
 
-  it('Connect footer offers both Continue and Skip', () => {
+  it('Connect footer offers a single continue/skip button', () => {
     const vue = readFileSync('src/pages/Onboarding.vue', 'utf8');
     expect(vue).toMatch(/onboarding-connect-continue/);
-    expect(vue).toMatch(/onboarding-connect-skip/);
+    expect(vue).not.toMatch(/onboarding-connect-skip/);
     expect(vue).toMatch(/flow\.completeAccountStep/);
   });
 

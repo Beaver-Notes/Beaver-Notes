@@ -21,22 +21,22 @@
     <div class="space-y-4">
       <ui-input
         v-model="form.name"
-        :placeholder="placeholder"
-        :label="label"
+        :placeholder="translations.workspaceDialog?.nameLabel || 'Workspace name'"
+        :label="translations.workspaceDialog?.nameLabel || 'Workspace name'"
         class="w-full"
         autofocus
       />
 
       <div>
         <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-          Emoji
+          {{ translations.workspaceDialog?.emojiLabel || 'Emoji' }}
         </label>
-        <div class="grid grid-cols-8 gap-1 max-h-40 overflow-y-auto">
+        <div class="grid grid-cols-10 gap-1 max-h-40 overflow-y-auto">
           <button
             v-for="emoji in EMOJI_ALLOWLIST"
             :key="emoji"
             type="button"
-            class="text-xl p-1.5 rounded-lg transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            class="motion-press text-xl p-1.5 rounded-lg transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             :class="{ 'bg-primary/15 ring-1 ring-primary': emoji === form.emoji }"
             style="
               font-family:
@@ -52,21 +52,45 @@
 
       <div>
         <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-          Color
+          {{ translations.workspaceDialog?.colorLabel || 'Color' }}
         </label>
         <div class="flex flex-wrap gap-2">
           <button
-            v-for="color in COLOR_SWATCHES"
-            :key="color"
+            v-for="swatch in COLOR_PALETTE"
+            :key="swatch.hex"
             type="button"
-            class="w-8 h-8 rounded-lg transition-all duration-150 border-2"
-            :style="{ backgroundColor: color }"
-            :class="{ 'ring-2 ring-offset-2 ring-primary scale-110': color === form.color }"
-            @click="form.color = color"
-            :aria-label="color"
+            class="motion-press w-8 h-8 rounded-lg transition-all duration-150 border-2"
+            :style="{ backgroundColor: swatch.hex }"
+            :class="{ 'ring-2 ring-offset-2 ring-primary scale-110': swatch.hex.toLowerCase() === form.color.toLowerCase() }"
+            :aria-label="swatch.label"
+            @click="form.color = swatch.hex"
           >
-            <span v-if="color === form.color" class="sr-only">Selected</span>
+            <span
+              v-if="swatch.hex.toLowerCase() === form.color.toLowerCase()"
+              class="sr-only"
+            >Selected</span>
           </button>
+
+          <label
+            class="motion-press relative w-8 h-8 rounded-lg flex items-center justify-center border-2 overflow-hidden cursor-pointer isolate"
+            :class="isCustomColor ? 'ring-2 ring-offset-2 ring-primary' : 'ring-1 ring-black/10 dark:ring-white/10'"
+            style="background: conic-gradient(from 0deg, #ef4444, #fbbf24, #84cc16, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444)"
+            :aria-label="translations.workspaceDialog?.customColor || 'Custom color'"
+          >
+            <v-remixicon
+              v-if="!isCustomColor"
+              name="riPaletteLine"
+              size="14"
+              class="text-white drop-shadow pointer-events-none relative z-10"
+            />
+            <input
+              type="color"
+              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              :value="form.color"
+              @input="form.color = $event.target.value"
+              tabindex="0"
+            />
+          </label>
         </div>
       </div>
 
@@ -77,15 +101,15 @@
 
     <template #actions>
       <ui-button class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3" @click="onCancel">
-        Cancel
+        {{ translations.workspaceDialog?.cancel || 'Cancel' }}
       </ui-button>
       <ui-button
         class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
         variant="primary"
+        :loading="submitting"
         @click="onConfirm"
-        :disabled="submitting"
       >
-        {{ submitting ? '...' : okText }}
+        {{ okText }}
       </ui-button>
     </template>
   </ui-modal>
@@ -93,36 +117,40 @@
 
 <script>
 import { ref, reactive, computed, watch } from 'vue';
-import emitter from 'tiny-emitter/instance';
+import { useTranslations } from '@/composable/useTranslations';
 
 const EMOJI_ALLOWLIST = Object.freeze([
   '📁', '📂', '🗂️', '📋', '📝', '📄', '📃', '📑', '📦', '🎒',
   '💼', '🗃️', '🗄️', '📊', '📈', '📉', '🧮', '📐', '📏', '✏️',
-  '📌', '📍', '🏷️', '🔖', '🏷️', '🗒️', '🗓️', '📅', '📆', '📇',
-  '📰', '📜', '📖', '📕', '📗', '📘', '📙', '📚', '📓', '📔',
-  '🎯', '🎲', '🎮', '🕹️', '🧩', '🎨', '🖼️', '🎪', '🎭', '🎬',
-  '🏠', '🏢', '🏭', '🏫', '🏥', '🏦', '🏛️', '⛪', '🕌', '🕍',
-  '⛩️', '🏟️', '🎡', '🎢', '💒', '🏰', '🏯', '🏰', '🗼', '🗽',
-  '⭐', '🌟', '✨', '💫', '⚡', '🔥', '💎', '💍', '🏆', '🥇',
-  '🥈', '🥉', '🏅', '🎖️', '🏵️', '🎗️', '🎀', '🎁', '🎊', '🎉',
-  '🌈', '☀️', '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', '🌩️',
-  '🌨️', '❄️', '☃️', '⛄', '☄️', '🌙', '🌙', '🌛', '🌜', '☀️',
-  '🪐', '⭐', '🌌', '🌠', '☄️', '🚀', '🛸', '🛰️', '🌍', '🌎',
-  '🌏', '🌐', '🗺️', '🧭', '⛰️', '🏔️', '🌋', '🗻', '🏕️', '⛺',
-  '🌲', '🌳', '🌴', '🌵', '🌿', '☘️', '🍀', '🍁', '🍂', '🍃',
-  '🍄', '🌾', '💐', '🌷', '🌹', '🥀', '🌺', '🌸', '🌼', '🌻',
-  '🌱', '🌿', '🌵', '🎄', '🎋', '🎍', '🎍', '🍂', '🍃', '🍁',
+  '📌', '📍', '🏷️', '🔖', '🗒️', '🗓️', '📅', '📆', '📇', '📰',
+  '📜', '📖', '📕', '📗', '📘', '📙', '📚', '📓', '📔', '🎯',
+  '🎲', '🎮', '🕹️', '🧩', '🎨', '🖼️', '🎪', '🎭', '🎬', '🏠',
+  '🏢', '🏭', '🏫', '🏥', '🏦', '🏛️', '⛪', '🕌', '🕍', '⛩️',
+  '🏟️', '🎡', '🎢', '💒', '🏰', '🏯', '🗼', '🗽', '⭐', '🌟',
+  '✨', '💫', '⚡', '🔥', '💎', '💍', '🏆', '🥇', '🥈', '🥉',
+  '🏅', '🎖️', '🏵️', '🎗️', '🎀', '🎁', '🎊', '🎉', '🌈', '☀️',
+  '🌤️', '⛅', '🌥️', '☁️', '🌦️', '🌧️', '⛈️', '🌩️', '🌨️', '❄️',
+  '☃️', '⛄', '☄️', '🌙', '🌛', '🌜', '🪐', '🌌', '🌠', '🚀',
+  '🛸', '🛰️', '🌍', '🌎', '🌏', '🌐', '🗺️', '🧭', '⛰️', '🏔️',
+  '🌋', '🗻', '🏕️', '⛺', '🌲', '🌳', '🌴', '🌵', '🌿', '☘️',
+  '🍀', '🍁', '🍂', '🍃', '🍄', '🌾', '💐', '🌷', '🌹', '🥀',
+  '🌺', '🌸', '🌼', '🌻', '🌱', '🎄', '🎋', '🎍',
 ]);
 
-const COLOR_SWATCHES = Object.freeze([
-  '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e',
-  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
-  '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
-  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+// Same hex set as labelPalette in Labels.vue, so picking a workspace color
+// suggests the same palette as recoloring a label.
+const COLOR_PALETTE = Object.freeze([
+  { label: 'Red', hex: '#ef4444' },
+  { label: 'Amber', hex: '#fbbf24' },
+  { label: 'Green', hex: '#10b981' },
+  { label: 'Blue', hex: '#3b82f6' },
+  { label: 'Purple', hex: '#8b5cf6' },
+  { label: 'Pink', hex: '#ec4899' },
+  { label: 'Neutral', hex: '#a3a3a3' },
 ]);
 
 const DEFAULT_EMOJI = EMOJI_ALLOWLIST[0];
-const DEFAULT_COLOR = COLOR_SWATCHES[0];
+const DEFAULT_COLOR = COLOR_PALETTE[0].hex;
 
 export default {
   name: 'WorkspaceFormDialog',
@@ -131,12 +159,14 @@ export default {
     mode: { type: String, default: 'create' }, // 'create' or 'edit'
     workspace: { type: Object, default: null },
     // Async submit handler. The dialog awaits it so it can keep the loading
-    // state honest: clear it on success AND on failure, and show the failure
-    // inline instead of stranding the button on "...".
+    // state honest: clear it on success AND on failure, and surface the failure
+    // inline instead of stranding the button on a fake loading state.
     submitHandler: { type: Function, default: null },
   },
   emits: ['close', 'confirm', 'update:show'],
   setup(props, { emit }) {
+    const { translations } = useTranslations();
+
     const form = reactive({
       name: '',
       emoji: DEFAULT_EMOJI,
@@ -145,10 +175,19 @@ export default {
     const submitting = ref(false);
     const error = ref('');
 
-    const title = computed(() => (props.mode === 'edit' ? 'Edit Workspace' : 'New Workspace'));
-    const placeholder = computed(() => (props.mode === 'edit' ? 'Workspace name' : 'Workspace name'));
-    const label = computed(() => 'Workspace name');
-    const okText = computed(() => (props.mode === 'edit' ? 'Save' : 'Create'));
+    const title = computed(() =>
+      props.mode === 'edit'
+        ? translations.value.workspaceDialog?.editWorkspace || 'Edit Workspace'
+        : translations.value.workspaceDialog?.newWorkspace || 'New Workspace'
+    );
+    const okText = computed(() =>
+      props.mode === 'edit'
+        ? translations.value.workspaceDialog?.save || 'Save'
+        : translations.value.workspaceDialog?.create || 'Create'
+    );
+    const isCustomColor = computed(
+      () => !COLOR_PALETTE.some((swatch) => swatch.hex.toLowerCase() === form.color.toLowerCase())
+    );
 
     function resetForm() {
       form.name = props.workspace?.name || '';
@@ -160,7 +199,7 @@ export default {
 
     async function onConfirm() {
       if (!form.name.trim()) {
-        error.value = 'Workspace name is required.';
+        error.value = translations.value.workspaceDialog?.nameRequired || 'Workspace name is required.';
         return;
       }
       if (submitting.value) return;
@@ -180,7 +219,7 @@ export default {
         }
         emit('confirm', payload);
       } catch (err) {
-        error.value = err?.message || 'Failed to save workspace.';
+        error.value = err?.message || translations.value.workspaceDialog?.saveFailed || 'Failed to save workspace.';
       } finally {
         submitting.value = false;
       }
@@ -200,8 +239,8 @@ export default {
     }
 
     // Load the workspace (and clear any stale error/loading) whenever the
-    // dialog opens. Previously resetForm only ran on close, so a programmatic
-    // v-model close left `submitting` stuck true and the next open showed "...".
+    // dialog opens, so a programmatic v-model close can't leave the button
+    // stuck loading for the next open.
     watch(
       () => props.show,
       (value) => {
@@ -214,11 +253,11 @@ export default {
       submitting,
       error,
       title,
-      placeholder,
-      label,
       okText,
+      translations,
+      isCustomColor,
       EMOJI_ALLOWLIST,
-      COLOR_SWATCHES,
+      COLOR_PALETTE,
       onConfirm,
       onCancel,
       onClose,

@@ -346,6 +346,13 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
           'Local only — turn on sync in Settings.';
   });
 
+  // The Connect footer shows one button: "Continue" when the user has
+  // something to commit (signed in, or a sync folder picked), otherwise
+  // "Skip for now" jumps straight past the step.
+  const accountStepHasSyncChoice = computed(
+    () => accountStore.isAuthenticated || !!fresh.syncPath,
+  );
+
   const activeFlow = computed(() => [
     'welcome',
     'account',
@@ -1048,6 +1055,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     goToStep,
     goToPreviousStep,
     goToNextStep,
+    accountStepHasSyncChoice,
     completeAccountStep,
     syncLocationCopy,
     handlePrimaryContinue,

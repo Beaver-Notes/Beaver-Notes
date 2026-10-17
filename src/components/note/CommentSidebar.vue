@@ -158,23 +158,22 @@
                 bg="bg-white dark:bg-neutral-900"
                 class="group border-neutral-200 dark:border-neutral-800"
                 :class="thread.id === activeThreadId
-                  ? '!border-primary/30 ring-1 ring-primary/15 shadow-sm'
+                  ? '!border-primary/40 ring-2 ring-primary/15 shadow-sm'
                   : ''"
                 @mouseenter="setThreadMark(thread.id, true)"
                 @mouseleave="setThreadMark(thread.id, false)"
               >
-                <div v-if="thread.anchorFrom !== null && thread.anchorFrom !== undefined" class="px-3 pt-2.5">
-                  <ui-pill :fixed="false" class="!shadow-none">
-                    <button
-                      class="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none rounded"
-                      :title="`Attached to text at offset ${thread.anchorFrom}–${thread.anchorTo}`"
-                      @click="setActive(thread.id)"
-                    >
-                      <v-remixicon name="riLink" size="12" />
-                      {{ threadSnippet(thread) }}
-                    </button>
-                  </ui-pill>
-                </div>
+                <!-- Blueprint .qt quote strip: full-width muted header quoting the anchor. -->
+                <button
+                  v-if="thread.anchorFrom !== null && thread.anchorFrom !== undefined"
+                  data-testid="comment-anchor"
+                  class="flex w-full items-center gap-2 rounded-t-[11px] border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/70 px-3.5 py-2 text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none text-left"
+                  :title="`Attached to text at offset ${thread.anchorFrom}–${thread.anchorTo}`"
+                  @click="setActive(thread.id)"
+                >
+                  <v-remixicon name="riLink" size="12" class="shrink-0" />
+                  <span class="truncate">{{ threadSnippet(thread) }}</span>
+                </button>
 
                 <div class="divide-y divide-neutral-100 dark:divide-neutral-800">
                   <div
@@ -356,11 +355,11 @@
               class="px-6 py-14 flex flex-col items-center text-center"
             >
               <div class="w-10 h-10 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 grid place-items-center text-neutral-400 mb-3">
-                <v-remixicon name="riChatSmile3Line" size="20" />
+                <v-remixicon :name="emptyState.icon" size="20" />
               </div>
-              <p class="text-[13px] font-medium text-neutral-900 dark:text-neutral-100">{{ translationsComments.empty || 'No comments yet' }}</p>
+              <p class="text-[13px] font-medium text-neutral-900 dark:text-neutral-100">{{ emptyState.title }}</p>
               <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-[22ch] leading-relaxed">
-                {{ translationsComments.emptyHint || 'Select text in the note and add a comment. Threads appear here.' }}
+                {{ emptyState.hint }}
               </p>
             </div>
           </template>
@@ -421,6 +420,8 @@ import { useCommentStore } from '@/store/comment';
 import { useTranslations } from '@/composable/useTranslations';
 import { useAccountStore } from '@/store/account';
 import { useCollaboratorStore } from '@/store/collaborator';
+import { useToastStore } from '@/store/ui-toast';
+import { triggerSelectionHaptic } from '@/lib/native/haptics';
 import ReactionBar from '@/components/note/ReactionBar.vue';
 
 // Literals kept in source so Tailwind emits the utilities used on external
@@ -491,6 +492,9 @@ export default {
       emptyHint:
         translations.value.comments?.emptyHint ||
         'Select text in the note and add a comment. Threads appear here.',
+      caughtUp: translations.value.comments?.caughtUp || 'All caught up',
+      caughtUpHint:
+        translations.value.comments?.caughtUpHint || 'No open comments on this note.',
       newComment: translations.value.comments?.newComment || 'New thread',
       delete: translations.value.comments?.delete || 'Delete',
       unavailable: translations.value.comments?.unavailable || 'Comments work on shared notes',
@@ -499,6 +503,8 @@ export default {
         'Invite someone to this note to turn comments on.',
       attachedToText: translations.value.comments?.attachedToText || 'Attached to text',
       addReaction: translations.value.comments?.addReaction || 'Add reaction',
+      threadResolved: translations.value.comments?.threadResolved || 'Thread resolved',
+      threadReopened: translations.value.comments?.threadReopened || 'Thread re-opened',
       comment: translations.value.comments?.comment || 'comment',
       comments: translations.value.comments?.comments || 'comments',
       nResolved: translations.value.comments?.nResolved || '{n} resolved',
@@ -538,6 +544,21 @@ export default {
     );
     const railThreads = computed(() =>
       [...unresolvedThreads.value, ...resolvedThreads.value].slice(0, 6)
+    );
+    // Empty copy stays honest: "No comments yet" only when there is really
+    // nothing here; resolved-only views say "All caught up" (blueprint copy).
+    const emptyState = computed(() =>
+      totalThreads.value === 0
+        ? {
+            icon: 'riChatSmile3Line',
+            title: translationsComments.value.empty || 'No comments yet',
+            hint: translationsComments.value.emptyHint || 'Select text in the note and add a comment. Threads appear here.',
+          }
+        : {
+            icon: 'riCheckboxCircleLine',
+            title: translationsComments.value.caughtUp || 'All caught up',
+            hint: translationsComments.value.caughtUpHint || 'No open comments on this note.',
+          }
     );
     const resolvedLabel = computed(() =>
       (translationsComments.value.nResolved || '{n} resolved').replace(
@@ -584,6 +605,7 @@ export default {
     function onToggleReaction(commentId, emoji) {
       commentStore
         .toggleReaction(commentId, emoji, { baseUrl: accountStore.serverUrl })
+        .then(() => triggerSelectionHaptic())
         .catch((err) => reportActionError(err, 'Could not update the reaction.'));
     }
 
@@ -745,6 +767,7 @@ export default {
           baseUrl: accountStore.serverUrl,
         });
         newComment.value = '';
+        triggerSelectionHaptic();
       } catch (err) {
         reportActionError(err, 'Could not send your comment.');
         console.error('[comment] Failed to add comment:', err);
@@ -763,17 +786,38 @@ export default {
           baseUrl: accountStore.serverUrl,
         });
         replyInputs[threadId] = '';
+        triggerSelectionHaptic();
       } catch (err) {
         reportActionError(err, 'Could not send your reply.');
         console.error('[comment] Failed to reply:', err);
       }
     }
 
+    // Resolve feedback mirrors the blueprint's toast + Undo. Decorative: mounts
+    // without pinia (specs) fall back to no toast, never a failed action.
+    function pushResolveToast({ title, undo }) {
+      try {
+        useToastStore().push({ title, undo });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
     async function toggleResolve(threadId) {
       actionError.value = '';
+      // State before the toggle decides the toast copy; undo flips it back.
+      const wasResolved = resolvedThreads.value.some((t) => t.id === threadId);
       try {
         await commentStore.toggleResolve(threadId, {
           baseUrl: accountStore.serverUrl,
+        });
+        triggerSelectionHaptic();
+        pushResolveToast({
+          title: wasResolved
+            ? (translationsComments.value.threadReopened || 'Thread re-opened')
+            : (translationsComments.value.threadResolved || 'Thread resolved'),
+          undo: () => toggleResolve(threadId),
         });
       } catch (err) {
         reportActionError(err, 'Could not update the thread.');
@@ -818,6 +862,7 @@ export default {
       resolvedOpen,
       resolvedLabel,
       hasVisible,
+      emptyState,
       railThreads,
       railLabel,
       collapsed,

@@ -626,7 +626,7 @@
                       >
                         {{
                           translations.account?.onboardingTitle ||
-                          'Sign in (optional)'
+                          'Sign in'
                         }}
                       </h2>
                       <p
@@ -801,7 +801,7 @@
                         class="w-full"
                         :placeholder="
                           trAccount.displayNamePlaceholder ||
-                          'Display name (optional)'
+                          'Display name'
                         "
                         maxlength="50"
                       />
@@ -977,19 +977,20 @@
                   </template>
 
                   <!--
-                    Folder sync is part of the Connect step: sign-in is optional,
-                    but a signed-out or free user can still point sync at a folder.
-                    Cloud (paid) users get the honest location line instead.
+                    Folder sync lives side-by-side with the Connect step inside
+                    its own card: sign-in is optional, but a signed-out or free
+                    user can still point sync at a folder. Cloud (paid) users
+                    get the honest location line instead.
                   -->
                   <div
                     v-if="showFolderSync"
-                    class="mt-5 border-t border-neutral-200 dark:border-neutral-700 pt-4 flex flex-col gap-3"
+                    class="mt-5 rounded-xl bg-neutral-50 dark:bg-neutral-900/40 ring-1 ring-neutral-200 dark:ring-neutral-700 p-4 flex flex-col gap-3"
                   >
                     <div class="flex flex-col gap-1">
                       <p
                         class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                       >
-                        Sync folder (optional)
+                        {{ translations.onboarding?.folderSync || 'Folder sync' }}
                       </p>
                       <p
                         class="text-sm text-neutral-600 dark:text-neutral-400"
@@ -1695,24 +1696,21 @@ export default {
         return [];
       }
 
-      // Connect is skippable: Continue commits the account + folder, Skip keeps
-      // everything local and moves straight on to the vault step.
+      // Connect is skippable: one footer button — it reads "Continue" when
+      // the user has something to commit (account + folder), and "Skip for
+      // now" when everything stays local, jumping to the vault step.
       if (s === 'account') {
+        const hasChoice = flow.accountStepHasSyncChoice.value;
         return [
           {
             key: 'continue',
-            label: 'Continue',
-            icon: 'riArrowRightLine',
+            label: hasChoice ? 'Continue' : t?.account?.skip || 'Skip for now',
             variant: 'primary',
             testid: 'onboarding-connect-continue',
             loading: flow.state.savingPreferences,
-            onClick: flow.completeAccountStep,
-          },
-          {
-            key: 'skip',
-            label: t?.account?.skip || 'Skip for now',
-            testid: 'onboarding-connect-skip',
-            onClick: flow.goToNextStep,
+            onClick: hasChoice
+              ? flow.completeAccountStep
+              : flow.goToNextStep,
           },
         ];
       }

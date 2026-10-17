@@ -314,3 +314,51 @@ html.prefers-reduced-motion .route-stage-leave-to {
   opacity: 1;
   transform: none;
 }
+
+/* Shared motion utilities — built on the tokens at the top of this file. */
+@keyframes motion-spring-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.motion-spring-enter {
+  animation: motion-spring-enter var(--motion-base) var(--ease-spring) both;
+}
+
+@keyframes motion-copy-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.motion-copy-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.motion-copy-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 60%
+  );
+  animation: motion-copy-sweep var(--motion-slow) var(--ease-standard) both;
+}
+
+.motion-press {
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+.motion-press:active {
+  transform: scale(0.98);
+}
+

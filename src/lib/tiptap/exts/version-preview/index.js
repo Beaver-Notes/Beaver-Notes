@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { Transform } from '@tiptap/pm/transform';
-import { DOMParser as PMDOMParser } from '@tiptap/pm/model';
+import { DOMParser as PMDOMParser, DOMSerializer } from '@tiptap/pm/model';
 import { ChangeSet } from '@tiptap/pm/changeset';
 
 export const versionPreviewKey = new PluginKey('versionPreview');
@@ -67,6 +67,140 @@ export function revertReviewChange(editor, snapshotDoc, target) {
   }
 }
 
+/**
+ * The nodes between (read: overlapping) the given range that carry block
+ * structure, so an equal-geometry row can be compared node-by-node.
+ */
+function blockNodesOverlapping(doc, from, to) {
+  const blocks = [];
+  doc.nodesBetween(from, to, (node) => {
+    if (node.isBlock) blocks.push(node);
+    return true;
+  });
+  return blocks;
+}
+
+function attrsDiffer(a, b) {
+  if (a === b) return false;
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) return true;
+  return aKeys.some((key) => a[key] !== b[key]);
+}
+
+function marksDiffer(a, b) {
+  if (a.length !== b.length) return true;
+  return a.some((mark, i) => !mark.eq(b[i]));
+}
+
+function nodesDifferByFormat(a, b) {
+  return a.type !== b.type || attrsDiffer(a.attrs, b.attrs) || marksDiffer(a.marks, b.marks);
+}
+
+/**
+ * Classify raw ChangeSet rows into decoration kinds. `ChangeSet` never
+ * surfaces attribute-only edits (their step maps are empty), so `attr` can
+ * only be tagged over rows ChangeSet actually produced with equal geometry
+ * where the overlapping nodes match text-for-text but differ in type, attrs
+ * or marks (e.g. a paragraph re-formatted as a heading). Nothing is
+ * synthesized for steps the library does not report.
+ */
+export function classifyChangeRows(snapshotDoc, currentDoc, changeRows) {
+  return changeRows.map((change) => {
+    if (change.toA === change.fromA) return { ...change, kind: 'add' };
+    if (change.toB === change.fromB) return { ...change, kind: 'del' };
+    const equalGeometry = change.toA - change.fromA === change.toB - change.fromB;
+    if (equalGeometry) {
+      const snapBlocks = blockNodesOverlapping(snapshotDoc, change.fromA, change.toA);
+      const liveBlocks = blockNodesOverlapping(currentDoc, change.fromB, change.toB);
+      if (
+        snapBlocks.length === liveBlocks.length &&
+        snapshotDoc.textBetween(change.fromA, change.toA, ' ') ===
+          currentDoc.textBetween(change.fromB, change.toB, ' ') &&
+        snapBlocks.some((node, i) => nodesDifferByFormat(node, liveBlocks[i]))
+      ) {
+        return { ...change, kind: 'attr' };
+      }
+    }
+    return { ...change, kind: 'replace' };
+  });
+}
+
+/**
+ * Deleted-snapshot content that has no structure of its own (plain text) is
+ * rendered as the compact struck-through inline widget; anything carrying
+ * real DOM (images, whole blocks) becomes a non-editable ghost preview.
+ */
+function deletedSliceIsStructured(slice) {
+  if (slice.content.childCount === 1 && slice.content.firstChild.isText) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Blueprint legend/pill copy. The extension builds raw DOM and has no
+ * translations access, so these English strings carry the labels; the banner
+ * labels themselves still come in through `meta`.
+ */
+const LEGEND_ADDED = 'Added';
+const LEGEND_REMOVED = 'Removed';
+const LEGEND_FORMAT = 'Format changed';
+const LABEL_ADDED = LEGEND_ADDED;
+const LABEL_REMOVED = LEGEND_REMOVED;
+
+/**
+ * Zero-size relative anchor so a change-category chip can float at its
+ * decoration position without taking layout space or shifting text.
+ */
+function createChangeLabel(text, className) {
+  const anchor = document.createElement('span');
+  anchor.className = 'version-preview-label-anchor';
+  const chip = document.createElement('span');
+  chip.className = className;
+  chip.textContent = text;
+  chip.contentEditable = 'false';
+  chip.setAttribute('aria-hidden', 'true');
+  anchor.append(chip);
+  return anchor;
+}
+
+function createGhost(editor, slice) {
+  const ghost = document.createElement('div');
+  ghost.className = 'version-preview-ghost';
+  ghost.contentEditable = 'false';
+  const label = document.createElement('span');
+  label.className = 'version-preview-ghost__label';
+  label.textContent = LABEL_REMOVED;
+  label.setAttribute('aria-hidden', 'true');
+  ghost.append(
+    label,
+    DOMSerializer.fromSchema(editor.schema).serializeFragment(slice.content)
+  );
+  return ghost;
+}
+
+function createLegend() {
+  const legend = document.createElement('div');
+  legend.className = 'version-preview-legend';
+  const items = [
+    ['added', LEGEND_ADDED],
+    ['removed', LEGEND_REMOVED],
+    ['format', LEGEND_FORMAT],
+  ];
+  for (const [kind, text] of items) {
+    const item = document.createElement('span');
+    item.className = 'version-preview-legend__item';
+    const swatch = document.createElement('span');
+    swatch.className = `version-preview-legend__swatch version-preview-legend__swatch--${kind}`;
+    if (kind === 'removed') swatch.textContent = 'abc';
+    const label = document.createElement('span');
+    label.textContent = text;
+    item.append(swatch, label);
+    legend.append(item);
+  }
+  return legend;
+}
+
 function createBanner(meta, options) {
   const banner = document.createElement('div');
   banner.className = 'version-preview-banner';
@@ -76,6 +210,7 @@ function createBanner(meta, options) {
   label.className = 'version-preview-banner__label';
   label.textContent = meta?.label || 'Viewing an older version';
   banner.append(label);
+  banner.append(createLegend());
 
   const restore = document.createElement('button');
   restore.type = 'button';
@@ -115,6 +250,7 @@ function createReviewHeader(meta, options, count) {
   const heading = meta?.label || 'Reviewing changes';
   label.textContent = `${heading} · ${changeCountLabel(count)}`;
   banner.append(label);
+  banner.append(createLegend());
 
   const done = document.createElement('button');
   done.type = 'button';
@@ -168,12 +304,13 @@ function createChunkControls(editor, snapshot, change, options) {
 
 function buildDecorations(state, preview, options, editor) {
   const isReview = preview.mode === 'review';
-  let changes = [];
+  let rows = [];
   if (preview.snapshot) {
     try {
-      changes = computeVersionChanges(preview.snapshot, state.doc);
+      const changes = computeVersionChanges(preview.snapshot, state.doc);
+      rows = classifyChangeRows(preview.snapshot, state.doc, changes);
     } catch {
-      changes = [];
+      rows = [];
     }
   }
 
@@ -182,7 +319,7 @@ function buildDecorations(state, preview, options, editor) {
       0,
       () =>
         isReview
-          ? createReviewHeader(preview.meta, options, changes.length)
+          ? createReviewHeader(preview.meta, options, rows.length)
           : createBanner(preview.meta, options),
       // The key decides whether ProseMirror reuses the banner's DOM node. A
       // constant key froze the label at whatever version was opened first, so
@@ -194,46 +331,91 @@ function buildDecorations(state, preview, options, editor) {
         side: -1,
         key: `version-banner:${isReview ? 'review' : 'preview'}:${
           preview.meta?.label || ''
-        }:${isReview ? changes.length : 0}`,
+        }:${isReview ? rows.length : 0}`,
       }
     ),
   ];
 
   if (preview.snapshot) {
-    for (const change of changes) {
-      if (change.toB > change.fromB) {
-        decorations.push(
-          Decoration.inline(change.fromB, change.toB, {
-            class: 'version-preview-added',
-          })
-        );
-      }
-      if (change.deleted.length) {
-        const removed = preview.snapshot.textBetween(
-          change.fromA,
-          change.toA,
-          ' '
-        );
-        if (removed) {
+    for (const row of rows) {
+      // Added live side: a whole block-level base node starting at the row's
+      // start gets a node decoration (its own pill); anything else inline.
+      if (row.kind !== 'attr' && row.toB > row.fromB) {
+        const anchor = state.doc.nodeAt(row.fromB);
+        if (anchor?.isBlock && row.fromB + anchor.nodeSize <= row.toB) {
+          decorations.push(
+            Decoration.node(row.fromB, row.fromB + anchor.nodeSize, {
+              class: 'version-preview-added-block',
+            })
+          );
+          // Named category chip at the block start, so the mark is never
+          // colour-only. Keyless like the other row widgets. side: 1 sorts
+          // after same-position ghost widgets, so the chip stays attached to
+          // its own block instead of an adjacent Removed ghost.
           decorations.push(
             Decoration.widget(
-              change.fromB,
-              () => {
-                const el = document.createElement('del');
-                el.className = 'version-preview-removed';
-                el.textContent = removed;
-                return el;
-              },
+              row.fromB,
+              () => createChangeLabel(LABEL_ADDED, 'version-preview-block-label'),
               { side: 1 }
             )
           );
+        } else {
+          decorations.push(
+            Decoration.inline(row.fromB, row.toB, {
+              class: 'version-preview-added',
+            })
+          );
+        }
+      } else if (row.kind === 'attr') {
+        decorations.push(
+          Decoration.inline(row.fromB, row.toB, {
+            class: 'version-preview-attr',
+          })
+        );
+        decorations.push(
+          Decoration.widget(
+            row.fromB,
+            () =>
+              createChangeLabel(LEGEND_FORMAT, 'version-preview-attr-label'),
+            { side: 1 }
+          )
+        );
+      }
+      // Deleted snapshot side: plain text keeps the compact struck-through
+      // widget; structured content gets a non-editable ghost preview.
+      if (row.kind !== 'attr' && row.deleted.length) {
+        const slice = preview.snapshot.slice(row.fromA, row.toA);
+        if (deletedSliceIsStructured(slice)) {
+          decorations.push(
+            Decoration.widget(
+              row.fromB,
+              () => createGhost(editor, slice),
+              { side: 1 }
+            )
+          );
+        } else {
+          const removed = preview.snapshot.textBetween(row.fromA, row.toA, ' ');
+          if (removed) {
+            decorations.push(
+              Decoration.widget(
+                row.fromB,
+                () => {
+                  const el = document.createElement('del');
+                  el.className = 'version-preview-removed';
+                  el.textContent = removed;
+                  return el;
+                },
+                { side: 1 }
+              )
+            );
+          }
         }
       }
       if (isReview) {
         decorations.push(
           Decoration.widget(
-            change.toB,
-            () => createChunkControls(editor, preview.snapshot, change, options),
+            row.toB,
+            () => createChunkControls(editor, preview.snapshot, row, options),
             { side: 1 }
           )
         );

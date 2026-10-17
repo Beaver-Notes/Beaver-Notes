@@ -4,7 +4,7 @@
       v-for="r in visibleReactions"
       :key="r.emoji"
       type="button"
-      class="inline-flex items-center gap-1 h-7 px-2 rounded-full text-xs font-medium border transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-900"
+      class="inline-flex items-center gap-1 h-7 px-2 rounded-full text-xs font-medium border transition motion-press focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-900"
       :class="hasReacted(r)
         ? 'bg-primary/10 text-primary border-primary/30'
         : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-neutral-300 dark:hover:border-neutral-600'"
@@ -32,7 +32,7 @@
         @click="open = false"
       />
       <div
-        class="absolute bottom-full mb-1 ltr:right-0 rtl:left-0 z-20 flex gap-0.5 p-1 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-lg"
+        class="absolute bottom-full mb-1 ltr:right-0 rtl:left-0 z-20 flex gap-0.5 p-1 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-lg motion-spring-enter"
         role="menu"
         :aria-label="ariaLabel"
       >
@@ -41,7 +41,7 @@
           :key="e"
           type="button"
           role="menuitem"
-          class="w-9 h-9 mobile:w-11 mobile:h-11 grid place-items-center rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-base focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none transition"
+          class="w-9 h-9 mobile:w-11 mobile:h-11 grid place-items-center rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-base hover:-translate-y-0.5 hover:scale-110 transition-[background-color,transform] duration-200 motion-reduce:transition-none motion-reduce:hover:transform-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
           @click="pick(e)"
         >
           {{ e }}
