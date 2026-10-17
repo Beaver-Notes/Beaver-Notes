@@ -1,17 +1,6 @@
-/**
- * freehand.js — tldraw-quality stroke engine
- *
- * Direct ports of tldraw's freehand pipeline:
- *   getStrokePoints        → stroke point generation with streamlining
- *   setStrokePointRadii    → per-point radius from pressure + thinning + taper
- *   getStrokeOutlineTracks → left/right outline with sharp-corner detection
- *   getStrokeOutlinePoints → caps + winding order
- *   svgInk                 → final SVG path via elbow partitioning + smooth Bézier
- */
+/** Stroke engine: ports of freehand pipeline (point generation, radii, outline, caps, SVG path). */
 
-// ============================================================================
-// Vec2 — tldraw-compatible 2D vector class
-// ============================================================================
+// Vec2: 2D vector class.
 
 class Vec2 {
   constructor(x = 0, y = 0, z = 0) {
@@ -152,7 +141,7 @@ export function getFreehandOptions(tool, size, { isComplete = true } = {}) {
       end: { cap: true, taper: isComplete ? Math.max(size, 28) : 0 },
     };
   }
-  // Pen — uniform line, no pressure variation
+  // Pen: uniform line, no pressure variation.
   return {
     size,
     thinning: 0,
@@ -404,7 +393,7 @@ function getStrokeOutlineTracks(strokePoints, options = {}) {
   return { left: leftPts, right: rightPts };
 }
 
-// Elbow partitioning + SVG path (from tldraw's svgInk.ts)
+// Elbow partitioning plus SVG path.
 
 function partitionAtElbows(strokePoints) {
   if (strokePoints.length <= 2) return [strokePoints];
@@ -492,9 +481,7 @@ function circlePath(cx, cy, r) {
   },0 a ${r},${r} 0 1,1 -${r * 2},0 `;
 }
 
-/**
- * Render a stroke to an SVG path `d` string — tldraw's svgInk with smooth Bézier.
- */
+/** Render stroke to SVG path d string with smooth Bezier. */
 export function getRenderablePath(stroke, isComplete = true) {
   if (!Array.isArray(stroke?.points) || stroke.points.length < 2) return '';
   const opts = getFreehandOptions(stroke.tool, stroke.size ?? 4, {
@@ -546,8 +533,6 @@ function renderPartition(pts) {
   }
   return d;
 }
-
-// Render props + bounds
 
 export function getRenderableStrokeProps(stroke) {
   const isHL = stroke?.tool === 'highlighter';

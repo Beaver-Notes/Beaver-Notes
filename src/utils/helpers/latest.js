@@ -1,4 +1,3 @@
-// ─── Debounced async executor ─────────────────────────────────────────────────
 
 /**
  * Returns a debounced wrapper around an async `executor`.

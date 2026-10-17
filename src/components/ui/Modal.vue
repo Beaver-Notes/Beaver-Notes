@@ -7,7 +7,8 @@
       <transition name="modal" mode="out-in">
         <div
           v-if="show"
-          class="modal-ui__content-container fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/20 p-0 md:p-5 mobile:items-end"
+          class="modal-ui__content-container fixed inset-0 flex items-center justify-center bg-black/20 p-0 md:p-5 mobile:items-end"
+          :class="overlayClass"
           :style="{ 'backdrop-filter': blur && 'blur(2px)' }"
           @click.self="closeModal"
         >
@@ -15,41 +16,56 @@
           <ui-card
             v-else
             ref="modalContent"
-            role="document"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="title || undefined"
             :class="[
-              'modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm',
+              // Vertical-only pan: kills diagonal page pans; grid scroll + close-drag unaffected
+              'modal-ui__content w-full shadow-lg touch-pan-y mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm mobile:max-h-[calc(100dvh_-_0.75rem)] mobile:overflow-y-auto',
               contentClass,
               { '!transition-none': isDragging },
             ]"
             :style="modalContentStyle"
-            @touchstart.passive="handleTouchStart"
-            @touchmove="handleTouchMove"
-            @touchend="handleTouchEnd"
-            @touchcancel="handleTouchCancel"
           >
             <div
-              class="mx-auto mt-2 hidden h-1 w-9 rounded-full bg-neutral-400/60 mobile:block"
-            ></div>
-            <div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="content-header w-full">
-                  <slot name="header"></slot>
-                </span>
-                <v-remixicon
-                  v-show="!persist"
-                  class="cursor-pointer shrink-0 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
-                  name="riCloseLine"
-                  size="20"
-                  role="button"
-                  aria-label="Close"
-                  tabindex="0"
-                  @click="closeModal"
-                ></v-remixicon>
-              </div>
+              class="hidden cursor-grab touch-none select-none mobile:block -mt-2 px-8 pb-1 pt-3"
+              @touchstart.passive="handleTouchStart"
+              @touchmove="handleTouchMove"
+              @touchend="handleTouchEnd"
+              @touchcancel="handleTouchCancel"
+            >
+              <div
+                class="mx-auto h-1 w-9 rounded-full bg-neutral-400/60"
+              ></div>
+            </div>
+            <div v-if="$slots.header || title" class="mb-4">
+              <slot name="header">
+                <div class="flex flex-row items-center gap-4">
+                  <div
+                    v-if="icon"
+                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+                    :class="iconVariant === 'danger'
+                      ? 'bg-red-100 dark:bg-red-900/30'
+                      : 'bg-neutral-100 dark:bg-neutral-700'"
+                  >
+                    <v-remixicon
+                      :name="icon"
+                      size="24"
+                      :class="iconVariant === 'danger' ? 'text-red-500' : 'text-neutral-600 dark:text-neutral-300'"
+                    />
+                  </div>
+                  <h3 class="font-semibold text-lg tracking-tight leading-snug">{{ title }}</h3>
+                </div>
+              </slot>
             </div>
             <div>
-              <slot name="actions"></slot>
               <slot></slot>
+            </div>
+            <div
+              v-if="$slots.actions"
+              class="flex gap-3 mobile:flex-col-reverse pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700"
+            >
+              <slot name="actions"></slot>
             </div>
           </ui-card>
         </div>
@@ -76,10 +92,17 @@ export default {
       type: String,
       default: 'max-w-lg',
     },
+    overlayClass: {
+      type: String,
+      default: 'z-50',
+    },
     customContent: Boolean,
     persist: Boolean,
     blur: Boolean,
     disabledTeleport: Boolean,
+    title: { type: String, default: '' },
+    icon: { type: String, default: '' },
+    iconVariant: { type: String, default: '' },
   },
   emits: ['close', 'update:modelValue'],
   setup(props, { emit }) {
@@ -93,9 +116,12 @@ export default {
     const isDragging = ref(false);
     const touchStartY = ref(0);
     const touchCurrentY = ref(0);
-    const touchStartedOnScrollable = ref(false);
+    const touchScrollableAncestor = ref(null);
     const touchStartTime = ref(0);
     const SWIPE_CLOSE_THRESHOLD = 96;
+    // Slop before a downward touch becomes a card drag: a scroll gesture
+    // often starts with a few px of downward wobble, which must not claim it.
+    const DRAG_SLOP_PX = 12;
     const prefersReducedMotion = () =>
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
@@ -134,7 +160,7 @@ export default {
         if (!value) resetDrag();
         toggleBodyOverflow(value);
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     watch(show, (value) => {
@@ -148,6 +174,9 @@ export default {
         });
       } else {
         window.removeEventListener('keyup', keyupHandler);
+        // v-model closes bypass closeModal(): release the trap here too,
+        // otherwise the next open activate() no-ops and focus leaks.
+        deactivate();
         uiState.closeOverlay();
       }
     });
@@ -193,10 +222,15 @@ export default {
       isDragging.value = false;
       touchStartY.value = 0;
       touchCurrentY.value = 0;
-      touchStartedOnScrollable.value = false;
+      touchScrollableAncestor.value = null;
       touchStartTime.value = 0;
     }
 
+    // Swipe-to-close is confined to the top strip element (touch listeners live
+    // there, not on the card), so grid/list touches can never be hijacked.
+    // Drag-vs-scroll arbitration ported from reka-ui's useSwipeDismiss (MIT,
+    // itself a port of Vaul): remember the scrollable ancestor at touchstart
+    // and re-check its edge on every move — never snapshot scrollTop.
     function handleTouchStart(event) {
       if (props.persist || !show.value) return;
 
@@ -206,9 +240,7 @@ export default {
       touchStartY.value = touch.clientY;
       touchCurrentY.value = touch.clientY;
       touchStartTime.value = performance.now();
-      touchStartedOnScrollable.value = Boolean(
-        getScrollableParent(event.target)?.scrollTop > 0
-      );
+      touchScrollableAncestor.value = getScrollableParent(event.target);
       isDragging.value = false;
     }
 
@@ -218,16 +250,35 @@ export default {
       const touch = event.touches?.[0];
       if (!touch) return;
 
+      // Yield once the browser has committed to native scroll — while the
+      // gesture is unattributed we must never preventDefault (on iOS the
+      // first prevented move kills native scroll for the whole gesture).
+      if (!event.cancelable) return;
+
       touchCurrentY.value = touch.clientY;
       const deltaY = touchCurrentY.value - touchStartY.value;
 
-      if (deltaY <= 0 || touchStartedOnScrollable.value) {
-        if (!isDragging.value) dragOffsetY.value = 0;
+      // Per-move edge check against the remembered scrollable ancestor:
+      // swipe only when moving down from the ancestor's top edge, otherwise
+      // hand the gesture to native scroll.
+      const ancestor = touchScrollableAncestor.value;
+      if (ancestor && !(deltaY > 0 && ancestor.scrollTop <= 0)) {
+        dragOffsetY.value = 0;
+        return;
+      }
+
+      if (deltaY <= DRAG_SLOP_PX) {
+        // Always release: a reversed drag must let go immediately so the
+        // browser can take over native scrolling instead of freezing mid-pose.
+        dragOffsetY.value = 0;
         return;
       }
 
       isDragging.value = true;
-      dragOffsetY.value = Math.min(deltaY, 160);
+      const engaged = deltaY - DRAG_SLOP_PX;
+      // ponytail: rubber-band past the 160 soft bound instead of a hard clamp
+      dragOffsetY.value =
+        engaged <= 160 ? engaged : 160 + (engaged - 160) * 0.3;
       event.preventDefault();
     }
 
@@ -245,16 +296,21 @@ export default {
         return;
       }
 
-      const el = modalContent.value;
-      if (el) {
+      // modalContent is a component ref: reach the DOM node via $el first.
+      const el = modalContent.value?.$el || modalContent.value;
+      if (el && el.style) {
         const dur = prefersReducedMotion() ? '0.01ms' : '300ms';
         el.style.transition = `transform ${dur} var(--ease-spring), opacity ${dur} var(--ease-standard)`;
         el.style.transform = 'translate3d(0, 0, 0)';
         el.style.opacity = '1';
-        el.addEventListener('transitionend', () => {
-          el.style.transition = '';
-          resetDrag();
-        }, { once: true });
+        el.addEventListener(
+          'transitionend',
+          () => {
+            el.style.transition = '';
+            resetDrag();
+          },
+          { once: true },
+        );
       } else {
         resetDrag();
       }
@@ -287,7 +343,8 @@ export default {
 
 .modal-enter-active .modal-ui__content,
 .modal-leave-active .modal-ui__content {
-  transition: opacity var(--motion-base) var(--ease-standard),
+  transition:
+    opacity var(--motion-base) var(--ease-standard),
     transform var(--motion-base) var(--ease-standard);
   transform: translate3d(0, 0, 0) scale(1);
   opacity: 1;
@@ -311,6 +368,14 @@ export default {
 .modal-ui__content {
   transform-origin: center center;
   will-change: transform, opacity;
+}
+
+/* Fixed backdrop must never be a scroller: `clip` (unlike `hidden`) is not a
+   scroll container, so chained scrolls from inner scrollers skip it entirely
+   instead of displacing the whole sheet. Inner scrollers (picker grid,
+   customizer list) keep working; no consumer uses the `scrollable` prop. */
+.modal-ui__content-container {
+  overflow-y: clip;
 }
 
 @media (max-width: 767px) {

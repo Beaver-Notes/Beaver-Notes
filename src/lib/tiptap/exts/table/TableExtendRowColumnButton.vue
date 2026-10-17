@@ -25,7 +25,7 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { getTranslations } from '@/utils/getTranslations';
+import { getTranslations } from '@/utils/i18n/getTranslations';
 import { useFloating, offset, size } from '@floating-ui/vue';
 import { EMPTY_CELL_WIDTH, EMPTY_CELL_HEIGHT, selectLastCell, runPreservingCursor, countEmptyRowsFromEnd, countEmptyColumnsFromEnd, marginRound } from './tiptap-table-utils.js';
 import { TableMap } from '@tiptap/pm/tables';

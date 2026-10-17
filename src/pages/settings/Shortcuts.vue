@@ -1,21 +1,25 @@
 <template>
-  <div class="general space-y-8 mb-14 w-full max-w-xl">
-    <div v-for="shortcut in shortcuts" :key="shortcut.title">
-      <p
-        class="text-sm font-semibold text-neutral-600 dark:text-neutral-300 mb-2"
+  <div class="general space-y-6 mb-14 w-full max-w-xl">
+    <settings-group
+      v-for="shortcut in shortcuts"
+      :key="shortcut.title"
+      :title="translations.shortcuts[shortcut.title] || '-'"
+    >
+      <div
+        v-for="item in shortcut.items"
+        :key="item.name"
+        class="flex items-center gap-3 px-4 py-2.5"
       >
-        {{ translations.shortcuts[shortcut.title] || '-' }}
-      </p>
-      <ui-card>
-        <ui-list class="rounded-lg">
-          <ui-list-item v-for="item in shortcut.items" :key="item.name">
-            <p class="flex-1">
-              {{
-                translations.shortcuts[item.name] ||
-                translations.sidebar[item.name]
-              }}
-            </p>
-            <kbd v-for="key in item.keys" :key="key" class="mr-1">
+        <p class="flex-1 text-sm text-neutral-700 dark:text-neutral-200">
+          {{
+            translations.shortcuts[item.name] ||
+            translations.sidebar[item.name]
+          }}
+        </p>
+        <span class="flex items-center gap-1 shrink-0">
+          <template v-for="(key, idx) in item.keys" :key="key">
+            <span v-if="idx > 0" class="text-xs text-neutral-400 select-none">+</span>
+            <kbd>
               {{
                 key === 'Drag'
                   ? translations.shortcuts.drag
@@ -24,17 +28,19 @@
                   : getFormattedKey(key)
               }}
             </kbd>
-          </ui-list-item>
-        </ui-list>
-      </ui-card>
-    </div>
+          </template>
+        </span>
+      </div>
+    </settings-group>
   </div>
 </template>
 
+// ponytail: customizable shortcuts explored, needs settings key for keybinding map plus backend persistence plus conflict UI; defer until requested.
 <script setup>
 import { useTranslations } from '@/composable/useTranslations';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
+import SettingsGroup from '@/components/settings/SettingsGroup.vue';
 
-// Translations
 const { translations } = useTranslations();
 
 const shortcuts = [
@@ -108,7 +114,7 @@ function getFormattedKeys(keys) {
 }
 
 function isMacOS() {
-  return navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  return isMacOSRuntime();
 }
 </script>
 

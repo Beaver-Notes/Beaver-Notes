@@ -12,10 +12,14 @@ import {
   clearAllAccountStorage,
 } from '@/lib/account-storage';
 import { resetApiClient } from '@/lib/api/client';
+import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
 import * as authApi from '@/lib/api/auth';
 import * as accountApi from '@/lib/api/account';
 import { loadOrCreateIdentity, publishIdentity } from '@/utils/crypto/identity';
 import { logger } from '@/utils/logger';
+
+// The local workspace every install has (src-tauri/src/shared/mod.rs).
+const DEFAULT_WORKSPACE_ID = 'default';
 
 function deriveDeviceLabel() {
   if (typeof navigator === 'undefined') return 'Unknown device';
@@ -57,6 +61,250 @@ function normalizeError(err) {
   return String(err);
 }
 
+// Rust emits `sync:progress` with these phases when it starts seeding or
+// bootstrapping; either means the scheduler picked up the seed work.
+const SEED_START_PHASES = new Set(['seed', 'bootstrap']);
+const SEED_START_TIMEOUT_MS = 8000;
+// Transient statuses keep the UI in "seeding" instead of failing the setup.
+const SEED_TRANSIENT_STATUSES = new Set(['retrying', 'offline']);
+
+let seedWatchUnlisten = [];
+
+async function stopSeedWatch() {
+  const unlisten = seedWatchUnlisten;
+  seedWatchUnlisten = [];
+  for (const fn of unlisten) {
+    try {
+      await fn();
+    } catch {}
+  }
+}
+
+// Account switching and per-account sign-out live at module scope, not inside
+// the composable: the workspace switcher runs on pages that never instantiate
+// `useAccountAuth`, and both only touch stores and singletons.
+
+// Tear down everything owned by the signed-in account so the next account
+// cannot read or write the previous account's doc, store, or live rooms.
+async function teardownLocalAccountState() {
+  // Persist buffered per-note Yjs deltas first: an edit inside the 300ms/2s
+  // debounce window would otherwise be dropped when the store/doc are cleared.
+  try {
+    const { flushAllNoteYjsPending } = await import('@/composable/useNoteYjs.js');
+    await flushAllNoteYjsPending();
+  } catch (err) {
+    console.warn('[auth] note delta flush failed:', err);
+  }
+
+  // Stop realtime providers first: no further remote updates land on a doc
+  // that is about to be destroyed. Also clears room keys / unwrapped cache.
+  try {
+    const { getWsSync } = await import('@/lib/sync/ws-sync.js');
+    getWsSync().stop();
+  } catch (err) {
+    console.warn('[auth] ws teardown failed:', err);
+  }
+
+  // Flush buffered meta writes before destroying the workspace doc singleton.
+  try {
+    const [{ flushPendingMetaUpdates }, { destroyWorkspaceDoc }] =
+      await Promise.all([
+        import('@/lib/yjs/workspace-doc.js'),
+        import('@/lib/yjs/meta-doc.js'),
+      ]);
+    await flushPendingMetaUpdates();
+    destroyWorkspaceDoc();
+  } catch (err) {
+    console.warn('[auth] workspace doc teardown failed:', err);
+  }
+
+  // Drop the previous account's notes from the in-memory store; the next
+  // account hydrates its own from the workspace doc.
+  try {
+    const { useNoteStore, clearNoteContentSignatures } = await import('@/store/note');
+    const noteStore = useNoteStore();
+    noteStore.data = {};
+    noteStore.syncInProgress = false;
+    // The signatures hold note plaintext and outlive `data`, so they need
+    // their own teardown.
+    clearNoteContentSignatures();
+  } catch (err) {
+    console.warn('[auth] note store teardown failed:', err);
+  }
+
+  // Drop the collaboration state that carries decrypted text and emails.
+  try {
+    const [{ useCommentStore }, { useCollaboratorStore }, { useWorkspaceStore }] =
+      await Promise.all([
+        import('@/store/comment'),
+        import('@/store/collaborator'),
+        import('@/store/workspace'),
+      ]);
+    useCommentStore().reset();
+    useCollaboratorStore().reset();
+    useWorkspaceStore().reset();
+  } catch (err) {
+    console.warn('[auth] collaboration store teardown failed:', err);
+  }
+
+  // Drop the previous account's search index so search can't surface it.
+  try {
+    const { clearSearchIndex } = await import('@/utils/note/search.js');
+    clearSearchIndex();
+  } catch (err) {
+    console.warn('[auth] search index teardown failed:', err);
+  }
+}
+
+// The index record names a workspace only for accounts that belong to an org;
+// a personal account has none, and its home is the first workspace the server
+// lists for it. The cloud module keeps that list in module state, so it is
+// reset first, and the arriving account has to be live before the fetch or the
+// API client would send the leaving account's token.
+async function resolveAccountWorkspace(accountId, record, workspaceId) {
+  const explicit = workspaceId || record?.activeWorkspaceId || record?.workspaces?.[0]?.id;
+  if (explicit) return explicit;
+  try {
+    const accountStore = useAccountStore();
+    if (getActiveAccountId() !== accountId) await accountStore.activateAccount(accountId);
+    const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
+      '@/composable/useCloudWorkspaces.js'
+    );
+    resetWorkspaceModuleState();
+    const cloud = useCloudWorkspaces();
+    await cloud.fetchWorkspaces();
+    return cloud.activeId.value || DEFAULT_WORKSPACE_ID;
+  } catch (err) {
+    console.warn('[auth] workspace lookup for the arriving account failed:', err?.message || err);
+    return DEFAULT_WORKSPACE_ID;
+  }
+}
+
+// In place, no reload: the leaving account is flushed and torn down while it
+// is still the active one, so nothing pending can be posted under the
+// arriving account's token.
+async function performSwitch({ accountId, workspaceId, force = false } = {}) {
+  const accountStore = useAccountStore();
+  const { useCloudWorkspaces, resetWorkspaceModuleState } = await import(
+    '@/composable/useCloudWorkspaces.js'
+  );
+  const cloud = useCloudWorkspaces();
+  const [{ useWorkspaceStore }, { runWorkspaceInit }] = await Promise.all([
+    import('@/store/workspace'),
+    import('@/composable/useAppShell'),
+  ]);
+  const record = listAccounts().find((account) => account.id === accountId);
+  if (!record) return { switched: false, reason: 'unknown-account' };
+
+  // The pair, not the workspace alone: one workspace can legitimately appear
+  // under two accounts. Read before the target is resolved, because resolving
+  // may activate the arriving account and reset the workspace module state.
+  const currentWorkspaceId =
+    useWorkspaceStore().activeId || cloud.activeId.value || accountStore.activeWorkspaceId;
+  const targetWorkspaceId = await resolveAccountWorkspace(accountId, record, workspaceId);
+
+  // This store is not the only place that decides: Rust keeps the active
+  // workspace in its registry and every sync cycle reads the data pool that
+  // registry points at, so a store already showing the target still has to
+  // move the registry, or the cycle would keep reading the leaving account's
+  // pool (and publish its rows under the arriving token).
+  const { getActiveLocalWorkspace } = await import('@/lib/native/workspaces');
+  const nativeWorkspace = await getActiveLocalWorkspace().catch(() => null);
+  if (
+    !force &&
+    getActiveAccountId() === accountId &&
+    currentWorkspaceId === targetWorkspaceId &&
+    nativeWorkspace?.id === targetWorkspaceId
+  ) {
+    return { switched: false, reason: 'already-active' };
+  }
+
+  await cloud.teardownLiveWorkspaceState();
+  try {
+    const [{ clearWorkspaceKeyCache }, { clearSharedSyncKeys }] = await Promise.all([
+      import('@/lib/api/workspaces'),
+      import('@/utils/sync/shared-keys'),
+    ]);
+    clearWorkspaceKeyCache();
+    await clearSharedSyncKeys();
+  } catch (err) {
+    console.warn('[auth] leaving key material cleanup failed:', err?.message || err);
+  }
+
+  // The durable half first: if the pool swap fails the index still points at
+  // the leaving account, so a relaunch is coherent.
+  try {
+    const { switchLocalWorkspace } = await import('@/lib/native/workspaces');
+    await switchLocalWorkspace(targetWorkspaceId);
+  } catch (err) {
+    console.warn('[auth] workspace switch failed:', err?.message || err);
+    await runWorkspaceInit().catch(() => {});
+    return { switched: false, reason: 'workspace-switch-failed' };
+  }
+
+  await accountStore.activateAccount(accountId);
+  accountStore.activeWorkspaceId = targetWorkspaceId;
+  resetWorkspaceModuleState();
+  cloud.activeId.value = targetWorkspaceId;
+  // Re-runs the live init for the arriving account: profile, plans, identity
+  // republish and the meta-room join all ride on it.
+  await runWorkspaceInit();
+  // Notes and folders belong to a workspace, so the id in the address bar is
+  // almost never in the arriving one; the note view only re-checks its id when
+  // the route changes, which an in-place switch does not do, and would show
+  // blank. Home re-renders for whichever workspace just arrived.
+  if (/^#\/(note|folder)\//.test(window.location.hash)) {
+    window.location.hash = '#/';
+  }
+  return { switched: true };
+}
+
+let switchInFlight = null;
+export function switchAccount(options = {}) {
+  // shortcut: a switch during a switch joins the first (a double-click);
+  // upgrade to a queue if two different targets must both land.
+  if (!switchInFlight) {
+    switchInFlight = performSwitch(options).finally(() => {
+      switchInFlight = null;
+    });
+  }
+  return switchInFlight;
+}
+
+// Sign out of one account while the others stay signed in. The live state is
+// torn down only when the leaving account was the active one; the app then
+// moves to a remaining account in place.
+export async function signOutAccount(accountId) {
+  const accountStore = useAccountStore();
+  const wasActive = getActiveAccountId() === accountId;
+  if (wasActive) {
+    try {
+      await authApi.logout({ baseUrl: accountStore.serverUrl });
+    } catch (err) {
+      console.warn('[auth] logout server call failed:', err);
+    }
+    try {
+      const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
+      await stopRustSync();
+    } catch {}
+    await teardownLocalAccountState();
+    resetApiClient();
+  }
+  // Drops the record and that account's own credentials. The install-level
+  // device registration stays, so the remaining accounts keep theirs.
+  await accountStore.forgetAccount(accountId);
+  const remaining = listAccounts();
+  if (!remaining.length) return { switched: false, reason: 'no-accounts' };
+  if (!wasActive) return { switched: false, reason: 'other-account-active' };
+  // force: the note store was just torn down, so the arriving account has to
+  // re-init even when its workspace id is the one already in the pool.
+  return switchAccount({
+    accountId: remaining[0].id,
+    workspaceId: remaining[0].activeWorkspaceId,
+    force: true,
+  });
+}
+
 export function useAccountAuth() {
   const accountStore = useAccountStore();
 
@@ -76,24 +324,24 @@ export function useAccountAuth() {
     accountStore.setStatus(status);
   }
 
-  async function persistToken(token, profile) {
+  async function persistToken(token, profile, accountId) {
     if (token) {
       try {
-        await saveSessionToken(token);
+        await saveSessionToken(token, accountId);
       } catch (err) {
         console.error('[auth] persistToken failed:', err);
       }
     } else {
-      await clearSessionToken();
+      await clearSessionToken(accountId);
     }
     if (profile) {
       try {
-        await saveCachedProfile(profile);
+        await saveCachedProfile(profile, accountId);
       } catch (err) {
         console.error('[auth] persist profile failed:', err);
       }
     } else if (!token) {
-      await clearCachedProfile();
+      await clearCachedProfile(accountId);
     }
     resetApiClient();
   }
@@ -119,9 +367,12 @@ export function useAccountAuth() {
       return data;
     } catch (err) {
       if (err && err.status === 401) {
-        // Don't nuke auth state on profile fetch 401 — it may be a wrong
-        // server URL or transient issue. The token is still valid.
-        console.warn('[auth] fetchProfile 401 — keeping auth state, token may still be valid');
+        // client.js already cleared the persisted token on this 401, so the session
+        // is dead. Leaving the in-memory token would strand the app: REST reads
+        // storage (anonymous) while ws-sync reads this store (still authenticating).
+        accountStore.setToken(null);
+        accountStore.setStatus('anonymous');
+        console.warn('[auth] fetchProfile 401: session rejected, signing out');
       } else {
         console.error('[auth] fetchProfile failed:', err);
       }
@@ -130,49 +381,133 @@ export function useAccountAuth() {
   }
 
   async function ensureDeviceId() {
-    let id = await loadAccountDeviceId();
+    let id = null;
+    try {
+      // The Rust id is installation-global and survives sign-out, the secure
+      // blob does not; prefer it so a re-login keeps its published identity
+      // (and session device_id matches account.device_keys).
+      const { getSyncDeviceId } = await import('@/utils/sync/sync-repository.js');
+      id = await getSyncDeviceId();
+    } catch {
+      id = null;
+    }
+    if (!id) {
+      id = await loadAccountDeviceId().catch(() => null);
+    }
     if (!id) {
       id =
         typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-      try {
-        await saveAccountDeviceId(id);
-      } catch (err) {
-        console.error('[auth] saveAccountDeviceId failed:', err);
-      }
+    }
+    try {
+      await saveAccountDeviceId(id);
+    } catch (err) {
+      console.error('[auth] saveAccountDeviceId failed:', err);
     }
     return id;
   }
 
-  async function performSignIn({ token, user, subscription, persist = true }) {
-    if (!token) {
+  async function performSignIn({ token, sessionToken, user, subscription, refreshToken = null, persist = true }) {
+    // The passkey replies historically used `sessionToken` only; the server now
+    // sends both names, and accepting either keeps sign-in working across a
+    // version skew between this client and a deployed API.
+    const sessionId = token || sessionToken;
+    if (!sessionId) {
       throw new Error('Sign-in response did not include a session token.');
     }
+    // The account id keys every credential slot. When the reply omits the user
+    // the install keeps today's single-slot behaviour rather than recording an
+    // account whose session it never wrote.
+    const accountId = user?.id || null;
     if (persist) {
-      await persistToken(token, user);
+      await persistToken(sessionId, user, accountId);
+      // Keep the rotating refresh token beside the session so a later 401 can
+      // be recovered silently instead of signing the user out.
+      if (refreshToken) {
+        try {
+          const { saveRefreshToken } = await import('@/lib/account-storage');
+          await saveRefreshToken(refreshToken, accountId);
+        } catch (err) {
+          console.error('[auth] persist refresh token failed:', err);
+        }
+      }
     }
+    accountStore.setToken(sessionId);
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
-    await fetchProfile();
+    // Record and activate the account *before* talking to the server: the API
+    // client picks the credential by the active account id, so a fetch issued
+    // while the previous account is still active would come back with the
+    // previous account's profile and store it under the new id.
+    if (persist && accountId) {
+      try {
+        await accountStore.persistActiveAccount({
+          id: accountId,
+          email: user?.email || null,
+          serverUrl: accountStore.serverUrl,
+          profile: user || {},
+        });
+      } catch (err) {
+        console.warn('[auth] account record seed failed:', err?.message || err);
+      }
+    }
+    const accountData = await fetchProfile();
+    // Re-arm realtime: a prior sign-out called `stop()`, which dropped every
+    // provider. Without this, rooms stay dead until an app restart (L7).
+    try {
+      const { getWsSync } = await import('@/lib/sync/ws-sync.js');
+      getWsSync().start();
+    } catch (err) {
+      console.warn('[auth] ws re-arm failed:', err?.message || err);
+    }
     // E2E identity: ensure a keypair exists and the server knows its public key
     try {
       const identity = await loadOrCreateIdentity();
+      const deviceId = await ensureDeviceId();
       const userKem = accountStore.profile?.kemPublicKey;
       if (!userKem || userKem !== identity.publicKeyHex) {
-        await publishIdentity(identity);
+        await publishIdentity(identity, deviceId, activeBaseUrl());
         await fetchProfile();
       }
     } catch (err) {
       console.warn('[e2e] identity reconcile failed:', err?.message);
     }
-    return { token, user, subscription };
+    // The account list is what the switcher renders, so every sign-in records
+    // itself there; persistActiveAccount also makes it the active one.
+    if (persist && accountId) {
+      try {
+        const profile = accountData?.profile || user || {};
+        await accountStore.persistActiveAccount({
+          id: accountId,
+          email: profile.email || null,
+          serverUrl: accountStore.serverUrl,
+          profile,
+          subscription: accountStore.subscription,
+          planLimits: accountStore.planLimits,
+          organizations: accountData?.organizations || [],
+          activeOrgId: accountStore.activeOrgId,
+          activeWorkspaceId: accountStore.activeWorkspaceId,
+          workspaces: (accountData?.organizations || []).flatMap((org) => org.workspaces || []),
+        });
+      } catch (err) {
+        console.warn('[auth] account record persist failed:', err?.message || err);
+      }
+    }
+    // Adding an account used to end in a reload, which re-derived the active
+    // workspace for the arriving account. In place nothing did, so the notes
+    // list and the sync scope stayed on the account we just left.
+    if (persist && accountId) {
+      try {
+        await performSwitch({ accountId, force: true });
+      } catch (err) {
+        console.warn('[auth] workspace handover after sign-in failed:', err?.message || err);
+      }
+    }
+    return { token: sessionId, user, subscription };
   }
 
-  // Shared scaffolding for the sign-in / sign-up flows: clear the previous
-  // error, set the authenticating status, hold the busy flag, and on failure
-  // reset to anonymous with a normalized error.
   async function runAuthFlow(fn) {
     clearAuthError();
     setStatus('authenticating');
@@ -194,6 +529,7 @@ export function useAccountAuth() {
       if (!normalizedEmail) {
         throw new Error('Email is required.');
       }
+      await ensureDeviceId();
       const requestOptions = await authApi.passkeyLoginBegin(normalizedEmail, {
         baseUrl: activeBaseUrl(),
       });
@@ -202,7 +538,6 @@ export function useAccountAuth() {
         { baseUrl: activeBaseUrl() },
         requestOptions
       );
-      await ensureDeviceId();
       return performSignIn(result || {});
     });
   }
@@ -213,6 +548,7 @@ export function useAccountAuth() {
       if (!normalizedEmail) {
         throw new Error('Email is required.');
       }
+      await ensureDeviceId();
       const deviceLabel = deriveDeviceLabel();
       const createOptions = await authApi.passkeyRegisterBegin(
         normalizedEmail,
@@ -235,15 +571,15 @@ export function useAccountAuth() {
       if (!normalizedEmail || !password) {
         throw new Error('Email and password are required.');
       }
+      await ensureDeviceId();
       const result = await authApi.passwordLogin(normalizedEmail, password, {
         baseUrl: activeBaseUrl(),
       });
-      await ensureDeviceId();
       return performSignIn(result || {});
     });
   }
 
-  async function signUpWithPassword(email, password) {
+  async function signUpWithPassword(email, password, username) {
     return runAuthFlow(async () => {
       const normalizedEmail = String(email || '').trim();
       if (!normalizedEmail || !password) {
@@ -253,11 +589,12 @@ export function useAccountAuth() {
         throw new Error('Password must be at least 12 characters.');
       }
       const identity = await loadOrCreateIdentity();
+      await ensureDeviceId();
       const result = await authApi.passwordRegister(normalizedEmail, password, {
         baseUrl: activeBaseUrl(),
         kemPublicKey: identity.publicKeyHex,
+        username: typeof username === 'string' ? username.trim().slice(0, 50) : undefined,
       });
-      await ensureDeviceId();
       return performSignIn(result || {});
     });
   }
@@ -308,11 +645,18 @@ export function useAccountAuth() {
     } catch (err) {
       console.warn('[auth] logout server call failed:', err);
     }
+    try {
+      const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
+      await stopRustSync();
+    } catch {}
+    await teardownLocalAccountState();
     await clearAllAccountStorage();
     resetApiClient();
     setStatus('anonymous');
+    accountStore.setToken(null);
     accountStore.setProfile(null);
     accountStore.setSubscription(null);
+    accountStore.setPlanLimits(null);
     accountStore.setDevices([]);
     accountStore.setActiveSessions([]);
   }
@@ -375,6 +719,11 @@ export function useAccountAuth() {
     accountStore.setBusy(true);
     try {
       await accountApi.deleteAccount(password, { baseUrl: activeBaseUrl() });
+      try {
+        const { stopRustSync } = await import('@/utils/sync/rust-shim.js');
+        await stopRustSync();
+      } catch {}
+      await teardownLocalAccountState();
       await clearAllAccountStorage();
       resetApiClient();
       accountStore.removeAccount(accountStore.activeAccountId);
@@ -382,6 +731,7 @@ export function useAccountAuth() {
         setStatus('anonymous');
         accountStore.setProfile(null);
         accountStore.setSubscription(null);
+        accountStore.setPlanLimits(null);
         accountStore.setDevices([]);
         accountStore.setActiveSessions([]);
       }
@@ -403,6 +753,7 @@ export function useAccountAuth() {
       }
       return false;
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     const cached = await loadCachedProfile();
     if (cached) accountStore.setProfile(cached);
@@ -411,52 +762,149 @@ export function useAccountAuth() {
     return true;
   }
 
-  async function triggerSeed(_onProgress) {
-    // Skip if no cloud sync is configured
-    if (!accountStore.isAuthenticated) return false;
-    if (!accountStore.isPaidPlan) return false;
+  // A skipped seed used to return `false` with nothing recorded, so the
+  // onboarding "seeding" phase resolved having done nothing. Report the reason
+  // through the seedStatus/seedError pair the failure panel already renders.
+  function skipSeed(reason, message) {
+    logger.error(`[auth] cloud sync seed skipped: ${reason}`);
+    accountStore.setSeedStatus('error');
+    accountStore.setSeedError(message);
+    return { started: false, reason };
+  }
 
-    const transportSetting = await import('@/lib/settings').then(
-      (m) => m.getSettingSync('syncTransport')
-    );
-    if (transportSetting && transportSetting !== 'remote' && transportSetting !== 'both') {
-      return false;
+  async function triggerSeed(onProgress) {
+    if (!accountStore.isAuthenticated) {
+      return skipSeed('not-authenticated', 'Sign in to set up cloud sync.');
     }
+    if (!accountStore.isPaidPlan) {
+      return skipSeed(
+        'plan-not-paid',
+        'Cloud sync needs a paid plan. Your notes stay on this device.'
+      );
+    }
+
+    const settings = await import('@/lib/settings');
+    const transportSetting = settings.getSettingSync('syncTransport');
+    const { normalizeSyncTransport } = await import('@/lib/api/types.js');
+    if (normalizeSyncTransport(transportSetting) !== 'remote') {
+      // Folder mode requires a chosen folder: an empty sync path means the
+      // `folder` value is just the unset default (Settings sign-in never
+      // writes syncTransport), so adopt remote for this paid account and seed.
+      const syncPath = settings.getSettingSync('syncPath');
+      if (accountStore.isPaidPlan && !String(syncPath ?? '').trim()) {
+        await settings.setSetting('syncTransport', 'remote');
+      } else {
+        return skipSeed(
+          'transport-not-remote',
+          'Sync is set to a local folder, so there is no cloud copy to seed.'
+        );
+      }
+    }
+
+    accountStore.setSeedStatus('seeding');
+    accountStore.setSeedError('');
+    accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
+
+    // Listen before starting the scheduler: Rust runs a tick immediately on
+    // `sync:start`, so subscribing afterwards would race the first `seed`.
+    await stopSeedWatch();
+    const { backend } = await import('@/lib/tauri-bridge');
+    const { describeStatus } = await import('@/store/sync-progress');
+
+    let resolveStarted;
+    const started = new Promise((resolve) => {
+      resolveStarted = resolve;
+    });
+    let settled = false;
+    let sawActivity = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolveStarted();
+    };
+
+    const handleProgress = (payload) => {
+      const phase = payload?.phase;
+      if (!phase) return;
+      sawActivity = true;
+      const progress = {
+        phase,
+        uploaded: payload.processed || 0,
+        total: payload.total || 0,
+      };
+      accountStore.setSeedProgress(progress);
+      onProgress?.(progress);
+      if (SEED_START_PHASES.has(phase)) finish();
+      if (phase === 'done') {
+        accountStore.setSeedStatus('done');
+        stopSeedWatch();
+      }
+    };
+
+    const onStatus = (payload) => {
+      const status = payload?.status;
+      if (!status || status === 'syncing' || status === 'idle') return;
+      if (status === 'complete') {
+        if (accountStore.seedStatus === 'seeding') {
+          accountStore.setSeedStatus('done');
+        }
+        stopSeedWatch();
+        return;
+      }
+      if (SEED_TRANSIENT_STATUSES.has(status)) return;
+      const described = describeStatus(status, payload?.message);
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError(
+        described?.text || payload?.message || 'Sync setup failed.',
+      );
+      finish();
+      stopSeedWatch();
+    };
+
+    const onError = (payload) => {
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError(payload?.message || 'Sync setup failed.');
+      finish();
+      stopSeedWatch();
+    };
+
+    seedWatchUnlisten = [
+      await backend.listenPayload('sync:progress', handleProgress),
+      await backend.listenPayload('sync:status', onStatus),
+      await backend.listenPayload('sync:error', onError),
+    ];
 
     try {
-      const { getSyncEngine } = await import('@/utils/sync/engine.js');
-
-      // Wait up to 5s for the sync engine to initialize (it may start after auth)
-      let engine = getSyncEngine();
-      for (let i = 0; i < 50 && !engine; i++) {
-        await new Promise((r) => setTimeout(r, 100));
-        engine = getSyncEngine();
-      }
-
-      // If the engine still isn't initialized, initialize it now
-      if (!engine) {
-        logger.info('[auth] sync engine not found, initializing now');
-        const { initAppSync } = await import('@/utils/sync/app-sync.js');
-        engine = await initAppSync();
-      }
-      if (!engine) {
-        logger.info('[auth] sync engine could not be initialized, skipping seed');
-        return false;
-      }
-
-      accountStore.setSeedStatus('seeding');
-      // Trigger a force sync — this will handle seeding through the
-      // proper serialized path (seedCloudOnce) in the normal sync cycle.
-      await engine.forceSyncNow();
-      if (accountStore.seedStatus === 'seeding') {
-        accountStore.setSeedStatus('done');
-      }
-      return true;
+      const { initAppSync } = await import('@/utils/sync/app-sync.js');
+      const { startRustSync, kickRustSync } = await import(
+        '@/utils/sync/rust-shim.js'
+      );
+      await initAppSync();
+      // initAppSync may skip when no target is configured; seed always has a
+      // cloud target, so start the scheduler explicitly to reset its guards.
+      await startRustSync();
+      kickRustSync();
     } catch (err) {
-      console.error('[auth] seed failed:', err);
+      logger.error('[auth] seed failed:', err?.message || err);
       accountStore.setSeedStatus('error');
-      return false;
+      accountStore.setSeedError(err?.message || 'Sync setup failed.');
+      await stopSeedWatch();
+      return { started: false, reason: 'start-failed' };
     }
+
+    await Promise.race([
+      started,
+      new Promise((resolve) => setTimeout(resolve, SEED_START_TIMEOUT_MS)),
+    ]);
+
+    if (!settled && !sawActivity) {
+      logger.error('[auth] seed did not start within timeout');
+      accountStore.setSeedStatus('error');
+      accountStore.setSeedError('Sync setup timed out.');
+      await stopSeedWatch();
+      return { started: false, reason: 'start-timeout' };
+    }
+    return { started: true, reason: null };
   }
 
   onMounted(() => {
@@ -472,7 +920,9 @@ export function useAccountAuth() {
     pollQuickConnect,
     authorizeQuickConnect,
     signOut,
+    signOutAccount,
     signOutEverywhere,
+    switchAccount,
     listActiveSessions,
     revokeActiveSession,
     refreshProfile,

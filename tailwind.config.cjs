@@ -28,12 +28,18 @@ module.exports = {
     function ({ addVariant }) {
       addVariant('mobile', '.runtime-mobile &');
       addVariant('tablet', '.runtime-tablet &');
+      addVariant('ltr', '[dir="ltr"] &');
+      addVariant('rtl', '[dir="rtl"] &');
     },
     require('@tailwindcss/typography'),
     require('@eioluseyi/tailwind-fade')({
       prefix: 'eio-',
     }),
     createThemes({
+      amber: {
+        primary: colors.amber['400'],
+        secondary: colors.amber['300'],
+      },
       light: {
         primary: colors.amber['400'],
         secondary: colors.amber['300'],

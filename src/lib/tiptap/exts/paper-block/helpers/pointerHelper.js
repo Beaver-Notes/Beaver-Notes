@@ -1,22 +1,4 @@
-/**
- * pointerHelper.js — tldraw-inspired pointer event handling
- *
- * Uses a lightweight state-machine approach (from tldraw's StateNode)
- * instead of the previous flat if/else dispatch:
- *
- *   idle → pointing (pen/tool) → drawing → idle
- *   idle → pointing (select/lasso) → selecting → idle
- *   idle → pointing (eraser) → erasing → idle
- *
- * Key tldraw-derived features:
- *   - Pen mode: once a pencil touches the canvas, non-pen input is
- *     rejected until the user explicitly exits pen mode
- *   - Stylus eraser button (button 5) auto-switches to eraser
- *   - Coalesced events for high-fidelity pencil input
- *   - Segment-split eraser (O(n) per frame)
- *   - Straight-line segments (Shift key during draw)
- *   - Auto-grow: canvas height expands when drawing near the bottom
- */
+/** Pointer handling via lightweight state machine: idle to pointing to drawing/erasing/selecting/transforming to idle. */
 
 import {
   isPalmTouch,
@@ -34,8 +16,8 @@ function splitStrokeByEraser(stroke, eraserX, eraserY, eraserRadius) {
   const pts = stroke.points;
   if (!pts || pts.length === 0) return [stroke];
 
-  // Expand hit radius by the stroke's rendered width so the eraser catches
-  // visible ink, not just the raw point coordinates
+  // Expand hit radius by the rendered stroke width so the eraser catches
+  // visible ink, not just raw point coordinates.
   const strokeR = (stroke.size ?? 4) / 2;
   const effectiveR = eraserRadius + strokeR;
   const r2 = effectiveR * effectiveR;
@@ -95,16 +77,9 @@ function applyEraserPoint(lines, x, y, radius) {
   return changed ? next : lines;
 }
 
-// Pointer state machine
-
 /**
- * TouchMode (from tldraw):
- *   'idle'      — no interaction in progress
- *   'pointing'  — pointer down but hasn't moved past drag threshold yet
- *   'drawing'   — actively drawing a stroke
- *   'erasing'   — actively erasing
- *   'selecting' — box/lasso selection in progress
- *   'transforming' — moving/resizing/rotating a selection
+ * TouchMode (from tldraw). 'pointing' = pointer down but not yet past
+ * the drag threshold; the other names match their modes.
  */
 const TouchMode = {
   IDLE: 'idle',
@@ -115,9 +90,7 @@ const TouchMode = {
   TRANSFORMING: 'transforming',
 };
 
-const DRAG_THRESHOLD_SQ = 9; // 3px² — minimum drag distance to start drawing
-
-// Main composable
+const DRAG_THRESHOLD_SQ = 9; // 3px squared: minimum drag to start drawing.
 
 export function usePointerHelper(context) {
   const {
@@ -135,15 +108,13 @@ export function usePointerHelper(context) {
     autoGrow,
   } = context;
 
-  // Internal state-machine state
   let touchMode = TouchMode.IDLE;
   let pointerOriginX = 0;
   let pointerOriginY = 0;
   let _isPen = false; // per-stroke: is this particular stroke drawn with a pen?
   let segmentMode = 'free'; // 'free' | 'straight'
-  let straightSegmentAnchor = null; // { x, y } — where straight line started
+  let straightSegmentAnchor = null; // Straight line start point.
 
-  // Auto-grow
   const AUTO_GROW_MARGIN = 40; // px from canvas bottom edge
   const AUTO_GROW_STEP = 200;
 
@@ -159,17 +130,13 @@ export function usePointerHelper(context) {
     }
   }
 
-  // Reset state machine
   function resetTouchMode() {
     touchMode = TouchMode.IDLE;
     segmentMode = 'free';
     straightSegmentAnchor = null;
   }
 
-  // pointer down
-
   const handlePointerDown = (e) => {
-    // Pen-mode check (from tldraw's Editor.ts dispatch)
     if (state.isPenMode && !isPen(e)) return;
     if (!isDeliberateInput(e, state.isPenMode)) return;
     if (isPalmTouch(e)) return;
@@ -177,19 +144,16 @@ export function usePointerHelper(context) {
     e.preventDefault();
     e.stopPropagation();
 
-    // Set pointer capture so we keep receiving events
     const svgElem = e.currentTarget;
     if (svgElem.setPointerCapture) svgElem.setPointerCapture(e.pointerId);
 
     const [x, y] = getPointerCoordinates(e, svgRef.value);
 
-    // Detect pen → enter pen mode (from tldraw)
     if (isPen(e) && !state.isPenMode) {
       state.isPenMode = true;
     }
     _isPen = isPen(e);
 
-    // Stylus eraser button → switch to eraser (from tldraw)
     if (isStylusEraser(e) && state.tool !== 'eraser') {
       state._preEraserTool = state.tool;
       state.tool = 'eraser';
@@ -201,19 +165,16 @@ export function usePointerHelper(context) {
 
     // Lasso tool
     if (state.tool === 'lasso') {
-      // Check if clicking inside existing selection → move
       if (state.selectedElement && isPointInsideSelectionLocal(x, y)) {
         touchMode = TouchMode.TRANSFORMING;
         handleTransformStart(e, 'move');
         return;
       }
-      // Start new selection
       touchMode = TouchMode.SELECTING;
       handleSelectionStart(e);
       return;
     }
 
-    // Drawing tools: deselect on tap
     if (state.selectedElement) state.selectedElement = null;
 
     const pressure = normalisePressure(e);
@@ -231,7 +192,7 @@ export function usePointerHelper(context) {
       return;
     }
 
-    // Start collecting points for pen/highlighter
+    // Start collecting points
     state.isDrawing = true;
     state.currentStrokePoints = [[x, y, pressure]];
     currentPointsRef.value = [[x, y, pressure]];
@@ -246,7 +207,6 @@ export function usePointerHelper(context) {
 
     const [x, y] = getPointerCoordinates(e, svgRef.value);
 
-    // Auto-grow check
     checkAutoGrow();
 
     switch (touchMode) {
@@ -277,7 +237,6 @@ export function usePointerHelper(context) {
       }
 
       case TouchMode.POINTING: {
-        // Wait for drag threshold before switching to drawing
         const dx = x - pointerOriginX;
         const dy = y - pointerOriginY;
         if (dx * dx + dy * dy < DRAG_THRESHOLD_SQ) return;
@@ -288,9 +247,7 @@ export function usePointerHelper(context) {
       case TouchMode.DRAWING: {
         if (!state.isDrawing) return;
 
-        // Handle Shift key for straight line segments
         if (state._shiftHeld && segmentMode === 'free') {
-          // Transition to straight mode — anchor at the last point
           const lastPt =
             currentPointsRef.value[currentPointsRef.value.length - 1];
           if (lastPt) {
@@ -298,12 +255,10 @@ export function usePointerHelper(context) {
             segmentMode = 'straight';
           }
         } else if (!state._shiftHeld && segmentMode === 'straight') {
-          // Transition back to free
           segmentMode = 'free';
           straightSegmentAnchor = null;
         }
 
-        // Get coalesced events for high-fidelity input
         const events = getCoalescedEvents(e);
 
         for (const ce of events) {
@@ -330,8 +285,6 @@ export function usePointerHelper(context) {
       }
     }
   };
-
-  // pointer up
 
   const handlePointerUp = (e) => {
     if (state.isPenMode && !isPen(e)) return;
@@ -377,7 +330,7 @@ export function usePointerHelper(context) {
       }
 
       case TouchMode.POINTING: {
-        // Tap (no drag) — deselect if selecting tool, otherwise ignore
+        // Tap without drag: deselect if selecting tool, else ignore.
         state.isDrawing = false;
         state.currentStrokePoints = [];
         currentPointsRef.value = [];
@@ -424,8 +377,6 @@ export function usePointerHelper(context) {
     }
   };
 
-  // pointer leave / cancel
-
   const handlePointerLeave = (e) => {
     if (state.isDrawing) handlePointerUp(e);
   };
@@ -441,14 +392,10 @@ export function usePointerHelper(context) {
     resetTouchMode();
   };
 
-  // eraser undo snapshot helper
-
   function captureUndoBeforeErase(s) {
     s.undoStack = [...s.undoStack, s.lines];
     s.redoStack = [];
   }
-
-  // Local helpers
 
   function isPointInsideSelectionLocal(px, py) {
     const el = state.selectedElement;

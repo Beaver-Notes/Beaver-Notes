@@ -24,8 +24,6 @@ import {
 const MOVE_THRESHOLD = 2; // px dead-zone before transform activates
 
 export default function useTransformHelper(state, svgRef) {
-  // start
-
   const handleTransformStart = (e, corner) => {
     if (!state.selectedElement || isPalmTouch(e)) return;
     e.stopPropagation();
@@ -51,8 +49,6 @@ export default function useTransformHelper(state, svgRef) {
     state.isDrawing = true;
   };
 
-  // move
-
   const handleTransformMove = (e) => {
     if (!state.transformState || !state.selectedElement || isPalmTouch(e))
       return;
@@ -70,7 +66,6 @@ export default function useTransformHelper(state, svgRef) {
 
     const { corner, originalBounds } = state.transformState;
 
-    // rotation
     if (corner === 'rotate') {
       const { bounds: _bounds } = state.selectedElement;
       const cx = originalBounds.x + originalBounds.width / 2;
@@ -94,7 +89,6 @@ export default function useTransformHelper(state, svgRef) {
       return;
     }
 
-    // move
     if (corner === 'move') {
       const newBounds = {
         ...originalBounds,
@@ -105,7 +99,6 @@ export default function useTransformHelper(state, svgRef) {
       return;
     }
 
-    // resize
     const minSize = 10;
     let { x, y: by, width, height } = { ...originalBounds };
 
@@ -137,8 +130,6 @@ export default function useTransformHelper(state, svgRef) {
       bounds: { x, y: by, width, height },
     };
   };
-
-  // end
 
   const handleTransformEnd = () => {
     if (!state.transformState || !state.selectedElement) return;

@@ -1,17 +1,10 @@
 /**
- * ProseMirror / Tiptap document structure helpers.
- *
- * These utilities operate on raw JSON document fragments (the shape Tiptap
- * stores as note.content) and are kept out of the store to make them easy
- * to test in isolation.
+ * ProseMirror / Tiptap document structure helpers over raw JSON fragments
+ * (the shape Tiptap stores as note.content); kept out of the store for testability.
  */
 
 /**
- * Recursively collects all nodes of a given type from a document fragment.
- *
- * @param {Array|object} fragment - A ProseMirror node or array of nodes.
- * @param {string}       name     - The node type to search for.
- * @returns {Array}
+ * Recursively collect all nodes of a given type from a document fragment.
  */
 export function findAllNodesInRange(fragment, name) {
   if (!fragment) return [];
@@ -34,13 +27,9 @@ export function findAllNodesInRange(fragment, name) {
 }
 
 /**
- * Reconciles a footnotes container node at the end of the document, ensuring
- * all referenced footnotes exist and appear in reference order.
- *
- * Mutates `note.content.content` in place.
- *
- * @param {object} note      - Note object with a `content` ProseMirror doc.
- * @param {Array}  footnotes - Additional footnote nodes to merge in.
+ * Reconcile a footnotes container at the end of the doc so every referenced
+ * footnote exists in reference order. Mutates `note.content.content` in place;
+ * `footnotes` are additional nodes merged in.
  */
 export function reconcileFootnotes(note, footnotes) {
   let lastNode = note.content.content.at(-1);
@@ -81,12 +70,8 @@ export function reconcileFootnotes(note, footnotes) {
 }
 
 /**
- * Recursively un-collapses heading nodes, restoring their hidden child content
- * and collecting any footnote nodes that were stored inside the heading.
- *
- * @param {Array}  contents  - Array of ProseMirror nodes.
- * @param {Array}  footnotes - Accumulator for footnote nodes found in headings.
- * @returns {Array} Flat array of nodes with all collapsed content restored.
+ * Recursively un-collapse heading nodes, restoring hidden child content and
+ * collecting footnote nodes stored inside headings into `footnotes`.
  */
 export function uncollapseHeadings(contents, footnotes) {
   if (!contents.length) return contents;

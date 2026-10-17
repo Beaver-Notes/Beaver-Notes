@@ -1,20 +1,7 @@
 /**
- * Centralised sound-action wiring.
- *
- * Listens to Pinia store actions via `$onAction` and plays the corresponding
- * sound **after** the action completes successfully
- *
- * On **mobile** (iOS/Android) the feedback is delivered via haptics
- * On **desktop** the feedback uses the Web Audio API (synthesised tones).
- *
- * Sound / haptic map
- * ------------------
- * add              → noteCreate       add    → folderCreate
- * delete           → delete           delete → delete
- * update           → (see payload)    move   → move
- * moveToFolder     → move
- * lockNote         → lock
- * unlockNote       → unlock
+ * Centralised sound-action wiring: listens to Pinia store actions via
+ * `$onAction` and plays the corresponding sound after the action succeeds.
+ * Mobile feedback uses haptics; desktop uses synthesised Web Audio tones.
  */
 
 import { watch } from 'vue';
@@ -25,8 +12,7 @@ import { useSounds } from './useSounds';
 import { triggerInteractionHaptic } from '@/lib/native/haptics';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 
-//  Deduplication
-
+// Throttle: skip identical sounds within 250ms.
 const THROTTLE_MS = 250;
 const lastPlayed = {};
 
@@ -36,8 +22,6 @@ function throttledPlay(name, play) {
   lastPlayed[name] = now;
   play(name);
 }
-
-//  Subscriber
 
 export function useSoundActions() {
   const { play, enabled } = useSounds();

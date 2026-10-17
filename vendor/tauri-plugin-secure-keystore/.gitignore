@@ -1,0 +1,6 @@
+.DS_Store
+
+/.tauri
+/target
+Cargo.lock
+node_modules/

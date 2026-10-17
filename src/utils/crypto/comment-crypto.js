@@ -25,10 +25,48 @@ export async function decryptComment(key, { contentEncrypted, contentIv }, aad) 
   return new TextDecoder().decode(plaintext);
 }
 
+export const COMMENT_ENVELOPE_VERSION = 2;
+
 /**
- * Encrypt a workspace/org name. The backend stores a single opaque
- * `nameEncrypted` string, so the 12-byte IV is prepended to the ciphertext.
+ * New-scheme comment body: text plus the anchor offsets travel inside the
+ * encrypted payload, so the server stores no readable copy. Legacy comments
+ * are still plain text and are detected on read.
  */
+export function packComment({ text, anchorFrom, anchorTo }) {
+  return JSON.stringify({
+    v: COMMENT_ENVELOPE_VERSION,
+    text,
+    anchorFrom: anchorFrom ?? null,
+    anchorTo: anchorTo ?? null,
+  });
+}
+
+export function unpackComment(plain, row = {}) {
+  try {
+    const parsed = JSON.parse(plain);
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      parsed.v === COMMENT_ENVELOPE_VERSION &&
+      typeof parsed.text === 'string'
+    ) {
+      return {
+        text: parsed.text,
+        anchorFrom: parsed.anchorFrom ?? null,
+        anchorTo: parsed.anchorTo ?? null,
+      };
+    }
+  } catch {
+    // Not an envelope: a legacy plaintext body.
+  }
+  return {
+    text: plain,
+    anchorFrom: row.anchorFrom ?? null,
+    anchorTo: row.anchorTo ?? null,
+  };
+}
+
+/** Encrypt a workspace/org name: 12-byte IV prepended to ciphertext (backend stores one opaque nameEncrypted string). */
 export async function encryptName(key, plaintext) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(

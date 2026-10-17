@@ -20,19 +20,22 @@
       <p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
         {{
           translations.settings?.unlockAppEncryptionBody ||
-          'Your notes are encrypted. Enter your encryption passphrase to unlock the app.'
+          'Your notes are encrypted. Enter your vault key to unlock the app.'
         }}
       </p>
       <p class="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-        Encryption is always active — your notes and assets are protected at
+        Encryption is always active: your notes and assets are protected at
         rest.
       </p>
 
       <ui-input
+        id="app-encryption-gate-passphrase"
         ref="passwordInput"
         v-model="password"
-        type="password"
-        :placeholder="translations.settings?.password || 'Passphrase'"
+        :password="true"
+        :placeholder="
+          translations.settings?.vaultKeyPlaceholder || 'Vault key'
+        "
         class="mt-4 w-full"
         :disabled="busy"
         @keyup.enter="unlock"
@@ -70,7 +73,10 @@
         class="mt-3 text-xs text-neutral-400 dark:text-neutral-500 hover:text-primary transition-colors"
         @click="recoverWithCode"
       >
-        {{ translations.settings?.recoverWithCode || 'Forgot passphrase? Use recovery code' }}
+        {{
+          translations.settings?.recoverWithCode ||
+          'Forgot the vault key? Use the vault recovery code'
+        }}
       </button>
     </div>
   </div>
@@ -106,10 +112,10 @@ export default {
           deactivate();
           emit('unlocked');
         } else {
-          error.value = res.error || 'Incorrect passphrase.';
+          error.value = res.error || 'Incorrect vault key.';
         }
       } catch (e) {
-        error.value = e?.message || 'Incorrect passphrase.';
+        error.value = e?.message || 'Incorrect vault key.';
       } finally {
         busy.value = false;
       }
@@ -125,7 +131,7 @@ export default {
           deactivate();
           emit('unlocked');
         } else {
-          error.value = 'Failed to retrieve stored passphrase.';
+          error.value = 'Failed to retrieve the stored vault key.';
         }
       } catch (e) {
         if (e?.message?.includes('userCancel') || e?.message?.includes('User canceled')) {
@@ -139,7 +145,7 @@ export default {
 
     async function recoverWithCode() {
       const t = translations.value;
-      const code = prompt(t?.settings?.recoveryCodePrompt || 'Enter your 64-character recovery code:');
+      const code = prompt(t?.settings?.recoveryCodePrompt || 'Enter your 64-character vault recovery code:');
       if (!code?.trim()) return;
       busy.value = true;
       error.value = '';
@@ -149,10 +155,10 @@ export default {
           deactivate();
           emit('unlocked');
         } else {
-          error.value = result.error || 'Invalid recovery code.';
+          error.value = result.error || 'Invalid vault recovery code.';
         }
       } catch (e) {
-        error.value = e?.message || 'Invalid recovery code.';
+        error.value = e?.message || 'Invalid vault recovery code.';
       } finally {
         busy.value = false;
       }

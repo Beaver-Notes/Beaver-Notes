@@ -16,11 +16,9 @@ export function useEditorImage(editor) {
     const clipboardImage = await getClipboardImage();
 
     if (clipboardImage) {
-      // If there is an image in the clipboard, use it.
       if (applyImg) setImage(clipboardImage);
       return clipboardImage;
     } else {
-      // If there is no image in the clipboard, open the file dialog.
       const { canceled, filePaths } = await openDialog({
         properties: ['openFile'],
         filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],

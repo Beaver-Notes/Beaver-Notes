@@ -4,10 +4,10 @@ import {
   impactFeedback,
   notificationFeedback,
 } from '@tauri-apps/plugin-haptics';
-import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { isPhoneRuntime } from '@/lib/tauri/runtime';
 
 export async function triggerSelectionHaptic() {
-  if (!isTauri() || !isMobileRuntime()) return;
+  if (!isTauri() || !isPhoneRuntime()) return;
 
   try {
     await selectionFeedback();
@@ -16,13 +16,7 @@ export async function triggerSelectionHaptic() {
   }
 }
 
-/**
- * Map interaction sound names to haptic feedback types.
- *
- * On mobile (iOS / Android) these play through the device's Taptic Engine /
- * vibrator — no audio is produced, so they respect the silent switch and
- * never interfere with music.
- */
+/** Map sound names to haptics. On mobile plays via Taptic/vibrator, no audio, respects silent switch. */
 const hapticMap = {
   noteCreate: () => impactFeedback('light'),
   delete: () => impactFeedback('medium'),
@@ -40,7 +34,7 @@ const hapticMap = {
 };
 
 export async function triggerInteractionHaptic(name) {
-  if (!isTauri() || !isMobileRuntime()) return;
+  if (!isTauri() || !isPhoneRuntime()) return;
 
   const fn = hapticMap[name];
   if (!fn) return;

@@ -2,8 +2,32 @@ import {
   loadSessionToken,
   clearSessionToken,
 } from '@/lib/account-storage';
+import { getActiveAccountId } from '@/lib/accounts-index';
+
+async function defaultGetDeviceId() {
+  try {
+    const { loadAccountDeviceId } = await import('@/lib/account-storage');
+    return await loadAccountDeviceId();
+  } catch {
+    return null;
+  }
+}
+
+async function defaultGetDeviceLabel() {
+  try {
+    const { getDeviceModel } = await import('@/utils/device/device-model');
+    return getDeviceModel() || null;
+  } catch {
+    return null;
+  }
+}
 
 const DEFAULT_TIMEOUT_MS = 15000;
+
+// Shared by every client instance: `getApiClient(overrides)` hands out more
+// than one, and two instances refreshing at once each present the same
+// pre-rotation token — the second looks like a replay and burns the family.
+let refreshInFlight = null;
 const DEFAULT_API_URL =
   (typeof import.meta !== 'undefined' &&
     import.meta.env?.VITE_BEAVER_SYNC_API_URL) ||
@@ -56,10 +80,12 @@ function buildUrl(base, path, query) {
 
 function withTimeout(signal, ms) {
   const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(new Error('Request timed out')),
-    ms
-  );
+  const timer = setTimeout(() => {
+    // Name the reason so the catch below can tell our timeout from a caller abort.
+    const reason = new Error('Request timed out');
+    reason.name = 'TimeoutError';
+    controller.abort(reason);
+  }, ms);
   if (signal) {
     if (signal.aborted) controller.abort(signal.reason);
     else
@@ -105,8 +131,10 @@ function normalizeError(status, body) {
 
 export function createApiClient({
   baseUrl,
-  getToken = loadSessionToken,
-  clearToken = clearSessionToken,
+  getToken = (accountId = getActiveAccountId()) => loadSessionToken(accountId),
+  clearToken = (accountId = getActiveAccountId()) => clearSessionToken(accountId),
+  getDeviceId = defaultGetDeviceId,
+  getDeviceLabel = defaultGetDeviceLabel,
   defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
   fetchImpl = typeof fetch !== 'undefined' ? fetch.bind(globalThis) : null,
 } = {}) {
@@ -147,11 +175,26 @@ export function createApiClient({
       }
     }
 
+    let requestAccountId = null;
     if (auth) {
-      const token = await getToken();
+      // Remember which account this request is for: a 401 can land after the
+      // user switched away, and the refresh must rotate the credentials of the
+      // account that made the call, not of whatever is active by then.
+      requestAccountId = getActiveAccountId();
+      const token = await getToken(requestAccountId);
       if (token) {
         finalHeaders['Authorization'] = `Bearer ${token}`;
       }
+    }
+
+    const deviceId = await getDeviceId().catch(() => null);
+    if (deviceId) {
+      finalHeaders['X-Device-Id'] = deviceId;
+    }
+
+    const deviceLabel = await getDeviceLabel().catch(() => null);
+    if (deviceLabel) {
+      finalHeaders['X-Device-Label'] = deviceLabel;
     }
 
     const { signal: timeoutSignal, cancel } = withTimeout(signal, timeoutMs);
@@ -168,7 +211,11 @@ export function createApiClient({
     } catch (err) {
       cancel();
       throw new ApiError(
-        err?.name === 'AbortError' ? 'Request was aborted.' : 'Network error.',
+        err?.name === 'TimeoutError'
+          ? 'Request timed out.'
+          : err?.name === 'AbortError'
+            ? 'Request was aborted.'
+            : 'Network error.',
         { status: 0, code: 'network_error', cause: err }
       );
     }
@@ -187,17 +234,94 @@ export function createApiClient({
     const body2 = await readBody(response).catch(() => null);
 
     if (!response.ok) {
-      if (response.status === 401 && auth) {
+      if (response.status === 401 && auth && !options?.retriedAfterRefresh) {
+        // A 401 is recoverable: the session can lapse while the refresh token
+        // is still good. Refresh once, retry the call, and only sign the user
+        // out when that fails.
+        let refreshed = false;
         try {
-          await clearToken();
+          refreshed = await tryRefreshToken(requestAccountId);
+        } catch (err) {
+          console.warn('[api] refresh attempt failed:', err);
+        }
+        if (refreshed) {
+          return request(method, path, { ...options, retriedAfterRefresh: true });
+        }
+        try {
+          await clearToken(requestAccountId);
         } catch (err) {
           console.warn('[api] failed to clear token on 401:', err);
+        }
+        // The credential is dead. Clearing only the stored copy left the store
+        // reporting `authenticated`, so the app looked signed in while nothing
+        // could succeed. Sign the local state out so it asks for a new sign-in
+        // (the sync banner already says so) instead of failing silently.
+        try {
+          const { useAccountStore } = await import('@/store/account');
+          const store = useAccountStore();
+          // Only if that account is still the active one: signing out the
+          // account the user just switched to would be a bug, not a fix.
+          if (getActiveAccountId() === requestAccountId) {
+            store.setToken(null);
+            store.setStatus('anonymous');
+          }
+        } catch (err) {
+          console.warn('[api] could not reset the account store after a dead session:', err);
         }
       }
       throw normalizeError(response.status, body2);
     }
 
     return body2;
+  }
+
+  // One refresh at a time (see the module-scoped `refreshInFlight` above):
+  // concurrent 401s must not each rotate the token, or the loser of the race
+  // would present an already-rotated value and trip the replay guard, killing
+  // the whole family.
+  function tryRefreshToken(accountId = getActiveAccountId()) {
+    if (!refreshInFlight) {
+      refreshInFlight = (async () => {
+        const { loadRefreshToken, saveRefreshToken, saveSessionToken, clearRefreshToken } = await import('@/lib/account-storage');
+        const refreshToken = await loadRefreshToken(accountId);
+        if (!refreshToken) return false;
+        let data;
+        try {
+          data = await request('POST', '/auth/refresh', { auth: false, body: { refreshToken } });
+        } catch (err) {
+          // A rejected refresh token is dead for good; clearing it stops every
+          // later request retrying a burnt credential.
+          if (err?.status === 401) await clearRefreshToken(accountId);
+          return false;
+        }
+        if (!data?.token) return false;
+        await saveSessionToken(data.token, accountId);
+        if (data.refreshToken) await saveRefreshToken(data.refreshToken, accountId);
+        // The rest of the app reads the token from the store, so a refreshed
+        // session has to land there too or nothing but this HTTP client recovers.
+        try {
+          const { useAccountStore } = await import('@/store/account');
+          useAccountStore().setToken(data.token, accountId);
+        } catch (err) {
+          console.warn('[api] could not sync refreshed token to the store:', err);
+        }
+        // The Rust sync engine holds the token it was started with, so hand it
+        // the new one — otherwise background sync keeps presenting the dead
+        // session and the banner comes back.
+        try {
+          const rustSync = await import('@/utils/sync/rust-shim');
+          if (rustSync.isRustSyncActive()) await rustSync.startRustSync();
+        } catch (err) {
+          console.warn('[api] could not re-arm rust sync after refresh:', err);
+        }
+        return true;
+      })()
+        .catch(() => false)
+        .finally(() => {
+          refreshInFlight = null;
+        });
+    }
+    return refreshInFlight;
   }
 
   return {
@@ -222,6 +346,17 @@ export function createApiClient({
       }),
     delete: (path, options) =>
       request('DELETE', path, { ...options, auth: options?.auth !== false }),
+    getAccountVaultKeyParams: (options) =>
+      request('GET', '/vault/account/key-params', {
+        ...options,
+        auth: options?.auth !== false,
+      }),
+    publishAccountVaultKeyParams: (body, options) =>
+      request('PUT', '/vault/account/key-params', {
+        ...options,
+        body,
+        auth: options?.auth !== false,
+      }),
     getVaultKeyParams: (workspaceId, options) =>
       request('GET', `/vault/${encodeURIComponent(workspaceId)}/key-params`, {
         ...options,
@@ -260,8 +395,6 @@ export function getApiClient(overrides) {
 
 export function resetApiClient() {
   defaultClient = null;
-  // Also reset the sync module's cached client so it picks up the new server URL
-  import('@/utils/sync/remote-yjs.js').then((m) => m.resetSyncApiClient?.()).catch(() => {});
 }
 
 export { DEFAULT_API_URL };

@@ -10,6 +10,7 @@ import {
   stat as scopedStat,
   writeFile as scopedWriteFile,
 } from 'tauri-plugin-scoped-storage-api';
+import { invoke } from '@tauri-apps/api/core';
 import { invokeCommand } from './commands';
 import { basenameSync, buildPath, extnameSync, parseSync } from './path';
 import { isMobileRuntime } from './runtime';
@@ -54,13 +55,6 @@ function uniqueToken() {
     typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function sanitizeFileName(value, fallback = 'file') {
-  const normalized = String(value || '')
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
-    .trim();
-  return normalized || fallback;
 }
 
 function hasDialogProperty(payload, property) {
@@ -114,20 +108,11 @@ function toUint8Array(data) {
   return textEncoder.encode(String(data));
 }
 
-function uint8ArrayToBase64(data) {
-  const bytes = toUint8Array(data);
-  let binary = '';
-  const chunkSize = 0x8000;
-
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.subarray(index, index + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-
-  return btoa(binary);
-}
-
-import { base64ToUint8Array } from '@/utils/helpers/index.js';
+import {
+  base64ToUint8Array,
+  sanitizeFileName,
+  uint8ArrayToBase64,
+} from '@/utils/helpers/index.js';
 
 function isScopedPath(value) {
   return String(value || '').startsWith(SCOPED_PATH_PREFIX);
@@ -161,7 +146,6 @@ async function resolveAssetVirtualPath(value) {
   );
   if (!normalized) return normalized;
 
-  // Both assets:// and file-assets:// resolve to the unified assets/ directory
   const assetMatch = normalized.match(/^(?:assets|file-assets):\/\/([^/]+)\/(.+)$/);
   if (assetMatch) {
     const appDirectory = await getAppDirectory();
@@ -179,7 +163,8 @@ async function resolveAssetVirtualPath(value) {
 }
 
 async function describeFsTarget(value) {
-  const resolvedPath = await resolveAssetVirtualPath(value);
+  const target = value?.path ?? value;
+  const resolvedPath = await resolveAssetVirtualPath(target);
   const scoped = parseScopedPath(resolvedPath);
 
   if (scoped) {
@@ -248,6 +233,21 @@ async function readdirAt(target) {
   }
 
   return invokeCommand('fs:readdir', target.resolvedPath);
+}
+
+export function kickSyncDir(value) {
+  describeFsTarget(value)
+    .then((target) => {
+      if (target.kind !== 'scoped') return;
+
+      return invoke('plugin:scoped-storage|warm_folder', {
+        req: {
+          folderId: target.folderId,
+          path: target.relativePath || undefined,
+        },
+      });
+    })
+    .catch(() => {});
 }
 
 async function readBinaryAt(target) {
@@ -452,13 +452,67 @@ function pickFilesWithBrowserInput(payload = {}) {
   });
 }
 
+const STAGING_CHUNK_BYTES = 4 * 1024 * 1024;
+
+// Browser File/Blob inputs have no filesystem path, so bytes must cross IPC. Writing
+// in bounded chunks keeps peak WebView memory at one chunk instead of the whole file.
+async function stageFileToDisk(file, destination) {
+  const size = file.size ?? 0;
+  if (size <= STAGING_CHUNK_BYTES) {
+    await invokeCommand('fs:writeFile', {
+      path: destination,
+      data: new Uint8Array(await file.arrayBuffer()),
+    });
+    return;
+  }
+  await invokeCommand('fs:writeFile', {
+    path: destination,
+    data: new Uint8Array(await file.slice(0, STAGING_CHUNK_BYTES).arrayBuffer()),
+  });
+  for (let offset = STAGING_CHUNK_BYTES; offset < size; offset += STAGING_CHUNK_BYTES) {
+    const chunk = await file.slice(offset, offset + STAGING_CHUNK_BYTES).arrayBuffer();
+    await invokeCommand('fs:appendFile', {
+      path: destination,
+      data: new Uint8Array(chunk),
+    });
+  }
+}
+
+const MOBILE_IMPORT_STAGING_DIR = 'beaver-notes-mobile-imports';
+const STALE_STAGING_MS = 24 * 60 * 60 * 1000;
+
+// Staged import bytes are plaintext under the user's real filenames, so a
+// crash mid-import would leave them in temp forever. Sweep leftovers older than
+// a day: long enough that a concurrent in-flight import is never a candidate.
+async function sweepStaleImportStaging() {
+  try {
+    const tempDir = await invokeCommand('helper:get-path', 'temp');
+    const parent = buildPath(tempDir, MOBILE_IMPORT_STAGING_DIR);
+    if (!(await invokeCommand('fs:pathExists', parent))) return;
+
+    const entries = await invokeCommand('fs:readdir', parent);
+    const cutoff = Date.now() - STALE_STAGING_MS;
+    for (const entry of entries ?? []) {
+      const candidate = buildPath(parent, entry);
+      const stat = await invokeCommand('fs:stat', candidate);
+      if (stat?.mtimeMs < cutoff) {
+        await invokeCommand('fs:remove', candidate);
+      }
+    }
+  } catch {
+    // Best effort: never let cleanup block an import.
+  }
+}
+
 async function stageMobileSelectedFiles(files) {
   if (!files.length) return [];
+
+  sweepStaleImportStaging();
 
   const tempDir = await invokeCommand('helper:get-path', 'temp');
   const stagingRoot = buildPath(
     tempDir,
-    'beaver-notes-mobile-imports',
+    MOBILE_IMPORT_STAGING_DIR,
     uniqueToken()
   );
 
@@ -467,26 +521,34 @@ async function stageMobileSelectedFiles(files) {
   const usedNames = new Set();
   const stagedPaths = [];
 
-  for (const file of files) {
-    const rawName = sanitizeFileName(file?.name, 'file');
-    let candidateName = rawName;
-    let collisionIndex = 1;
+  // Staged bytes are plaintext, so a failure part-way through must not leave them
+  // behind under the user's real filenames. On success the directory has to
+  // outlive this call: callers copy the returned paths into the app afterwards.
+  try {
+    for (const file of files) {
+      const rawName = sanitizeFileName(file?.name, 'file');
+      let candidateName = rawName;
+      let collisionIndex = 1;
 
-    while (usedNames.has(candidateName)) {
-      const parsed = parseSync(rawName);
-      candidateName = `${parsed.name || 'file'}-${collisionIndex}${parsed.ext}`;
-      collisionIndex += 1;
+      while (usedNames.has(candidateName)) {
+        const parsed = parseSync(rawName);
+        candidateName = `${parsed.name || 'file'}-${collisionIndex}${parsed.ext}`;
+        collisionIndex += 1;
+      }
+
+      usedNames.add(candidateName);
+
+      const destination = buildPath(stagingRoot, candidateName);
+      await stageFileToDisk(file, destination);
+      stagedPaths.push(destination);
     }
-
-    usedNames.add(candidateName);
-
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const destination = buildPath(stagingRoot, candidateName);
-    await invokeCommand('fs:writeFile', {
-      path: destination,
-      data: bytes,
-    });
-    stagedPaths.push(destination);
+  } catch (error) {
+    try {
+      await invokeCommand('fs:remove', stagingRoot);
+    } catch (cleanupError) {
+      console.error('stageMobileSelectedFiles cleanup failed:', cleanupError);
+    }
+    throw error;
   }
 
   return stagedPaths;

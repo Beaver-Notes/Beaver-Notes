@@ -17,7 +17,6 @@ vi.stubGlobal('localStorage', {
   },
 });
 
-// ── Low-level Tauri primitives ───────────────────────────────────────────────
 // The stores never call @tauri-apps/* directly, but they reach it through
 // @/lib/tauri-bridge and the native/* wrappers. We stub the real Tauri runtime
 // so no native backend is required. These are honest no-ops: every invoke
@@ -63,7 +62,6 @@ vi.mock('tauri-plugin-scoped-storage-api', () => ({
   writeFile: vi.fn(async () => {}),
 }));
 
-// ── Heavy editor modules ─────────────────────────────────────────────────────
 // @/lib/tiptap instantiates full TipTap Editors at module load; @tiptap/y-tiptap
 // is pulled by the Yjs meta-doc hydration. Neither is under test here, so we
 // stub the named exports the store dependency graph references.
@@ -85,7 +83,6 @@ vi.mock('@tiptap/y-tiptap', () => ({
   yXmlFragmentToProsemirrorJSON: vi.fn(() => ({ type: 'doc', content: [] })),
 }));
 
-// ── The commands module (per task brief) ─────────────────────────────────────
 
 vi.mock('@/lib/tauri/commands', () => ({
   invokeCommand: vi.fn(async (channel) => {

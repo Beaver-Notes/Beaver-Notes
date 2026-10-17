@@ -2,7 +2,10 @@ import { ref } from 'vue';
 
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
-import { createFullSizeCardGhost, createAnimatedStackGhost } from '@/utils/ui/ghost.js';
+import {
+  createFullSizeCardGhost,
+  createAnimatedStackGhost,
+} from '@/utils/ui/ghost.js';
 
 export function useDragAndDrop({ selectedItems, clearSelection }) {
   const noteStore = useNoteStore();
@@ -21,15 +24,33 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     if (selectedItems.value.has(key)) {
       return Array.from(selectedItems.value)
         .filter((k) => k.startsWith(`${kind}-`))
-        .map((k) => k.replace(new RegExp(`^${kind}-`), ''));
+        .map((k) => k.slice(kind.length + 1));
     }
     return [id];
   }
 
   function handleNoteDragStart(event, noteId) {
+    // A drag that starts with selected text is a selection gesture (e.g.
+    // bottom-to-top select), not a card move — let the native selection win.
+    if (window.getSelection()?.toString()) {
+      event.preventDefault();
+      return;
+    }
+    // A drag that STARTS on card text (title, preview) is the beginning of a
+    // selection gesture, not a card move — desktop selection must always win
+    // there, otherwise dragstart fires at the drag threshold and cancels the
+    // in-progress selection. Card moves still work from card chrome.
+    if (
+      event.target?.closest?.(
+        '[data-preview-shell], [data-testid="note-card-title"]',
+      )
+    ) {
+      event.preventDefault();
+      return;
+    }
     isDragging.value = true;
     const sourceElement = document.querySelector(
-      `[data-item-id="note-${noteId}"]`
+      `[data-item-id="note-${noteId}"]`,
     );
     sourceElement?.setAttribute('data-dragging', '');
     const noteIds = getIdsForDrag('note', noteId);
@@ -42,8 +63,8 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
       selectedElements.length > 1
         ? createAnimatedStackGhost(selectedElements, 'note')
         : selectedElements.length === 1 && sourceElement
-        ? createFullSizeCardGhost(sourceElement, 1, 'note')
-        : null;
+          ? createFullSizeCardGhost(sourceElement, 1, 'note')
+          : null;
 
     if (ghost) {
       const r = ghost.getBoundingClientRect();
@@ -59,7 +80,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
         type: noteIds.length > 1 ? 'notes' : 'note',
         id: noteId,
         ids: noteIds,
-      })
+      }),
     );
 
     draggedNoteId.value = noteId;
@@ -70,7 +91,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
   function handleFolderDragStart(event, folderId) {
     isDragging.value = true;
     const sourceElement = document.querySelector(
-      `[data-item-id="folder-${folderId}"]`
+      `[data-item-id="folder-${folderId}"]`,
     );
     sourceElement?.setAttribute('data-dragging', '');
     const folderIds = getIdsForDrag('folder', folderId);
@@ -85,7 +106,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
         : createFullSizeCardGhost(
             event.target.closest('[data-item-id]'),
             selectedElements.length,
-            'folder'
+            'folder',
           );
 
     const r = ghost.getBoundingClientRect();
@@ -96,7 +117,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
         type: folderIds.length > 1 ? 'folders' : 'folder',
         id: folderId,
         ids: folderIds,
-      })
+      }),
     );
 
     draggedFolderId.value = folderId;
@@ -128,7 +149,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
       if (
         folderStore.wouldCreateCircularReference(
           draggedFolderId.value,
-          folderId
+          folderId,
         )
       ) {
         event.dataTransfer.dropEffect = 'none';
@@ -146,14 +167,14 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     }
   }
 
-  function handleDrop(event, targetFolderId) {
+  async function handleDrop(event, targetFolderId) {
     event.preventDefault();
 
     try {
       const dragData = JSON.parse(
-        event.dataTransfer.getData('application/json')
+        event.dataTransfer.getData('application/json'),
       );
-      const didMove = movePayloadToFolder(dragData, targetFolderId);
+      const didMove = await movePayloadToFolder(dragData, targetFolderId);
       if (didMove) {
         clearSelection?.();
       }
@@ -164,29 +185,35 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     handleDragEnd();
   }
 
-  function movePayloadToFolder(payload, targetFolderId) {
+  async function movePayloadToFolder(payload, targetFolderId) {
     if (!payload || targetFolderId === undefined) return false;
-
+    const { useUndoStore } = await import('@/store/undo');
+    const undo = useUndoStore();
     if (payload.type === 'notes' || payload.type === 'note') {
       const noteIds = payload.ids || [payload.id];
-      noteIds.forEach((noteId) => {
-        noteStore.update(noteId, { folderId: targetFolderId });
-      });
+      undo.startBatch();
+      try {
+        await noteStore.moveToFolder(noteIds, targetFolderId);
+      } finally {
+        undo.commitBatch();
+      }
       return true;
     }
-
     if (payload.type === 'folders' || payload.type === 'folder') {
       const folderIds = payload.ids || [payload.id];
-      folderIds.forEach((folderId) => {
-        if (
-          !folderStore.wouldCreateCircularReference(folderId, targetFolderId)
-        ) {
-          folderStore.update(folderId, { parentId: targetFolderId });
-        }
-      });
+      const valid = folderIds.filter(
+        (fid) => !folderStore.wouldCreateCircularReference(fid, targetFolderId),
+      );
+      if (!valid.length) return false;
+      undo.startBatch();
+      try {
+        for (const fid of valid)
+          await folderStore.update(fid, { parentId: targetFolderId });
+      } finally {
+        undo.commitBatch();
+      }
       return true;
     }
-
     return false;
   }
 
@@ -213,7 +240,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     touchGhost.style.pointerEvents = 'none';
     touchGhost.style.opacity = '1';
     touchGhost.style.transform = `translate(${Math.round(x)}px, ${Math.round(
-      y
+      y,
     )}px) scale(0.94)`;
   }
 
@@ -225,7 +252,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
 
     const selectedElements = payload.ids
       .map((itemId) =>
-        document.querySelector(`[data-item-id="${kind}-${itemId}"]`)
+        document.querySelector(`[data-item-id="${kind}-${itemId}"]`),
       )
       .filter(Boolean);
 
@@ -239,7 +266,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
         : createFullSizeCardGhost(
             sourceElement,
             selectedElements.length || 1,
-            kind
+            kind,
           );
 
     dragType.value = kind;
@@ -273,7 +300,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     dragOverFolderId.value = folderId;
   }
 
-  function finishTouchDrag() {
+  async function finishTouchDrag() {
     const payload = touchDragPayload.value;
     const targetFolderId = dragOverFolderId.value;
 
@@ -281,7 +308,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     touchDragPayload.value = null;
 
     if (payload && targetFolderId) {
-      movePayloadToFolder(payload, targetFolderId);
+      await movePayloadToFolder(payload, targetFolderId);
     }
 
     handleDragEnd();

@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/lib/settings';
+import { getLanguageDirection } from '@/utils/i18n/languages.js';
 
 const localeFiles = import.meta.glob<{ default: Record<string, string> }>('@/assets/locales/*.json', {
   eager: true,
@@ -33,6 +34,9 @@ export const useI18nStore = defineStore('i18n', () => {
     lang.value = newLang;
     await setSetting('selectedLanguage', newLang);
     document.documentElement.setAttribute('lang', newLang);
+    const dir = getLanguageDirection(newLang);
+    await setSetting('directionPreference', dir);
+    document.documentElement.setAttribute('dir', dir);
     if (newLang !== 'en') {
       try {
         await dayjsLocales[`../../node_modules/dayjs/locale/${newLang}.js`]?.();

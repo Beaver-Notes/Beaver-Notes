@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-getPendingShare"
+description = "Enables the getPendingShare command without any pre-configured scope."
+commands.allow = ["getPendingShare"]
+
+[[permission]]
+identifier = "deny-getPendingShare"
+description = "Denies the getPendingShare command without any pre-configured scope."
+commands.deny = ["getPendingShare"]

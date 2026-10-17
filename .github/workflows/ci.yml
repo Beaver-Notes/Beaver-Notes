@@ -85,3 +85,4 @@ jobs:
 
       - name: Run Rust unit tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+

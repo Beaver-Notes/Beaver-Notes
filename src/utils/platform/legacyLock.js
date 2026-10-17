@@ -1,4 +1,5 @@
 const LEGACY_CRYPTOJS_PREFIX = 'U2FsdGVk';
+const LEGACY_JSON_PREFIX = '{';
 
 export function unwrapLegacyData(raw) {
   if (raw && typeof raw === 'object' && raw.data && !raw.notes) {
@@ -22,9 +23,11 @@ export function findLegacyLockedNotes(data) {
   ]);
 
   const lockedNotes = Object.values(notesMap).filter((n) => {
+    const first = n.content?.content?.[0];
     const hasLegacyCipher =
-      typeof n.content?.content?.[0] === 'string' &&
-      n.content.content[0].startsWith(LEGACY_CRYPTOJS_PREFIX);
+      typeof first === 'string' &&
+      (first.startsWith(LEGACY_CRYPTOJS_PREFIX) ||
+        first.startsWith(LEGACY_JSON_PREFIX));
     return (n.isLocked || lockedIds.has(n.id)) && hasLegacyCipher;
   });
 

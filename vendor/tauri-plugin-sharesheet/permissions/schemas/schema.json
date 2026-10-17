@@ -295,6 +295,30 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the clearPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-clearPendingShare",
+          "markdownDescription": "Enables the clearPendingShare command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the clearPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-clearPendingShare",
+          "markdownDescription": "Denies the clearPendingShare command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the getPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-getPendingShare",
+          "markdownDescription": "Enables the getPendingShare command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the getPendingShare command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-getPendingShare",
+          "markdownDescription": "Denies the getPendingShare command without any pre-configured scope."
+        },
+        {
           "description": "Enables the share_file command without any pre-configured scope.",
           "type": "string",
           "const": "allow-share-file",

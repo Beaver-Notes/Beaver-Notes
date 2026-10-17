@@ -1,10 +1,13 @@
 <template>
   <ui-modal v-model="show" content-class="max-w-md" persist>
     <template #header>
-      <h3 class="text-lg font-semibold">
+      <h3 class="text-lg font-semibold tracking-tight leading-snug">
         {{ translations.share?.importNoteDialogTitle || 'Import note' }}
       </h3>
-      <p class="text-xs text-neutral-500 mt-1 truncate max-w-full">
+      <p
+        v-if="noteTitle"
+        class="mt-1 max-w-full truncate text-xs text-neutral-500 dark:text-neutral-400"
+      >
         {{ noteTitle }}
       </p>
     </template>
@@ -12,30 +15,38 @@
     <div>
       <!-- Root option -->
       <div
-        class="group flex items-center p-1.5 rounded-lg cursor-pointer transition-[background-color,color] duration-200"
+        role="option"
+        :aria-selected="selectedId === null"
+        tabindex="0"
+        class="group flex min-h-[44px] cursor-pointer select-none items-center gap-2 rounded-xl px-2 py-2 transition-[background-color,color] duration-200 focus-visible:outline-none focus-visible:ring-2 ring-secondary"
         :class="{
           'bg-primary/10 text-primary font-medium ring-1 ring-primary/30':
             selectedId === null,
           'hover:bg-neutral-100 dark:hover:bg-neutral-800': selectedId !== null,
         }"
         @click="selectedId = null"
+        @keydown.enter.prevent="selectedId = null"
+        @keydown.space.prevent="selectedId = null"
       >
-        <div class="mr-2 flex items-center justify-center">
+        <div class="flex shrink-0 items-center justify-center">
           <v-remixicon
             name="riFolder5Fill"
             class="w-5 h-5"
             :class="selectedId === null ? 'text-primary' : 'text-neutral-400'"
           />
         </div>
-        <span class="flex-1 truncate text-sm">
+        <span class="min-w-0 flex-1 truncate text-sm">
           {{ translations.folderTree.root }}
         </span>
       </div>
 
-      <hr class="my-1 border-neutral-100 dark:border-neutral-800" />
-
       <!-- Folder tree -->
-      <div class="max-h-64 overflow-y-auto p-1">
+      <div
+        v-if="rootFolders.length > 0"
+        role="tree"
+        aria-label="Folders"
+        class="min-h-[120px] max-h-[50dvh] mt-1 space-y-0.5 overflow-y-auto overscroll-contain"
+      >
         <folder-tree-item
           v-for="rootFolder in rootFolders"
           :key="rootFolder.id"
@@ -49,24 +60,41 @@
 
       <!-- No folders message -->
       <div
-        v-if="rootFolders.length === 0"
-        class="text-center py-8 text-neutral-500"
+        v-else
+        class="flex flex-col items-center px-4 py-10 text-center text-neutral-500 dark:text-neutral-400"
       >
-        <v-remixicon name="riFolder5Fill" class="text-4xl mb-2 text-primary" />
-        <p>{{ translations.folderTree.noFolders }}</p>
-        <p class="text-sm">{{ translations.folderTree.newFolder }}</p>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="mt-8 flex space-x-2 rtl:space-x-0">
-        <ui-button class="w-6/12 rtl:ml-2" @click="cancel">
-          {{ translations.dialog.cancel }}
-        </ui-button>
-        <ui-button class="w-6/12" variant="primary" @click="confirm">
-          {{ translations.folderTree.move || 'Import' }}
-        </ui-button>
+        <div
+          class="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10"
+        >
+          <v-remixicon
+            name="riFolder5Fill"
+            class="text-2xl text-primary"
+          />
+        </div>
+        <p class="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+          {{ translations.folderTree.noFolders }}
+        </p>
+        <p class="mt-1 max-w-[26ch] text-xs">
+          {{ translations.folderTree.newFolder }}
+        </p>
       </div>
     </div>
+
+    <template #actions>
+      <ui-button
+        class="flex-1 mobile:!min-h-[48px] mobile:w-full"
+        @click="cancel"
+      >
+        {{ translations.dialog.cancel }}
+      </ui-button>
+      <ui-button
+        class="flex-1 mobile:!min-h-[48px] mobile:w-full"
+        variant="primary"
+        @click="confirm"
+      >
+        {{ translations.folderTree.move || 'Import' }}
+      </ui-button>
+    </template>
   </ui-modal>
 </template>
 
@@ -105,7 +133,8 @@ watch(
     show.value = value;
     if (!value) return;
     selectedId.value = null;
-  }
+  },
+  { immediate: true }
 );
 
 function onSelect(id) {

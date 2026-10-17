@@ -1,14 +1,6 @@
 #!/usr/bin/env node
 /**
- * Composable convention check.
- *
- * A "composable" is a `use*` function that uses Vue reactivity
- * (ref/computed/watch/lifecycle hooks/...). See CONTRIBUTING.md.
- *
- *  - ERROR: a file in src/composable/ that is not a composable (must move to
- *    src/utils/ or src/lib/), or a composable file with no `use*` export.
- *  - WARN:  a `use*` function using Vue reactivity defined outside
- *    src/composable/ (should live there).
+ * Composable check: use* with Vue reactivity. ERROR if file in composable/ is not composable, WARN if use* outside.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';

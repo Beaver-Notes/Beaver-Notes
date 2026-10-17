@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { path } from '@/lib/tauri-bridge';
-import { ensureDir, readDir, readFile, writeFile } from '@/lib/native/fs';
+import { ensureDir, readDir, readFile, readFileBinaryBytes, writeFile } from '@/lib/native/fs';
 import { onImportComplete, onImportProgress } from '@/lib/native/imports';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
@@ -36,7 +36,36 @@ import {
   resolveRelativeFileValue,
 } from './helpers';
 
-// ─── HTML to Tiptap conversion ───────────────────────────────────────────────
+
+/** Group inline nodes into paragraphs so block parents never hold bare text (invalid ProseMirror, renders blank). */
+function wrapInlineContent(nodes, sourceNode) {
+  const blocks = [];
+  let run = [];
+  const flush = () => {
+    if (run.length > 0) {
+      blocks.push({ type: 'paragraph', content: run });
+      run = [];
+    }
+  };
+  for (const child of nodes || []) {
+    if (child && (child.type === 'text' || child.type === 'hardBreak')) {
+      run.push(child);
+    } else {
+      flush();
+      if (child) blocks.push(child);
+    }
+  }
+  flush();
+  if (blocks.length === 0) {
+    const text = sourceNode ? extractTextContent(sourceNode) : '';
+    blocks.push(
+      text
+        ? { type: 'paragraph', content: [{ type: 'text', text }] }
+        : { type: 'paragraph' }
+    );
+  }
+  return blocks;
+}
 
 function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   if (node.nodeType === Node.TEXT_NODE) {
@@ -57,6 +86,8 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   );
 
   switch (tagName) {
+    case 'DIV':
+      return wrapInlineContent(content, node);
     case 'P':
       return { type: 'paragraph', content };
     case 'H1':
@@ -86,20 +117,9 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
         ),
       };
     case 'LI':
-      return {
-        type: 'listItem',
-        content:
-          content.length > 0
-            ? content
-            : [
-                {
-                  type: 'paragraph',
-                  content: [{ type: 'text', text: extractTextContent(node) }],
-                },
-              ],
-      };
+      return { type: 'listItem', content: wrapInlineContent(content, node) };
     case 'BLOCKQUOTE':
-      return { type: 'blockquote', content };
+      return { type: 'blockquote', content: wrapInlineContent(content, node) };
     case 'PRE': {
       const codeElement = node.querySelector('code');
       const codeText = codeElement?.textContent || node.textContent || '';
@@ -212,7 +232,6 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   }
 }
 
-// ─── Concurrency helper ──────────────────────────────────────────────────────
 
 async function processWithConcurrency(items, fn, concurrency = 4) {
   for (let i = 0; i < items.length; i += concurrency) {
@@ -222,7 +241,6 @@ async function processWithConcurrency(items, fn, concurrency = 4) {
   }
 }
 
-// ─── Native Rust import ──────────────────────────────────────────────────────
 
 async function processRustImportNote(note, state, appDirectory) {
   const noteStore = useNoteStore();
@@ -250,17 +268,16 @@ async function processRustImportNote(note, state, appDirectory) {
   await ensureKeyReadyForWrite();
 
   const resourcePromises = (note.resources || []).map((resource) => {
-    try {
-      return readFile(resource.path).then((data) =>
-        writeFile(
-          path.join(noteAssetDir, resource.filename || resource.hash),
-          data
-        )
-      );
-    } catch (error) {
-      console.warn('Resource write failed:', error);
-      return Promise.resolve();
-    }
+    const dest = path.join(noteAssetDir, resource.filename || resource.hash);
+    return readFileBinaryBytes(resource.path)
+      .then((data) => writeFile(dest, data))
+      .catch((error) => {
+        console.warn('Resource write failed:', error);
+        state.errors.push({
+          title: note.title || 'Untitled',
+          reason: `Asset ${resource.filename || resource.hash} could not be saved: ${error?.message || String(error)}`,
+        });
+      });
   });
   await Promise.all(resourcePromises);
 
@@ -365,7 +382,6 @@ export function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
   };
 }
 
-// ─── Bulk platform importers ─────────────────────────────────────────────────
 
 export async function importObsidian(
   vaultPath,
@@ -677,4 +693,171 @@ export async function importGenericMarkdown(
 
   await flushImportedNotes();
   return { imported, folders: createdFolderIds.size, errors };
+}
+
+// Keep exports `labels` as `{ name }` objects in some vintages and plain
+// strings in others; both shapes are accepted.
+function keepLabelNames(labels) {
+  return (Array.isArray(labels) ? labels : [])
+    .map((label) => (typeof label === 'string' ? label : label?.name))
+    .filter(Boolean);
+}
+
+// Keep timestamps are microseconds-since-epoch numbers, sometimes ISO strings.
+function keepTimestamp(note, ...keys) {
+  for (const key of keys) {
+    const value = note?.[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value / 1000;
+    if (typeof value === 'string' && value.trim()) return parseDateValue(value);
+  }
+  return undefined;
+}
+
+function keepPlainTextContent(text) {
+  const blocks = String(text || '')
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => ({
+      type: 'paragraph',
+      content: [{ type: 'text', text: block }],
+    }));
+  return { type: 'doc', content: blocks.length > 0 ? blocks : [{ type: 'paragraph' }] };
+}
+
+function keepTaskListContent(listContent) {
+  const items = listContent
+    .filter((item) => String(item?.text || '').trim())
+    .map((item) => ({
+      type: 'taskItem',
+      attrs: { checked: item?.isChecked === true },
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: item.text }] },
+      ],
+    }));
+  return { type: 'doc', content: [{ type: 'taskList', content: items }] };
+}
+
+async function copyKeepAttachments(attachments, exportPath, appDirectory, noteId) {
+  const copied = [];
+  for (const attachment of Array.isArray(attachments) ? attachments : []) {
+    const relative =
+      typeof attachment === 'string' ? attachment : attachment?.fileFullPath;
+    if (!relative) continue;
+    const sourcePath = path.join(exportPath, relative);
+    if (!(await pathExists(sourcePath))) continue;
+
+    const fileName = sanitizeFilename(path.basename(sourcePath));
+    try {
+      const destDir = path.join(appDirectory, 'assets', noteId);
+      await ensureDir(destDir);
+      await writeFile(
+        path.join(destDir, fileName),
+        await readFileBinaryBytes(sourcePath)
+      );
+      copied.push({
+        fileName,
+        isImage: String(attachment?.mimetype || '')
+          .toLowerCase()
+          .startsWith('image/'),
+      });
+    } catch (error) {
+      console.warn('Keep attachment copy failed:', error);
+    }
+  }
+  return copied;
+}
+
+export async function importGoogleKeep(
+  exportPath,
+  noteStore,
+  appDirectory,
+  onProgress
+) {
+  const resolvedAppDirectory = await ensureAppDirectory(appDirectory);
+  const files = await listFilesRecursive(exportPath, ['.json'], {
+    ignoreHidden: true,
+  });
+  const errors = [];
+  let imported = 0;
+  let done = 0;
+
+  for (const filePath of files) {
+    const fileName = path.basename(filePath);
+    // `list.json` is the optional Takeout index, not a note.
+    const fallbackTitle = stripExtension(fileName);
+    try {
+      if (fileName.toLowerCase() === 'list.json') {
+        onProgress?.({ done: done + 1, total: files.length, current: fileName });
+        continue;
+      }
+
+      const note = JSON.parse(await readFile(filePath));
+      const title =
+        String(note?.title || '').trim() || fallbackTitle || 'Untitled';
+
+      if (note?.isTrashed === true) {
+        onProgress?.({ done: done + 1, total: files.length, current: title });
+        continue;
+      }
+
+      const id = uuidv4();
+      const listContent = note?.listContent;
+      const html = String(note?.textContentHtml || '').trim();
+      let content;
+      if (Array.isArray(listContent) && listContent.length > 0) {
+        content = keepTaskListContent(listContent);
+      } else if (html) {
+        content = htmlToTiptap(html, id, resolvedAppDirectory);
+      } else {
+        content = keepPlainTextContent(note?.textContent);
+      }
+
+      const copied = await copyKeepAttachments(
+        note?.attachments,
+        exportPath,
+        resolvedAppDirectory,
+        id
+      );
+      for (const attachment of copied) {
+        const src = `assets://${id}/${attachment.fileName}`;
+        content.content.push(
+          attachment.isImage
+            ? { type: 'image', attrs: { src, alt: '' } }
+            : { type: 'fileEmbed', attrs: { src, fileName: attachment.fileName } }
+        );
+      }
+
+      addImportedNote(noteStore, {
+        id,
+        title,
+        content,
+        labels: mergeLabels(keepLabelNames(note?.labels)),
+        folderId: null,
+        createdAt:
+          keepTimestamp(note, 'createTimestamp', 'createTimestampUsec') ??
+          Date.now(),
+        updatedAt:
+          keepTimestamp(
+            note,
+            'editTimestamp',
+            'lastModifiedUsec',
+            'userEditedTimestampUsec'
+          ) ?? Date.now(),
+      });
+      imported += 1;
+      onProgress?.({ done: done + 1, total: files.length, current: title });
+    } catch (error) {
+      errors.push({
+        title: fallbackTitle || fileName,
+        reason: error?.message || String(error),
+      });
+      onProgress?.({ done: done + 1, total: files.length, current: fileName });
+    } finally {
+      done += 1;
+    }
+  }
+
+  await flushImportedNotes();
+  return { imported, folders: 0, errors };
 }

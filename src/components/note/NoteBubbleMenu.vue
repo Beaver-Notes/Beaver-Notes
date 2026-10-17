@@ -1,5 +1,4 @@
 <template>
-  <!-- Selection-based bubble menu for text formatting and images -->
   <bubble-menu
     v-if="editor"
     :editor="editor"
@@ -47,9 +46,11 @@ import {
   shift,
   autoUpdate,
 } from '@floating-ui/dom';
+import { CellSelection } from '@tiptap/pm/tables';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
+import NoteBubbleMenuVideo from './NoteBubbleMenuVideo.vue';
 import NoteBubbleMenuEditor from './NoteBubbleMenuEditor.vue';
 
 export default {
@@ -57,6 +58,7 @@ export default {
     BubbleMenu,
     NoteBubbleMenuLink,
     NoteBubbleMenuImage,
+    NoteBubbleMenuVideo,
     NoteBubbleMenuEditor,
   },
   props: {
@@ -71,7 +73,6 @@ export default {
     const hoverMenuVisible = ref(false);
     let hoverCleanup = null;
 
-    // Extract link attributes from the hovered DOM element
     const hoverLinkAttrs = computed(() => {
       const el = hoveredLinkEl.value;
       if (!el) return null;
@@ -89,7 +90,6 @@ export default {
       if (el.hasAttribute('tiptap-url')) {
         const href = el.getAttribute('href') || '';
 
-        // Treat note:// URLs as internal note links
         if (href.startsWith('note://')) {
           const noteId = href.slice('note://'.length);
           return {
@@ -150,7 +150,6 @@ export default {
       // Small delay so the menu doesn't flicker when moving mouse to it
       setTimeout(() => {
         if (!hoverMenuVisible.value) return;
-        // Check if mouse is actually outside the menu
         const menu = hoverMenuRef.value;
         if (menu && !menu.matches(':hover')) {
           closeHoverMenu();
@@ -176,7 +175,6 @@ export default {
       const linkEl =
         target.closest('a[data-link-note]') || target.closest('a[tiptap-url]');
       if (!linkEl && hoveredLinkEl.value) {
-        // Mouse left the link – close if not hovering the menu
         setTimeout(() => {
           const menu = hoverMenuRef.value;
           if (menu && menu.matches(':hover')) return;
@@ -185,24 +183,38 @@ export default {
       }
     }
 
+    // Node types where the text-formatting bubble is irrelevant (media/atomic
+    // blocks). image/Video have their own dedicated menus above; the entries
+    // below show nothing. Legacy lowercase aliases included for old snapshots.
+    // Single list shared by shouldShowMenuFn + currentMenuComponent so they
+    // can't drift apart (mermaidBlock vs mermaidDiagram did exactly that).
+    const NO_EDITOR_MENU_NODES = [
+      'codeBlock',
+      'mathBlock',
+      'mermaidBlock',
+      'mermaidDiagram',
+      'paper',
+      'Audio',
+      'audioBlock',
+      'videoBlock',
+      'fileEmbed',
+    ];
+    const isNoEditorMenuNode = (editor) =>
+      NO_EDITOR_MENU_NODES.some((name) => editor.isActive(name));
+
     const shouldShowMenuFn = ({ editor, state }) => {
       if (!editor) return false;
 
       const { selection } = state;
       const { empty } = selection;
 
-      // Always show for images
+      if (selection instanceof CellSelection) return false;
+
       if (editor.isActive('image')) return true;
 
-      // Don't show for atomic / drawing blocks
-      if (
-        !empty &&
-        (editor.isActive('codeBlock') ||
-          editor.isActive('mathBlock') ||
-          editor.isActive('mermaidBlock') ||
-          editor.isActive('paper'))
-      )
-        return false;
+      if (editor.isActive('Video')) return true;
+
+      if (!empty && isNoEditorMenuNode(editor)) return false;
 
       return !empty;
     };
@@ -210,16 +222,12 @@ export default {
     const currentMenuComponent = computed(() => {
       if (!props.editor) return null;
       if (props.editor.isActive('image')) return 'note-bubble-menu-image';
+      if (props.editor.isActive('Video')) return 'note-bubble-menu-video';
 
+      if (props.editor.state.selection instanceof CellSelection) return null;
       if (props.editor.state.selection.empty) return null;
 
-      if (
-        props.editor.isActive('codeBlock') ||
-        props.editor.isActive('mathBlock') ||
-        props.editor.isActive('mermaidBlock') ||
-        props.editor.isActive('paper')
-      )
-        return null;
+      if (isNoEditorMenuNode(props.editor)) return null;
 
       return 'note-bubble-menu-editor';
     });

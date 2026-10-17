@@ -46,7 +46,7 @@ describe('memoizedSort', () => {
     expect(sortSpy).toHaveBeenCalledTimes(1);
 
     // Pinia getters (the only real callers) return a fresh array after any
-    // note mutation — the reference change is the invalidation signal.
+    // note mutation: the reference change is the invalidation signal.
     data = data.map((n) => (n.id === 'a' ? { ...n, title: 'Ant' } : n));
     const reSorted = memoizedSort({ data, key: 'title', order: 'asc' });
     expect(reSorted.map((n) => n.id)).toEqual(['a', 'b', 'c']);

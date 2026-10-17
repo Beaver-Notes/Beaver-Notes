@@ -1,9 +1,5 @@
-/**
- * Uses AES-256-GCM via Web Crypto API (native, no dependencies).
- *
- * The collaboration key is a hex-encoded 32-byte AES key fetched from
- * the Beaver-Sync backend via ML-KEM key exchange.
- */
+// AES-256-GCM via Web Crypto. The collab key is a hex-encoded 32-byte AES key
+// fetched from the Beaver-Sync backend via ML-KEM key exchange.
 
 const ALGORITHM = { name: 'AES-GCM', length: 256 };
 const IV_LENGTH = 12; // 96 bits for AES-GCM
@@ -16,10 +12,7 @@ function hexToBytes(hex) {
   return bytes;
 }
 
-/**
- * Import a hex-encoded collaboration key as a CryptoKey.
- * @param {string} hexKey - 64-char hex string (32 bytes)
- */
+/** Import a hex-encoded collab key (64 hex chars = 32 bytes) as a CryptoKey. */
 export async function importCollabKey(hexKey) {
   const keyBytes = hexToBytes(hexKey);
   return crypto.subtle.importKey('raw', keyBytes, ALGORITHM, false, [
@@ -30,7 +23,7 @@ export async function importCollabKey(hexKey) {
 
 /**
  * @param {string} [aad] - Optional Additional Authenticated Data (e.g., noteId)
- * @returns {Promise<Uint8Array>} - IV (12 bytes) + ciphertext
+ * @returns {Promise<Uint8Array>} - IV (12 bytes) || ciphertext
  */
 export async function encryptUpdate(key, plaintext, aad) {
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
@@ -47,8 +40,8 @@ export async function encryptUpdate(key, plaintext, aad) {
 }
 
 /**
- * @param {Uint8Array} data - IV (12 bytes) + ciphertext
- * @param {string} [aad] - Optional Additional Authenticated Data (must match encryption)
+ * @param {Uint8Array} data - IV (12 bytes) || ciphertext
+ * @param {string} [aad] - must match encryption
  */
 export async function decryptUpdate(key, data, aad) {
   const iv = data.slice(0, IV_LENGTH);
@@ -62,9 +55,6 @@ export async function decryptUpdate(key, data, aad) {
   return new Uint8Array(plaintext);
 }
 
-/**
- * Check if a hex string looks like a valid collaboration key (64 hex chars).
- */
 export function isValidCollabKey(hex) {
   return typeof hex === 'string' && /^[0-9a-f]{64}$/i.test(hex);
 }

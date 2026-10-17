@@ -1,6 +1,6 @@
 import { useAccountStore } from '@/store/account';
 import { useSyncTransport } from '@/composable/useSyncTransport';
-import { SYNC_TRANSPORT } from '@/lib/api/types.js';
+import { PLAN_NAMES, SYNC_TRANSPORT, planLabel } from '@/lib/api/types.js';
 
 const TRANSPORT_OPTIONS = [
   {
@@ -13,17 +13,35 @@ const TRANSPORT_OPTIONS = [
     value: SYNC_TRANSPORT.REMOTE,
     icon: 'riCloudLine',
     title: 'Cloud sync',
-    description:
-      'Sync through Beaver Sync (Basic plan and up). End-to-end encrypted.',
-  },
-  {
-    value: SYNC_TRANSPORT.BOTH,
-    icon: 'riShieldStarLine',
-    title: 'Both',
-    description:
-      'Write to the local folder and to Beaver Sync at the same time.',
+    description: `Sync through Beaver Sync (${planLabel(PLAN_NAMES.STARTER)} plan and up). End-to-end encrypted.`,
   },
 ];
+
+// A disabled transport option must say what is missing so the user is not left
+// staring at a greyed-out row. Returns null when the option is selectable.
+export function transportRequirement(opt, { isPaid, hasSyncPath } = {}) {
+  // Folder sync is the free/anonymous transport: a paid account syncs to the
+  // cloud, so a folder path left over from before the upgrade is not offered.
+  if (opt.value === SYNC_TRANSPORT.FOLDER && isPaid) {
+    return {
+      kind: 'included',
+      text: 'Cloud sync is included in your plan',
+      action: '',
+    };
+  }
+  const disabled =
+    (opt.value !== SYNC_TRANSPORT.FOLDER && !isPaid) ||
+    (opt.value !== SYNC_TRANSPORT.REMOTE && !hasSyncPath);
+  if (!disabled) return null;
+  if (opt.value !== SYNC_TRANSPORT.FOLDER) {
+    return {
+      kind: 'plan',
+      text: `Requires the ${planLabel(PLAN_NAMES.STARTER)} plan`,
+      action: 'Upgrade',
+    };
+  }
+  return { kind: 'folder', text: 'Requires a folder', action: 'Browse' };
+}
 
 export function useSettingsCloudSync() {
   const accountStore = useAccountStore();
@@ -31,6 +49,9 @@ export function useSettingsCloudSync() {
 
   function selectTransport(value) {
     if (value === SYNC_TRANSPORT.REMOTE && !accountStore.isPaidPlan) {
+      return false;
+    }
+    if (value === SYNC_TRANSPORT.FOLDER && accountStore.isPaidPlan) {
       return false;
     }
     transport.setTransport(value);

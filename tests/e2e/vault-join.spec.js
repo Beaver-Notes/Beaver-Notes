@@ -53,18 +53,11 @@ describe('Vault join', () => {
 
   /**
    * Drive onboarding from the welcome screen to the password step with a
-   * sync folder set. Welcome → customize → import (skip) → account (skip) →
-   * sync (type folder, continue) → password.
+   * sync folder set. Welcome → Connect (type folder, continue) → password.
    */
   async function driveToPasswordStep(syncPath) {
     await browser.url(DEV_URL);
     await browser.$('[data-testid="onboarding-welcome-continue"]').click();
-
-    await browser.$('[data-testid="onboarding-customize-next"]').click();
-
-    await browser.$('[data-testid="onboarding-import-skip"]').click();
-
-    await browser.$('[data-testid="onboarding-account-skip"]').click();
 
     // data-testid falls through to the ui-input wrapper div; type into the
     // native input element inside it.
@@ -73,7 +66,7 @@ describe('Vault join', () => {
     );
     await syncPathInput.setValue(syncPath);
 
-    await browser.$('[data-testid="onboarding-sync-next"]').click();
+    await browser.$('[data-testid="onboarding-connect-continue"]').click();
   }
 
   it('detects an existing vault and shows join mode', async () => {

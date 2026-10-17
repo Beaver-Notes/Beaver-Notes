@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-hasKey"
+description = "Enables the hasKey command without any pre-configured scope."
+commands.allow = ["hasKey"]
+
+[[permission]]
+identifier = "deny-hasKey"
+description = "Denies the hasKey command without any pre-configured scope."
+commands.deny = ["hasKey"]
