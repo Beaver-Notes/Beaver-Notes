@@ -8,6 +8,10 @@ const MAX_NOTES = 30;
 const CONCURRENCY = 4;
 
 const inFlight = new Set();
+// Durable pushes fire for merge/echo/pull cycles too, not just edits; without
+// a content filter every such cycle records a history commit whose title and
+// content are identical to the previous one ("no actual changes" entries).
+const lastCommitted = new Map();
 
 async function runWorker(queue) {
   while (queue.length) {
@@ -23,7 +27,11 @@ async function runWorker(queue) {
         }
       }
       if (!snapshot) continue;
+      const fingerprint = `${snapshot.title ?? ''}\n${snapshot.content ?? ''}`;
+      if (lastCommitted.get(noteId) === fingerprint) continue;
       await createCommit(noteId, snapshot);
+      lastCommitted.set(noteId, fingerprint);
+      if (lastCommitted.size > 512) lastCommitted.clear();
     } catch (err) {
       logger.warn(`[sync] failed to record history commit for ${noteId}:`, err?.message);
     }
