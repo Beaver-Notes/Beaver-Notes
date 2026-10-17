@@ -2,6 +2,7 @@
   <div v-if="isAuthenticated">
     <ui-popover
       v-model="popoverOpen"
+      :sheet="sheetMode"
       :placement="expanded ? 'bottom-start' : 'right-start'"
     >
       <template #trigger>
@@ -10,7 +11,7 @@
           v-if="expanded"
           ref="triggerEl"
           data-testid="workspace-switcher-trigger"
-          class="transition-colors duration-150 rounded-xl flex items-center h-10 w-full gap-2 cursor-pointer"
+          class="transition-colors duration-150 rounded-xl flex items-center h-10 mobile:h-11 w-full gap-2 cursor-pointer"
         >
           <span
             class="shrink-0 w-9 h-9 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
@@ -67,7 +68,7 @@
                 ? 'account-option-active'
                 : 'account-option'
             "
-            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
             @click="switchToAccount(acct.id)"
           >
             <span
@@ -115,7 +116,7 @@
                 :data-testid="
                   ws.id === activeId ? 'workspace-option-active' : 'workspace-option'
                 "
-                class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+                class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
                 @click="switchWorkspace(ws.id)"
               >
                 <span
@@ -157,7 +158,7 @@
               </button>
               <button
                 v-if="canManageWorkspace(ws)"
-                class="absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
+                class="absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
                 @click.stop="promptRename(ws)"
                 aria-label="Rename workspace"
               >
@@ -165,7 +166,7 @@
               </button>
               <button
                 v-if="canManageWorkspace(ws)"
-                class="absolute ltr:right-6 rtl:left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
+                class="absolute ltr:right-6 rtl:left-6 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
                 @click.stop="goToTeamSettings"
                 aria-label="Team settings"
               >
@@ -205,7 +206,7 @@
 
         <button
           v-if="canCreateWorkspace"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="promptCreate"
         >
           <span
@@ -218,7 +219,7 @@
 
         <button
           v-if="isPaid"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="promptJoin"
         >
           <span
@@ -231,7 +232,7 @@
 
         <button
           data-testid="add-account"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="addAccount"
         >
           <span
@@ -246,7 +247,7 @@
           v-if="activeAccount"
           data-testid="account-signout"
           :data-account-id="activeAccountId"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="promptSignOut"
         >
           <span
@@ -281,6 +282,7 @@ import { useDialog } from '@/lib/dialog';
 import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
 import { signOutAccount, switchAccount } from '@/composable/useAccountAuth';
+import { isPhoneRuntime } from '@/lib/tauri/runtime';
 import WorkspaceFormDialog from './WorkspaceFormDialog.vue';
 
 export default {
@@ -297,6 +299,9 @@ export default {
     const router = useRouter();
     const triggerEl = ref(null);
     const popoverOpen = ref(false);
+    // Phones get a bottom sheet: a dropdown anchored to the top of a phone screen
+    // has no room for the list, and its 36px rows are under the touch minimum.
+    const sheetMode = isPhoneRuntime();
     const dashboardFlag = ref(false);
     const formDialogShow = ref(false);
     const formDialogMode = ref('create');
@@ -511,6 +516,7 @@ export default {
     return {
       triggerEl,
       popoverOpen,
+      sheetMode,
       workspaces,
       pendingRequests,
       activeId,

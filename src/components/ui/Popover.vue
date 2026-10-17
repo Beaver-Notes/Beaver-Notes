@@ -14,13 +14,23 @@
       <slot name="trigger" v-bind="{ isShow }"></slot>
     </div>
     <Teleport to="body">
+      <div
+        v-if="sheet && isShow"
+        class="fixed inset-0 z-40 bg-black/20"
+        @click="hide"
+      ></div>
       <Transition name="ui-popover">
         <div
           v-show="isShow"
           ref="content"
-          :style="floatingStyles"
-          :class="originClass"
-          class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1"
+          :style="sheet ? undefined : floatingStyles"
+          :class="[
+            originClass,
+            sheet
+              ? 'ui-popover__content--sheet fixed inset-x-0 bottom-0 w-full rounded-t-2xl border-x-0 border-b-0 max-h-[80dvh] overflow-y-auto p-2 pb-[max(env(safe-area-inset-bottom),0.75rem)]'
+              : 'rounded-xl p-1',
+          ]"
+          class="ui-popover__content bg-white dark:bg-neutral-900 shadow-xl border z-50"
         >
           <slot v-bind="{ isShow }"></slot>
         </div>
@@ -51,6 +61,9 @@ export default {
       type: Boolean,
       default: false,
     },
+    // Phone layout: the same slot content rendered as a bottom sheet instead of
+    // a floating dropdown, for callers a phone has no room for a dropdown.
+    sheet: Boolean,
     modelValue: {
       type: Boolean,
       default: false,
@@ -171,6 +184,7 @@ export default {
       floatingStyles,
       originClass,
       onTriggerClick,
+      hide,
     };
   },
 };
@@ -186,6 +200,11 @@ export default {
 .ui-popover-leave-to {
   opacity: 0;
   transform: translateY(-8px) scale(0.98);
+}
+/* A sheet slides up from the bottom edge rather than dropping in from above. */
+.ui-popover__content--sheet.ui-popover-enter-from,
+.ui-popover__content--sheet.ui-popover-leave-to {
+  transform: translateY(100%);
 }
 @media (prefers-reduced-motion: reduce) {
   .ui-popover-enter-active,
