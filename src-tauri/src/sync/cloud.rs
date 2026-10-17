@@ -210,11 +210,71 @@ fn hold_breach(pool: &DbPool, note: &str) -> bool {
         return false;
     }
     let _ = db::db_delete(pool, &hold_key(note));
+    // Remember that this checkpoint was advanced past held rows, so a later
+    // key registration can tell a genuine wedge from a routine re-register.
+    let _ = db::db_set(pool, &breach_key(note), "1", None);
     true
 }
 
 fn clear_hold(pool: &DbPool, note: &str) {
     let _ = db::db_delete(pool, &hold_key(note));
+    let _ = db::db_delete(pool, &breach_key(note));
+}
+
+fn keyids_key(note_id: &str) -> String {
+    format!("sync:keyids:{note_id}")
+}
+
+fn breach_key(note_id: &str) -> String {
+    format!("sync:breach:{note_id}")
+}
+
+/// Stable fingerprint of a note's shared-key ring, sorted so any permutation
+/// hashes to the same value: a re-registration of an unchanged ring must not
+/// reset a checkpoint.
+fn ring_fingerprint(ring: &[[u8; 32]]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut sorted: Vec<&[u8; 32]> = ring.iter().collect();
+    sorted.sort_unstable();
+    let mut hasher = Sha256::new();
+    for key in sorted {
+        hasher.update(key);
+    }
+    hex::encode(hasher.finalize())
+}
+
+/// Called when a note's shared-key ring is (re)registered (`sync_register_shared_key`):
+/// a ring that differs from the last known fingerprint — or a first registration
+/// arriving after a hold breach advanced this note past undecryptable rows —
+/// deletes the note's server checkpoint (and hold state) so the next pull
+/// re-fetches the rows that were skipped while no key could decrypt them.
+/// The server rows are never deleted; they re-deliver once the missing key is
+/// registered.
+pub(crate) fn reset_checkpoint_on_ring_change(
+    pool: &DbPool,
+    note: &str,
+    ring: &[[u8; 32]],
+) -> Result<(), AppError> {
+    let fingerprint = ring_fingerprint(ring);
+    let stored = db::db_get(pool, &keyids_key(note), None)?;
+    db::db_set(pool, &keyids_key(note), &fingerprint, None)?;
+    if stored.as_deref() == Some(fingerprint.as_str()) {
+        // Unchanged ring: no reset, ever. A breach marker alone must not re-fire
+        // this — two registration paths hand slightly different rings for the
+        // same note, and a breach-triggered reset per sweep turned every
+        // workspace load into a re-pull loop that churned note docs empty.
+        return Ok(());
+    }
+    if stored.is_none() {
+        // Routine first-time registration on a device that never held: nothing
+        // to recover, and a reset here would re-pull the workspace every boot.
+        return Ok(());
+    }
+    for key in [ckpt_key(note), hold_key(note), breach_key(note)] {
+        let _ = db::db_delete(pool, &key);
+    }
+    crate::rs_log!("[sync::cloud] note {note}: shared keys changed, checkpoint reset for re-pull");
+    Ok(())
 }
 
 fn pushed_key(note_id: &str) -> String {

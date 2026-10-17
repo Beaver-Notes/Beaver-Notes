@@ -771,6 +771,7 @@ pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn sync_register_shared_key(
+    app: AppHandle,
     state: State<AppState>,
     note_id: String,
     key_hex: String,
@@ -790,8 +791,14 @@ pub(crate) fn sync_register_shared_key(
         key,
         &previous,
     );
-    session.shared_note_keys.insert(note_id, merged);
+    session.shared_note_keys.insert(note_id.clone(), merged.clone());
     drop(session);
+    // A ring change — or a first landing after a hold breach — releases the
+    // note's held checkpoint so rows that were skipped while no key could
+    // decrypt them are re-pulled. Must run before the kick.
+    let pool = crate::shared::data_pool(&app, &state)?;
+    crate::sync::cloud::reset_checkpoint_on_ring_change(&pool, &note_id, &merged)?;
+    drop(pool);
     // Nudge the running scheduler: assets of this note that were skipped while
     // the key was unregistered can now be decrypted.
     crate::sync::scheduler::kick_if_running();
