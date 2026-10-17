@@ -188,14 +188,25 @@ fn hold_key(note_id: &str) -> String {
 /// Increments the note's held-cycle counter; true when the limit is reached
 /// (the counter is consumed so the next hold starts a fresh cycle).
 fn hold_breach(pool: &DbPool, note: &str) -> bool {
-    let count: u32 = db::db_get(pool, &hold_key(note), None)
-        .ok()
-        .flatten()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
+    // A kv failure must not silently read as "no holds yet": under a persistent
+    // write failure the counter would never reach the limit and the original
+    // wedge would return unnoticed, so log what actually happened.
+    let count: u32 = match db::db_get(pool, &hold_key(note), None) {
+        Ok(Some(v)) => v.parse().unwrap_or_else(|_| {
+            crate::rs_log!("[sync::cloud] note {note}: unreadable hold counter; treating as 0");
+            0
+        }),
+        Ok(None) => 0,
+        Err(e) => {
+            crate::rs_log!("[sync::cloud] note {note}: hold-counter read failed: {e}");
+            0
+        }
+    };
     let next = count + 1;
     if next < HOLD_CYCLE_LIMIT {
-        let _ = db::db_set(pool, &hold_key(note), &next.to_string(), None);
+        if let Err(e) = db::db_set(pool, &hold_key(note), &next.to_string(), None) {
+            crate::rs_log!("[sync::cloud] note {note}: hold-counter write failed: {e}");
+        }
         return false;
     }
     let _ = db::db_delete(pool, &hold_key(note));
