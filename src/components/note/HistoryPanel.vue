@@ -519,9 +519,7 @@ export default {
       });
     }
 
-    // ---------------------------------------------------------------
     // Version details
-    // ---------------------------------------------------------------
     const selectedCommitData = computed(() => {
       const idx = history.selectedCommitIndex.value;
       if (idx < 0) return null;
@@ -587,9 +585,7 @@ export default {
       history.selectCommit(idx);
     }
 
-    // ---------------------------------------------------------------
     // Formatting helpers
-    // ---------------------------------------------------------------
     function formatDateTime(dateStr) {
       if (!dateStr) return '';
       return new Date(dateStr).toLocaleDateString(undefined, {
@@ -620,10 +616,8 @@ export default {
       return fmt('daysAgo', { count: Math.floor(hrs / 24) });
     }
 
-    // ---------------------------------------------------------------
     // Horizontal timeline: one tick per version, oldest left, latest right.
     // Ticks stay put; a spring-driven magnifier wave lifts the ones near your finger.
-    // ---------------------------------------------------------------
     const tlRoot = ref(null);
     const tlCanvas = ref(null);
     const tlBubble = ref(null);
@@ -1047,10 +1041,8 @@ export default {
       dirty = true;
     });
 
-    // ---------------------------------------------------------------
     // Activity log: newest first, grouped by day. "Jump to" and "Undo" act on the
     // live editor and are disabled when the anchor no longer resolves.
-    // ---------------------------------------------------------------
     const activityGroups = computed(() => {
       const groups = [];
       let current = null;
@@ -1153,9 +1145,7 @@ export default {
       });
     }
 
-    // ---------------------------------------------------------------
     // Lifecycle
-    // ---------------------------------------------------------------
     onMounted(() => {
       history.loadCommits(props.noteId);
       activity.loadIfNeeded(props.noteId);
