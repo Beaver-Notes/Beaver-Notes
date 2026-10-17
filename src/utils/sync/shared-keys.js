@@ -8,6 +8,11 @@ import { logger } from '@/utils/logger';
 // The raw key never leaves the device: it is held in the Rust session only,
 // cleared on lock/workspace switch.
 const registered = new Map();
+// Notes whose ring already registered once. The workspace sweep must not
+// re-register those with the workspace key — a per-note ring and the sweep's
+// ws-key ring alternate otherwise, and every alternation re-seals the note to
+// a different ring (checkpoint resets + re-pulls churned note docs empty).
+const sealedNotes = new Set();
 
 async function getBackend() {
   try {
@@ -28,6 +33,7 @@ export async function registerSharedSyncKey(noteId, keyHex, previousKeys = []) {
     if (!backend) return false;
     await backend.invoke('sync:registerSharedKey', { noteId, keyHex, previousKeys: previous });
     registered.set(noteId, signature);
+    sealedNotes.add(noteId);
     return true;
   } catch (err) {
     logger.warn('[shared-keys] register failed:', err?.message || err);
@@ -51,12 +57,16 @@ export function getActiveWsKey() {
 export async function registerWsKeyForNotes(noteIds) {
   if (!activeWsKeyHex) return;
   for (const noteId of noteIds) {
+    // A note whose ring already registered keeps it — the sweep must not
+    // flip per-note-sealed notes back to the workspace key.
+    if (sealedNotes.has(noteId)) continue;
     await registerSharedSyncKey(noteId, activeWsKeyHex);
   }
 }
 
 export async function clearSharedSyncKeys() {
   registered.clear();
+  sealedNotes.clear();
   try {
     const backend = await getBackend();
     await backend?.invoke('sync:clearSharedKeys', {});
@@ -86,4 +96,5 @@ export async function expectSharedSyncNote(noteId, expected = true) {
 // Test seam: forget the local dedupe cache without touching the backend.
 export function _resetSharedSyncKeyCache() {
   registered.clear();
+  sealedNotes.clear();
 }
