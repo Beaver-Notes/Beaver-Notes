@@ -12,7 +12,10 @@ export function mergeNoteEntry(existing, meta) {
   } else if (meta.cardPreview && meta.cardPreview.blocks) {
     // Persisted preview: no content load or conversion (launch speed).
     merged.cardPreview = meta.cardPreview;
-  } else if (existing.cardPreview) {
+  } else if (
+    existing.cardPreview &&
+    JSON.stringify(existing.cardPreview) !== JSON.stringify(EMPTY_CARD_PREVIEW)
+  ) {
     merged.cardPreview = existing.cardPreview;
   } else {
     const previewContent = merged.content || existing.content;

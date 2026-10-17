@@ -255,7 +255,10 @@ export async function seedWorkspaceDocFromData(
   return { seededNotes, seededFolders, seededLabels };
 }
 
-/** One-time backfill: rebuild missing cardPreview plus preview from Yjs snapshots. Deferred, non-blocking, once per device. */
+/**
+ * One-time backfill: rebuild missing cardPreview plus preview from Yjs snapshots. Deferred, non-blocking, once per device.
+ * Returns true when some snapshots were still missing (the caller should retry; a first pass that ran
+ * before the pull finished would otherwise leave empty cards forever). */
 export async function backfillNotePreviews() {
   const noteStore = useNoteStore();
   const needsSnapshot = [];
@@ -265,7 +268,12 @@ export async function backfillNotePreviews() {
     if (isEncryptedContent(note.content)) continue;
     needsSnapshot.push(id);
   }
-  if (needsSnapshot.length === 0) return;
+  if (needsSnapshot.length === 0) {
+    // A boot-time pass that saw no notes at all must NOT mark the install done:
+    // its notes have not been pulled yet, and later arrivals keep empty cards.
+    return Object.keys(noteStore.data || {}).length ? 'complete' : 'later';
+  }
+  const unresolved = new Set(needsSnapshot);
 
   let snapshots = {};
   try {
@@ -285,6 +293,7 @@ export async function backfillNotePreviews() {
   for (const [id, snapshot] of Object.entries(snapshots)) {
     const note = noteStore.data[id];
     if (!note || !snapshot || snapshot.length === 0) continue;
+    unresolved.delete(id);
     const tmp = new Y.Doc();
     try {
       Y.applyUpdate(tmp, toUint8Array(snapshot));
@@ -308,6 +317,7 @@ export async function backfillNotePreviews() {
       tmp.destroy();
     }
   }
+  return unresolved.size > 0 ? 'later' : 'complete';
 }
 
 /** One-time repair: legacy imports once seeded meta without a Yjs doc, stranding

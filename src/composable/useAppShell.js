@@ -616,10 +616,25 @@ export function useAppShell(onboardingCompleted = true) {
     });
 
     // One-time backfill of previews for notes predating persisted `cardPreview`.
+    // Retries until every missing preview has its snapshot: a device that ran the
+    // first pass before its pull finished would otherwise keep empty cards forever.
     if (!(await settingsStorage.get('preview_backfill_done', false))) {
-      backfillNotePreviews()
-        .then(() => settingsStorage.set('preview_backfill_done', true))
-        .catch((err) => console.warn('[app] preview backfill failed:', err));
+      let backfillTries = 0;
+      const runBackfill = () => {
+        backfillNotePreviews()
+          .then((state) => {
+            if (state === 'complete') {
+              settingsStorage.set('preview_backfill_done', true);
+              return;
+            }
+            if (backfillTries++ < 20) setTimeout(runBackfill, 60 * 1000);
+          })
+          .catch((err) => {
+            console.warn('[app] preview backfill failed:', err);
+            if (backfillTries++ < 20) setTimeout(runBackfill, 60 * 1000);
+          });
+      };
+      runBackfill();
     }
 
     if (appStore.setting.openLastEdited) {

@@ -18,7 +18,7 @@ import {
 import { getWsSync, setRoomKey } from '@/lib/sync/ws-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';
-import { resolveNoteWorkspaceId, isSharedNote, syncSharedNote } from '@/utils/sync/shared-notes.js';
+import { resolveNoteWorkspaceId, syncSharedNote } from '@/utils/sync/shared-notes.js';
 import { speed } from '@/utils/speed.js';
 
 export { registerActiveDoc, applyRemote } from '@/lib/yjs/shared.js';
@@ -418,7 +418,9 @@ export function useNoteYjs() {
 
     let noteKeyHex = null;
     const refreshSharedContent = async () => {
-      if (isStale() || !isSharedNote(noteId)) return;
+      // Re-pull once the note key resolves, shared or not: a first-open pull
+      // that ran before the key landed could not decrypt, and nothing else
+      // knows that the key exists now.
       try {
         const { useAccountStore } = await import('@/store/account');
         const accountStore = useAccountStore();
