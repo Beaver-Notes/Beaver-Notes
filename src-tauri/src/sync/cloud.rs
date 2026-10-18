@@ -229,6 +229,12 @@ fn breach_key(note_id: &str) -> String {
     format!("sync:breach:{note_id}")
 }
 
+// Tombstone recording the fingerprint a one-time recovery reset already fired
+// for, so re-registered identical rings cannot re-arm the recovery branch.
+fn fired_key(note_id: &str) -> String {
+    format!("sync:ringfired:{note_id}")
+}
+
 /// Stable fingerprint of a note's shared-key ring, sorted so any permutation
 /// hashes to the same value: a re-registration of an unchanged ring must not
 /// reset a checkpoint.
@@ -266,10 +272,21 @@ pub(crate) fn reset_checkpoint_on_ring_change(
         return Ok(());
     }
     if stored.is_none() {
-        // Routine first-time registration on a device that never held: nothing
-        // to recover, and a reset here would re-pull the workspace every boot.
-        return Ok(());
+        // First-ever registration. Routine: nothing to recover, and a reset here
+        // would re-pull the workspace every boot. EXCEPT the recovery case: this
+        // device already held rows it could not open (a hold breach advanced the
+        // checkpoint), and the ring just landed its first key. Without a rewind
+        // the already-advanced checkpoint never re-delivers those rows (PR-3
+        // skipped them permanently). Capped by the ringfired tombstone so a
+        // still-undecryptable breach cannot re-arm this on every sweep.
+        let breached = db::db_get(pool, &breach_key(note), None)?.is_some();
+        let already_fired = db::db_get(pool, &fired_key(note), None)?.as_deref()
+            == Some(fingerprint.as_str());
+        if !breached || already_fired {
+            return Ok(());
+        }
     }
+    let _ = db::db_set(pool, &fired_key(note), &fingerprint, None);
     for key in [ckpt_key(note), hold_key(note), breach_key(note)] {
         let _ = db::db_delete(pool, &key);
     }
@@ -2650,6 +2667,111 @@ mod tests {
         let _ = std::fs::create_dir_all(&root);
         let pool = crate::db::open_pool(&root.join("data.db")).expect("pool");
         (pool, root)
+    }
+
+    fn seed_held_state(pool: &crate::db::DbPool, note: &str) {
+        // Simulate a wedge: a hold marker the pull left behind, a checkpoint
+        // PR-3 already advanced, and a live breach marker.
+        crate::db::db_set(
+            pool,
+            &super::ckpt_key(note),
+            &"12345".to_string(),
+            None,
+        )
+        .expect("seed ckpt");
+        crate::db::db_set(pool, &super::hold_key(note), &"1".to_string(), None)
+            .expect("seed hold");
+        crate::db::db_set(pool, &super::breach_key(note), &"1".to_string(), None)
+            .expect("seed breach");
+    }
+
+    fn ring_reset_fired(pool: &crate::db::DbPool, note: &str) -> bool {
+        crate::db::db_get(pool, &super::ckpt_key(note), None)
+            .expect("ckpt get")
+            .is_none()
+            && crate::db::db_get(pool, &super::hold_key(note), None)
+                .expect("hold get")
+                .is_none()
+    }
+
+    #[test]
+    fn reset_first_registration_recovers_breach_once() {
+        let (pool, root) = unique_temp_db("beaver-ring-reset");
+        let note = "wedged-note";
+        let key: [u8; 32] = [7u8; 32];
+        seed_held_state(&pool, note);
+
+        super::reset_checkpoint_on_ring_change(&pool, note, &[key]).expect("register");
+        assert!(ring_reset_fired(&pool, note), "first key after breach must rewind checkpoints");
+        assert!(
+            crate::db::db_get(&pool, &super::breach_key(note), None)
+                .expect("breach get")
+                .is_none(),
+            "breach marker consumed by the fire"
+        );
+
+        // The tombstone must cap recovery: re-plant a checkpoint and re-register
+        // the SAME ring — the wedged note still has undecryptable rows, but the
+        // recovery must not re-arm on every sweep.
+        crate::db::db_set(&pool, &super::ckpt_key(note), &"67890".to_string(), None)
+            .expect("re-seed ckpt");
+        super::reset_checkpoint_on_ring_change(&pool, note, &[key]).expect("re-register");
+        assert!(
+            crate::db::db_get(&pool, &super::ckpt_key(note), None)
+                .expect("ckpt get")
+                .is_some(),
+            "same-ring re-registration must not rewind again"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn reset_first_registration_without_breach_does_nothing() {
+        let (pool, root) = unique_temp_db("beaver-ring-quiet");
+        let note = "calm-note";
+        let key: [u8; 32] = [7u8; 32];
+        // Held state without a breach marker: routine boot registration.
+        crate::db::db_set(&pool, &super::ckpt_key(note), &"12345".to_string(), None)
+            .expect("seed ckpt");
+
+        super::reset_checkpoint_on_ring_change(&pool, note, &[key]).expect("register");
+        assert!(
+            crate::db::db_get(&pool, &super::ckpt_key(note), None)
+                .expect("ckpt get")
+                .is_some(),
+            "routine first registration must not rewind checkpoints"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn reset_ring_change_still_rewinds_and_stabilizes() {
+        let (pool, root) = unique_temp_db("beaver-ring-change");
+        let note = "changing-note";
+        let old_key: [u8; 32] = [7u8; 32];
+        let new_key: [u8; 32] = [8u8; 32];
+        seed_held_state(&pool, note);
+
+        // First registration (recovery fire), then a real ring change.
+        super::reset_checkpoint_on_ring_change(&pool, note, &[old_key]).expect("register old");
+        assert!(ring_reset_fired(&pool, note));
+
+        crate::db::db_set(&pool, &super::ckpt_key(note), &"999".to_string(), None)
+            .expect("re-seed ckpt");
+        super::reset_checkpoint_on_ring_change(&pool, note, &[new_key]).expect("register new");
+        assert!(ring_reset_fired(&pool, note), "a real ring change must rewind");
+
+        // Same ring again: stable, no further rewinds.
+        crate::db::db_set(&pool, &super::ckpt_key(note), &"999".to_string(), None)
+            .expect("re-seed ckpt");
+        super::reset_checkpoint_on_ring_change(&pool, note, &[new_key]).expect("re-register");
+        assert!(
+            crate::db::db_get(&pool, &super::ckpt_key(note), None)
+                .expect("ckpt get")
+                .is_some(),
+            "unchanged ring must leave the checkpoint alone"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// C1: a note the client marks shared, but whose collaboration key is not
