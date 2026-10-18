@@ -18,7 +18,7 @@ import {
   approveNoteJoinRequest as apiApproveJoinRequest,
   denyNoteJoinRequest as apiDenyJoinRequest,
 } from '@/lib/api/collaboration';
-import { getWorkspaceMembers as apiGetWorkspaceMembers } from '@/lib/api/workspaces';
+import { getWorkspaceMembers as apiGetWorkspaceMembers, getWorkspacePublicKeys as apiGetWorkspacePublicKeys } from '@/lib/api/workspaces';
 import { getSettingSync } from '@/lib/settings';
 import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
@@ -444,9 +444,42 @@ export function useNoteSharing() {
     }
 
     const selfId = accountStore.profile?.id || null;
-    const crossAccount = collaborators.some(
+    // Team-workspace notes share by construction: merge the workspace member
+    // devices into the wrap candidates so the per-note key reaches every
+    // member device (the same distribution the workspace key path gets).
+    // Without this, envelopes only ever reach invitees and member devices hold
+    // note bodies they can never decrypt.
+    let crossAccount = collaborators.some(
       (c) => c?.userId && (!selfId || c.userId !== selfId)
     );
+    const noteWsId = (() => {
+      try {
+        return resolveNoteWorkspaceId(noteId, useWorkspaceStore().activeId ?? null);
+      } catch {
+        // No workspace store (unit environment): keep the collaborator-only path.
+        return null;
+      }
+    })();
+    let memberDevices = [];
+    if (noteWsId) {
+      try {
+        const memberRows = await apiGetWorkspacePublicKeys(noteWsId, { baseUrl: activeBaseUrl() });
+        const known = new Set(
+          collaborators.map((c) => `${c?.userId}:${c?.deviceId || 'default'}`)
+        );
+        memberDevices = (Array.isArray(memberRows) ? memberRows : []).filter(
+          (m) => m?.kemPublicKey && !known.has(`${m?.userId}:${m?.deviceId || 'default'}`)
+        );
+        if (memberDevices.some((m) => m?.userId && (!selfId || m.userId !== selfId))) {
+          crossAccount = true;
+        }
+      } catch (err) {
+        // Member lookup is additive: on failure keep the collaborator-only
+        // behavior (invitees still get envelopes; members recover via a later
+        // key-holder sweep).
+        logger.debug?.('[notes] workspace member devices unavailable:', err?.message || err);
+      }
+    }
     if (crossAccount) {
       // registerSharedSyncKey clears the expected mark in Rust.
       await registerSharedSyncKey(noteId, noteKeyHex, getPreviousNoteKeys(noteId));
@@ -455,7 +488,7 @@ export function useNoteSharing() {
       await expectSharedSyncNote(noteId, false);
     }
 
-    await provisionMissingEnvelopes(noteId, noteKeyHex, collaborators);
+    await provisionMissingEnvelopes(noteId, noteKeyHex, collaborators, memberDevices);
 
     // `crossAccount` notes switch to the shared key; the wrap above covers the
     // sibling/new-device case (a device the server reports `hasEnvelope: false`).
@@ -476,18 +509,23 @@ export function useNoteSharing() {
     }, 3000);
   }
 
-  // `hasEnvelope === false` only: an older server omits the field and we no-op
-  // rather than wrap everyone on every open.
-  async function provisionMissingEnvelopes(noteId, noteKeyHex, collaborators) {
+  // `hasEnvelope === false` only for invited collaborators: an older server
+  // omits the field and we no-op rather than wrap everyone on every open.
+  // Workspace-member devices get the key unconditionally — the workspace
+  // public-keys endpoint only knows about workspace-key envelopes, so it has
+  // no signal here; the server upserts per (note,user,device) so re-wraps are
+  // idempotent and cheap.
+  async function provisionMissingEnvelopes(noteId, noteKeyHex, collaborators, memberDevices = []) {
     const missing = collaborators.filter((c) => c?.kemPublicKey && c?.hasEnvelope === false);
-    if (missing.length === 0) return;
+    const targets = missing.concat(memberDevices.filter((m) => m?.kemPublicKey));
+    if (targets.length === 0) return;
     // If the note key has been rotated, hand a late joiner the whole keyring so
     // its fresh device can also read pre-rotation history, not just new content.
     const previous = getPreviousNoteKeys(noteId);
     const payload = previous.length ? buildNoteKeyPayload(noteKeyHex, previous) : noteKeyHex;
     try {
       const recipients = [];
-      for (const c of missing) {
+      for (const c of targets) {
         const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, payload);
         recipients.push({ userId: c.userId, deviceId: c.deviceId || 'default', wrappedKey });
       }
