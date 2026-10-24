@@ -20,8 +20,10 @@
             aria-modal="true"
             :aria-label="title || undefined"
             :class="[
-              // Vertical-only pan: kills diagonal page pans; grid scroll + close-drag unaffected
-              'modal-ui__content w-full shadow-lg touch-pan-y mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm mobile:max-h-[calc(100dvh_-_0.75rem)] mobile:overflow-y-auto',
+              // Vertical-only pan: kills diagonal page pans; grid scroll + close-drag unaffected.
+              // On foldables the card sits left of the app rail; the backdrop
+              // itself must still cover the rail side (fixed inset-0 above).
+              'modal-ui__content w-full shadow-lg touch-pan-y foldable:mr-[var(--app-rail-width)] mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm mobile:max-h-[calc(100dvh_-_0.75rem)] mobile:overflow-y-auto',
               contentClass,
               { '!transition-none': isDragging },
             ]"

@@ -1,7 +1,7 @@
 <template>
   <ui-modal
     v-model="show"
-    content-class="max-w-4xl"
+    :content-class="contentClass"
   >
     <!-- Solid amber header band; the mascot peeks up from its bottom edge. -->
     <template #header>
@@ -66,7 +66,7 @@
 
     <!-- Loading skeleton -->
     <div v-else-if="loading" class="flex flex-col gap-3" aria-hidden="true">
-      <div v-for="n in isMobile ? 2 : 3" :key="n" class="h-32 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-700" />
+      <div v-for="n in wide ? 3 : 2" :key="n" class="h-32 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-700" />
     </div>
 
     <!-- Store / price error with retry -->
@@ -113,15 +113,18 @@
         </div>
       </div>
 
-      <!-- Desktop: three cards side by side -->
+      <!-- Wide viewport: a compact card grid — three cards (with Team) on
+           desktop checkout, two store-billing cards on tablets/foldables,
+           sized like an iPad-style centered modal. -->
       <div
-        v-if="!isMobile"
+        v-if="wide"
         role="radiogroup"
         :aria-label="tr.plansLabel || 'Plans'"
-        class="grid grid-cols-3 gap-3"
+        class="grid gap-3"
+        :class="isMobile ? 'grid-cols-2' : 'grid-cols-3'"
       >
         <div
-          v-for="plan in desktopPlans"
+          v-for="plan in gridPlans"
           :key="plan"
           role="radio"
           :aria-checked="selected === plan"
@@ -151,7 +154,7 @@
             {{ planLabel(plan) }}
           </p>
           <p class="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-            {{ planPriceText(plan) }}
+            {{ planPriceLine(plan) }}
           </p>
           <p
             v-if="plan === 'team'"
@@ -163,7 +166,9 @@
             {{ planFeatures(plan) }}
           </p>
 
-          <div class="mt-auto">
+          <!-- Store billing selects by tapping the card; the pinned CTA buys.
+               Only desktop checkout gets a per-card button. -->
+          <div v-if="!isMobile" class="mt-auto">
             <ui-button
               v-if="!isCurrentPlan(plan)"
               variant="primary"
@@ -181,7 +186,7 @@
         </div>
       </div>
 
-      <!-- Mobile: two rows; selected row expands to show features -->
+      <!-- Mobile sheet: two rows; selected row expands to show features -->
       <div
         v-else
         role="radiogroup"
@@ -362,6 +367,30 @@ export default {
     const { translations } = useTranslations();
     const iap = useIapBilling({ accountStore });
     const isMobile = iap.isMobile;
+
+    // Layout follows the live viewport (rotation/fold aware); the purchase
+    // channel follows the runtime (store billing vs browser checkout).
+    // Foldables and tablets get the same compact centered modal as an iPad;
+    // only phone widths use the bottom sheet.
+    const wideMq =
+      typeof window !== 'undefined' && window.matchMedia
+        ? window.matchMedia('(min-width: 768px)')
+        : null;
+    const wide = ref(!!wideMq?.matches);
+    function syncWide(e) {
+      wide.value = e.matches;
+    }
+
+    const gridPlans = computed(() =>
+      wide.value ? (isMobile ? MOBILE_PLANS : DESKTOP_PLANS) : MOBILE_PLANS,
+    );
+    const contentClass = computed(() => {
+      if (!wide.value) return '';
+      return isMobile ? 'max-w-lg' : 'max-w-4xl';
+    });
+    function planPriceLine(plan) {
+      return isMobile ? mobilePriceText(plan) : planPriceText(plan);
+    }
 
     const show = ref(false);
     const view = ref('plans'); // plans | signing | success
@@ -612,9 +641,11 @@ export default {
 
     onMounted(() => {
       emitter.on('show-paywall', openHandler);
+      wideMq?.addEventListener?.('change', syncWide);
     });
     onUnmounted(() => {
       emitter.off('show-paywall', openHandler);
+      wideMq?.removeEventListener?.('change', syncWide);
     });
 
     watch(show, (v) => {
@@ -656,7 +687,10 @@ export default {
       headline,
       subtext,
       characterState,
-      desktopPlans,
+      wide,
+      gridPlans,
+      contentClass,
+      planPriceLine,
       mobilePlans,
       isCurrentPlan,
       planPriceText,

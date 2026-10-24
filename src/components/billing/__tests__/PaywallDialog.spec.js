@@ -6,6 +6,7 @@ import { usePaywall } from '@/composable/usePaywall';
 
 const ctl = vi.hoisted(() => ({
   isMobile: false,
+  wide: true,
   authed: true,
   plan: 'free',
   paid: false,
@@ -73,6 +74,12 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 import PaywallDialog from '../PaywallDialog.vue';
 
 const mounted = [];
+// jsdom has no matchMedia; the dialog's tablet/phone layout switch reads it.
+window.matchMedia = (query) => ({
+  matches: query.includes('min-width') ? ctl.wide : !ctl.wide,
+  addEventListener() {},
+  removeEventListener() {},
+});
 const mountPaywall = () => {
   const w = mount(PaywallDialog, {
     global: {
@@ -98,6 +105,7 @@ const radios = (w) => w.findAll('[role="radio"]');
 
 beforeEach(() => {
   ctl.isMobile = false;
+  ctl.wide = true;
   ctl.authed = true;
   ctl.plan = 'free';
   ctl.paid = false;
@@ -226,6 +234,7 @@ describe('PaywallDialog plans (desktop)', () => {
 describe('PaywallDialog mobile', () => {
   beforeEach(() => {
     ctl.isMobile = true;
+    ctl.wide = false; // phones use the bottom sheet
     ctl.products = [
       { productId: 'com.beavernotes.pro.monthly', formattedPrice: '$6.99' },
       { productId: 'com.beavernotes.pro.yearly', formattedPrice: '$59.99' },
@@ -395,5 +404,28 @@ describe('PaywallDialog signed-out flow', () => {
     await flushPromises();
     expect(w.vm.view).toBe('signing');
     expect(w.vm.signInError).toBe('Wrong password.');
+  });
+});
+
+describe('PaywallDialog tablet (wide viewport, store billing)', () => {
+  beforeEach(() => {
+    ctl.isMobile = true;
+    ctl.wide = true;
+    ctl.products = [
+      { productId: 'com.beavernotes.pro.monthly', formattedPrice: '$6.99' },
+    ];
+  });
+
+  it('uses a centered 2-card grid with the pinned subscribe CTA', async () => {
+    const w = mountPaywall();
+    usePaywall().open('sync');
+    await flushPromises();
+    expect(w.vm.contentClass).toBe('max-w-lg');
+    expect(radios(w).length).toBe(2);
+    expect(w.text()).toContain('Subscribe');
+    expect(w.text()).not.toContain('Team');
+    // store billing has no per-card buttons: only the pinned CTA buys
+    expect(w.html()).not.toContain("You're all set");
+    expect(w.html()).not.toMatch(/createCheckout|checkout\.stripe\.com/);
   });
 });
