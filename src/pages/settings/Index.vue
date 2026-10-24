@@ -693,6 +693,7 @@ import { computed, onMounted, ref, reactive, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/lib/dialog';
+import { usePaywall } from '@/composable/usePaywall';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/lib/storage';
@@ -743,6 +744,7 @@ export default {
     const syncProgressStore = useSyncProgressStore();
     const { lastSyncAt, lastSyncLabel, syncNow: onSyncNow } = useSyncControl();
     const cloudSync = useSettingsCloudSync();
+    const paywall = usePaywall();
     const isMacOS = computed(() => isMacOSRuntime());
     const route = useRoute();
     const router = useRouter();
@@ -789,7 +791,7 @@ export default {
         ...unmet,
         onClick:
           unmet.kind === 'plan'
-            ? () => router.push('/settings/account')
+            ? () => paywall.open('sync')
             : dataSettings.chooseDefaultPath,
       };
     }
@@ -797,7 +799,7 @@ export default {
     const attentionPrimary = computed(() => {
       const status = syncProgressStore.attention?.status;
       if (status === 'plan-upgrade-required')
-        return { label: 'Upgrade', onClick: () => router.push('/settings/account') };
+        return { label: 'Upgrade', onClick: () => paywall.open('sync') };
       if (status === 'authorization-failed')
         return {
           label: 'Sign in again',

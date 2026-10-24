@@ -1,23 +1,45 @@
 <template>
-  <div
-    ref="container"
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-xl shadow-sm no-print max-w-content mobile:hidden"
-    :class="{
-      'opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity': store.inReaderMode,
-    }"
-    @wheel.passive="changeWheelDirection"
-  >
-    <div class="w-full h-full flex items-center justify-between">
-      <button
-        v-tooltip.group="translations.noteActions?.undo || 'Undo'"
-        :aria-label="translations.noteActions?.undo || 'Undo'"
-        class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
-        @click="editor.chain().focus().undo().run()"
+  <!-- One action set, two presentations. On a foldable it moves to the rail and
+       stacks; everywhere else it stays the horizontal dock. -->
+  <teleport to="#app-rail-top" :disabled="!rail">
+    <div
+      ref="container"
+      :class="[
+        rail
+          ? 'rail-actions no-print flex flex-col items-center gap-1 py-1'
+          : 'bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-xl shadow-sm no-print max-w-content mobile:hidden',
+        {
+          'opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity':
+            store.inReaderMode && !rail,
+        },
+      ]"
+      @wheel.passive="changeWheelDirection"
+    >
+      <div
+        class="w-full h-full flex"
+        :class="rail ? 'flex-col items-center gap-0.5' : 'items-center justify-between'"
       >
-        <v-remixicon name="riArrowGoBackLine" />
-      </button>
+        <button
+          v-if="rail"
+          v-tooltip.group="translations.editor?.backToNotes || 'Back to notes'"
+          :aria-label="translations.editor?.backToNotes || 'Back to notes'"
+          class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+          @click="goBack"
+        >
+          <v-remixicon name="riArrowLeftLine" />
+        </button>
+        <button
+          v-if="!rail"
+          v-tooltip.group="translations.noteActions?.undo || 'Undo'"
+          :aria-label="translations.noteActions?.undo || 'Undo'"
+          class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+          @click="editor.chain().focus().undo().run()"
+        >
+          <v-remixicon name="riArrowGoBackLine" />
+        </button>
 
       <button
+        v-if="!rail"
         v-tooltip.group="translations.noteActions?.redo || 'Redo'"
         :aria-label="translations.noteActions?.redo || 'Redo'"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
@@ -26,9 +48,23 @@
         <v-remixicon name="riArrowGoForwardLine" />
       </button>
 
-      <hr class="border-r mx-1 h-6" />
+      <hr
+        class="mx-1 h-6 border-r"
+        :class="rail ? 'h-0 w-6 border-r-0 border-t mx-0 my-1' : ''"
+      />
 
-      <ui-popover>
+      <!-- Rail: open the share dialog straight away, like the mobile shell does. -->
+      <button
+        v-if="rail"
+        v-tooltip.group="translations.menu.share"
+        :aria-label="translations.menu.share"
+        class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+        @click="showShareModal = true"
+      >
+        <v-remixicon name="riShare2Line" />
+      </button>
+
+      <ui-popover v-else>
         <template #trigger>
           <button
             v-tooltip.group="translations.menu.share"
@@ -74,7 +110,7 @@
       </ui-popover>
 
       <button
-        v-if="isAuthenticated"
+        v-if="canUseHistory"
         v-tooltip.group="'History'"
         :aria-label="'History'"
         :class="{ 'is-active': showHistory }"
@@ -82,6 +118,18 @@
         @click="$emit('toggle-history')"
       >
         <v-remixicon name="riHistoryLine" />
+      </button>
+
+      <!-- History is part of a paid plan: the locked button opens the paywall -->
+      <button
+        v-else
+        v-tooltip.group="translations.noteActions?.historyLocked || 'Note history is part of a paid plan'"
+        :aria-label="translations.noteActions?.historyLocked || 'Note history is part of a paid plan'"
+        data-testid="history-locked"
+        class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center text-neutral-500 dark:text-neutral-400"
+        @click="paywallOpen('history')"
+      >
+        <v-remixicon name="riLockLine" />
       </button>
 
       <button
@@ -121,7 +169,7 @@
         <v-remixicon name="riSearchLine" />
       </button>
 
-      <ui-popover>
+      <ui-popover v-if="!rail">
         <template #trigger>
           <button
             v-tooltip.group="
@@ -254,10 +302,12 @@
           </span>
         </button>
       </ui-popover>
+      </div>
     </div>
-  </div>
+  </teleport>
 
   <div
+    v-if="!rail"
     ref="shellRef"
     class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white/90 dark:bg-neutral-900/90 top-0 mb-4 hidden mobile:flex"
     :style="shellStyle"
@@ -273,7 +323,7 @@
 
       <div class="flex items-center gap-1">
         <button
-          v-if="isAuthenticated"
+          v-if="canUseHistory"
           :aria-label="'History'"
           class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
           @click="$emit('toggle-history')"
@@ -327,23 +377,39 @@
   </div>
 
   <share-modal v-model="showShareModal" :note-id="id" :share-actions="shareActions" />
-  <!-- The transition lives here, not inside HistoryPanel: only the owner of the
-       v-if can animate both mount and unmount. -->
-  <transition name="slide-up">
+  <!-- Desktop: fixed dock above the editor. Mobile: the house bottom sheet,
+       since the dock crowds the phone toolbar. The transition lives here, not
+       inside HistoryPanel: only the owner of the v-if can animate both mounts. -->
+  <ui-modal
+    v-if="mobile && canUseHistory"
+    v-model="showHistoryModel"
+    custom-content
+  >
     <history-panel
-      v-if="showHistory"
+      :note-id="id"
+      :editor="editor"
+      :docked="false"
+      @close="showHistoryModel = false"
+      @restore="$emit('restore', $event)"
+      @preview="$emit('preview', $event)"
+    />
+  </ui-modal>
+  <transition v-else name="slide-up">
+    <history-panel
+      v-if="showHistory && canUseHistory"
       :note-id="id"
       :editor="editor"
       @close="$emit('toggle-history'); $emit('preview', null)"
       @restore="$emit('restore', $event)"
       @preview="$emit('preview', $event)"
-      @review="$emit('review', $event)"
     />
   </transition>
 </template>
 
 <script>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { foldState } from '@/lib/foldable';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
 import { useClipboard } from '@/composable/clipboard';
@@ -352,6 +418,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useAccountStore } from '@/store/account';
+import { usePaywall } from '@/composable/usePaywall';
 import HistoryPanel from '@/components/note/HistoryPanel.vue';
 import PresenceAvatars from '@/components/note/PresenceAvatars.vue';
 import ShareModal from '@/components/note/ShareModal.vue';
@@ -379,18 +446,34 @@ export default {
     'toggle-comments',
     'restore',
     'preview',
-    'review',
   ],
-  setup(props) {
+  setup(props, { emit }) {
     const menu = useNoteMenu(props);
     const noteStore = useNoteStore();
     const accountStore = useAccountStore();
     const shellRef = ref(null);
     const showShareModal = ref(false);
     const isStuck = ref(false);
+    const mobile = isMobileRuntime();
+    // Foldable: the same action set renders stacked in the app rail instead of
+    // the horizontal top row.
+    const rail = computed(() => foldState.isFoldable);
+    // Two-way binding onto the parent's showHistory ref; closing the sheet
+    // (swipe, overlay, Escape) must also drop any editor preview.
+    const showHistoryModel = computed({
+      get: () => props.showHistory,
+      set: (v) => {
+        emit('toggle-history', v);
+        if (!v) emit('preview', null);
+      },
+    });
     const { copyState, copyToClipboard } = useClipboard();
 
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
+    const canUseHistory = computed(() => accountStore.canUseHistory);
+    const paywallOpen = usePaywall().open;
+    // ponytail: anonymous users keep the app fully usable — the lock only opens
+    // the paywall, never blocks the editor itself.
     const hasOnlinePeers = computed(() => {
       const p = props.peers;
       return p instanceof Map ? p.size > 0 : Object.keys(p).length > 0;
@@ -502,7 +585,12 @@ export default {
       syncStickyState,
       showShareModal,
       isAuthenticated,
+      canUseHistory,
+      paywallOpen,
       showCollaboration,
+      mobile,
+      rail,
+      showHistoryModel,
     };
   },
 };
@@ -533,5 +621,15 @@ input[type='number'] {
   transition:
     box-shadow var(--motion-fast) var(--ease-standard),
     background-color var(--motion-fast) var(--ease-standard);
+}
+
+/* Rail: same square touch target as the nav buttons below it, so the column
+   reads as one control strip rather than two mismatched lists. */
+.rail-actions button {
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  padding: 0;
+  border-radius: 0.75rem;
 }
 </style>

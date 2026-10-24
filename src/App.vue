@@ -29,17 +29,17 @@
 
   <div
     v-show="showMobileNavbar"
-    class="fixed inset-x-0 z-40 flex justify-center px-4 no-print mobile:block hidden"
+    class="fixed inset-x-0 z-40 flex justify-center px-4 no-print mobile:block hidden foldable:hidden"
     :style="mobileNavbarStyle"
   >
-    <app-navbar />
+    <app-navbar v-if="!foldState.isFoldable" />
   </div>
 
   <div class="flex h-screen w-screen overflow-hidden">
     <app-sidebar
       v-if="onboardingCompleted"
       v-show="showSidebar"
-      class="mobile:hidden shrink-0"
+      class="mobile:hidden foldable:hidden shrink-0"
       aria-label="Sidebar"
     />
     <main
@@ -47,7 +47,7 @@
       ref="mainRef"
       v-if="retrieved"
       data-testid="app-main"
-      class="flex-1 min-w-0 overflow-y-auto mobile:pl-0 mobile:scroll-pb-[calc(var(--app-keyboard-inset-bottom)+4.5rem)] print:p-2"
+      class="flex-1 min-w-0 overflow-y-auto overflow-x-hidden mobile:pl-0 mobile:scroll-pb-[calc(var(--app-keyboard-inset-bottom)+4.5rem)] print:p-2"
       :style="mainStyle"
       tabindex="-1"
     >
@@ -105,9 +105,12 @@
         </router-view>
       </div>
     </main>
+    <app-rail />
   </div>
 
   <ui-dialog />
+
+  <paywall-dialog />
 
   <ui-toast-host />
 
@@ -133,6 +136,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import SharePreviewModal from '@/components/share/SharePreviewModal.vue';
+import PaywallDialog from '@/components/billing/PaywallDialog.vue';
 import { useIncomingShare } from '@/composable/useIncomingShare';
 import { useShareExtensionSync } from '@/composable/useShareExtensionSync';
 import { retryPendingExtractions } from '@/lib/share/retryExtraction';
@@ -147,6 +151,8 @@ import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import { useDevicePasswordSetup } from './lib/device-password-setup';
 import AppNavbar from './components/app/AppNavbar.vue';
+import AppRail from './components/app/AppRail.vue';
+import { foldState } from '@/lib/foldable';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
 
@@ -156,10 +162,12 @@ export default {
     AppCommandPrompt,
     UndoBanner,
     AppNavbar,
+    AppRail,
     ImportFolderPicker,
     AppEncryptionGate,
     RecordingPill,
     SharePreviewModal,
+    PaywallDialog,
   },
   setup() {
     useIncomingShare();
@@ -252,6 +260,7 @@ export default {
       skipToMain,
       onboardingCompleted,
       translations,
+      foldState,
     };
   },
 };

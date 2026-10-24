@@ -1,7 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="mb-14 w-full max-w-xl space-y-6">
-    <!-- ───────────── Accounts ───────────── -->
     <section v-if="accounts.length && !addingAccount" class="space-y-2">
       <h2 class="acct-heading">
         {{ translations.account?.accounts || 'Accounts' }}
@@ -23,16 +22,11 @@
             "
             @click="selectAccount(acct.id)"
           >
-            <span
-              class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm leading-none uppercase"
-              :class="
-                acct.id === activeAccountId
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-neutral-100 text-neutral-400 dark:bg-neutral-800'
-              "
-            >
-              {{ accountInitial(acct) }}
-            </span>
+            <ui-user-avatar
+              :name="displayName"
+              :size="40"
+              :class="acct.id === activeAccountId ? 'ring-2 ring-primary' : ''"
+            />
             <span class="min-w-0 flex-1">
               <span
                 class="block truncate text-sm"
@@ -76,11 +70,7 @@
       </ui-card>
     </section>
 
-    <!-- ───────────── Signed out ───────────── -->
-    <section
-      v-if="accountStore.isAnonymous || addingAccount"
-      class="space-y-2"
-    >
+    <section v-if="accountStore.isAnonymous || addingAccount" class="space-y-2">
       <h2 class="acct-heading">
         {{ translations.account?.title || 'Beaver Account' }}
       </h2>
@@ -106,7 +96,7 @@
         </div>
 
         <!-- Passkey -->
-        <div class="flex flex-col gap-2 px-4 pb-4">
+        <div v-if="passkeysAvailable" class="flex flex-col gap-2 px-4 pb-4">
           <ui-input
             v-model="passkeyEmail"
             type="email"
@@ -353,44 +343,38 @@
         {{ translations.account?.title || 'Beaver Account' }}
       </h2>
 
-      <ui-card padding="p-0">
-        <!-- Profile -->
-        <div class="acct-row flex items-center gap-3">
-          <ui-user-avatar :name="displayName" :size="40" />
-          <div class="min-w-0 flex-1">
-            <p class="acct-title flex items-center gap-2">
-              <span class="truncate">{{
-                accountStore.profile?.email ||
-                accountStore.profile?.username ||
-                translations.account?.signedInAs ||
-                'Signed in'
-              }}</span>
-              <span
-                v-if="accountStore.profile?.emailVerified === true"
-                class="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300"
-              >
-                <v-remixicon name="riCheckLine" size="12" />
-                {{ tr.verified || 'Verified' }}
-              </span>
-              <span
-                v-else-if="accountStore.profile?.emailVerified === false"
-                class="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-              >
-                {{ tr.unverified || 'Unverified' }}
-              </span>
-            </p>
-            <p class="acct-desc truncate">{{ accountStore.serverUrl }}</p>
+      <div v-if="showVaultImportPrompt" class="bg-primary/5 border-primary rounded-xl p-4">
+        <div class="flex items-center space-x-2">
+          <div>
+            <v-remixicon name="riShieldKeyholeLine" class="h-full" />
           </div>
-          <ui-button variant="danger" @click="handleSignOut">
-            <v-remixicon name="riLogoutBoxRLine" class="mr-1" />
-            {{ translations.account?.signOut || 'Sign out' }}
-          </ui-button>
+          <div>
+            <p class="acct-title">
+              {{ translations.account?.vaultDetected || 'Vault detected' }}
+            </p>
+            <p class="acct-desc">
+              {{
+                translations.account?.vaultDetectedBody ||
+                'A vault was found in your sync source. Import it to unlock your notes.'
+              }}
+            </p>
+          </div>
         </div>
+        <div class="flex flex-row mobile:flex-col gap-2 mt-2">
+          <ui-button @click="importVaultDialog" class="w-full" variant="primary"
+            >Import</ui-button
+          >
+          <ui-button @click="showVaultImportPrompt" class="w-full"
+            >Close</ui-button
+          >
+        </div>
+      </div>
 
+      <ui-card padding="p-0">
         <!-- Email verification -->
         <div
           v-if="accountStore.profile?.emailVerified === false"
-          class="acct-row acct-divided flex items-center justify-between gap-3"
+          class="acct-row flex items-center justify-between gap-3"
         >
           <div class="min-w-0 flex-1">
             <p class="acct-title">
@@ -531,32 +515,6 @@
             </p>
           </div>
 
-          <!-- Vault import prompt for existing apps -->
-          <div
-            v-if="showVaultImportPrompt"
-            class="acct-row acct-divided space-y-2"
-          >
-            <div>
-              <p class="acct-title">
-                {{ translations.account?.vaultDetected || 'Vault detected' }}
-              </p>
-              <p class="acct-desc">
-                {{
-                  translations.account?.vaultDetectedBody ||
-                  'A vault was found in your sync source. Import it to unlock your notes.'
-                }}
-              </p>
-            </div>
-            <ui-banner
-              icon="riShieldKeyholeLine"
-              :content="translations.account?.vaultDetected || 'Vault detected'"
-              :primary-text="translations.account?.importVault || 'Import'"
-              :secondary-text="translations.dialog?.close || 'Later'"
-              @button-1="importVaultDialog"
-              @button-2="showVaultImportPrompt = false"
-            />
-          </div>
-
           <div
             v-else-if="accountStore.seedStatus === 'error'"
             class="acct-row acct-divided space-y-2"
@@ -647,7 +605,7 @@
           </p>
         </div>
 
-        <!-- Upgrade -->
+        <!-- Upgrade: plan choosing lives in the shared PaywallDialog -->
         <div
           v-if="
             !accountStore.isPaidPlan || accountStore.plan === PLAN_NAMES.STARTER
@@ -655,31 +613,17 @@
           class="acct-row acct-divided"
         >
           <p class="acct-title">{{ tr.upgrade || 'Upgrade' }}</p>
-          <p class="acct-desc">
-            {{
-              tr.upgradeDescription ||
-              'Choose a plan. Checkout opens in your browser (subscription activates via webhook).'
-            }}
-          </p>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <template v-for="opt in billingOptions" :key="opt.key">
-              <ui-button
-                v-if="!isMobile || opt.plan !== 'team'"
-                size="sm"
-                :variant="
-                  opt.plan === accountStore.plan ? 'secondary' : 'primary'
-                "
-                :loading="billingBusy"
-                :disabled="billingBusy || opt.plan === accountStore.plan"
-                @click="handleCheckout(opt.plan, opt.interval)"
-              >
-                {{ opt.label }}
-              </ui-button>
-            </template>
+          <p class="acct-desc">{{ upgradeDescription }}</p>
+          <div class="mt-3">
+            <ui-button
+              size="sm"
+              variant="primary"
+              data-testid="upgrade-choose-plan"
+              @click="openPaywall('settings')"
+            >
+              {{ tr.choosePlan || 'Choose a plan' }}
+            </ui-button>
           </div>
-          <p v-if="billingError" class="mt-2 text-xs text-red-500">
-            {{ billingError }}
-          </p>
         </div>
 
         <!-- Storage -->
@@ -738,7 +682,7 @@
               :content="tr.storageWarning || 'Storage almost full'"
               :primary-text="tr.upgrade || 'Upgrade'"
               :secondary-text="translations.dialog?.close || 'Dismiss'"
-              @button-1="openUpgrade"
+              @button-1="openPaywall('storage')"
               @button-2="storageWarningDismissed = true"
             />
           </div>
@@ -759,138 +703,114 @@
                 `Upgrade to ${planLabel(PLAN_NAMES.STARTER)} or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.`
               }}
             </p>
+            <div class="mt-3">
+              <ui-button
+                size="sm"
+                variant="primary"
+                data-testid="cloud-sync-upgrade"
+                @click="openPaywall('sync')"
+              >
+                {{ tr.upgrade || 'Upgrade' }}
+              </ui-button>
+            </div>
           </div>
         </div>
       </ui-card>
-
-      <subscription-dialog
-        v-model="showPlansDialog"
-        :products="iap.products.value"
-        :loading="iap.loading.value"
-        :error="iap.error.value"
-        :busy="iapBusy"
-        :interval="plansInterval"
-        :is-paid="accountStore.isPaidPlan"
-        :current-plan="accountStore.plan"
-        :signed-in="accountStore.isAuthenticated"
-        @update:interval="plansInterval = $event"
-        @select="handleIapSelect"
-        @restore="handleIapRestore"
-      />
     </section>
 
-    <!-- ───────────── Security (collapsible) ───────────── -->
+    <!-- ───────────── Security ───────────── -->
     <section v-if="accountStore.isAuthenticated" class="space-y-2">
-      <button
-        type="button"
-        class="acct-toggle"
-        :aria-expanded="showSecurity"
-        @click="showSecurity = !showSecurity"
-      >
-        <span class="acct-heading !px-0">{{
-          translations.account?.security || 'Security'
-        }}</span>
-        <v-remixicon
-          name="riArrowDownSLine"
-          size="18"
-          class="transition-transform"
-          :class="{ 'rotate-180': showSecurity }"
-        />
-      </button>
+      <h2 class="acct-heading">
+        {{ translations.account?.security || 'Security' }}
+      </h2>
 
-      <ui-expand-collapse
-        :open="showSecurity"
-        max-open="max-h-[120rem]"
-        :inert="showSecurity ? null : true"
-      >
-        <div class="space-y-4 p-1">
-          <!-- Devices -->
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <p class="acct-heading">
-                {{ translations.account?.devices || 'Your devices' }}
-              </p>
-              <ui-button variant="secondary" size="sm" @click="loadSessions">
-                <v-remixicon name="riRefreshLine" size="14" class="mr-1" />
-                {{ translations.settings?.syncNow || 'Refresh' }}
-              </ui-button>
-            </div>
-            <ui-card padding="p-0">
-              <ui-list class="space-y-0.5 p-1.5">
-                <div
-                  v-if="loadingSessions && !unifiedDevices.length"
-                  class="flex justify-center py-6"
-                >
-                  <ui-spinner size="20" color="text-neutral-400" />
-                </div>
-                <p
-                  v-else-if="!unifiedDevices.length"
-                  class="acct-desc px-2 py-2"
-                >
-                  {{ translations.account?.noSessions || 'No active devices' }}
-                </p>
-                <ui-list-item
-                  v-for="entry in unifiedDevices"
-                  :key="entry.key"
-                  class="gap-3"
-                >
-                  <div
-                    class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800"
-                  >
-                    <v-remixicon :name="platformIcon(entry.platform)" />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="acct-title truncate">{{ entry.name }}</p>
-                    <p class="acct-desc truncate" :title="entry.id || ''">
-                      {{ platformLabel(entry.platform) }}
-                      <template v-if="entry.lastSeen">
-                        · {{ fmtLastSeen(entry.lastSeen) }}
-                      </template>
-                    </p>
-                  </div>
-                  <ui-button
-                    icon
-                    variant="danger"
-                    size="sm"
-                    :aria-label="
-                      translations.account?.revokeDevice || 'Revoke device'
-                    "
-                    @click="revokeUnified(entry)"
-                  >
-                    <v-remixicon name="riDeleteBin6Line" />
-                  </ui-button>
-                </ui-list-item>
-              </ui-list>
-            </ui-card>
+      <div class="space-y-4">
+        <!-- Devices -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <p class="acct-heading">
+              {{ translations.account?.devices || 'Your devices' }}
+            </p>
+            <ui-button variant="secondary" size="sm" @click="loadSessions">
+              <v-remixicon name="riRefreshLine" size="14" class="mr-1" />
+              {{ translations.settings?.syncNow || 'Refresh' }}
+            </ui-button>
           </div>
-
-          <!-- Sign out everywhere / password / recovery -->
           <ui-card padding="p-0">
-            <div class="acct-row flex items-center gap-3">
-              <div class="min-w-0 flex-1">
-                <p class="acct-title">
-                  {{
-                    translations.account?.signOutEverywhereTitle ||
-                    'Sign out everywhere'
-                  }}
-                </p>
-                <p class="acct-desc">
-                  {{
-                    translations.account?.signOutEverywhereBody ||
-                    'Revoke all other devices. This device stays signed in.'
-                  }}
-                </p>
+            <ui-list class="space-y-0.5 p-1.5">
+              <div
+                v-if="loadingSessions && !unifiedDevices.length"
+                class="flex justify-center py-6"
+              >
+                <ui-spinner size="20" color="text-neutral-400" />
               </div>
-              <ui-button variant="danger" @click="handleSignOutEverywhere">
+              <p v-else-if="!unifiedDevices.length" class="acct-desc px-2 py-2">
+                {{ translations.account?.noSessions || 'No active devices' }}
+              </p>
+              <ui-list-item
+                v-for="entry in unifiedDevices"
+                :key="entry.key"
+                class="gap-3"
+              >
+                <div
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800"
+                >
+                  <v-remixicon :name="platformIcon(entry.platform)" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="acct-title truncate">{{ entry.name }}</p>
+                  <p class="acct-desc truncate" :title="entry.id || ''">
+                    {{ platformLabel(entry.platform) }}
+                    <template v-if="entry.lastSeen">
+                      · {{ fmtLastSeen(entry.lastSeen) }}
+                    </template>
+                  </p>
+                </div>
+                <ui-button
+                  icon
+                  variant="danger"
+                  size="sm"
+                  :aria-label="
+                    translations.account?.revokeDevice || 'Revoke device'
+                  "
+                  @click="revokeUnified(entry)"
+                >
+                  <v-remixicon name="riDeleteBin6Line" />
+                </ui-button>
+              </ui-list-item>
+            </ui-list>
+          </ui-card>
+        </div>
+
+        <!-- Sign out everywhere / password / recovery -->
+        <ui-card padding="p-0">
+          <div class="acct-row flex items-center gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="acct-title">
                 {{
-                  translations.account?.signOutEverywhere ||
+                  translations.account?.signOutEverywhereTitle ||
                   'Sign out everywhere'
                 }}
-              </ui-button>
+              </p>
+              <p class="acct-desc">
+                {{
+                  translations.account?.signOutEverywhereBody ||
+                  'Revoke all other devices. This device stays signed in.'
+                }}
+              </p>
             </div>
+            <ui-button variant="danger" @click="handleSignOutEverywhere">
+              {{
+                translations.account?.signOutEverywhere || 'Sign out everywhere'
+              }}
+            </ui-button>
+          </div>
 
-            <!-- Change password -->
-            <div class="acct-row acct-divided">
+          <!-- Change password (in a dialog) -->
+          <div
+            class="acct-row acct-divided flex items-center justify-between gap-3"
+          >
+            <div class="min-w-0 flex-1">
               <p class="acct-title">
                 {{ tr.changePassword || 'Change password' }}
               </p>
@@ -900,102 +820,166 @@
                   'Verifies current password, rotates, revokes other sessions.'
                 }}
               </p>
-              <div class="mt-3 flex flex-col gap-2">
-                <ui-input
-                  v-model="changeCurrent"
-                  :password="true"
-                  prepend-icon="riLockPasswordLine"
-                  :placeholder="
-                    tr.currentPasswordPlaceholder || 'Current password'
-                  "
-                  :aria-label="
-                    tr.currentPasswordPlaceholder || 'Current password'
-                  "
-                  class="w-full"
-                />
-                <ui-input
-                  v-model="changeNew"
-                  :password="true"
-                  prepend-icon="riLockPasswordLine"
-                  :placeholder="
-                    tr.newPasswordPlaceholder || 'New password (min 12 chars)'
-                  "
-                  :aria-label="
-                    tr.newPasswordPlaceholder || 'New password (min 12 chars)'
-                  "
-                  class="w-full"
-                />
-                <ui-input
-                  v-model="changeConfirm"
-                  :password="true"
-                  prepend-icon="riLockPasswordLine"
-                  :placeholder="
-                    tr.confirmPasswordPlaceholder || 'Confirm new password'
-                  "
-                  :aria-label="
-                    tr.confirmPasswordPlaceholder || 'Confirm new password'
-                  "
-                  class="w-full"
-                />
-                <p
-                  v-if="changeMessage"
-                  class="text-xs"
-                  :class="changeSuccess ? 'text-green-600' : 'text-red-500'"
-                  role="status"
-                >
-                  {{ changeMessage }}
-                </p>
-                <ui-button
-                  variant="secondary"
-                  :loading="changeBusy"
-                  :aria-label="tr.changePassword || 'Change password'"
-                  @click="handleChangePassword"
-                >
-                  {{ tr.changePassword || 'Change password' }}
-                </ui-button>
-              </div>
             </div>
-
-            <!-- Recovery code -->
-            <div class="acct-row acct-divided">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0 flex-1">
-                  <p class="acct-title">
-                    {{ tr.recoveryCode || 'Account recovery code' }}
-                  </p>
-                  <p class="acct-desc">
-                    {{
-                      tr.recoveryCodeDescription ||
-                      'Restores account sign-in if you lose your passkeys. Regenerating invalidates the old code. It does not unlock your notes.'
-                    }}
-                  </p>
-                  <p class="acct-desc whitespace-pre-line">
-                    {{ whatUnlocks }}
-                  </p>
-                </div>
-                <ui-button
-                  variant="secondary"
-                  :loading="recoveryBusy"
-                  :aria-label="
-                    recoveryCode
-                      ? tr.regenerate || 'Regenerate'
-                      : tr.generate || 'Generate'
-                  "
-                  @click="handleGenerateRecoveryCode"
+            <ui-button
+              variant="secondary"
+              class="shrink-0"
+              @click="passwordModalOpen = true"
+            >
+              {{ tr.changePassword || 'Change password' }}
+            </ui-button>
+          </div>
+          <ui-modal v-model="passwordModalOpen" content-class="max-w-md">
+            <!-- House dialog look (same as Dialog.vue confirm dialogs) -->
+            <div class="flex flex-col items-start text-left gap-3 mb-4">
+              <div class="flex-shrink-0">
+                <div
+                  class="w-12 h-12 rounded-xl flex items-center justify-center bg-neutral-100 dark:bg-neutral-700"
                 >
-                  {{
-                    recoveryCode
-                      ? tr.regenerate || 'Regenerate'
-                      : tr.generate || 'Generate'
-                  }}
-                </ui-button>
+                  <v-remixicon
+                    name="riLockPasswordLine"
+                    size="24"
+                    class="text-neutral-600 dark:text-neutral-300"
+                  />
+                </div>
               </div>
+              <h3 class="font-semibold text-lg tracking-tight leading-snug">
+                {{ tr.changePassword || 'Change password' }}
+              </h3>
+            </div>
+            <div class="flex flex-col gap-2">
+              <ui-input
+                v-model="changeCurrent"
+                :password="true"
+                prepend-icon="riLockPasswordLine"
+                :placeholder="
+                  tr.currentPasswordPlaceholder || 'Current password'
+                "
+                :aria-label="
+                  tr.currentPasswordPlaceholder || 'Current password'
+                "
+                class="w-full"
+              />
+              <ui-input
+                v-model="changeNew"
+                :password="true"
+                prepend-icon="riLockPasswordLine"
+                :placeholder="
+                  tr.newPasswordPlaceholder || 'New password (min 12 chars)'
+                "
+                :aria-label="
+                  tr.newPasswordPlaceholder || 'New password (min 12 chars)'
+                "
+                class="w-full"
+              />
+              <ui-input
+                v-model="changeConfirm"
+                :password="true"
+                prepend-icon="riLockPasswordLine"
+                :placeholder="
+                  tr.confirmPasswordPlaceholder || 'Confirm new password'
+                "
+                :aria-label="
+                  tr.confirmPasswordPlaceholder || 'Confirm new password'
+                "
+                class="w-full"
+              />
+              <p
+                v-if="changeMessage"
+                class="text-xs"
+                :class="changeSuccess ? 'text-green-600' : 'text-red-500'"
+                role="status"
+              >
+                {{ changeMessage }}
+              </p>
+              <ui-button
+                variant="primary"
+                class="mt-1 w-full"
+                :loading="changeBusy"
+                :aria-label="tr.changePassword || 'Change password'"
+                @click="handleChangePassword"
+              >
+                {{ tr.changePassword || 'Change password' }}
+              </ui-button>
+            </div>
+          </ui-modal>
+
+          <!-- Recovery code (in a dialog) -->
+          <div
+            class="acct-row acct-divided flex items-center justify-between gap-3"
+          >
+            <div class="min-w-0 flex-1">
+              <p class="acct-title">
+                {{ tr.recoveryCode || 'Account recovery code' }}
+              </p>
+              <p class="acct-desc">
+                {{
+                  tr.recoveryCodeDescription ||
+                  'Restores account sign-in if you lose your passkeys. Regenerating invalidates the old code. It does not unlock your notes.'
+                }}
+              </p>
+            </div>
+            <ui-button
+              variant="secondary"
+              class="shrink-0"
+              :aria-label="
+                recoveryCode
+                  ? tr.regenerate || 'Regenerate'
+                  : tr.generate || 'Generate'
+              "
+              @click="recoveryModalOpen = true"
+            >
+              {{
+                recoveryCode
+                  ? tr.regenerate || 'Regenerate'
+                  : tr.generate || 'Generate'
+              }}
+            </ui-button>
+          </div>
+          <ui-modal v-model="recoveryModalOpen" content-class="max-w-md">
+            <div class="flex flex-col items-start text-left gap-3 mb-4">
+              <div class="flex-shrink-0">
+                <div
+                  class="w-12 h-12 rounded-xl flex items-center justify-center bg-neutral-100 dark:bg-neutral-700"
+                >
+                  <v-remixicon
+                    name="riKey2Line"
+                    size="24"
+                    class="text-neutral-600 dark:text-neutral-300"
+                  />
+                </div>
+              </div>
+              <h3 class="font-semibold text-lg tracking-tight leading-snug">
+                {{ tr.recoveryCode || 'Account recovery code' }}
+              </h3>
+            </div>
+            <div class="space-y-3">
+              <p class="acct-desc whitespace-pre-line">
+                {{ whatUnlocks }}
+              </p>
+              <ui-button
+                variant="primary"
+                class="w-full"
+                :loading="recoveryBusy"
+                :aria-label="
+                  recoveryCode
+                    ? tr.regenerate || 'Regenerate'
+                    : tr.generate || 'Generate'
+                "
+                @click="handleGenerateRecoveryCode"
+              >
+                {{
+                  recoveryCode
+                    ? tr.regenerate || 'Regenerate'
+                    : tr.generate || 'Generate'
+                }}
+              </ui-button>
               <ui-card
                 v-if="recoveryCode"
                 bg="bg-amber-50 dark:bg-amber-900/20"
                 radius="rounded-xl"
                 padding="px-3 py-2"
-                class="mt-3 border-amber-200 dark:border-amber-800"
+                class="border-amber-200 dark:border-amber-800"
               >
                 <p
                   class="break-all font-mono text-xs text-amber-900 dark:text-amber-100"
@@ -1010,9 +994,9 @@
                 </p>
               </ui-card>
             </div>
-          </ui-card>
-        </div>
-      </ui-expand-collapse>
+          </ui-modal>
+        </ui-card>
+      </div>
     </section>
 
     <!-- ───────────── Privacy ───────────── -->
@@ -1177,10 +1161,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
-import {
-  signOutAccount,
-  switchAccount,
-} from '@/composable/useAccountAuth';
+import { signOutAccount, switchAccount } from '@/composable/useAccountAuth';
 import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES, planLabel, planLimitsText } from '@/lib/api/types';
@@ -1189,16 +1170,15 @@ import {
   requestEmailVerification as apiRequestEmailVerification,
   changePassword as apiChangePassword,
 } from '@/lib/api/account';
-import { createCheckoutSession, createPortalSession } from '@/lib/api/billing';
+import { createPortalSession } from '@/lib/api/billing';
+import { canUsePasskeys } from '@/lib/api/auth';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { localNoteCount } from '@/utils/notes/local-note-count.js';
 import { deviceDisplayName, devicePlatform } from '@/utils/device/device-label';
 import { whatUnlocksWhat } from '@/utils/i18n/secrets.js';
-import SubscriptionDialog from '@/components/billing/SubscriptionDialog.vue';
-import { useIapBilling } from '@/composable/useIapBilling';
+import { usePaywall } from '@/composable/usePaywall';
 
 export default {
-  components: { SubscriptionDialog },
   setup() {
     const router = useRouter();
     const route = useRoute();
@@ -1318,7 +1298,6 @@ export default {
     }
 
     const showVaultImportPrompt = ref(false);
-    const showSecurity = ref(false);
     const showAdvanced = ref(false);
     const storageWarningDismissed = ref(false);
     const displayName = computed(
@@ -1360,6 +1339,8 @@ export default {
     const changeBusy = ref(false);
     const changeMessage = ref('');
     const changeSuccess = ref(false);
+    const passwordModalOpen = ref(false);
+    const recoveryModalOpen = ref(false);
     async function handleChangePassword() {
       changeMessage.value = '';
       changeSuccess.value = false;
@@ -1403,68 +1384,17 @@ export default {
     const billingMessage = ref('');
     const billingSuccess = ref(false);
     const isMobile = isMobileRuntime();
-    const iap = useIapBilling({ accountStore });
-    const showPlansDialog = ref(false);
-    const plansInterval = ref('monthly');
-    const iapBusy = ref(false);
-    async function handleIapSelect(plan, interval) {
-      iapBusy.value = true;
-      billingError.value = '';
-      billingMessage.value = '';
-      try {
-        const result = await iap.buy(plan, interval);
-        if (result) {
-          showPlansDialog.value = false;
-          billingMessage.value = `Subscribed to ${result}. Your plan is now active.`;
-          billingSuccess.value = true;
-        } else {
-          billingMessage.value =
-            'Payment processing — your plan will activate shortly';
-          billingSuccess.value = false;
-        }
-      } catch (e) {
-        const msg = e?.message || 'Purchase failed.';
-        billingError.value = msg;
-        billingSuccess.value = false;
-        dialog.alert({ title: 'Purchase failed', body: msg, okText: 'Close' });
-      } finally {
-        iapBusy.value = false;
-      }
-    }
-    async function handleIapRestore() {
-      iapBusy.value = true;
-      billingError.value = '';
-      billingMessage.value = '';
-      try {
-        await iap.restore();
-        if (accountStore.isPaidPlan) {
-          showPlansDialog.value = false;
-          billingMessage.value = 'Purchases restored. Your plan is now active.';
-          billingSuccess.value = true;
-        } else {
-          billingMessage.value = 'No purchases found for this account.';
-          billingSuccess.value = false;
-        }
-      } catch (e) {
-        const msg = e?.message || 'Restore failed.';
-        billingError.value = msg;
-        billingSuccess.value = false;
-        dialog.alert({ title: 'Restore failed', body: msg, okText: 'Close' });
-      } finally {
-        iapBusy.value = false;
-      }
-    }
-    const billingOptions = [
-      { key: 'starter-monthly', plan: PLAN_NAMES.STARTER, interval: 'monthly' },
-      { key: 'starter-yearly', plan: PLAN_NAMES.STARTER, interval: 'yearly' },
-      { key: 'pro-monthly', plan: PLAN_NAMES.PRO, interval: 'monthly' },
-      { key: 'pro-yearly', plan: PLAN_NAMES.PRO, interval: 'yearly' },
-      { key: 'team-monthly', plan: PLAN_NAMES.TEAM, interval: 'monthly' },
-      { key: 'team-yearly', plan: PLAN_NAMES.TEAM, interval: 'yearly' },
-    ].map((opt) => ({
-      ...opt,
-      label: `${planLabel(opt.plan)} ${opt.interval === 'monthly' ? 'Monthly' : 'Yearly'}`,
-    }));
+    const { open: openPaywall } = usePaywall();
+    const upgradeDescription = computed(() =>
+      isMobile
+        ? translations.value?.account?.upgradeDescriptionMobile ||
+          'Choose a plan. Purchases are handled by your app store.'
+        : translations.value?.account?.upgradeDescription ||
+          'Choose a plan. Checkout opens in your browser (subscription activates via webhook).',
+    );
+    const passkeysAvailable = computed(() =>
+      canUsePasskeys(accountStore.serverUrl),
+    );
     // Warn before the hard limit so the user can upgrade instead of hitting a
     // silent sync failure. 85% leaves room to act.
     const QUOTA_WARN_PERCENT = 85;
@@ -1480,19 +1410,7 @@ export default {
         !!accountStore.subscription?.storage &&
         storageUsedPercent.value >= QUOTA_WARN_PERCENT,
     );
-    function openUpgrade() {
-      const ladder = [
-        PLAN_NAMES.STARTER,
-        PLAN_NAMES.PRO,
-        PLAN_NAMES.TEAM,
-        PLAN_NAMES.ENTERPRISE,
-      ];
-      const idx = ladder.indexOf(accountStore.plan);
-      handleCheckout(ladder[Math.min(idx + 1, ladder.length - 1)], 'monthly');
-    }
 
-    // Server-supplied billing URLs are untrusted input: only open https links
-    // on Stripe checkout/portal hosts or the configured sync server itself.
     const BILLING_HOSTS = new Set([
       'checkout.stripe.com',
       'billing.stripe.com',
@@ -1527,41 +1445,10 @@ export default {
         window.open(url, '_blank', 'noopener,noreferrer');
       }
     }
-    async function handleCheckout(plan, interval) {
-      if (isMobile) {
-        plansInterval.value = interval;
-        if (!iap.products.value.length && !iap.loading.value)
-          await iap.loadProducts();
-        showPlansDialog.value = true;
-        return;
-      }
-      billingBusy.value = true;
-      billingError.value = '';
-      billingMessage.value = '';
-      try {
-        const res = await createCheckoutSession(plan, interval, {
-          baseUrl: accountStore.serverUrl,
-        });
-        const url = res?.url;
-        if (url) await openBillingUrl(url);
-        else throw new Error('No checkout URL returned');
-        billingMessage.value =
-          'Checkout opened in browser. Complete payment there; subscription activates shortly via webhook.';
-        billingSuccess.value = true;
-      } catch (e) {
-        const msg =
-          e?.body?.error === 'EMAIL_NOT_VERIFIED'
-            ? 'Please verify your email before upgrading.'
-            : e?.message || 'Failed to start checkout.';
-        billingError.value = msg;
-        dialog.alert({ title: 'Checkout failed', body: msg, okText: 'Close' });
-      } finally {
-        billingBusy.value = false;
-      }
-    }
     async function handleManageBilling() {
       if (isMobile) {
-        await iap.openManage();
+        const { useIapBilling } = await import('@/composable/useIapBilling');
+        await useIapBilling({ accountStore }).openManage();
         return;
       }
       billingBusy.value = true;
@@ -1624,14 +1511,14 @@ export default {
           }
         })
         .catch(() => {});
-      // Deep link from the Team settings upgrade gate: open checkout with the
-      // requested plan already chosen.
+      // Deep link from the Team settings upgrade gate: open the shared paywall
+      // with the plans view so the user picks the tier there.
       const requestedPlan = route.query?.upgrade;
       if (
         typeof requestedPlan === 'string' &&
         Object.values(PLAN_NAMES).includes(requestedPlan)
       ) {
-        handleCheckout(requestedPlan, 'monthly');
+        openPaywall('settings');
       }
     });
     const emailVerifySending = ref(false);
@@ -1879,6 +1766,7 @@ export default {
       planLabel,
       planLimitsText,
       accountStore,
+      passkeysAvailable,
       addingAccount,
       accounts,
       activeAccountId,
@@ -1892,7 +1780,8 @@ export default {
       seedPhaseLabel,
       seedProgressPercent,
       showVaultImportPrompt,
-      showSecurity,
+      passwordModalOpen,
+      recoveryModalOpen,
       showAdvanced,
       storageWarningDismissed,
       displayName,
@@ -1921,25 +1810,18 @@ export default {
       billingError,
       billingMessage,
       billingSuccess,
-      billingOptions,
+      upgradeDescription,
       storageUsedPercent,
       storageNearLimit,
-      openUpgrade,
+      openPaywall,
       unifiedDevices,
       platformIcon,
       platformLabel,
       fmtLastSeen,
       revokeUnified,
-      handleCheckout,
       handleManageBilling,
       handleBillingReturn,
       isMobile,
-      showPlansDialog,
-      plansInterval,
-      iap,
-      iapBusy,
-      handleIapSelect,
-      handleIapRestore,
       copyLogPath,
       logCopied,
       retrySeed,
