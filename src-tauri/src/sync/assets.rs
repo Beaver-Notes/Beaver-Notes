@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use base64::{
@@ -284,15 +285,22 @@ fn parse_new_scheme_key(key: &str) -> Option<AssetKey> {
     if key.contains('/') || key.contains('\\') || key.contains('\0') {
         return None;
     }
-    let mut parts = key.splitn(4, "--");
+    // Pin the fixed-width hash from the right: a note id may end with '-' (and
+    // a hash may begin with one), so splitting on `--` would eat that dash and
+    // read the key as legacy — which stranded the object in the uploader's
+    // private prefix, invisible to every other workspace member.
+    let hash = key.get(key.len().checked_sub(43)?..)?;
+    if !is_filename_hash(hash) {
+        return None;
+    }
+    let head = key.get(..key.len().checked_sub(45)?)?;
+    let mut parts = head.splitn(3, "--");
     if parts.next()? != ASSET_TYPE {
         return None;
     }
     let workspace_id = decode_uri_component(parts.next()?)?;
     let note_id = decode_uri_component(parts.next()?)?;
-    // `splitn(4)` keeps a hash's own `--` inside the final segment.
-    let hash = parts.next()?;
-    if !safe_segment(&workspace_id) || !safe_segment(&note_id) || !is_filename_hash(hash) {
+    if !safe_segment(&workspace_id) || !safe_segment(&note_id) {
         return None;
     }
     Some(AssetKey {
@@ -417,7 +425,9 @@ fn asset_seal_for_key(
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     note_id: &str,
 ) -> ([u8; 32], u8) {
-    match current_shared_key(shared_keys, note_id) {
+    match current_shared_key(shared_keys, note_id)
+        .or_else(|| current_shared_key(shared_keys, super::cloud::META_DOC_ID))
+    {
         Some(k) => (k, SHARED_PAYLOAD_VERSION),
         None => (*app_key, SYNC_PAYLOAD_VERSION),
     }
@@ -537,24 +547,30 @@ fn decrypt_downloaded_envelope(
     flat_key: &str,
     raw: &[u8],
 ) -> Result<Option<Vec<u8>>, AppError> {
-    let shared = shared_keys.get(note_id);
+    // Both rings together: an asset sealed before a per-note ring existed is
+    // under the workspace key, and one sealed later is under the note's (F31).
+    let ring: Vec<[u8; 32]> = shared_keys
+        .get(note_id)
+        .into_iter()
+        .flatten()
+        .chain(shared_keys.get(super::cloud::META_DOC_ID).into_iter().flatten())
+        .copied()
+        .collect();
+    let has_shared = !ring.is_empty();
     let version = asset_envelope_version(raw);
-    if shared.is_none() && version == Some(SHARED_PAYLOAD_VERSION) {
+    if !has_shared && version == Some(SHARED_PAYLOAD_VERSION) {
         return Ok(None);
     }
     // Expected-shared note with no key yet: do not force-decrypt a v5
     // (items-key) envelope — it belongs to a key the peers will never hold, and
     // a decrypt error here would abort the whole asset pass. Skip it; the note
     // seals v6 once `sync_register_shared_key` lands (findings C1/C9).
-    if shared.is_none()
-        && version == Some(SYNC_PAYLOAD_VERSION)
-        && expected_shared.contains(note_id)
-    {
+    if !has_shared && version == Some(SYNC_PAYLOAD_VERSION) && expected_shared.contains(note_id) {
         return Ok(None);
     }
     Ok(Some(decrypt_asset_bytes_with_shared(
         app_key,
-        shared.map(|keys| keys.as_slice()).unwrap_or(&[]),
+        &ring,
         flat_key,
         raw,
     )?))
@@ -619,6 +635,21 @@ pub(crate) async fn upload_asset(
     note_id: &str,
     data: &[u8],
 ) -> Result<(), CloudFail> {
+    upload_asset_ws(client, key, shared_keys, flat_key, note_id, data, None).await
+}
+
+/// [`upload_asset`] with an optional workspace id, sent as `x-workspace-id` so
+/// the server meters the asset against that workspace's bucket (and writes its
+/// reservation-ledger row) instead of the account Subscription.
+async fn upload_asset_ws(
+    client: &CloudClient,
+    key: &WriterKey,
+    shared_keys: &HashMap<String, Vec<[u8; 32]>>,
+    flat_key: &str,
+    note_id: &str,
+    data: &[u8],
+    workspace_id: Option<&str>,
+) -> Result<(), CloudFail> {
     // Seal under the key-migration read barrier: the key is read and the
     // ciphertext produced in one guarded span (finding C2).
     let encrypted = {
@@ -629,7 +660,7 @@ pub(crate) async fn upload_asset(
             .map_err(CloudFail::Fatal)?
     };
     let status = client
-        .put_bytes_with_status(&asset_url_path(flat_key), encrypted)
+        .put_bytes_with_status(&asset_url_path(flat_key), encrypted, workspace_id)
         .await?;
     if status == reqwest::StatusCode::PAYLOAD_TOO_LARGE || status.is_success() {
         return Ok(());
@@ -645,6 +676,7 @@ pub(crate) fn build_batch_payload(
     key: &[u8; 32],
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     items: &[(String, String, Vec<u8>)],
+    workspace_id: Option<&str>,
 ) -> Result<Vec<u8>, AppError> {
     let mut assets = Vec::with_capacity(items.len());
     for (flat_key, note_id, data) in items {
@@ -655,7 +687,12 @@ pub(crate) fn build_batch_payload(
             "data": BASE64.encode(encrypted),
         }));
     }
-    Ok(serde_json::to_vec(&serde_json::json!({ "assets": assets }))?)
+    // The server meters batches against the workspace (quota + ledger) only
+    // when the body carries workspaceId; without it uploads land on the
+    // account-level Subscription bucket.
+    Ok(serde_json::to_vec(&serde_json::json!({
+        "workspaceId": workspace_id, "assets": assets,
+    }))?)
 }
 
 async fn post_batch(
@@ -664,12 +701,13 @@ async fn post_batch(
     key: &WriterKey,
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     items: &[(String, String, Vec<u8>)],
+    workspace_id: Option<&str>,
 ) -> Result<(), CloudFail> {
     // Encrypt under the key-migration read barrier (finding C2), then send.
     let payload = {
         let _barrier = write_barrier();
         let app_key = key.resolve().map_err(CloudFail::Fatal)?;
-        build_batch_payload(&app_key, shared_keys, items).map_err(CloudFail::Fatal)?
+        build_batch_payload(&app_key, shared_keys, items, workspace_id).map_err(CloudFail::Fatal)?
     };
     let body: serde_json::Value = serde_json::from_slice(&payload)
         .map_err(|e| CloudFail::Fatal(AppError::Serialization(e.to_string())))?;
@@ -682,8 +720,9 @@ pub(crate) async fn batch_upload_assets(
     key: &WriterKey,
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     items: &[(String, String, Vec<u8>)],
+    workspace_id: Option<&str>,
 ) -> Result<(), CloudFail> {
-    post_batch(client, "/assets/batch", key, shared_keys, items).await
+    post_batch(client, "/assets/batch", key, shared_keys, items, workspace_id).await
 }
 
 pub(crate) async fn seed_batch_upload_assets(
@@ -692,7 +731,7 @@ pub(crate) async fn seed_batch_upload_assets(
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     items: &[(String, String, Vec<u8>)],
 ) -> Result<(), CloudFail> {
-    post_batch(client, "/assets/seed-batch", key, shared_keys, items).await
+    post_batch(client, "/assets/seed-batch", key, shared_keys, items, None).await
 }
 
 /// Fetch one asset's raw bytes. A 404 or empty body is `None`; a 429/5xx
@@ -933,6 +972,60 @@ fn snapshot_may_reference_assets(snapshot: &[u8]) -> bool {
         .any(|marker| snapshot.windows(marker.len()).any(|window| window == *marker))
 }
 
+/// Session memory for the cross-note fallback (finding 18), keyed by
+/// workspace: remote keys a full scan failed to resolve are skipped on later
+/// ticks — they cannot resolve (a deleted image whose remote object lingers is
+/// referenced by no note), so without this every tick would re-decode the whole
+/// vault. A workspace's entry resets when its remote listing or live note set
+/// changes, because either can make a skipped key resolvable again.
+static UNRESOLVED_SCAN: OnceLock<Mutex<HashMap<String, UnresolvedScan>>> = OnceLock::new();
+
+#[derive(Default)]
+struct UnresolvedScan {
+    skip: HashSet<String>,
+    fingerprint: (Vec<String>, Vec<String>),
+}
+
+fn scan_fingerprint(remote: &[(String, AssetKey)], live: &HashSet<String>) -> (Vec<String>, Vec<String>) {
+    let mut keys: Vec<String> = remote.iter().map(|(k, _)| k.clone()).collect();
+    keys.sort();
+    let mut ids: Vec<String> = live.iter().cloned().collect();
+    ids.sort();
+    (keys, ids)
+}
+
+/// The keys to skip for `workspace_id` this tick, resetting the entry whenever
+/// the remote listing or the live note set changed.
+fn unresolved_scan_skip(
+    workspace_id: &str,
+    remote: &[(String, AssetKey)],
+    live: &HashSet<String>,
+) -> HashSet<String> {
+    let fingerprint = scan_fingerprint(remote, live);
+    let map = UNRESOLVED_SCAN.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut state = map.lock().unwrap_or_else(|e| e.into_inner());
+    let entry = state.entry(workspace_id.to_string()).or_default();
+    if entry.fingerprint != fingerprint {
+        entry.skip.clear();
+        entry.fingerprint = fingerprint;
+    }
+    entry.skip.clone()
+}
+
+/// Remember the keys this tick's full scan could not resolve.
+fn record_unresolved_assets(workspace_id: &str, failed: &[String]) {
+    if failed.is_empty() {
+        return;
+    }
+    let Some(map) = UNRESOLVED_SCAN.get() else {
+        return;
+    };
+    let mut state = map.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(entry) = state.get_mut(workspace_id) {
+        entry.skip.extend(failed.iter().cloned());
+    }
+}
+
 /// Filenames referenced by live notes that resolve to a remote new-scheme
 /// object with no local counterpart. The map is keyed by the **referenced** note
 /// id (parsed from the URI), never by the note being read: a file can be
@@ -954,8 +1047,9 @@ fn referenced_assets(
     live: &HashSet<String>,
     workspace_id: &str,
     key: [u8; 32],
-) -> Result<HashMap<String, HashSet<String>>, AppError> {
-    referenced_assets_with(remote, local, live, workspace_id, |note_id| {
+    skip: &HashSet<String>,
+) -> Result<(HashMap<String, HashSet<String>>, Vec<String>), AppError> {
+    referenced_assets_with(remote, local, live, workspace_id, skip, |note_id| {
         crate::db::yjs_get_snapshot(pool, note_id, Some(key))
     })
 }
@@ -967,8 +1061,9 @@ fn referenced_assets_with<F>(
     local: &[(String, String)],
     live: &HashSet<String>,
     workspace_id: &str,
+    skip: &HashSet<String>,
     mut read_snapshot: F,
-) -> Result<HashMap<String, HashSet<String>>, AppError>
+) -> Result<(HashMap<String, HashSet<String>>, Vec<String>), AppError>
 where
     F: FnMut(&str) -> Result<Vec<u8>, AppError>,
 {
@@ -987,11 +1082,12 @@ where
                 && decoded.workspace_id.as_deref() == Some(workspace_id)
                 && live.contains(&decoded.note_id)
                 && !local_keys.contains(flat_key)
+                && !skip.contains(flat_key)
         })
         .map(|(flat_key, decoded)| (flat_key.as_str(), decoded.note_id.as_str()))
         .collect();
     if unsatisfied.is_empty() {
-        return Ok(HashMap::new());
+        return Ok((HashMap::new(), Vec::new()));
     }
 
     let mut unresolved: HashSet<&str> = unsatisfied.iter().map(|(flat, _)| *flat).collect();
@@ -1020,7 +1116,7 @@ where
     // Every key resolved from its owner's own content: a cross-note reference
     // cannot add anything, so do not read the rest of the vault.
     if unresolved.is_empty() {
-        return Ok(referenced);
+        return Ok((referenced, Vec::new()));
     }
 
     // Cross-note fallback: a reference to an unresolved owner lives in another
@@ -1049,7 +1145,12 @@ where
             break;
         }
     }
-    Ok(referenced)
+    // Finding 18: whatever remains unresolved after a full scan will never
+    // resolve (a deleted image whose remote object lingers is referenced by no
+    // note) — report it so the caller can skip it on later ticks instead of
+    // re-scanning the vault every 30 s.
+    let unresolved: Vec<String> = unresolved.iter().map(|s| s.to_string()).collect();
+    Ok((referenced, unresolved))
 }
 
 /// One asset transfer decision produced by [`plan_asset_ops`].
@@ -1314,8 +1415,8 @@ pub(crate) async fn sync_cloud_assets(
         key.resolve().map_err(CloudFail::Fatal)?
     };
 
-    let remote: Vec<(String, AssetKey)> = list_remote_assets(&client)
-        .await?
+    let remote_list = list_remote_assets(&client).await?;
+    let remote: Vec<(String, AssetKey)> = remote_list
         .iter()
         .filter_map(|k| decode_asset_key_with(k, &app_key, &shared).map(|d| (k.clone(), d)))
         .collect();
@@ -1336,8 +1437,13 @@ pub(crate) async fn sync_cloud_assets(
             // the owning notes' `assets://` content (the key itself hides the
             // filename). Only unsatisfied notes are read, so a synced vault
             // pays nothing.
-            let referenced =
-                referenced_assets(&pool, &remote, &local, &live, &workspace_id, app_key)?;
+            // Finding 18: skip keys a previous full scan could not resolve —
+            // they cannot resolve now, so scanning for them every tick would
+            // burn the whole vault forever on one stale attachment.
+            let skip = unresolved_scan_skip(&workspace_id, &remote, &live);
+            let (referenced, failed) =
+                referenced_assets(&pool, &remote, &local, &live, &workspace_id, app_key, &skip)?;
+            record_unresolved_assets(&workspace_id, &failed);
             let encode = |ws: &str, note: &str, file: &str| encode_asset_key(ASSET_TYPE, ws, note, file);
             plan_asset_ops(
                 &workspace_id,
@@ -1354,6 +1460,12 @@ pub(crate) async fn sync_cloud_assets(
         .map_err(|e| CloudFail::Fatal(AppError::Other(e.to_string())))?
         .map_err(CloudFail::Fatal)?
     };
+
+    // A shared workspace's attachments must not be sealed under the account
+    // items key either (see `shared_workspace_flag`): with no registered
+    // collaboration key the upload waits, exactly like note content.
+    let shared_workspace =
+        super::cloud::shared_workspace_flag(&pool, &app_key, Some(workspace_id)).unwrap_or(false);
 
     let mut transferred = 0u64;
     let mut uploads: Vec<(String, String, String)> = Vec::new();
@@ -1374,10 +1486,14 @@ pub(crate) async fn sync_cloud_assets(
                 note_id,
                 filename,
             } => {
-                // Same deferral as the durable note push (C1): a note known to
-                // be shared, with no registered key yet, must not have its
-                // asset sealed under the account items key.
-                if expected.contains(&note_id) {
+                // Same deferral as the durable note push (C1): a note that
+                // somebody else must read — explicitly expected-shared, or any
+                // note of a workspace with peers — must not have its asset
+                // sealed under the account items key when no collaboration key
+                // is registered yet. Peers could never decrypt that envelope.
+                let keyless_shared = current_shared_key(&shared, &note_id).is_none()
+                    && (expected.contains(&note_id) || shared_workspace);
+                if keyless_shared {
                     crate::rs_log!(
                         "[sync::assets] deferring asset upload for expected-shared note {note_id} (no key registered)"
                     );
@@ -1410,7 +1526,7 @@ pub(crate) async fn sync_cloud_assets(
             .map_err(CloudFail::Fatal)?;
     }
 
-    transferred += upload_batches(&client, &key, &shared, &base, uploads).await?;
+    transferred += upload_batches(&client, &key, &shared, &base, Some(workspace_id), uploads).await?;
     {
         let state = app.state::<AppState>();
         transferred +=
@@ -1421,21 +1537,30 @@ pub(crate) async fn sync_cloud_assets(
 }
 
 /// Pack uploads into <=20-item / <=10MB batches, falling back to individual
-/// `upload_asset` (which skips 413) when a batch fails. `Unauthorized` always
-/// propagates; unreadable/empty local files are logged and skipped.
+/// `upload_asset` (which skips 413) when a batch fails. Items larger than the
+/// batch limit never enter a batch — the server's 10MB body cap would 413 a
+/// singleton batch of them (fallback works, but wastes a doomed round-trip).
+/// `Unauthorized` always propagates; unreadable/empty local files are logged
+/// and skipped.
 async fn upload_batches(
     client: &CloudClient,
     key: &WriterKey,
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     base: &Path,
+    workspace_id: Option<&str>,
     uploads: Vec<(String, String, String)>,
 ) -> Result<u64, CloudFail> {
     let mut batches: Vec<Vec<(String, String, Vec<u8>)>> = Vec::new();
     let mut current: Vec<(String, String, Vec<u8>)> = Vec::new();
     let mut current_bytes = 0usize;
+    let mut oversizes: Vec<(String, String, Vec<u8>)> = Vec::new();
     for (flat_key, note_id, filename) in uploads {
         match std::fs::read(base.join(&note_id).join(&filename)) {
             Ok(data) if !data.is_empty() => {
+                if data.len() > BATCH_MAX_BYTES {
+                    oversizes.push((flat_key, note_id, data));
+                    continue;
+                }
                 if !current.is_empty()
                     && (current_bytes + data.len() > BATCH_MAX_BYTES
                         || current.len() >= BATCH_MAX_ITEMS)
@@ -1458,7 +1583,7 @@ async fn upload_batches(
 
     let mut uploaded = 0u64;
     for batch in batches {
-        match batch_upload_assets(client, key, shared_keys, &batch).await {
+        match batch_upload_assets(client, key, shared_keys, &batch, workspace_id).await {
             Ok(()) => uploaded += batch.len() as u64,
             Err(CloudFail::Unauthorized) => return Err(CloudFail::Unauthorized),
             Err(e) => {
@@ -1468,7 +1593,7 @@ async fn upload_batches(
                     fail_str(&e)
                 );
                 for (flat_key, note_id, data) in &batch {
-                    match upload_asset(client, key, shared_keys, flat_key, note_id, data).await {
+                    match upload_asset_ws(client, key, shared_keys, flat_key, note_id, data, workspace_id).await {
                         Ok(()) => uploaded += 1,
                         Err(CloudFail::Unauthorized) => return Err(CloudFail::Unauthorized),
                         Err(e) => crate::rs_log!(
@@ -1477,6 +1602,15 @@ async fn upload_batches(
                         ),
                     }
                 }
+            }
+        }
+    }
+    for (flat_key, note_id, data) in oversizes {
+        match upload_asset_ws(client, key, shared_keys, &flat_key, &note_id, &data, workspace_id).await {
+            Ok(()) => uploaded += 1,
+            Err(CloudFail::Unauthorized) => return Err(CloudFail::Unauthorized),
+            Err(e) => {
+                crate::rs_log!("[sync::assets] individual upload failed {flat_key}: {}", fail_str(&e))
             }
         }
     }
@@ -1752,11 +1886,30 @@ fn mirror_asset_dir_skipping(
         }
         let dst = to.join(&name);
         if asset_should_copy(&src, &dst)? {
+            keep_replaced_sibling(&dst)?;
             atomic_copy_file(&src, &dst)?;
             copied += 1;
         }
     }
     Ok(copied)
+}
+
+/// Finding 25: the folder mirror trusts mtime, so a skewed clock can replace a
+/// newer file with an older one, and at equal size the loss is invisible. Keep
+/// the overwritten copy as a hidden `.<name>.replaced-<ts>` sibling — recovery,
+/// not prevention; dot entries are ignored by every walker.
+fn keep_replaced_sibling(dst: &Path) -> Result<(), AppError> {
+    if !dst.is_file() {
+        return Ok(());
+    }
+    let name = dst.file_name().and_then(|n| n.to_str()).unwrap_or("asset");
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    let sibling = dst.with_file_name(format!(".{name}.replaced-{stamp}"));
+    std::fs::copy(dst, &sibling)?;
+    Ok(())
 }
 
 /// Copy files from `from` into `to` when missing or newer there.
@@ -1864,6 +2017,30 @@ mod tests {
         assert_eq!(d.workspace_id.as_deref(), Some("ws~secret"));
         assert_eq!(d.note_id, "note~secret");
         assert!(d.hashed_filename, "new-scheme keys carry no readable filename");
+    }
+
+    /// A note id may end with `-` and a filename hash may begin with one; a
+    /// `--`-split used to eat that dash, read the key as legacy, and strand the
+    /// object in the uploader's private prefix where no member could see it.
+    #[test]
+    fn new_asset_key_parses_with_a_dash_at_the_note_or_hash_edge() {
+        let dashed_note = encode_asset_key(ASSET_TYPE, "ws-1", "note-1-", "a.png").unwrap();
+        assert!(dashed_note.contains("---"));
+        let d = decode_asset_key(&dashed_note).unwrap();
+        assert!(d.hashed_filename, "a trailing dash in the note id is no legacy key");
+        assert_eq!(d.workspace_id.as_deref(), Some("ws-1"));
+        assert_eq!(d.note_id, "note-1-");
+
+        let dashed_hash_file = (0..2000)
+            .map(|i| format!("f{i}.png"))
+            .find(|f| filename_hash("note-1", f).starts_with('-'))
+            .expect("a salted hash beginning with '-' exists");
+        let dashed_hash =
+            encode_asset_key(ASSET_TYPE, "ws-1", "note-1", &dashed_hash_file).unwrap();
+        let d = decode_asset_key(&dashed_hash).unwrap();
+        assert!(d.hashed_filename, "a leading dash in the hash is no legacy key");
+        assert_eq!(d.workspace_id.as_deref(), Some("ws-1"));
+        assert_eq!(d.note_id, "note-1");
     }
 
     /// The key must not depend on the vault/items key or a note's shared key:
@@ -2230,6 +2407,7 @@ mod tests {
             &key,
             &HashMap::new(),
             &[("image--n1--a.png".into(), "n1".into(), b"x".to_vec())],
+            None,
         )
         .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&payload).unwrap();
@@ -2766,7 +2944,9 @@ mod tests {
             remote_key.clone(),
             decode_asset_key_with(&remote_key, &APP_KEY, &HashMap::new()).unwrap(),
         )];
-        let referenced = referenced_assets(&pool, &remote, &[], &live, WS, APP_KEY).unwrap();
+        let referenced = referenced_assets(&pool, &remote, &[], &live, WS, APP_KEY, &HashSet::new())
+            .unwrap()
+            .0;
         assert_eq!(
             referenced.get("n1"),
             Some(&HashSet::from(["a.png".to_string()]))
@@ -2774,7 +2954,9 @@ mod tests {
         // A local copy satisfies the remote key, so the note is not a candidate
         // and its content is not read.
         let local = vec![("n1".to_string(), "a.png".to_string())];
-        let referenced = referenced_assets(&pool, &remote, &local, &live, WS, APP_KEY).unwrap();
+        let referenced = referenced_assets(&pool, &remote, &local, &live, WS, APP_KEY, &HashSet::new())
+            .unwrap()
+            .0;
         assert!(referenced.is_empty());
         drop(pool);
         let _ = std::fs::remove_dir_all(&root);
@@ -2814,7 +2996,9 @@ mod tests {
             decode_asset_key_with(&remote_key, &APP_KEY, &HashMap::new()).unwrap(),
         )];
 
-        let referenced = referenced_assets(&pool, &remote, &[], &live, WS, APP_KEY).unwrap();
+        let referenced = referenced_assets(&pool, &remote, &[], &live, WS, APP_KEY, &HashSet::new())
+            .unwrap()
+            .0;
         assert!(
             referenced
                 .get("n2")
@@ -2886,11 +3070,16 @@ mod tests {
         let live: HashSet<String> = ["n1", "n2", "n3"].iter().map(|s| s.to_string()).collect();
 
         let mut reads: Vec<String> = Vec::new();
-        let referenced = referenced_assets_with(&remote, &[], &live, WS, |note| {
-            reads.push(note.to_string());
-            Ok(store.get(note).cloned().unwrap_or_default())
-        })
-        .unwrap();
+        let (referenced, failed) =
+            referenced_assets_with(&remote, &[], &live, WS, &HashSet::new(), |note| {
+                reads.push(note.to_string());
+                Ok(store.get(note).cloned().unwrap_or_default())
+            })
+            .unwrap();
+        assert!(
+            failed.is_empty(),
+            "the cross-note reference resolves: {failed:?}"
+        );
 
         assert!(
             referenced
@@ -2909,6 +3098,91 @@ mod tests {
         assert_eq!(unique.len(), reads.len(), "no note may be read twice");
     }
 
+    /// Finding 18: a key no scan can resolve is reported back, and a skipped
+    /// key is never scanned for again (no reads, no work).
+    #[test]
+    fn referenced_assets_reports_unresolved_and_honours_the_skip_set() {
+        let store: HashMap<String, Vec<u8>> = HashMap::from([(
+            "n1".to_string(),
+            note_update_with_asset_srcs(&["assets://n1/own.png"]),
+        )]);
+        let remote_key = enc(WS, "n1", "missing.png").unwrap();
+        let remote = vec![(
+            remote_key.clone(),
+            decode_asset_key_with(&remote_key, &APP_KEY, &HashMap::new()).unwrap(),
+        )];
+        let live: HashSet<String> = ["n1".to_string()].into_iter().collect();
+
+        let (referenced, failed) =
+            referenced_assets_with(&remote, &[], &live, WS, &HashSet::new(), |note| {
+                Ok(store.get(note).cloned().unwrap_or_default())
+            })
+            .unwrap();
+        assert!(
+            !referenced
+                .get("n1")
+                .is_some_and(|files| files.contains("missing.png")),
+            "the missing file was never referenced: {referenced:?}"
+        );
+        assert_eq!(failed, vec![remote_key.clone()], "the dead key is reported");
+
+        let mut reads: Vec<String> = Vec::new();
+        let (referenced, failed) = referenced_assets_with(
+            &remote,
+            &[],
+            &live,
+            WS,
+            &HashSet::from([remote_key]),
+            |note| {
+                reads.push(note.to_string());
+                Ok(store.get(note).cloned().unwrap_or_default())
+            },
+        )
+        .unwrap();
+        assert!(
+            failed.is_empty(),
+            "a skipped key is never reported unresolved"
+        );
+        assert!(reads.is_empty(), "a skipped key must not trigger any scan");
+    }
+
+    /// Finding 25: overwriting a mirrored file keeps the replaced bytes as a
+    /// hidden `.<name>.replaced-<ts>` sibling, so a skewed clock cannot destroy
+    /// the newer copy silently.
+    #[test]
+    fn mirror_keeps_the_replaced_file_as_a_hidden_sibling() {
+        let root = unique_temp_dir("beaver-notes-asset-mirror-replaced");
+        let from = root.join("from");
+        let to = root.join("to");
+        std::fs::create_dir_all(&from).unwrap();
+        std::fs::create_dir_all(&to).unwrap();
+        // Strictly larger source: the size branch forces a copy regardless of
+        // mtime, so the test never depends on clock resolution.
+        std::fs::write(to.join("f.bin"), b"old").unwrap();
+        std::fs::write(from.join("f.bin"), b"new-and-longer").unwrap();
+
+        let copied = mirror_asset_dir(&from, &to).unwrap();
+        assert_eq!(copied, 1);
+        assert_eq!(
+            std::fs::read(to.join("f.bin")).unwrap(),
+            b"new-and-longer"
+        );
+
+        let kept: Vec<_> = std::fs::read_dir(&to)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with(".f.bin.replaced-"))
+            .collect();
+        assert_eq!(kept.len(), 1, "exactly one replaced sibling is kept");
+        assert_eq!(
+            std::fs::read(kept[0].path()).unwrap(),
+            b"old",
+            "the replaced copy holds the overwritten bytes"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// Limit 2 regression guard: with no note body locally there is nothing to
     /// plan; as soon as a pulled body lands, the same inputs plan the download
     /// (the same-tick pull→assets ordering in `run_tick_inner` makes this
@@ -2925,7 +3199,10 @@ mod tests {
         )];
         // No note body yet: nothing to recover, nothing planned.
         let empty_live: HashSet<String> = HashSet::new();
-        let referenced = referenced_assets(&pool, &remote, &[], &empty_live, WS, APP_KEY).unwrap();
+        let referenced =
+            referenced_assets(&pool, &remote, &[], &empty_live, WS, APP_KEY, &HashSet::new())
+                .unwrap()
+                .0;
         assert!(referenced.is_empty());
         let ops = plan_asset_ops(
             WS,
@@ -2952,7 +3229,9 @@ mod tests {
             .unwrap();
         }
         let live: HashSet<String> = ["n1".to_string()].into_iter().collect();
-        let referenced = referenced_assets(&pool, &remote, &[], &live, WS, APP_KEY).unwrap();
+        let referenced = referenced_assets(&pool, &remote, &[], &live, WS, APP_KEY, &HashSet::new())
+            .unwrap()
+            .0;
         let ops = plan_asset_ops(
             WS,
             &[],

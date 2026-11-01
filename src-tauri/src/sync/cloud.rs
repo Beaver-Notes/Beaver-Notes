@@ -173,47 +173,42 @@ fn ckpt_key(note_id: &str) -> String {
     format!("sync:cloud:ckpt:{note_id}")
 }
 
-/// A note whose updates stay undecryptable (missing shared key, corrupt row)
-/// holds its server checkpoint forever, re-delivering the same rows every
-/// cycle. After `HOLD_CYCLE_LIMIT` consecutive held cycles the checkpoint
-/// advances past the held page so the device keeps making progress; the
-/// server rows are kept — a later key landing (note-scoped `sync:cloud-note`
-/// re-pull) still recovers the content.
-const HOLD_CYCLE_LIMIT: u32 = 3;
-
 fn hold_key(note_id: &str) -> String {
     format!("sync:hold:{note_id}")
 }
 
-/// Increments the note's held-cycle counter; true when the limit is reached
-/// (the counter is consumed so the next hold starts a fresh cycle).
-fn hold_breach(pool: &DbPool, note: &str) -> bool {
-    // A kv failure must not silently read as "no holds yet": under a persistent
-    // write failure the counter would never reach the limit and the original
-    // wedge would return unnoticed, so log what actually happened.
-    let count: u32 = match db::db_get(pool, &hold_key(note), None) {
-        Ok(Some(v)) => v.parse().unwrap_or_else(|_| {
-            crate::rs_log!("[sync::cloud] note {note}: unreadable hold counter; treating as 0");
-            0
-        }),
-        Ok(None) => 0,
-        Err(e) => {
-            crate::rs_log!("[sync::cloud] note {note}: hold-counter read failed: {e}");
-            0
-        }
-    };
-    let next = count + 1;
-    if next < HOLD_CYCLE_LIMIT {
-        if let Err(e) = db::db_set(pool, &hold_key(note), &next.to_string(), None) {
-            crate::rs_log!("[sync::cloud] note {note}: hold-counter write failed: {e}");
-        }
-        return false;
+fn gap_key(note_id: &str) -> String {
+    format!("sync:cloud:gap:{note_id}")
+}
+
+/// Move a note's server checkpoint past the page that was just pulled.
+///
+/// Holding the checkpoint behind a single undecryptable row freezes every later
+/// row of that doc — the meta doc stayed 24 rows behind and the workspace never
+/// hydrated. So an undecryptable row is skipped, and the note is marked as
+/// having a gap: `breach` lets a later key registration rewind and re-pull, and
+/// `gap` makes the scheduler heal the doc from a compaction snapshot.
+fn settle_checkpoint(
+    pool: &DbPool,
+    note: &str,
+    cp: &serde_json::Value,
+    fully: bool,
+) -> Result<(), CloudFail> {
+    db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
+    clear_hold(pool, note);
+    if !fully {
+        let _ = db::db_set(pool, &breach_key(note), "1", None);
+        let _ = db::db_set(pool, &gap_key(note), "1", None);
+        crate::rs_log!(
+            "[sync::cloud] note {note}: skipped undecryptable row(s); gap recorded, snapshot heal queued"
+        );
+    } else {
+        // Do NOT clear the gap/breach here: `fully` only describes this page,
+        // so a clean later page would erase the heal owed for rows an earlier
+        // page had to skip. `heal_gaps` clears the gap once it actually applies
+        // (F33b).
     }
-    let _ = db::db_delete(pool, &hold_key(note));
-    // Remember that this checkpoint was advanced past held rows, so a later
-    // key registration can tell a genuine wedge from a routine re-register.
-    let _ = db::db_set(pool, &breach_key(note), "1", None);
-    true
+    Ok(())
 }
 
 fn clear_hold(pool: &DbPool, note: &str) {
@@ -249,6 +244,15 @@ fn ring_fingerprint(ring: &[[u8; 32]]) -> String {
     hex::encode(hasher.finalize())
 }
 
+fn seal_key_fingerprint(key: &[u8; 32]) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(key))
+}
+
+fn sealkey_key(note_id: &str) -> String {
+    format!("sync:cloud:sealkey:{note_id}")
+}
+
 /// Called when a note's shared-key ring is (re)registered (`sync_register_shared_key`):
 /// a ring that differs from the last known fingerprint — or a first registration
 /// arriving after a hold breach advanced this note past undecryptable rows —
@@ -264,14 +268,22 @@ pub(crate) fn reset_checkpoint_on_ring_change(
     let fingerprint = ring_fingerprint(ring);
     let stored = db::db_get(pool, &keyids_key(note), None)?;
     db::db_set(pool, &keyids_key(note), &fingerprint, None)?;
-    if stored.as_deref() == Some(fingerprint.as_str()) {
+    // The set fingerprint is order-insensitive, so a ring whose head (the seal
+    // key) changed can look unchanged. Compare what this device actually sealed
+    // its last push with: while that lags the head, peers holding the new head
+    // cannot open the rows it already published, and only a re-push heals them.
+    let head_stale = match (ring.first(), db::db_get(pool, &sealkey_key(note), None)?) {
+        (Some(head), Some(sealed)) => seal_key_fingerprint(head) != sealed,
+        _ => false,
+    };
+    if !head_stale && stored.as_deref() == Some(fingerprint.as_str()) {
         // Unchanged ring: no reset, ever. A breach marker alone must not re-fire
         // this — two registration paths hand slightly different rings for the
         // same note, and a breach-triggered reset per sweep turned every
         // workspace load into a re-pull loop that churned note docs empty.
         return Ok(());
     }
-    if stored.is_none() {
+    if stored.is_none() && !head_stale {
         // First-ever registration. Routine: nothing to recover, and a reset here
         // would re-pull the workspace every boot. EXCEPT the recovery case: this
         // device already held rows it could not open (a hold breach advanced the
@@ -290,7 +302,23 @@ pub(crate) fn reset_checkpoint_on_ring_change(
     for key in [ckpt_key(note), hold_key(note), breach_key(note)] {
         let _ = db::db_delete(pool, &key);
     }
-    crate::rs_log!("[sync::cloud] note {note}: shared keys changed, checkpoint reset for re-pull");
+    // Rows this device already pushed are sealed under the ring this change
+    // replaced, so peers holding only the new ring cannot open them. Rewind the
+    // push cursor: the next push re-seals every locally authored row under the
+    // new ring head (rows pulled from peers stay `remote:` and are skipped).
+    // `wseq_key` is deliberately NOT reset — the server dedupes rows on
+    // (note, device, clock), so reusing sequence numbers would make the rewrite
+    // a silent no-op.
+    let _ = db::db_delete(pool, &pushed_key(note));
+    // The cached snapshot was sealed with the key this change replaced, so it
+    // can never be opened again and bootstrap retries it forever. Drop it; the
+    // re-pull rebuilds the doc and the compactor re-snapshots under the new key.
+    let _ = db::yjs_drop_snapshot(pool, note);
+    // A snapshot that failed under the old ring is not dead under the new one:
+    // clear the marker so the next pass can open it (otherwise an equal
+    // timestamp blocks it forever).
+    let _ = db::db_delete(pool, &super::bootstrap::dead_key(note));
+    crate::rs_log!("[sync::cloud] note {note}: shared keys changed, checkpoint + push rewound");
     Ok(())
 }
 
@@ -527,11 +555,44 @@ fn collect_dirty(
         app_key,
         shared_keys,
         expected_shared,
+        None,
         device,
         now_ms,
         None,
         &HashSet::new(),
     )
+}
+
+/// Durable "this workspace has peers" mark, written by the client on every
+/// workspace-list fetch (`wsShared:<id>` in the encrypted data store). A shared
+/// workspace's note content and attachments must never be sealed under the
+/// account items key: peers on other accounts could not decrypt that envelope.
+pub(crate) fn shared_workspace_flag(
+    pool: &DbPool,
+    app_key: &[u8; 32],
+    workspace_id: Option<&str>,
+) -> Result<bool, AppError> {
+    let Some(ws) = workspace_id.filter(|w| !w.trim().is_empty()) else {
+        return Ok(false);
+    };
+    let row_key = format!("wsShared:{ws}");
+    let Some(raw) = db::db_get(pool, &row_key, Some(*app_key))? else {
+        return Ok(false);
+    };
+    let Ok(envelope) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return Ok(false);
+    };
+    // The data store seals each row with the app key, so the mark is only
+    // readable after the same decrypt the storage command performs. Comparing
+    // the raw row made this silently false, which let shared workspaces seal
+    // v5 (items-key) payloads no other member can open.
+    let plain = crate::commands::storage::decrypt_store_row_with_key(
+        &row_key,
+        envelope,
+        &Some(*app_key),
+    )
+    .unwrap_or(serde_json::Value::Null);
+    Ok(matches!(plain, serde_json::Value::Bool(true)))
 }
 
 /// `only_note` restricts collection to one note (the shared-with-me single-note
@@ -544,11 +605,17 @@ fn collect_dirty_filtered(
     app_key: &[u8; 32],
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     expected_shared: &HashSet<String>,
+    workspace_id: Option<&str>,
     device: &str,
     now_ms: u64,
     only_note: Option<&str>,
     skip_notes: &HashSet<String>,
 ) -> Result<DirtyBatch, AppError> {
+    // Durable "this workspace has peers" mark, written by the client on every
+    // workspace-list fetch (`wsShared:<id>` in the encrypted data store). A
+    // shared workspace's notes must never be sealed under the account items
+    // key: peers on other accounts could not decrypt that envelope.
+    let shared_workspace = shared_workspace_flag(pool, app_key, workspace_id)?;
     let notes: Vec<String> = {
         let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
         let mut stmt = conn
@@ -603,8 +670,17 @@ fn collect_dirty_filtered(
         // cursor stays behind them and `sync_register_shared_key`'s kick
         // re-attempts the push once the key lands. Personal (unmarked) notes
         // keep the exact v5 items-key behaviour.
-        let shared = shared_keys.get(&note);
-        if shared.is_none() && expected_shared.contains(&note) {
+        let shared = shared_keys.get(&note).and_then(|keys| keys.first().copied());
+        // Meta's ring head *is* this workspace's key. A note in a shared
+        // workspace that never had a per-note ring registered (created while
+        // the JS key cache was still empty, say) must still sync: sealing it
+        // with the workspace key keeps it readable by every member, whereas
+        // deferring left the note stuck on this device forever.
+        let workspace_key = shared_keys
+            .get(META_DOC_ID)
+            .and_then(|keys| keys.first().copied());
+        let seal = shared.or(workspace_key);
+        if seal.is_none() && (expected_shared.contains(&note) || shared_workspace) {
             crate::rs_log!(
                 "[sync::cloud] deferring shared note with no registered key: {note}"
             );
@@ -620,10 +696,13 @@ fn collect_dirty_filtered(
         // the collaborator-shared key and v6; personal notes keep the items key
         // and v5. Only the *server* envelope changes; rows stay items-key at rest.
         // A rotated note seals with the newest key in its ring.
-        let (seal_key, version) = match shared.and_then(|keys| keys.first().copied()) {
+        let (seal_key, version) = match seal {
             Some(k) => (k, SHARED_PAYLOAD_VERSION),
             None => (*app_key, SYNC_PAYLOAD_VERSION),
         };
+        // Remember the key these rows were sealed with: a later ring whose head
+        // differs makes them unreadable for peers and must trigger a re-push.
+        let _ = db::db_set(pool, &sealkey_key(&note), &seal_key_fingerprint(&seal_key), None);
         for (idx, (_, stored, row_device)) in rows.iter().enumerate() {
             // A row a pull wrote carries the authoring device behind this prefix.
             // Re-sealing it under our own device id with a fresh sequence would
@@ -681,6 +760,7 @@ fn collect_dirty_guarded(
     key: WriterKey,
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     expected_shared: &HashSet<String>,
+    workspace_id: Option<&str>,
     device: &str,
     now_ms: u64,
     only_note: Option<&str>,
@@ -688,16 +768,32 @@ fn collect_dirty_guarded(
 ) -> Result<DirtyBatch, AppError> {
     let _barrier = write_barrier();
     let app_key = key.resolve()?;
-    collect_dirty_filtered(
+    let batch = collect_dirty_filtered(
         pool,
         &app_key,
         shared_keys,
         expected_shared,
+        workspace_id,
         device,
         now_ms,
         only_note,
         skip_notes,
-    )
+    )?;
+    // The first workspace to push a note owns it from then on: bind before the
+    // rows leave the device so a later boot into another workspace cannot offer
+    // the same note to a second workspace (F30). `meta` is the workspace's own
+    // list doc — every workspace has one under the same id, so it is never
+    // owned by a single workspace; binding it dropped the other workspaces'
+    // pushes entirely.
+    if let Some(ws) = workspace_id {
+        for note in batch.1.keys() {
+            if note == META_DOC_ID {
+                continue;
+            }
+            let _ = crate::db::note_owner_set(pool, note, ws);
+        }
+    }
+    Ok(batch)
 }
 
 struct PushReport {
@@ -1254,8 +1350,20 @@ fn decode_append_store(
             }
         };
         // v6 rows need the note's shared key; without it we skip and hold the
-        // checkpoint so the server re-delivers once the key is registered.
-        let shared = shared_keys.get(note_id).map(|keys| keys.as_slice()).unwrap_or(&[]);
+        // checkpoint so the server re-delivers once the key is registered. The
+        // push path falls back to the workspace key (meta ring head) for a note
+        // in a shared workspace that never registered its own ring, so the pull
+        // path must make the same fallback: otherwise the engine cannot read
+        // rows it just sealed that way. Both rings are offered together, since
+        // rows written before a per-note ring existed are under the other one.
+        let combined: Vec<[u8; 32]> = shared_keys
+            .get(note_id)
+            .into_iter()
+            .flatten()
+            .chain(shared_keys.get(META_DOC_ID).into_iter().flatten())
+            .copied()
+            .collect();
+        let shared = combined.as_slice();
         let Some((note, device, _seq, bytes)) =
             decrypt_remote_update(app_key, shared, &data, &file_note, &file_device, ts, seq)
         else {
@@ -1301,15 +1409,7 @@ fn decode_append_store(
         // decoded notes, or for notes held past the limit so a device whose
         // keys are missing does not wedge on the same page forever.
         for (note, cp) in &pending {
-            if fully_decoded(note) {
-                db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
-                clear_hold(pool, note);
-            } else if hold_breach(pool, note) {
-                crate::rs_log!(
-                    "[sync::cloud] note {note}: checkpoint advanced past held updates after {HOLD_CYCLE_LIMIT} cycles; server rows kept"
-                );
-                db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
-            }
+            settle_checkpoint(pool, note, cp, fully_decoded(note))?;
         }
         for note in &stale {
             let _ = db::db_delete(pool, &ckpt_key(note));
@@ -1347,15 +1447,7 @@ fn decode_append_store(
         // Everything was already integrated: still advance the server
         // checkpoints (data seen, nothing new) but report nothing applied.
         for (note, cp) in &pending {
-            if fully_decoded(note) {
-                db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
-                clear_hold(pool, note);
-            } else if hold_breach(pool, note) {
-                crate::rs_log!(
-                    "[sync::cloud] note {note}: checkpoint advanced past held updates after {HOLD_CYCLE_LIMIT} cycles; server rows kept"
-                );
-                db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
-            }
+            settle_checkpoint(pool, note, cp, fully_decoded(note))?;
         }
         for note in &stale {
             let _ = db::db_delete(pool, &ckpt_key(note));
@@ -1402,15 +1494,7 @@ fn decode_append_store(
     // whose every candidate decrypted — a dropped update must be re-delivered,
     // not skipped.
     for (note, cp) in &pending {
-        if fully_decoded(note) {
-            db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
-            clear_hold(pool, note);
-        } else if hold_breach(pool, note) {
-            crate::rs_log!(
-                "[sync::cloud] note {note}: checkpoint advanced past held updates after {HOLD_CYCLE_LIMIT} cycles; server rows kept"
-            );
-            db::db_set(pool, &ckpt_key(note), &cp.to_string(), None)?;
-        }
+        settle_checkpoint(pool, note, cp, fully_decoded(note))?;
     }
     for note in &stale {
         let _ = db::db_delete(pool, &ckpt_key(note));
@@ -1717,6 +1801,7 @@ async fn sync_cloud_push_impl(
         let device = device.to_string();
         let shared = shared_keys.clone();
         let expected = expected_shared.clone();
+        let workspace = workspace_id.to_string();
         let only_note = only_note.map(|s| s.to_string());
         let skip_notes = skip_notes.clone();
         blocking(move || {
@@ -1725,6 +1810,7 @@ async fn sync_cloud_push_impl(
                 key,
                 &shared,
                 &expected,
+                Some(workspace.as_str()),
                 &device,
                 now_ms,
                 only_note.as_deref(),
@@ -2128,6 +2214,7 @@ mod tests {
             &app_key,
             &HashMap::new(),
             &HashSet::new(),
+            None,
             "dev",
             5000,
             None,
@@ -2146,6 +2233,7 @@ mod tests {
             &app_key,
             &HashMap::new(),
             &HashSet::new(),
+            None,
             "dev",
             5000,
             Some("foreign"),
@@ -2198,6 +2286,7 @@ mod tests {
             &[5u8; 32],
             &std::collections::HashMap::new(),
             &std::collections::HashSet::new(),
+            None,
             "dev",
             5000,
             None,
@@ -2253,6 +2342,7 @@ mod tests {
             &app_key,
             &std::collections::HashMap::new(),
             &expected,
+            None,
             "dev",
             5000,
             None,
@@ -2314,17 +2404,25 @@ mod tests {
             };
         assert!(applied.contains(&"good".to_string()));
         assert_eq!(pulled, 1);
-        assert!(
+        assert_eq!(
             crate::db::db_get(&pool, &super::ckpt_key("bad"), None)
                 .unwrap()
-                .is_none(),
-            "the malformed note's checkpoint must be held, not advanced"
+                .as_deref(),
+            Some("{\"d\":{\"sequence\":1,\"ts\":1000}}"),
+            "the malformed row is skipped instead of freezing the doc"
+        );
+        assert!(
+            crate::db::db_get(&pool, &super::gap_key("bad"), None)
+                .unwrap()
+                .is_some(),
+            "the skipped row must leave a gap marker for the snapshot heal"
         );
         let _ = std::fs::remove_dir_all(&root);
     }
 
     /// C11: an authentic-but-corrupt update (decrypts fine, not a valid yjs
-    /// update) must hold its note's checkpoint instead of advancing past it.
+    /// update) is skipped, but its note is marked as gapped so a later snapshot
+    /// restores the state: holding the checkpoint froze every later row.
     #[test]
     fn decode_append_store_holds_checkpoint_for_corrupt_update() {
         use std::collections::HashMap;
@@ -2349,8 +2447,14 @@ mod tests {
         assert!(
             crate::db::db_get(&pool, &super::ckpt_key("n1"), None)
                 .unwrap()
-                .is_none(),
-            "a corrupt-but-authentic update must hold the checkpoint (finding C11)"
+                .is_some(),
+            "the checkpoint advances so later rows are not blocked"
+        );
+        assert!(
+            crate::db::db_get(&pool, &super::gap_key("n1"), None)
+                .unwrap()
+                .is_some(),
+            "a corrupt-but-authentic update must leave a gap marker (finding C11)"
         );
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -2745,11 +2849,42 @@ mod tests {
     }
 
     #[test]
+    fn shared_workspace_flag_reads_the_durable_mark() {
+        let (pool, root) = unique_temp_db("beaver-wsshared");
+        let app_key: [u8; 32] = [3u8; 32];
+        let seed = |key: &str, value: serde_json::Value| {
+            let envelope = crate::commands::storage::encrypt_store_row_with_key(
+                key,
+                value,
+                &app_key,
+                "test-key",
+            )
+            .expect("seal flag");
+            crate::db::db_set(&pool, key, &envelope.to_string(), Some(app_key)).expect("seed flag");
+        };
+        seed("wsShared:ws-a", serde_json::json!(true));
+        seed("wsShared:ws-b", serde_json::json!(false));
+        // A plaintext row is not what the data store writes, and it must not
+        // read as a shared mark: accepting it was the bug that let shared
+        // workspaces seal items-key payloads.
+        crate::db::db_set(&pool, "wsShared:ws-c", &"\"true\"".to_string(), Some(app_key))
+            .expect("seed raw");
+
+        assert!(super::shared_workspace_flag(&pool, &app_key, Some("ws-a")).expect("read"));
+        assert!(!super::shared_workspace_flag(&pool, &app_key, Some("ws-b")).expect("read"));
+        assert!(!super::shared_workspace_flag(&pool, &app_key, Some("ws-c")).expect("read"));
+        assert!(!super::shared_workspace_flag(&pool, &app_key, Some("ws-missing")).expect("read"));
+        assert!(!super::shared_workspace_flag(&pool, &app_key, None).expect("read"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn reset_ring_change_still_rewinds_and_stabilizes() {
         let (pool, root) = unique_temp_db("beaver-ring-change");
         let note = "changing-note";
         let old_key: [u8; 32] = [7u8; 32];
         let new_key: [u8; 32] = [8u8; 32];
+        let newer_key: [u8; 32] = [9u8; 32];
         seed_held_state(&pool, note);
 
         // First registration (recovery fire), then a real ring change.
@@ -2761,10 +2896,33 @@ mod tests {
         super::reset_checkpoint_on_ring_change(&pool, note, &[new_key]).expect("register new");
         assert!(ring_reset_fired(&pool, note), "a real ring change must rewind");
 
+        // A ring change also rewinds the push cursor so rows sealed under the
+        // replaced ring are re-sealed and re-uploaded for peers. The write
+        // sequence must survive: identities are (note, device, clock), so reset
+        // it and the re-upload would collide with the existing rows and vanish.
+        crate::db::db_set(&pool, &super::pushed_key(note), &"42".to_string(), None)
+            .expect("seed pushed");
+        crate::db::db_set(&pool, &super::wseq_key(note), &"7".to_string(), None)
+            .expect("seed wseq");
+        super::reset_checkpoint_on_ring_change(&pool, note, &[newer_key]).expect("register newer");
+        assert!(
+            crate::db::db_get(&pool, &super::pushed_key(note), None)
+                .expect("pushed get")
+                .is_none(),
+            "a ring change must rewind the push cursor"
+        );
+        assert_eq!(
+            crate::db::db_get(&pool, &super::wseq_key(note), None)
+                .expect("wseq get")
+                .as_deref(),
+            Some("7"),
+            "the push sequence must not be reused"
+        );
+
         // Same ring again: stable, no further rewinds.
         crate::db::db_set(&pool, &super::ckpt_key(note), &"999".to_string(), None)
             .expect("re-seed ckpt");
-        super::reset_checkpoint_on_ring_change(&pool, note, &[new_key]).expect("re-register");
+        super::reset_checkpoint_on_ring_change(&pool, note, &[newer_key]).expect("re-register");
         assert!(
             crate::db::db_get(&pool, &super::ckpt_key(note), None)
                 .expect("ckpt get")
@@ -2916,6 +3074,7 @@ mod tests {
                         super::WriterKey::Explicit([5u8; 32]),
                         &HashMap::new(),
                         &HashSet::new(),
+                        None,
                         "dev",
                         5000,
                         None,

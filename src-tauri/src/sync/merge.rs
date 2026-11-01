@@ -298,6 +298,19 @@ fn fail_str(e: &CloudFail) -> String {
 /// design: every failure is logged and swallowed. Promote is owner-only
 /// on the server, so a non-owner device logs the 403 once and then skips
 /// (`OWNER_ONLY_FORBIDDEN` in scheduler.rs) until the identity changes.
+/// The compaction promote can fire in the same boot as the scheduler start. A
+/// missing config there used to skip the promote silently; wait for it briefly
+/// instead, since it lands within a second of launch.
+async fn wait_cloud_identity() -> Option<(String, String, String)> {
+    for _ in 0..20 {
+        if let Some(id) = super::scheduler::cloud_identity() {
+            return Some(id);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+    None
+}
+
 async fn upload_compaction_snapshot(
     pool: DbPool,
     note_id: String,
@@ -308,12 +321,23 @@ async fn upload_compaction_snapshot(
     if super::scheduler::owner_only_forbidden() {
         return;
     }
-    let Some((workspace_id, server_url, token)) = super::scheduler::cloud_identity() else {
+    let Some((workspace_id, server_url, token)) = wait_cloud_identity().await else {
         crate::rs_log!(
             "[sync::merge] snapshot upload skipped for {note_id}: cloud identity unavailable"
         );
         return;
     };
+    // A snapshot belongs to the workspace that owns the note. Promoting it under
+    // whatever workspace the scheduler happens to point at leaks an Alpha note
+    // into Beta and always 403s when this account is only an editor there.
+    if let Some(owner) = crate::db::note_owner_get(&pool, &note_id) {
+        if owner != workspace_id {
+            crate::rs_log!(
+                "[sync::merge] snapshot upload skipped for {note_id}: owned by another workspace"
+            );
+            return;
+        }
+    }
     let Ok(client) = super::remote::CloudClient::new(&server_url, &token) else {
         crate::rs_log!(
             "[sync::merge] snapshot upload skipped for {note_id}: http client unavailable"

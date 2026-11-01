@@ -382,7 +382,15 @@ impl AppState {
 
 pub(crate) fn app_storage_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf, AppError> {
     if let Ok(override_dir) = std::env::var("BEAVER_NOTES_DATA_DIR") {
-        let p = PathBuf::from(override_dir);
+        // A relative override is resolved against the process cwd (src-tauri/
+        // under `tauri dev`), but the path guards only accept absolute paths —
+        // cloud workspace registration and switching silently failed.
+        let mut p = PathBuf::from(override_dir);
+        if p.is_relative() {
+            p = std::env::current_dir()
+                .map_err(|e| AppError::Other(e.to_string()))?
+                .join(p);
+        }
         if !p.exists() {
             fs::create_dir_all(&p)
                 .map_err(|e| AppError::Other(format!("Failed to create data dir: {e}")))?;
@@ -692,6 +700,10 @@ pub(crate) const DEFAULT_WORKSPACE_ID: &str = "default";
 pub(crate) const DEFAULT_WORKSPACE_NAME: &str = "Default";
 pub(crate) const WORKSPACES_DIR: &str = "workspaces";
 pub(crate) const WORKSPACES_JSON: &str = "workspaces.json";
+/// Deleted local workspaces are moved here, not erased, so the user can restore
+/// them for a while after the copy into an account workspace.
+pub(crate) const WORKSPACES_ARCHIVE_DIR: &str = "workspaces-archive";
+pub(crate) const WORKSPACE_ARCHIVE_RETENTION_DAYS: i64 = 10;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -707,6 +719,9 @@ pub(crate) struct WorkspaceInfo {
     pub(crate) owner_id: Option<String>,
     #[serde(default)]
     pub(crate) cloud_sync: bool,
+    /// Set when the workspace was deleted but its files are still restorable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) archived_at: Option<String>,
 }
 
 /// One durable edit-log row (see `db::activity_append`). `summary` is a short
@@ -732,6 +747,11 @@ struct WorkspacesJson {
     active_workspace: String,
     #[serde(default)]
     workspaces: Vec<WorkspaceInfo>,
+    /// Local workspaces whose notes were already copied into an account
+    /// workspace. Install-level on purpose: switching workspaces swaps the
+    /// settings store, so the marker has to live outside it.
+    #[serde(default)]
+    notes_copied: Vec<String>,
 }
 
 fn default_workspace_id() -> String {
@@ -776,6 +796,7 @@ fn read_workspaces_json(app: &AppHandle, state: &AppState) -> Result<WorkspacesJ
         return Ok(WorkspacesJson {
             active_workspace: default_workspace_id(),
             workspaces: vec![],
+            notes_copied: vec![],
         });
     }
     let text = fs::read_to_string(&path)?;
@@ -832,6 +853,32 @@ pub(crate) fn read_active_workspace_from_json(
     state: &AppState,
 ) -> Result<String, AppError> {
     current_workspace_id(app, state)
+}
+
+/// Whether notes from this local workspace were already copied into an account
+/// workspace. The copy runs once: a second account must not receive them too.
+pub(crate) fn local_notes_copied(
+    app: &AppHandle,
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<bool, AppError> {
+    Ok(read_workspaces_json(app, state)?
+        .notes_copied
+        .iter()
+        .any(|id| id == workspace_id))
+}
+
+pub(crate) fn mark_local_notes_copied(
+    app: &AppHandle,
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<(), AppError> {
+    let mut data = read_workspaces_json(app, state)?;
+    if data.notes_copied.iter().any(|id| id == workspace_id) {
+        return Ok(());
+    }
+    data.notes_copied.push(workspace_id.to_string());
+    write_workspaces_json(app, state, &data)
 }
 
 pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -> Option<Value> {

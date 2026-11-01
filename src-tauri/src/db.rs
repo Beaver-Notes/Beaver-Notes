@@ -74,10 +74,28 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
     // AUTOINCREMENT and monotonic, so any later append is always detected
     // (finding C3). Existing rows default to 0 and are rebuilt once.
     if from < 3 {
-        conn.execute_batch(
-            "ALTER TABLE yjs_snapshots ADD COLUMN src_rowid INTEGER NOT NULL DEFAULT 0;",
-        )
-        .map_err(|e| AppError::Other(e.to_string()))?;
+        // Guard on the column itself: a database bricked by the pre-atomic
+        // migration code (the v3 ALTER committed while `user_version` stayed
+        // stale) re-enters here on every open, where the unconditional ALTER
+        // failed with "duplicate column name: src_rowid" and the database
+        // never opened again. Skipping an already-present column makes the
+        // step idempotent, so such a database self-heals — `open_pool` stamps
+        // the current user_version in this same transaction.
+        let has_src_rowid: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('yjs_snapshots')
+                 WHERE name = 'src_rowid'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|count| count > 0)
+            .unwrap_or(false);
+        if !has_src_rowid {
+            conn.execute_batch(
+                "ALTER TABLE yjs_snapshots ADD COLUMN src_rowid INTEGER NOT NULL DEFAULT 0;",
+            )
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        }
     }
 
     // Durable per-note edit/activity log. Plaintext columns: the workspace DB
@@ -149,6 +167,29 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
 /// Record `key_id` as the key that last rewrote this database's payloads.
 /// Written inside the same transaction as `reencrypt_payloads_for_key` so the
 /// marker can never disagree with the rows it describes.
+/// True when a workspace's data.db holds at least one note. Read-only: listing
+/// workspaces must never create or migrate an inactive workspace.
+pub(crate) fn workspace_has_notes(path: &Path) -> bool {
+    if !path.exists() {
+        return true; // no DB yet: keep the row rather than hide user data
+    }
+    let Ok(conn) = rusqlite::Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    ) else {
+        return true; // unreadable: keep it visible
+    };
+    ["yjs_snapshots", "note_content"].iter().any(|table| {
+        conn.query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {table} LIMIT 1)"),
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|has| has == 1)
+        .unwrap_or(false)
+    })
+}
+
 pub(crate) fn db_key_marker_set(conn: &rusqlite::Transaction<'_>, key_id: &str) -> Result<(), AppError> {
     conn.execute(
         "INSERT INTO db_key_marker (id, key_id) VALUES (1, ?1)
@@ -180,7 +221,7 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
         .max_size(4)
         .build(manager)
         .map_err(|e| AppError::Other(e.to_string()))?;
-    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute_batch(
         "PRAGMA journal_mode=WAL;
         PRAGMA case_sensitive_like = OFF;
@@ -206,10 +247,20 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap_or(0);
     if current < SCHEMA_VERSION {
-        migrate(&conn, current)
-            .map_err(|e| AppError::Other(format!("migration v{current}→{SCHEMA_VERSION}: {e}")))?;
-        conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
+        // Finding 9: these steps used to commit separately, so a crash between
+        // the last DDL and the version write left the database at the old
+        // version with the new schema — the next boot re-ran a non-idempotent
+        // step (v3's `ADD COLUMN src_rowid`) and the database never opened
+        // again. SQLite DDL and user_version are transactional: run both in one
+        // immediate transaction so the upgrade lands all-or-nothing.
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|e| AppError::Other(e.to_string()))?;
+        migrate(&tx, current)
+            .map_err(|e| AppError::Other(format!("migration v{current}→{SCHEMA_VERSION}: {e}")))?;
+        tx.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        tx.commit().map_err(|e| AppError::Other(e.to_string()))?;
     }
 
     // `PRAGMA auto_vacuum` cannot flip a header that still says NONE — sqlite
@@ -393,13 +444,26 @@ fn open_kv_value(stored: Vec<u8>, enc_key: Option<[u8; 32]>) -> Result<String, A
         .map_err(|e| AppError::Other(format!("kv value is not valid utf-8: {e}")))
 }
 
-fn kv_bytes(row: &rusqlite::Row, idx: usize) -> rusqlite::Result<Vec<u8>> {
+pub(crate) fn kv_bytes(row: &rusqlite::Row, idx: usize) -> rusqlite::Result<Vec<u8>> {
 
     if let Ok(b) = row.get::<_, Vec<u8>>(idx) {
         return Ok(b);
     }
     let s = row.get::<_, String>(idx)?;
     Ok(s.into_bytes())
+}
+
+/// Every kv key starting with `prefix` (used to find notes that missed updates).
+pub(crate) fn kv_keys_with_prefix(pool: &DbPool, prefix: &str) -> Result<Vec<String>, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let mut stmt = conn
+        .prepare("SELECT key FROM kv WHERE key LIKE ?1")
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let rows = stmt
+        .query_map(params![format!("{prefix}%")], |row| row.get::<_, String>(0))
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    rows.collect::<Result<Vec<String>, _>>()
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
 pub(crate) fn db_get(
@@ -507,7 +571,9 @@ pub(crate) fn db_clear(pool: &DbPool) -> Result<(), AppError> {
 }
 
 /// Record the workspace that owns `note_id`. An empty `workspace_id` forgets the
-/// note, which makes it eligible for the active-workspace push again.
+/// note, which makes it eligible for the active-workspace push again. The first
+/// workspace to see a note keeps it: a later push from another workspace must
+/// not move it (that is how one library used to appear in every workspace).
 pub(crate) fn note_owner_set(
     pool: &DbPool,
     note_id: &str,
@@ -519,11 +585,23 @@ pub(crate) fn note_owner_set(
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "INSERT INTO note_owners (note_id, workspace_id) VALUES (?1, ?2)
-         ON CONFLICT(note_id) DO UPDATE SET workspace_id = excluded.workspace_id",
+         ON CONFLICT(note_id) DO NOTHING",
         params![note_id, workspace_id],
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
+}
+
+/// Workspace bound to `note_id`, if any. Callers use it to refuse publishing a
+/// note under a workspace that does not own it.
+pub(crate) fn note_owner_get(pool: &DbPool, note_id: &str) -> Option<String> {
+    let conn = pool.get().ok()?;
+    conn.query_row(
+        "SELECT workspace_id FROM note_owners WHERE note_id = ?1",
+        params![note_id],
+        |row| row.get::<_, String>(0),
+    )
+    .ok()
 }
 
 pub(crate) fn note_owner_forget(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
@@ -543,7 +621,7 @@ pub(crate) fn foreign_note_owners(
 ) -> Result<HashMap<String, String>, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
-        .prepare("SELECT note_id, workspace_id FROM note_owners WHERE workspace_id != '' AND workspace_id != ?1")
+        .prepare("SELECT note_id, workspace_id FROM note_owners WHERE note_id != 'meta' AND workspace_id != '' AND workspace_id != ?1")
         .map_err(|e| AppError::Other(e.to_string()))?;
     let rows = stmt
         .query_map(params![workspace_id], |row| {
@@ -745,6 +823,21 @@ pub(crate) fn yjs_get_updates(
         }
     }
     Ok(result)
+}
+
+/// Drop the cached local snapshot for `note_id`. A snapshot is sealed with the
+/// key that was current when it was written (items key or a shared key), so
+/// after a key change it can never be opened again and bootstrap would retry it
+/// forever; the pull rebuilds the doc from rows and the compactor writes a
+/// fresh snapshot under the current key.
+pub(crate) fn yjs_drop_snapshot(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    conn.execute(
+        "DELETE FROM yjs_snapshots WHERE note_id = ?1",
+        rusqlite::params![note_id],
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(())
 }
 
 pub(crate) fn yjs_get_snapshot(
@@ -1393,6 +1486,94 @@ mod tests {
             timeout, 5000,
             "busy_timeout must be set to avoid SQLITE_BUSY"
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Finding 9 residual: a database bricked by the pre-atomic migration code
+    /// — the v3 `ADD COLUMN src_rowid` committed while `user_version` stayed at
+    /// 2 — must self-heal on open instead of dying with "duplicate column
+    /// name: src_rowid" forever.
+    #[test]
+    fn open_pool_self_heals_a_bricked_v3_migration() {
+        let root = unique_temp_dir("beaver-notes-db-brick-v3");
+        let _ = fs::create_dir_all(&root);
+        let db_path = root.join("data.db");
+        {
+            let conn = rusqlite::Connection::open(&db_path).expect("open raw");
+            conn.execute_batch(
+                "CREATE TABLE kv (
+                   key   TEXT PRIMARY KEY NOT NULL,
+                   value TEXT NOT NULL
+                 );
+                 CREATE TABLE note_content (
+                   id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                   note_id    TEXT NOT NULL,
+                   data       BLOB NOT NULL,
+                   device     TEXT NOT NULL DEFAULT '',
+                   created_at INTEGER NOT NULL
+                 );
+                 CREATE TABLE yjs_snapshots (
+                   note_id    TEXT PRIMARY KEY NOT NULL,
+                   data       BLOB NOT NULL,
+                   updated_at INTEGER NOT NULL,
+                   src_rowid  INTEGER NOT NULL DEFAULT 0
+                 );
+                 CREATE TABLE deleted_notes (
+                   note_id      TEXT NOT NULL,
+                   workspace_id TEXT NOT NULL DEFAULT '',
+                   deleted_at   INTEGER NOT NULL,
+                   PRIMARY KEY (note_id, workspace_id)
+                 );
+                 INSERT INTO kv (key, value) VALUES ('note', '\"kept\"');
+                 PRAGMA user_version = 2;",
+            )
+            .expect("bricked v3 schema");
+        }
+
+        let pool = open_pool(&db_path).expect("a bricked database must self-heal");
+        let conn = pool.get().expect("conn");
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .expect("user_version");
+        assert_eq!(
+            version, SCHEMA_VERSION,
+            "the version stamp must land after the heal"
+        );
+        assert_eq!(
+            db_get(&pool, "note", None).expect("get").as_deref(),
+            Some("\"kept\""),
+            "existing rows must survive the heal"
+        );
+
+        drop(pool);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn workspace_has_notes_reads_without_writing() {
+        let root = unique_temp_dir("beaver-notes-ws-notes");
+        let _ = fs::create_dir_all(&root);
+        let db_path = root.join("data.db");
+
+        assert!(
+            workspace_has_notes(&root.join("missing.db")),
+            "a missing DB must keep the row visible"
+        );
+
+        let conn = rusqlite::Connection::open(&db_path).expect("open");
+        conn.execute_batch(
+            "CREATE TABLE yjs_snapshots (id TEXT); CREATE TABLE note_content (id TEXT);",
+        )
+        .expect("schema");
+        assert!(
+            !workspace_has_notes(&db_path),
+            "an empty workspace is hidden"
+        );
+
+        conn.execute("INSERT INTO note_content (id) VALUES ('n1')", [])
+            .expect("insert");
+        assert!(workspace_has_notes(&db_path), "a note keeps the row");
+        drop(conn);
         let _ = fs::remove_dir_all(&root);
     }
 

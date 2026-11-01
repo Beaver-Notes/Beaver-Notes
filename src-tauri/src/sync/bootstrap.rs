@@ -103,13 +103,20 @@ pub(crate) fn seed_snapshot_envelope_versioned(
 }
 
 /// Key + envelope version to seal a snapshot with: a registered shared key
-/// (per-note key, or workspace key for `meta`) yields v6, else v5 + items key.
+/// (per-note key, or the workspace key held under `meta` for a shared note that
+/// never registered its own ring) yields v6, else v5 + items key. The pull and
+/// snapshot readers make the same fallback; without it an own snapshot sealed
+/// under the workspace key was unreadable by every peer (F31).
 pub(crate) fn snapshot_seal(
     app_key: &[u8; 32],
     shared_keys: &HashMap<String, Vec<[u8; 32]>>,
     note_id: &str,
 ) -> ([u8; 32], u8) {
-    match shared_keys.get(note_id).and_then(|keys| keys.first().copied()) {
+    match shared_keys
+        .get(note_id)
+        .or_else(|| shared_keys.get(super::cloud::META_DOC_ID))
+        .and_then(|keys| keys.first().copied())
+    {
         Some(k) => (k, SHARED_PAYLOAD_VERSION),
         None => (*app_key, SYNC_PAYLOAD_VERSION),
     }
@@ -128,6 +135,18 @@ fn json_truthy(v: &serde_json::Value) -> bool {
 enum Gate {
     Proceed,
     Skip,
+}
+
+/// Marks a server snapshot this device could not open, with the timestamp it
+/// had. A newer snapshot clears the mark by simply being newer.
+pub(crate) fn dead_key(note_id: &str) -> String {
+    format!("sync:bootstrap:dead:{note_id}")
+}
+
+/// Envelope version of a stored snapshot, without decrypting it.
+fn snapshot_envelope_version(raw: &[u8]) -> Option<u8> {
+    let env: serde_json::Value = serde_json::from_slice(raw).ok()?;
+    env.get("v")?.as_u64().map(|v| v as u8)
 }
 
 fn state_path(workspace_id: &str) -> String {
@@ -841,7 +860,7 @@ fn doc_fallback_aad_ts(note_ts: Option<u64>, snapshot_ts: Option<u64>) -> Option
 ///
 /// v5 carries the raw Yjs update bytes under `iv`/`enc`; legacy v4 carries a
 /// JSON number array in the decrypted `update` field. Both mirror
-/// `sync_decrypt_batch` (`commands/security.rs`), so a v4-seeded workspace
+/// `sync_decrypt_payload` (`commands/security.rs`), so a v4-seeded workspace
 /// bootstraps instead of failing closed per note.
 fn decrypt_snapshot_envelope(
     key: &[u8; 32],
@@ -935,11 +954,56 @@ struct DownloadedSnapshot {
 /// `prosemirrorJSONToYDoc`, which are JS-only with no Rust equivalent. No
 /// fake port and no JS shim lives here; notes without a usable snapshot are
 /// left for the Phase B JS path.
+/// Snapshot-heal the notes whose pull skipped an undecryptable row.
+///
+/// Their checkpoint already moved past the missing updates, so a snapshot is the
+/// only way the doc becomes whole again. A gap is cleared once a snapshot for
+/// that note applied; a note whose snapshot is still undecryptable keeps its gap
+/// and retries on the next tick.
+pub(crate) async fn heal_gaps(
+    app: &AppHandle,
+    workspace_id: &str,
+    server_url: &str,
+    token: &str,
+) -> Result<Vec<String>, CloudFail> {
+    const GAP: &str = "sync:cloud:gap:";
+    let (_, pool) = super::cloud::unlock_gate(app)?;
+    let scan = pool.clone();
+    let keys = tokio::task::spawn_blocking(move || db::kv_keys_with_prefix(&scan, GAP))
+        .await
+        .map_err(|e| CloudFail::Fatal(AppError::Other(e.to_string())))?
+        .map_err(CloudFail::Fatal)?;
+    if keys.is_empty() {
+        return Ok(Vec::new());
+    }
+    let force: HashSet<String> = keys
+        .iter()
+        .filter_map(|k| k.strip_prefix(GAP).map(str::to_string))
+        .collect();
+    // No dead-marker prefilter here: the needs-filter above already refuses the
+    // snapshot a marker was written for and accepts a newer one, so forcing a
+    // gap can never loop on the same bytes (F33b).
+    let applied = bootstrap_from_snapshots(app, workspace_id, server_url, token, &force)
+        .await?
+        .0;
+    let done = applied.clone();
+    tokio::task::spawn_blocking(move || {
+        for note in &done {
+            let _ = db::db_delete(&pool, &format!("{GAP}{note}"));
+        }
+    })
+    .await
+    .map_err(|e| CloudFail::Fatal(AppError::Other(e.to_string())))?;
+    crate::rs_log!("[sync::bootstrap] healed {} gapped note(s)", applied.len());
+    Ok(applied)
+}
+
 pub(crate) async fn bootstrap_from_snapshots(
     app: &AppHandle,
     workspace_id: &str,
     server_url: &str,
     token: &str,
+    force: &HashSet<String>,
 ) -> Result<(Vec<String>, bool), CloudFail> {
     if workspace_id.trim().is_empty() || token.is_empty() {
         return Ok((Vec::new(), false));
@@ -966,7 +1030,7 @@ pub(crate) async fn bootstrap_from_snapshots(
     // and re-download the authoritative copies.
     let all_ids: Vec<String> = docs.iter().map(|d| d.note_id.clone()).collect();
     let cached = {
-        let (pool, ids) = (pool.clone(), all_ids);
+        let (pool, ids) = (pool.clone(), all_ids.clone());
         match tokio::task::spawn_blocking(move || db::yjs_get_snapshots(&pool, &ids, Some(key)))
             .await
             .map_err(|e| CloudFail::Fatal(AppError::Other(e.to_string())))?
@@ -978,9 +1042,34 @@ pub(crate) async fn bootstrap_from_snapshots(
             }
         }
     };
+    // A snapshot that cannot be opened is remembered per note, so a stale copy
+    // sealed under a rotated-out key is downloaded once instead of every pass
+    // (dropping the local snapshot would otherwise re-arm the download forever).
+    let dead: HashMap<String, u64> = {
+        let (pool, ids) = (pool.clone(), all_ids.clone());
+        tokio::task::spawn_blocking(move || {
+            ids.iter()
+                .filter_map(|id| {
+                    let ts = db::db_get(&pool, &dead_key(id), None).ok().flatten()?;
+                    Some((id.clone(), ts.parse::<u64>().ok()?))
+                })
+                .collect()
+        })
+        .await
+        .unwrap_or_default()
+    };
     let needs: Vec<&BootstrapDoc> = docs
         .iter()
-        .filter(|d| snapshot_needs_bootstrap(cached.get(&d.note_id).map(Vec::as_slice)))
+        .filter(|d| {
+            // A dead marker only blocks the snapshot it was written for: a
+            // newer one, including a forced heal, passes (F33b).
+            let dead_ok = dead
+                .get(&d.note_id)
+                .map_or(true, |ts| *ts < d.snapshot_ts.unwrap_or(0));
+            dead_ok
+                && (force.contains(&d.note_id)
+                    || snapshot_needs_bootstrap(cached.get(&d.note_id).map(Vec::as_slice)))
+        })
         .collect();
     if needs.is_empty() {
         // Nothing outstanding: the device already has every snapshot.
@@ -1019,6 +1108,13 @@ pub(crate) async fn bootstrap_from_snapshots(
         return Ok((Vec::new(), false));
     }
 
+    // The dead marker must hold the same timestamp the needs-filter below
+    // compares against (the state doc one): the download response may omit
+    // snapshotTs, and a marker of 0 would then re-arm the download forever.
+    let state_ts: HashMap<String, u64> = docs
+        .iter()
+        .map(|d| (d.note_id.clone(), d.snapshot_ts.unwrap_or(0)))
+        .collect();
     // Download with bounded concurrency; a per-note failure logs and skips.
     let doc_fallback_ts: HashMap<&str, Option<u64>> = docs
         .iter()
@@ -1075,19 +1171,57 @@ pub(crate) async fn bootstrap_from_snapshots(
     // Decrypt each snapshot, trying both AAD forms; fail closed per note.
     let mut decrypted: Vec<(String, Vec<u8>)> = Vec::new();
     for item in &downloaded {
+        // Same fallback as the row decoder: a workspace-sealed note may have no
+        // per-note ring, only the workspace key (meta ring head). Both rings are
+        // offered together, since an older snapshot may be under either.
+        let ring: Vec<[u8; 32]> = shared
+            .get(&item.note_id)
+            .into_iter()
+            .flatten()
+            .chain(shared.get(super::cloud::META_DOC_ID).into_iter().flatten())
+            .copied()
+            .collect();
+        if ring.is_empty() && snapshot_envelope_version(&item.bytes) == Some(SHARED_PAYLOAD_VERSION) {
+            // Sealed under a shared key this device has not registered yet.
+            // Marking it dead would block the note until a *newer* snapshot
+            // appears, so leave it: the key may still arrive. v5/v4 snapshots
+            // do not take this branch, they open with the account key.
+            crate::rs_log!(
+                "[sync::bootstrap] snapshot for {} is waiting on its key",
+                item.note_id
+            );
+            continue;
+        }
         match decrypt_snapshot_envelope_shared(
             &key,
-            shared.get(&item.note_id).map(|v| v.as_slice()).unwrap_or(&[]),
+            &ring,
             &item.note_id,
             item.snapshot_ts,
             item.note_ts,
             &item.bytes,
         ) {
             Some(update) => decrypted.push((item.note_id.clone(), update)),
-            None => crate::rs_log!(
-                "[sync::bootstrap] snapshot failed to decrypt for {} (fail closed)",
-                item.note_id
-            ),
+            None => {
+                // Unopenable copy: remember its timestamp so it is not fetched
+                // again, and drop the local cache so the pull rebuilds this note
+                // from its rows under the current key.
+                let dead_ts = state_ts
+                    .get(&item.note_id)
+                    .copied()
+                    .or(item.snapshot_ts)
+                    .unwrap_or(0);
+                let _ = crate::db::db_set(
+                    &pool,
+                    &dead_key(&item.note_id),
+                    &dead_ts.to_string(),
+                    None,
+                );
+                let _ = crate::db::yjs_drop_snapshot(&pool, &item.note_id);
+                crate::rs_log!(
+                    "[sync::bootstrap] snapshot failed to decrypt for {} (marked dead, rebuilding from rows)",
+                    item.note_id
+                );
+            }
         }
     }
     if decrypted.is_empty() {

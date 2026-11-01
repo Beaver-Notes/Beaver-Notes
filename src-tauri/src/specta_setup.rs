@@ -115,9 +115,11 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::security::sync_encrypt_payload)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_decrypt_payload)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_encrypt_batch)(&mut types),
-                specta::_fn_datatype!(crate::commands::security::sync_decrypt_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_key_ready)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_register_shared_key)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::security::sync_register_shared_keys)(
                     &mut types,
                 ),
                 specta::_fn_datatype!(crate::commands::security::sync_expect_shared_note)(
@@ -217,6 +219,17 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::workspace::workspace_rename)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_detach)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_delete)(&mut types),
+                specta::_fn_datatype!(crate::commands::workspace::workspace_archive)(&mut types),
+                specta::_fn_datatype!(crate::commands::workspace::workspace_archived_list)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::workspace::workspace_restore)(&mut types),
+                specta::_fn_datatype!(crate::commands::workspace::workspace_notes_copied)(
+                    &mut types,
+                ),
+                specta::_fn_datatype!(crate::commands::workspace::workspace_mark_notes_copied)(
+                    &mut types,
+                ),
             ];
 
             eprintln!(

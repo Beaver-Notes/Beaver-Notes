@@ -99,7 +99,7 @@ impl CloudClient {
     }
 
     pub(crate) async fn put_bytes(&self, path: &str, bytes: Vec<u8>) -> Result<(), CloudFail> {
-        let status = self.put_bytes_with_status(path, bytes).await?;
+        let status = self.put_bytes_with_status(path, bytes, None).await?;
         if !status.is_success() {
             return Err(status_fail(&self.url(path), status));
         }
@@ -113,16 +113,17 @@ impl CloudClient {
         &self,
         path: &str,
         bytes: Vec<u8>,
+        workspace_id: Option<&str>,
     ) -> Result<reqwest::StatusCode, CloudFail> {
-        let resp = self
+        let mut req = self
             .client
             .put(self.url(path))
             .bearer_auth(&self.token)
-            .header(reqwest::header::CONTENT_TYPE, "application/octet-stream")
-            .body(bytes)
-            .send()
-            .await
-            .map_err(|e| map_reqwest_error(&e))?;
+            .header(reqwest::header::CONTENT_TYPE, "application/octet-stream");
+        if let Some(ws) = workspace_id {
+            req = req.header("x-workspace-id", ws);
+        }
+        let resp = req.body(bytes).send().await.map_err(|e| map_reqwest_error(&e))?;
         let status = resp.status();
         if let Some(fail) = map_status(status) {
             return Err(fail);

@@ -108,7 +108,9 @@ pub(crate) async fn asset_crypto_migrate_dir(
                 // Decrypt (possibly stale key), then re-encrypt with current.
                 let plain = decrypt_asset(&app, state_inner, path, &raw)?;
                 let payload = encrypt_asset(&app, state_inner, path, &plain)?;
-                fs::write(path, payload)?;
+                // Finding 12: the only non-atomic asset write in the codebase —
+                // a crash mid-write truncated the file at its only path.
+                crate::sync::local::atomic_write(path, &payload)?;
                 Ok(())
             })();
             match result {
@@ -556,163 +558,6 @@ pub(crate) async fn sync_decrypt_payload(
     .map_err(|e| AppError::Other(e.to_string()))?
 }
 
-/// Batch-decrypt sync payloads in parallel; each envelope is independent and
-/// failed items yield `None` instead of aborting the batch.
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn sync_decrypt_batch(
-    _app: AppHandle,
-    state: State<'_, AppState>,
-    envelopes: Vec<String>,
-    aads: Vec<String>,
-) -> Result<Vec<Option<SyncDecryptedPayload>>, AppError> {
-    let key =
-        current_app_key(state.inner())?.ok_or_else(|| AppError::Other("KEY_LOCKED".into()))?;
-
-    tokio::task::spawn_blocking(move || decrypt_batch_with_key(key, envelopes, aads))
-        .await
-        .map_err(|e| AppError::Other(e.to_string()))
-}
-
-/// The body of [`sync_decrypt_batch`], split out so it is testable without an
-/// `AppHandle`. Each envelope is independent; failed items yield `None`.
-fn decrypt_batch_with_key(
-    key: [u8; 32],
-    envelopes: Vec<String>,
-    aads: Vec<String>,
-) -> Vec<Option<SyncDecryptedPayload>> {
-    let _t = crate::shared::speed_log::scope("security.sync_decrypt_batch");
-    {
-
-        let results: Vec<Option<SyncDecryptedPayload>> = envelopes
-            .par_iter()
-            .zip(aads.par_iter())
-            .enumerate()
-            .map(|(i, (enc, aad))| {
-                let envelope: Value = match serde_json::from_str(enc) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        if cfg!(debug_assertions) {
-                            crate::rs_log!("[sync][rust][debug] [{}] json_parse failed: {}", i, e);
-                        }
-                        return None;
-                    }
-                };
-                let v = envelope.get("v").and_then(Value::as_u64).unwrap_or(0) as u8;
-                let iv = envelope
-                    .get("iv")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                let enc_str = envelope
-                    .get("enc")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-
-                if v == SYNC_PAYLOAD_VERSION {
-                    let bytes = match aead_decrypt_bytes(&key, iv, enc_str, aad) {
-                        Ok(b) => b,
-                        Err(e) => {
-                            if cfg!(debug_assertions) {
-                                crate::rs_log!(
-                                    "[sync][rust][debug] [{}] decrypt failed v{}: {} (aad={})",
-                                    i, v, e, aad
-                                );
-                            }
-                            return None;
-                        }
-                    };
-                    let meta: SyncMeta = match serde_json::from_value(
-                        envelope.get("meta").cloned().unwrap_or(Value::Null),
-                    ) {
-                        Ok(m) => m,
-                        Err(e) => {
-                            if cfg!(debug_assertions) {
-                                crate::rs_log!(
-                                    "[sync][rust][debug] [{}] meta_parse failed v{}: {}",
-                                    i, v, e
-                                );
-                            }
-                            return None;
-                        }
-                    };
-                    Some(SyncDecryptedPayload {
-                        meta,
-                        update: BASE64.encode(bytes),
-                    })
-                } else if v == PROTOCOL_VERSION {
-                    let legacy = SyncEnvelope {
-                        v,
-                        iv: iv.to_string(),
-                        enc: enc_str.to_string(),
-                    };
-                    let value = match aead_decrypt_json(&key, &legacy, aad) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            if cfg!(debug_assertions) {
-                                crate::rs_log!(
-                                    "[sync][rust][debug] [{}] decrypt_legacy failed v{}: {}",
-                                    i, v, e
-                                );
-                            }
-                            return None;
-                        }
-                    };
-                    let meta: SyncMeta = match serde_json::from_value(value.clone()) {
-                        Ok(m) => m,
-                        Err(e) => {
-                            if cfg!(debug_assertions) {
-                                crate::rs_log!(
-                                    "[sync][rust][debug] [{}] meta_parse_legacy failed v{}: {}",
-                                    i, v, e
-                                );
-                            }
-                            return None;
-                        }
-                    };
-                    let update_arr = value
-                        .get("update")
-                        .and_then(Value::as_array)
-                        .cloned()
-                        .unwrap_or_default();
-                    let bytes: Vec<u8> = update_arr
-                        .iter()
-                        .filter_map(|n| n.as_u64().map(|u| u as u8))
-                        .collect();
-                    Some(SyncDecryptedPayload {
-                        meta,
-                        update: BASE64.encode(bytes),
-                    })
-                } else {
-                    // Not debug-gated. v6 (SHARED_PAYLOAD_VERSION) is emitted by the
-                    // current pull path, so a version this dispatcher does not know is
-                    // either a newer client or a data-path break, and it must be
-                    // visible in release. The item still decrypts to None so the caller's
-                    // per-item contract is unchanged.
-                    crate::rs_log!(
-                        "[sync][rust] [{}] unsupported envelope version: {} (this build handles v{} legacy and v{} items-key)",
-                        i,
-                        v,
-                        PROTOCOL_VERSION,
-                        SYNC_PAYLOAD_VERSION
-                    );
-                    None
-                }
-            })
-            .collect();
-
-        let null_count = results.iter().filter(|r| r.is_none()).count();
-        if null_count > 0 {
-            crate::rs_log!(
-                "[sync][rust] sync_decrypt_batch: {}/{} items failed",
-                null_count,
-                results.len()
-            );
-        }
-
-        results
-    }
-}
-
 /// Batch-encrypt sync payloads in parallel. All items must succeed; any
 /// failure errors the whole batch.
 #[tauri::command]
@@ -777,31 +622,98 @@ pub(crate) fn sync_register_shared_key(
     key_hex: String,
     previous_keys: Option<Vec<String>>,
 ) -> Result<(), AppError> {
+    let mut pool = None;
+    register_shared_key_entry(
+        &app,
+        &state,
+        &mut pool,
+        &note_id,
+        &key_hex,
+        previous_keys.as_deref(),
+    )?;
+    // Nudge the running scheduler: assets of this note that were skipped while
+    // the key was unregistered can now be decrypted.
+    crate::sync::scheduler::kick_if_running();
+    Ok(())
+}
+
+/// One entry of [`sync_register_shared_keys`].
+#[derive(Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SharedKeyEntry {
+    pub(crate) note_id: String,
+    pub(crate) key_hex: String,
+}
+
+/// Batched transport for the JS workspace sweep: registers every entry with
+/// the exact per-note logic of [`sync_register_shared_key`] and answers with
+/// one result per entry — never all-or-nothing, one bad key must not fail its
+/// neighbours. Retry and dedupe stay JS-side. The pool opens once for the
+/// whole batch and the scheduler is kicked once at the end.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn sync_register_shared_keys(
+    app: AppHandle,
+    state: State<AppState>,
+    entries: Vec<SharedKeyEntry>,
+) -> Vec<Result<(), AppError>> {
+    let mut pool: Option<crate::db::DbPool> = None;
+    let results = entries
+        .iter()
+        .map(|entry| {
+            register_shared_key_entry(
+                &app,
+                &state,
+                &mut pool,
+                &entry.note_id,
+                &entry.key_hex,
+                None,
+            )
+        })
+        .collect();
+    crate::sync::scheduler::kick_if_running();
+    results
+}
+
+/// Shared per-note body: validate the id and hex, merge the key into the
+/// note's ring, then release the note's held checkpoint. `pool` is filled on
+/// first use so a batch pays for the lookup once; the scheduler kick stays
+/// with the caller (once per command).
+fn register_shared_key_entry(
+    app: &AppHandle,
+    state: &State<AppState>,
+    pool: &mut Option<crate::db::DbPool>,
+    note_id: &str,
+    key_hex: &str,
+    previous_keys: Option<&[String]>,
+) -> Result<(), AppError> {
     if note_id.is_empty() {
         return Err(AppError::Other("note id required".into()));
     }
-    let key = decode_shared_key(&key_hex)?;
-    let previous = decode_shared_keys(previous_keys.as_deref())?;
+    let key = decode_shared_key(key_hex)?;
+    let previous = decode_shared_keys(previous_keys)?;
     let mut session = state.crypto.session.write().map_err(AppError::from)?;
     // The real key is now known: drop the "expected shared, no key" mark so the
     // note seals v6 instead of being deferred.
-    session.expected_shared_notes.remove(&note_id);
+    session.expected_shared_notes.remove(note_id);
     let merged = merge_shared_note_keys(
-        session.shared_note_keys.get(&note_id).map(|k| k.as_slice()),
+        session.shared_note_keys.get(note_id).map(|k| k.as_slice()),
         key,
         &previous,
     );
-    session.shared_note_keys.insert(note_id.clone(), merged.clone());
+    session.shared_note_keys.insert(note_id.to_string(), merged.clone());
     drop(session);
     // A ring change — or a first landing after a hold breach — releases the
     // note's held checkpoint so rows that were skipped while no key could
     // decrypt them are re-pulled. Must run before the kick.
-    let pool = crate::shared::data_pool(&app, &state)?;
-    crate::sync::cloud::reset_checkpoint_on_ring_change(&pool, &note_id, &merged)?;
-    drop(pool);
-    // Nudge the running scheduler: assets of this note that were skipped while
-    // the key was unregistered can now be decrypted.
-    crate::sync::scheduler::kick_if_running();
+    if pool.is_none() {
+        *pool = Some(crate::shared::data_pool(app, state)?);
+    }
+    crate::sync::cloud::reset_checkpoint_on_ring_change(
+        pool.as_ref().expect("pool opened above"),
+        note_id,
+        &merged,
+    )?;
     Ok(())
 }
 
@@ -1534,37 +1446,4 @@ mod tests {
         assert_eq!(value["enc"], "QQ==");
     }
 
-    /// v6 (SHARED_PAYLOAD_VERSION) is produced by the current pull path
-    /// (cloud.rs, bootstrap.rs, assets.rs all emit it) but this dispatcher does not
-    /// handle it. The drop must be visible in release, not only under
-    /// cfg!(debug_assertions), or a client/server version skew loses data silently.
-    #[test]
-    fn batch_decrypt_reports_an_unsupported_envelope_version() {
-        let dir = std::env::temp_dir().join(format!(
-            "bv-log-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        let log_path = dir.join("beaver.log");
-        crate::log_bridge::init_for_test(&log_path);
-
-        let key = [7u8; 32];
-        let aad = "note-1-42".to_string();
-        // A v6-shaped envelope: right fields, wrong version for this dispatcher.
-        let env = r#"{"v":6,"meta":{"device":"d","ts":42,"noteId":"note-1"},"iv":"aabb","enc":"QQ=="}"#;
-
-        let out = decrypt_batch_with_key(key, vec![env.to_string()], vec![aad]);
-        assert_eq!(out.len(), 1);
-        assert!(out[0].is_none(), "v6 must not decrypt here, it must be reported");
-
-        let logged = std::fs::read_to_string(&log_path).unwrap_or_default();
-        assert!(
-            logged.contains("unsupported envelope version: 6"),
-            "a release build must log the unsupported version; log was: {logged:?}"
-        );
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 }

@@ -126,6 +126,100 @@ pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: S
     }
 }
 
+/// One dispatcher for files-app/custom-scheme openings, shared by the
+/// RunEvent::Opened handler in lib.rs and the iOS document-open delegate
+/// below (same whitelist as argv + desktop single-instance paths).
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) fn route_opened_url(app: &AppHandle, state: &AppState, url_str: &str) {
+    if url_str.starts_with("beaver-notes://") {
+        crate::emit_deep_link(app, url_str);
+        return;
+    }
+    let path = tauri::Url::parse(url_str)
+        .ok()
+        .and_then(|url| url.to_file_path().ok());
+    if let Some(path) = path {
+        let path = path.to_string_lossy().to_string();
+        let lower = path.to_lowercase();
+        if [".bea", ".md", ".mdx", ".markdown", ".txt", ".html"]
+            .iter()
+            .any(|ext| lower.ends_with(ext))
+        {
+            queue_or_emit_file_open(app, state, path);
+        }
+    }
+}
+
+/// The tao iOS backend never implements `application:open:options:` (the
+/// CFBundleDocumentTypes/Files-app callback — it only handles custom-scheme
+/// and universal-link URLs), so tapping a .bea in Files is silently dropped.
+static OPENED_APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
+
+/// Register the missing delegate method on tao's already-created "AppDelegate"
+/// class (tao's create_delegate_class runs during builder.build(), before
+/// UIApplicationMain), so cold and warm Files-app document opens reach the
+/// same route_opened_url dispatch as RunEvent::Opened. class_addMethod keeps
+/// the no-op if a future tao ships its own implementation.
+#[cfg(target_os = "ios")]
+pub(crate) fn install_document_open_delegate(app: &AppHandle) {
+    use objc2::ffi::class_addMethod;
+    use objc2::runtime::{AnyClass, Bool, Imp};
+    use objc2::{class, sel};
+    use std::mem::transmute;
+
+    if OPENED_APP.set(app.clone()).is_err() {
+        return;
+    }
+    type OpenImp = unsafe extern "C-unwind" fn(
+        *const objc2::runtime::AnyObject,
+        objc2::runtime::Sel,
+        *mut objc2::runtime::AnyObject,
+        *mut objc2::runtime::AnyObject,
+        *mut objc2::runtime::AnyObject,
+    ) -> Bool;
+    unsafe {
+        let cls = class!(AppDelegate) as *const AnyClass as *mut AnyClass;
+        let imp: Imp = transmute(document_open_imp as OpenImp);
+        class_addMethod(
+            cls,
+            sel!(application:open:options:),
+            imp,
+            c"B@:@@@".as_ptr(),
+        );
+    }
+}
+
+#[cfg(target_os = "ios")]
+unsafe extern "C-unwind" fn document_open_imp(
+    _this: *const objc2::runtime::AnyObject,
+    _sel: objc2::runtime::Sel,
+    _application: *mut objc2::runtime::AnyObject,
+    urls: *mut objc2::runtime::AnyObject,
+    _options: *mut objc2::runtime::AnyObject,
+) -> objc2::runtime::Bool {
+    use objc2::msg_send;
+    use objc2::rc::Retained;
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2_foundation::NSString;
+
+    let Some(app) = OPENED_APP.get() else {
+        return Bool::NO;
+    };
+    if urls.is_null() {
+        return Bool::YES;
+    }
+    let urls = &*urls;
+    let count: usize = unsafe { msg_send![urls, count] };
+    for i in 0..count {
+        let url: Retained<AnyObject> = unsafe { msg_send![urls, objectAtIndexedSubscript: i] };
+        let s: Option<Retained<NSString>> = unsafe { msg_send![&url, absoluteString] };
+        let Some(s) = s else { continue };
+        let state = app.state::<AppState>();
+        route_opened_url(app, state.inner(), &s.to_string());
+    }
+    Bool::YES
+}
+
 fn bootstrap_file_open_from_argv(app: &AppHandle, state: &AppState) {
     for arg in std::env::args().skip(1) {
         let lower = arg.to_lowercase();
@@ -374,7 +468,10 @@ pub(crate) fn get_legacy_migration_status(
     Ok(LegacyMigrationStatus {
         legacy_dir: legacy_dir.map(|path| path.to_string_lossy().to_string()),
         app_dir: Some(app_dir.to_string_lossy().to_string()),
-        has_legacy_data,
+        // One import per install: the marker is written when the Electron store
+        // is copied in. Offering it again lets a new, empty workspace re-import
+        // every old note (a full duplicate of the user's library).
+        has_legacy_data: has_legacy_data && !marker.exists(),
         already_migrated: marker.exists(),
         target_has_data,
     })
@@ -747,6 +844,7 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
         org_id: None,
         owner_id: None,
         cloud_sync: false,
+        archived_at: None,
     };
     let registry_json = serde_json::json!({
         "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
@@ -775,6 +873,7 @@ fn ensure_default_workspace_in_registry(app: &AppHandle, state: &AppState) -> Re
             org_id: None,
             owner_id: None,
             cloud_sync: false,
+            archived_at: None,
         };
         let registry_json = serde_json::json!({
             "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
@@ -799,6 +898,7 @@ fn ensure_default_workspace_in_registry(app: &AppHandle, state: &AppState) -> Re
             org_id: None,
             owner_id: None,
             cloud_sync: false,
+            archived_at: None,
         };
         let mut new_registry = registry;
         new_registry.push(default_ws);
@@ -826,7 +926,7 @@ fn shared_sync_folders(entries: &[(String, String)]) -> Vec<(String, String)> {
 
 /// One-time: drop a sync folder that two workspaces share. `workspace_create`
 /// used to copy every setting, so a workspace made while another account had a
-/// folder configured inherited it and pulled that account's notes in.
+/// folder configured inherited it and pulled another account's notes in.
 fn clear_inherited_sync_folders(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("bootstrap.clear_inherited_sync_folders");
     let app_dir = crate::shared::app_storage_dir(app, state)?;
@@ -1007,6 +1107,8 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
         }
     }
     bootstrap_file_open_from_argv(app.handle(), state.inner());
+    #[cfg(target_os = "ios")]
+    install_document_open_delegate(app.handle());
     if let Ok(manifest_path) = app_encryption_manifest_path(app.handle(), state.inner()) {
         let mut s = state.inner().crypto.session.write()?;
         s.active = manifest_path.exists();

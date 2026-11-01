@@ -11,7 +11,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
 use super::assets::sync_cloud_assets;
-use super::bootstrap::{bootstrap_from_snapshots, seed_cloud_workspace};
+use super::bootstrap::{bootstrap_from_snapshots, heal_gaps, seed_cloud_workspace};
 use super::cloud::{
     CloudFail, SyncError, SyncStatus, DEFAULT_API_URL, local_cloud_flags, sync_cloud_pull,
     sync_cloud_push,
@@ -336,11 +336,21 @@ fn resolve_server_url(input: Option<String>) -> Result<String, AppError> {
     if raw.is_empty() {
         return Ok(DEFAULT_API_URL.to_string());
     }
-    if raw.starts_with("http://") || raw.starts_with("https://") {
+    // Schemes are case-insensitive (RFC 3986) and mobile keyboards
+    // autocapitalize the first character, so `Http://host` must be accepted.
+    let scheme = raw.to_ascii_lowercase();
+    if scheme.starts_with("http://") || scheme.starts_with("https://") {
         Ok(raw)
     } else {
         Err(AppError::Other("sync: refusing non-http(s) server URL".into()))
     }
+}
+
+/// `true` only for a vault that exists but is not unlocked. Pre-vault (still in
+/// onboarding, no manifest yet) is not "locked": there is nothing to unlock,
+/// and telling the user so sends them to a Settings action that cannot exist.
+fn should_report_locked(active: bool, key_loaded: bool) -> bool {
+    active && !key_loaded
 }
 
 fn is_locked(app: &AppHandle) -> bool {
@@ -536,8 +546,25 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
         emit_status(app, "idle");
         return Ok(SyncStatus::with_status("idle"));
     };
+    // Onboarding has not created a vault yet (no manifest): sync has nothing
+    // it could move, and reporting "unlock-required" would point the user at a
+    // vault that does not exist. Stay quiet until the password step lands.
+    let vault = {
+        let state = app.state::<AppState>();
+        state
+            .crypto
+            .session
+            .read()
+            .map(|s| (s.active, s.app_data_key.is_some()))
+            // Fail closed: an unreadable session is treated as a locked vault.
+            .unwrap_or((true, false))
+    };
+    if !vault.0 {
+        emit_status(app, "idle");
+        return Ok(SyncStatus::with_status("idle"));
+    }
     // Gate: locked session → typed status, no push.
-    if is_locked(app) {
+    if should_report_locked(vault.0, vault.1) {
         emit_status(app, SyncError::Locked.status_str());
         return Ok(SyncStatus::with_status(SyncError::Locked.status_str()));
     }
@@ -598,7 +625,10 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
         // Seed an empty cloud workspace from this device. `seed_cloud_workspace`
         // re-probes server state and no-ops when the workspace already exists or
         // another device won initialization.
-        if should_seed(has_notes) {
+        // Checkpoints mean this device already pulled rows from a non-empty
+        // workspace, so there is nothing left to seed. Without this the probe
+        // re-ran every tick and logged `not seedable yet` forever (F39).
+        if should_seed(has_notes) && !has_checkpoints {
             emit_progress(app, "seed", 0, 0);
             match seed_cloud_workspace(app, &cfg.workspace_id, &cfg.server_url, &cfg.token).await {
                 Ok(true) => {
@@ -635,7 +665,7 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
         // the attempt flag stops re-probing when the server has nothing yet.
         if should_bootstrap(has_checkpoints) && status == "complete" {
             emit_progress(app, "bootstrap", 0, 0);
-            match bootstrap_from_snapshots(app, &cfg.workspace_id, &cfg.server_url, &cfg.token)
+            match bootstrap_from_snapshots(app, &cfg.workspace_id, &cfg.server_url, &cfg.token, &HashSet::new())
                 .await
             {
                 Ok((ids, complete)) => {
@@ -661,10 +691,30 @@ async fn run_tick_inner(app: &AppHandle, force: bool) -> Result<SyncStatus, AppE
             }
         }
 
+        // A note that skipped an undecryptable row has a gap: only a snapshot
+        // can bring the missing state back.
+        if status == "complete" {
+            match heal_gaps(app, &cfg.workspace_id, &cfg.server_url, &cfg.token).await {
+                Ok(ids) if !ids.is_empty() => {
+                    pulled += ids.len() as u64;
+                    applied.extend(ids);
+                }
+                Ok(_) => {}
+                Err(fail) => absorb_cloud_fail(app, fail, &mut status)?,
+            }
+        }
+
         emit_progress(app, "pull", 0, 0);
         match sync_cloud_pull(app, &cfg.workspace_id, &cfg.server_url, &cfg.token).await {
             Ok(out) => {
                 pulled += out.pulled;
+                // The renderer only learns about pulled content through this
+                // event, and the pre-cloud emit above has already run. Without
+                // this an open editor (and the note list) keeps the old body
+                // until something else reloads it (F24).
+                if !out.applied.is_empty() {
+                    emit_applied(app, &out.applied);
+                }
                 applied.extend(out.applied);
                 emit_progress(app, "pull", out.pulled, out.pulled);
             }
@@ -1163,6 +1213,15 @@ mod tests {
         assert!(!cloud_enabled(Some("folder")));
         assert!(cloud_enabled(Some("cloud")));
         assert!(cloud_enabled(None));
+    }
+
+    /// Pre-vault onboarding must not report a locked vault: there is no
+    /// manifest to unlock yet, so the banner would be a lie.
+    #[test]
+    fn locked_status_requires_an_existing_vault() {
+        assert!(!super::should_report_locked(false, false));
+        assert!(super::should_report_locked(true, false));
+        assert!(!super::should_report_locked(true, true));
     }
 
     /// F3: a failed folder cycle must surface a non-complete status for a

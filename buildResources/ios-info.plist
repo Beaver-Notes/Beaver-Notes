@@ -72,8 +72,10 @@
 			<string>com.beavernotes.bea</string>
 			<key>UTTypeDescription</key>
 			<string>Beaver Notes File</string>
+			<!-- .bea is 100MB+ JSON in practice; conforming to public.json puts it under
+			     public.text, so QuickLook tries to render the whole file as text. -->
 			<key>UTTypeConformsTo</key>
-			<array><string>public.json</string></array>
+			<array><string>public.data</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

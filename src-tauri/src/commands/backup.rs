@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use tauri::{AppHandle, Manager};
 
 use crate::shared::*;
@@ -213,6 +213,28 @@ fn validate_backup_db(path: &Path, label: &str) -> Result<(), AppError> {
 /// (DELETE + INSERT SELECT per table inside one transaction).
 fn import_db(pool: &crate::db::DbPool, src: &Path) -> Result<(), AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    // Finding 8: the swap below rewrites `kv`, which holds the per-note cloud
+    // push sequence (`sync:cloud:wseq:<note>`) the server dedupes on. Restoring
+    // older numbers makes every later push reuse recorded sequence numbers —
+    // the server drops them as duplicates while the ack still advances the
+    // cursor, so post-restore edits silently never reach peers. Capture the
+    // live cursors first and restore the per-key maximum inside the same
+    // transaction (values are plaintext device cursors, written without a key).
+    let live_wseq: Vec<(String, String)> = {
+        let mut stmt = conn
+            .prepare("SELECT key, value FROM kv WHERE key LIKE 'sync:cloud:wseq:%'")
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    String::from_utf8_lossy(&crate::db::kv_bytes(row, 1)?).into_owned(),
+                ))
+            })
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| AppError::Other(e.to_string()))?
+    };
     conn.execute(
         "ATTACH DATABASE ?1 AS backup_src",
         params![src.to_string_lossy()],
@@ -234,6 +256,45 @@ fn import_db(pool: &crate::db::DbPool, src: &Path) -> Result<(), AppError> {
         }) {
             let _ = conn.execute_batch("ROLLBACK");
             return Err(e);
+        }
+        // Finding 11: tombstones and owner bindings belong to the pre-restore
+        // world; surviving the swap they act on the restored state — a note
+        // deleted after the backup would make the asset differ delete the very
+        // remote assets the restore just brought back, and a foreign owner
+        // binding would keep a note out of the active push forever. Clearing
+        // tombstones is safe (remote objects linger until re-delete/GC) and
+        // `note_owners` re-binds on the next push.
+        for table in ["deleted_notes", "note_owners"] {
+            conn.execute(&format!("DELETE FROM main.{table}"), [])
+                .map_err(|e| AppError::Other(e.to_string()))?;
+        }
+        // Finding 8 (cont.): never rewind a captured cursor — per key, keep
+        // the larger of the live and the imported sequence.
+        for (key, live_value) in &live_wseq {
+            let imported: Option<String> = conn
+                .query_row(
+                    "SELECT value FROM main.kv WHERE key = ?1",
+                    params![key],
+                    |row| {
+                        Ok(String::from_utf8_lossy(&crate::db::kv_bytes(row, 0)?).into_owned())
+                    },
+                )
+                .optional()
+                .map_err(|e| AppError::Other(e.to_string()))?;
+            let winner = match imported.as_deref() {
+                None => live_value.clone(),
+                Some(imported) => match (live_value.parse::<u64>(), imported.parse::<u64>()) {
+                    (Ok(live), Ok(seq)) if seq >= live => imported.to_string(),
+                    (Ok(_), Ok(_)) => live_value.clone(),
+                    // An unparsable live cursor is corrupt: trust the backup's.
+                    _ => imported.to_string(),
+                },
+            };
+            conn.execute(
+                "INSERT OR REPLACE INTO main.kv (key, value) VALUES (?1, ?2)",
+                params![key, winner],
+            )
+            .map_err(|e| AppError::Other(e.to_string()))?;
         }
         conn.execute_batch("COMMIT")
             .map_err(|e| AppError::Other(e.to_string()))
@@ -386,23 +447,16 @@ fn unlock_bundle_key(bundle: &Path, passphrase: &str) -> Result<[u8; 32], AppErr
 }
 
 /// Re-encrypt every payload of a staged backup DB from the source to the target
-/// key, reusing the shared row sweeper, then checkpoint so the staged file is a
-/// single self-contained database for `ATTACH`. Push cursors are reset like the
+/// key, reusing the shared row sweeper. The pool is opened (and thus migrated)
+/// by `stage_import` before this runs. Push cursors are reset like the
 /// vault-join migration so the imported rows republish under the target key.
 fn reencrypt_staged_db(
-    path: &Path,
+    pool: &crate::db::DbPool,
     source_key: &[u8; 32],
     target_key: &[u8; 32],
 ) -> Result<u64, AppError> {
-    let pool = crate::db::open_pool(path)?;
-    let migrated = crate::db::reencrypt_payloads_for_key(&pool, source_key, target_key, None)?;
-    crate::db::reset_transport_push_cursors(&pool)?;
-    {
-        let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
-            .map_err(|e| AppError::Other(e.to_string()))?;
-    }
-    drop(pool);
+    let migrated = crate::db::reencrypt_payloads_for_key(pool, source_key, target_key, None)?;
+    crate::db::reset_transport_push_cursors(pool)?;
     Ok(migrated)
 }
 
@@ -484,6 +538,24 @@ fn stage_import(
         let settings_db = dir.join("settings.db");
         std::fs::copy(bundle_workspace.dir.join("data.db"), &data_db)?;
         std::fs::copy(bundle_workspace.dir.join("settings.db"), &settings_db)?;
+
+        // Finding 10: migrate both staged copies to the current schema on every
+        // import. `import_db` copies positionally (`SELECT *`), so a bundle
+        // whose `yjs_snapshots` predates `src_rowid` dies with a column-count
+        // mismatch — the re-encrypt path used to migrate its staged copies,
+        // the same-key and plaintext paths never did. Opening also checkpoints
+        // so each staged file is a single self-contained database for `ATTACH`.
+        let data_pool = crate::db::open_pool(&data_db)?;
+        let settings_pool = crate::db::open_pool(&settings_db)?;
+        if let Some((source_key, target)) = &reencrypt {
+            reencrypt_staged_db(&data_pool, source_key, target)?;
+            reencrypt_staged_db(&settings_pool, source_key, target)?;
+        }
+        for pool in [&data_pool, &settings_pool] {
+            let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+            conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
+                .map_err(|e| AppError::Other(e.to_string()))?;
+        }
         workspaces.push(StagedWorkspace {
             id: bundle_workspace.id.clone(),
             data_db,
@@ -500,10 +572,6 @@ fn stage_import(
     };
 
     if let Some((source_key, target)) = reencrypt {
-        for workspace in &workspaces {
-            reencrypt_staged_db(&workspace.data_db, &source_key, &target)?;
-            reencrypt_staged_db(&workspace.settings_db, &source_key, &target)?;
-        }
         if let Some(ref assets) = assets {
             crate::shared::migrate_assets(assets, &source_key, &target)?;
         }
@@ -760,6 +828,7 @@ fn ensure_workspace_ready(
             org_id: None,
             owner_id: None,
             cloud_sync: false,
+            archived_at: None,
         });
         save_workspace_registry(app, state, &registry)?;
     }
@@ -1184,6 +1253,143 @@ mod tests {
             );
         }
 
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Finding 8: restoring must never rewind the per-note cloud push sequence.
+    /// Reused sequence numbers are dropped by the server as duplicates while
+    /// the ack still advances the cursor, so post-restore edits would silently
+    /// never reach peers. The import keeps the per-key maximum of the live and
+    /// the imported cursor.
+    #[test]
+    fn import_db_never_rewinds_the_cloud_push_sequence() {
+        let root = unique_dir("beaver-notes-backup-wseq");
+        let live = root.join("live.db");
+        {
+            let pool = crate::db::open_pool(&live).expect("pool");
+            crate::db::db_set(&pool, "sync:cloud:wseq:n1", "50", None).expect("seed n1");
+            crate::db::db_set(&pool, "sync:cloud:wseq:n2", "5", None).expect("seed n2");
+        }
+        let backup = root.join("backup.db");
+        {
+            let pool = crate::db::open_pool(&backup).expect("pool");
+            crate::db::db_set(&pool, "sync:cloud:wseq:n1", "10", None).expect("backup n1");
+            crate::db::db_set(&pool, "sync:cloud:wseq:n3", "7", None).expect("backup n3");
+        }
+
+        let pool = crate::db::open_pool(&live).expect("pool");
+        import_db(&pool, &backup).expect("import");
+
+        let wseq = |note: &str| -> Option<u64> {
+            crate::db::db_get(&pool, &format!("sync:cloud:wseq:{note}"), None)
+                .expect("get")
+                .and_then(|v| v.parse().ok())
+        };
+        assert_eq!(wseq("n1"), Some(50), "live ahead of the backup: keep live");
+        assert_eq!(wseq("n2"), Some(5), "a live-only cursor survives the swap");
+        assert_eq!(wseq("n3"), Some(7), "a backup-only cursor arrives");
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Finding 11: the restore must not leave the live database's tombstones
+    /// and owner bindings acting on the restored state — a note deleted after
+    /// the backup would make the asset differ delete the remote assets the
+    /// restore just brought back, and a foreign owner binding would keep a
+    /// note out of the active push forever.
+    #[test]
+    fn import_db_clears_tombstones_and_owner_bindings() {
+        let root = unique_dir("beaver-notes-backup-stale-state");
+        let live = root.join("live.db");
+        {
+            let pool = crate::db::open_pool(&live).expect("pool");
+            let conn = pool.get().expect("conn");
+            conn.execute(
+                "INSERT INTO deleted_notes (note_id, workspace_id, deleted_at) VALUES ('n1', 'ws-1', 1)",
+                [],
+            )
+            .expect("tombstone");
+            conn.execute(
+                "INSERT INTO note_owners (note_id, workspace_id, shared) VALUES ('n1', 'other-ws', 1)",
+                [],
+            )
+            .expect("owner");
+        }
+        let backup = root.join("backup.db");
+        {
+            let pool = crate::db::open_pool(&backup).expect("pool");
+            crate::db::db_set(&pool, "note", "\"restored\"", None).expect("seed");
+        }
+
+        let pool = crate::db::open_pool(&live).expect("pool");
+        import_db(&pool, &backup).expect("import");
+
+        assert!(
+            crate::db::deleted_note_ids(&pool, "ws-1")
+                .expect("tombstones")
+                .is_empty(),
+            "stale tombstones must not survive the restore"
+        );
+        assert!(
+            crate::db::note_owner_get(&pool, "n1").is_none(),
+            "stale owner bindings must not survive the restore"
+        );
+        assert_eq!(
+            crate::db::db_get(&pool, "note", None).expect("get").as_deref(),
+            Some("\"restored\""),
+            "the imported rows still arrive"
+        );
+
+        drop(pool);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Finding 10: a bundle written before `yjs_snapshots` gained `src_rowid`
+    /// (schema below v3) must import — staging migrates the copies to the
+    /// current schema instead of dying on a column-count mismatch in the
+    /// positional `SELECT *` copy. Old backups must not be dead weight.
+    #[test]
+    fn stage_import_migrates_an_older_schema_bundle() {
+        let root = unique_dir("beaver-notes-backup-old-schema");
+        let bundle = root.join("bundle");
+        let ws = bundle.join(BACKUP_WORKSPACES_DIR).join("alpha");
+        std::fs::create_dir_all(&ws).expect("ws dir");
+        for name in ["data.db", "settings.db"] {
+            let conn = rusqlite::Connection::open(ws.join(name)).expect("open staged db");
+            conn.execute_batch(
+                "CREATE TABLE kv (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+                 CREATE TABLE note_content (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   note_id TEXT NOT NULL,
+                   data BLOB NOT NULL,
+                   device TEXT NOT NULL DEFAULT '',
+                   created_at INTEGER NOT NULL
+                 );
+                 CREATE TABLE yjs_snapshots (
+                   note_id TEXT PRIMARY KEY NOT NULL,
+                   data BLOB NOT NULL,
+                   updated_at INTEGER NOT NULL
+                 );
+                 PRAGMA user_version = 2;",
+            )
+            .expect("old schema");
+            conn.execute("INSERT INTO kv (key, value) VALUES ('note', '\"old\"')", [])
+                .expect("kv row");
+        }
+        let staging = root.join("staging");
+        let staged = stage_import(&bundle, &staging, None, None).expect("old bundle imports");
+
+        let live = root.join("live.db");
+        let pool = crate::db::open_pool(&live).expect("pool");
+        import_db(&pool, &staged.workspaces[0].data_db).expect("import");
+        assert_eq!(
+            crate::db::db_get(&pool, "note", None).expect("get").as_deref(),
+            Some("\"old\""),
+            "rows from the old schema must arrive"
+        );
+
+        drop(pool);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

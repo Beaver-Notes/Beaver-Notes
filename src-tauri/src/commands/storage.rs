@@ -275,7 +275,7 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
 /// Decrypt one KV row with pre-extracted key material so the work runs inside
 /// `spawn_blocking` without touching `AppState`. Plaintext passthrough when
 /// the key is absent (mirrors `decrypt_store_row`).
-fn decrypt_store_row_with_key(
+pub(crate) fn decrypt_store_row_with_key(
     row_key: &str,
     value: Value,
     app_key: &Option<[u8; 32]>,

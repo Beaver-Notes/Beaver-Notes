@@ -72,12 +72,16 @@
     },
     "macOS": {
       "minimumSystemVersion": "12.0",
-      "entitlements": "../buildResources/entitlements.mac.plist"
+      "entitlements": "../buildResources/entitlements.mac.plist",
+      "infoPlist": "../buildResources/info-mac.plist"
     },
     "iOS": {
       "developmentTeam": "F8U6VTU2DJ",
-      "minimumSystemVersion": "15.0",
+      "minimumSystemVersion": "17.4",
       "infoPlist": "../buildResources/ios-info.plist"
+    },
+    "android": {
+      "minSdkVersion": 28
     },
     "linux": {
       "deb": { "depends": [] },

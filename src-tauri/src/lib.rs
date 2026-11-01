@@ -26,7 +26,7 @@ use crate::{
     shared::{clear_asset_cache, clear_external_open_dir, AppState},
 };
 
-fn emit_deep_link(app: &tauri::AppHandle, url: &str) {
+pub(crate) fn emit_deep_link(app: &tauri::AppHandle, url: &str) {
     if url.starts_with("beaver-notes://") {
         let _ = app.emit("deep-link://received", url.to_string());
     }
@@ -69,6 +69,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_audio_recorder::init())
         .plugin(tauri_plugin_biometry::init())
+        .plugin(tauri_plugin_passkey::init())
         .manage(state);
 
     // Local-AI is Apple-only (see Cargo.toml): the image-menu OCR probe
@@ -229,9 +230,9 @@ pub fn run() {
             commands::security::sync_encrypt_payload,
             commands::security::sync_decrypt_payload,
             commands::security::sync_encrypt_batch,
-            commands::security::sync_decrypt_batch,
             commands::security::sync_key_ready,
             commands::security::sync_register_shared_key,
+            commands::security::sync_register_shared_keys,
             commands::security::sync_expect_shared_note,
             commands::security::sync_clear_shared_keys,
             commands::security::sync_register_shared_note_location,
@@ -306,6 +307,11 @@ pub fn run() {
             commands::workspace::workspace_rename,
             commands::workspace::workspace_detach,
             commands::workspace::workspace_delete,
+            commands::workspace::workspace_archive,
+            commands::workspace::workspace_archived_list,
+            commands::workspace::workspace_restore,
+            commands::workspace::workspace_notes_copied,
+            commands::workspace::workspace_mark_notes_copied,
         ]);
 
     // WebKit only reports a killed renderer through this delegate. Without it the
@@ -372,24 +378,7 @@ pub fn run() {
         RunEvent::Opened { urls } => {
             let state = app.state::<AppState>();
             for url in urls {
-                let url_str = url.to_string();
-                if url_str.starts_with("beaver-notes://") {
-                    emit_deep_link(app, &url_str);
-                    continue;
-                }
-                if let Ok(path) = url.to_file_path() {
-                    let path = path.to_string_lossy().to_string();
-                    let lower = path.to_lowercase();
-                    if lower.ends_with(".bea")
-                        || lower.ends_with(".md")
-                        || lower.ends_with(".mdx")
-                        || lower.ends_with(".markdown")
-                        || lower.ends_with(".txt")
-                        || lower.ends_with(".html")
-                    {
-                        queue_or_emit_file_open(app, state.inner(), path);
-                    }
-                }
+                crate::bootstrap::route_opened_url(app, state.inner(), &url.to_string());
             }
         }
         #[cfg(target_os = "macos")]

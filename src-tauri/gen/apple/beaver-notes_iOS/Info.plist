@@ -107,7 +107,7 @@
 			<string>Beaver Notes File</string>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>public.json</string>
+				<string>public.data</string>
 			</array>
 			<key>UTTypeTagSpecification</key>
 			<dict>
@@ -162,16 +162,5 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<true/>
 	</dict>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>com.beavernotes.beaver-notes</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>beaver-notes</string>
-			</array>
-		</dict>
-	</array>
 </dict>
 </plist>

@@ -35,7 +35,8 @@ const CHROME_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWe
 
 #[tauri::command]
 pub async fn fetch_page_html(url: String) -> Result<String, String> {
-    if !(url.starts_with("https://") || url.starts_with("http://")) {
+    let scheme = url.to_ascii_lowercase();
+    if !(scheme.starts_with("https://") || scheme.starts_with("http://")) {
         return Err("Unsupported URL scheme".into());
     }
     // ponytail: no private-IP filtering; fine while only user-initiated shares hit this
