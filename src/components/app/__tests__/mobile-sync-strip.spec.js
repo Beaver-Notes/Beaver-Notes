@@ -215,14 +215,12 @@ describe('MobileSyncStrip', () => {
     expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(true);
   });
 
-  it('toggles sync through the shared desktop control handler', async () => {
+  it('stays passive: no inline toggle button (pull-to-refresh and Settings are the only triggers)', async () => {
     const wrapper = await mountStrip();
     pullToReveal();
     await nextTick();
 
-    await wrapper.get('[data-testid="sync-toggle"]').trigger('click');
-
-    expect(syncCtl.syncNow).toHaveBeenCalledTimes(1);
+    expect(wrapper.find('[data-testid="sync-toggle"]').exists()).toBe(false);
   });
 
   it('runs the shared handler on a full pull-to-refresh', async () => {
@@ -232,6 +230,29 @@ describe('MobileSyncStrip', () => {
     await nextTick();
 
     expect(syncCtl.syncNow).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores pull gestures while a modal dialog is open', async () => {
+    const wrapper = await mountStrip();
+    const dlg = document.createElement('div');
+    dlg.setAttribute('role', 'dialog');
+    document.body.appendChild(dlg);
+
+    try {
+      pullToReveal();
+      await nextTick();
+      expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(false);
+
+      pullToRefresh();
+      await nextTick();
+      expect(syncCtl.syncNow).not.toHaveBeenCalled();
+    } finally {
+      dlg.remove();
+    }
+
+    pullToReveal();
+    await nextTick();
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(true);
   });
 
   it('desktop settings surface routes through the same shared control (no duplicate handler)', () => {

@@ -12,6 +12,8 @@ const { blobs, ctl } = vi.hoisted(() => ({
     push: vi.fn(),
     switchAccount: vi.fn(async () => ({ switched: true })),
     signOutAccount: vi.fn(async () => ({ switched: true })),
+    listArchived: vi.fn(async () => []),
+    restoreLocal: vi.fn(async () => {}),
   },
 }));
 
@@ -30,6 +32,11 @@ vi.mock('@/lib/native/security', () => ({
 
 vi.mock('@/lib/dialog', () => ({
   useDialog: () => ({ confirm: ctl.confirm, alert: ctl.alert }),
+}));
+
+vi.mock('@/lib/native/workspaces', () => ({
+  listArchivedWorkspaces: ctl.listArchived,
+  restoreLocalWorkspace: ctl.restoreLocal,
 }));
 
 vi.mock('vue-router', () => ({
@@ -65,10 +72,6 @@ vi.mock('@/composable/useCloudWorkspaces', () => ({
     fetchMyPendingRequests: vi.fn(async () => []),
     joinWorkspace: vi.fn(async () => ({})),
   }),
-}));
-
-vi.mock('@/lib/api/plans', () => ({
-  getPlans: vi.fn(async () => ({ flags: {} })),
 }));
 
 vi.mock('@/composable/useAccountAuth', () => ({
@@ -126,6 +129,8 @@ describe('WorkspaceSwitcher accounts', () => {
     ctl.switchAccount.mockImplementation(async () => ({ switched: true }));
     ctl.signOutAccount.mockImplementation(async () => ({ switched: true }));
     ctl.confirm.mockReset();
+    ctl.listArchived.mockImplementation(async () => []);
+    ctl.restoreLocal.mockImplementation(async () => {});
     reload = vi.fn();
     vi.stubGlobal('location', { ...window.location, hash: '', reload });
     await clearIndex();
@@ -146,6 +151,16 @@ describe('WorkspaceSwitcher accounts', () => {
       true,
     );
     expect(wrapper.find('[data-testid="workspace-option"]').exists()).toBe(true);
+  });
+
+  it('shows customize and settings icons for owners without any plan flag', async () => {
+    const wrapper = mountSwitcher();
+    await flushPromises();
+
+    expect(wrapper.find('[aria-label="Customize Personal"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Team settings for Personal"]').exists()).toBe(
+      true,
+    );
   });
 
   it('switching account goes through switchAccount without a reload', async () => {
@@ -171,6 +186,21 @@ describe('WorkspaceSwitcher accounts', () => {
       workspaceId: 'ws2',
     });
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('lists a deleted local workspace and restores it in place', async () => {
+    ctl.listArchived.mockImplementation(async () => [
+      { id: 'default', name: 'Default', archivedAt: new Date().toISOString() },
+    ]);
+    const wrapper = mountSwitcher();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Deleted (restorable 10 days)');
+
+    await wrapper.find('[aria-label="Restore Default"]').trigger('click');
+    await flushPromises();
+
+    expect(ctl.restoreLocal).toHaveBeenCalledWith('default');
   });
 
   it('asks before signing an account out', async () => {

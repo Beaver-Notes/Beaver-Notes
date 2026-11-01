@@ -99,50 +99,55 @@
       <section class="space-y-2">
         <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.members || 'Members' }}</p>
         <div class="divide-y divide-neutral-200 rounded-xl border bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-950">
-          <div class="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center">
-            <ui-input
-              v-model="inviteInput"
-              class="flex-1"
-              :placeholder="tr.emailOrUsername || 'Email or username'"
-              :aria-label="tr.emailOrUsername || 'Email or username to invite'"
-              @keydown.enter="handleAddMember"
-            />
-            <ui-select v-model="inviteRole" class="w-32" :aria-label="tr.inviteRole || 'Invite role'">
-              <option value="editor">{{ tr.editor || 'Editor' }}</option>
-              <option value="viewer">{{ tr.viewer || 'Viewer' }}</option>
-              <option value="admin">{{ tr.admin || 'Admin' }}</option>
-            </ui-select>
-            <ui-button
-              variant="primary"
-              class="motion-press"
-              :disabled="addingMember"
-              :title="!isEmailVerified ? verifyTooltip : undefined"
-              @click="handleAddMember"
-            >
-              {{ addingMember ? (tr.inviting || 'Inviting…') : (tr.invite || 'Invite') }}
-            </ui-button>
-            <ui-button
-              variant="secondary"
-              class="motion-press"
-              :class="inviteLinkCopied ? 'motion-copy-sweep' : ''"
-              :disabled="addingMember"
-              :title="!isEmailVerified ? verifyTooltip : (tr.copyInviteLink || 'Copy invite link')"
-              @click="handleCopyInviteLink"
-            >
-              <v-remixicon
-                :name="inviteLinkCopied ? 'riCheckLine' : 'riFileCopyLine'"
-                size="18"
-                class="inline-block align-[-3px]"
+          <div class="p-3 space-y-2">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <ui-input
+                v-model="inviteInput"
+                class="flex-1"
+                :placeholder="tr.emailOrUsername || 'Email or username'"
+                :aria-label="tr.emailOrUsername || 'Email or username to invite'"
+                @keydown.enter="handleAddMember"
               />
-              {{ tr.copyLink || 'Copy link' }}
-            </ui-button>
+              <ui-select v-model="inviteRole" class="sm:w-32" :aria-label="tr.inviteRole || 'Invite role'">
+                <option value="editor">{{ tr.editor || 'Editor' }}</option>
+                <option value="viewer">{{ tr.viewer || 'Viewer' }}</option>
+                <option value="admin">{{ tr.admin || 'Admin' }}</option>
+              </ui-select>
+              <ui-button
+                variant="primary"
+                class="motion-press"
+                :disabled="addingMember"
+                :title="!isEmailVerified ? verifyTooltip : undefined"
+                @click="handleAddMember"
+              >
+                {{ addingMember ? (tr.inviting || 'Inviting…') : (tr.invite || 'Invite') }}
+              </ui-button>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <button
+                type="button"
+                class="motion-press inline-flex items-center gap-1 rounded text-xs font-medium text-primary dark:text-primary-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary disabled:opacity-50"
+                :class="inviteLinkCopied ? 'motion-copy-sweep' : ''"
+                :disabled="addingMember"
+                :title="!isEmailVerified ? verifyTooltip : (tr.copyInviteLink || 'Copy invite link')"
+                :aria-label="tr.copyInviteLink || 'Copy invite link'"
+                @click="handleCopyInviteLink"
+              >
+                <v-remixicon
+                  :name="inviteLinkCopied ? 'riCheckLine' : 'riFileCopyLine'"
+                  size="14"
+                  class="inline-block align-[-2px]"
+                />
+                {{ inviteLinkCopied ? (tr.copied || 'Link copied') : (tr.copyInviteLink || 'Copy invite link') }}
+              </button>
+              <p v-if="!isEmailVerified" class="text-xs text-amber-600 dark:text-amber-400">
+                {{ tr.verifyEmailToInvite || 'Please verify your email to invite members.' }}
+              </p>
+              <p v-if="inviteSuccess" class="w-full text-xs text-green-600 dark:text-green-400" role="status">
+                {{ inviteSuccess }}
+              </p>
+            </div>
           </div>
-          <p v-if="!isEmailVerified" class="px-4 text-xs text-amber-600 dark:text-amber-400">
-            {{ tr.verifyEmailToInvite || 'Please verify your email to invite members.' }}
-          </p>
-          <p v-if="inviteSuccess" class="px-4 text-xs text-green-600 dark:text-green-400" role="status">
-            {{ inviteSuccess }}
-          </p>
 
           <div
             v-for="m in members"
@@ -161,22 +166,24 @@
                 {{ fmt('roleLabel', { role: displayRole(m.role), count: m.deviceCount }) }}
               </p>
             </div>
-            <!-- Static role pill: role selection stays in the tap-to-open sheet,
-                 the only place a ui-select changes a member's role. -->
+            <!-- Role selection is a plain inline select; the raw id stays a
+                 tooltip / fallback detail. The owner's own row stays a pill. -->
+            <ui-select
+              v-if="m.userId !== currentUserId"
+              class="w-28 shrink-0"
+              :model-value="m.role"
+              :aria-label="fmt('roleFor', { user: memberLabel(m) })"
+              @change="handleChangeRole(m.userId, $event)"
+            >
+              <option value="owner">{{ tr.owner || 'Owner' }}</option>
+              <option value="admin">{{ tr.admin || 'Admin' }}</option>
+              <option value="editor">{{ tr.editor || 'Editor' }}</option>
+              <option value="viewer">{{ tr.viewer || 'Viewer' }}</option>
+            </ui-select>
             <span
-              v-if="m.userId === currentUserId && m.role === 'owner'"
+              v-else
               class="shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
             >{{ displayRole(m.role) }}</span>
-            <button
-              v-else
-              type="button"
-              class="motion-press shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
-              :aria-label="fmt('roleFor', { user: memberLabel(m) })"
-              @click="openMemberSheet(m)"
-            >
-              {{ displayRole(m.role) }}
-              <v-remixicon name="riArrowRightSLine" size="14" class="rtl:rotate-180" />
-            </button>
             <ui-button
               icon
               variant="danger"
@@ -191,36 +198,6 @@
             <span class="text-sm text-red-500" role="alert">{{ error }}</span>
           </p>
         </div>
-
-        <ui-modal
-          v-model="memberSheet.open"
-          :title="memberSheet.member ? memberLabel(memberSheet.member) : ''"
-        >
-          <div v-if="memberSheet.member" class="space-y-4">
-            <ui-select
-              :model-value="memberSheet.member.role"
-              :label="fmt('roleFor', { user: memberLabel(memberSheet.member) })"
-              @change="($event) => handleChangeRole(memberSheet.member.userId, $event)"
-            >
-              <option value="owner">{{ tr.owner || 'Owner' }}</option>
-              <option value="admin">{{ tr.admin || 'Admin' }}</option>
-              <option value="editor">{{ tr.editor || 'Editor' }}</option>
-              <option value="viewer">{{ tr.viewer || 'Viewer' }}</option>
-            </ui-select>
-            <ui-button
-              variant="danger"
-              class="w-full max-md:h-11"
-              @click="handleRemoveFromSheet"
-            >
-              <v-remixicon
-                name="riDeleteBin6Line"
-                size="18"
-                class="inline-block align-[-3px] ltr:mr-1 rtl:ml-1"
-              />
-              {{ tr.remove || 'Remove' }}
-            </ui-button>
-          </div>
-        </ui-modal>
       </section>
 
       <!-- Devices & Sessions -->
@@ -248,23 +225,15 @@
             class="motion-spring-enter flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-neutral-50 motion-reduce:transition-none dark:hover:bg-neutral-900"
           >
             <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
-                  {{ s.deviceLabel }}
-                </p>
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                {{ sessionLabel(s) }}
                 <span
-                  class="inline-flex items-center gap-1 text-xs"
-                  :class="isOnline(s.lastSeenAt) ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-400 dark:text-neutral-500'"
-                >
-                  <span
-                    class="inline-block h-1.5 w-1.5 rounded-full"
-                    :class="isOnline(s.lastSeenAt) ? 'bg-emerald-500' : 'bg-neutral-400 dark:bg-neutral-600'"
-                  ></span>
-                  {{ isOnline(s.lastSeenAt) ? (tr.online || 'Online') : (tr.offline || 'Offline') }}
-                </span>
-              </div>
+                  v-if="s.deviceId && s.deviceId === thisDeviceId"
+                  class="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-normal text-primary"
+                >{{ tr.thisDevice || 'This device' }}</span>
+              </p>
               <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                {{ s.deviceId || (tr.unknownDevice || 'Unknown device') }} · {{ fmt('lastSeen', { time: s.lastSeenAt || (tr.never || 'never') }) }}
+                {{ platformLabel(s) }} · {{ seenLabel(s.lastSeenAt) }}
               </p>
             </div>
             <ui-button
@@ -272,6 +241,7 @@
               variant="danger"
               class="motion-press"
               :aria-label="fmt('revokeSession', { id: sessionLabel(s) })"
+              :title="s.deviceId || undefined"
               @click="handleRevoke(s)"
             >
               <v-remixicon name="riShieldKeyholeLine" />
@@ -283,20 +253,16 @@
             class="motion-spring-enter flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-neutral-50 motion-reduce:transition-none dark:hover:bg-neutral-900"
           >
             <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">{{ d.label }}</p>
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                {{ deviceName(d) }}
                 <span
-                  class="inline-flex items-center gap-1 text-xs"
-                  :class="isOnline(d.lastSeen) ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-400 dark:text-neutral-500'"
-                >
-                  <span
-                    class="inline-block h-1.5 w-1.5 rounded-full"
-                    :class="isOnline(d.lastSeen) ? 'bg-emerald-500' : 'bg-neutral-400 dark:bg-neutral-600'"
-                  ></span>
-                  {{ isOnline(d.lastSeen) ? (tr.online || 'Online') : (tr.offline || 'Offline') }}
-                </span>
-              </div>
-              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ d.deviceId }}</p>
+                  v-if="d.deviceId === thisDeviceId"
+                  class="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-normal text-primary"
+                >{{ tr.thisDevice || 'This device' }}</span>
+              </p>
+              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                {{ platformLabel(d) }} · {{ seenLabel(d.lastSeen) }}
+              </p>
             </div>
           </div>
           <p v-if="devices.length === 0 && sessions.length === 0" class="px-4 py-3">
@@ -305,17 +271,14 @@
         </div>
       </section>
 
-      <!-- Audit -->
-      <section class="space-y-2">
+      <!-- Audit (Enterprise only — the section is hidden, not gated with a card) -->
+      <section v-if="flags.audit" class="space-y-2">
         <div class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-3.5">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.auditLogs || 'Audit logs' }}</p>
-              <p v-if="!flags.audit" class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                {{ tr.auditEnterprise || 'Audit logs are available on the Enterprise plan.' }}
-              </p>
             </div>
-            <ui-button v-if="flags.audit" @click="handleLoadAudit">{{ tr.load || 'Load' }}</ui-button>
+            <ui-button @click="handleLoadAudit">{{ tr.load || 'Load' }}</ui-button>
           </div>
           <ul v-if="flags.audit && auditLogs.length > 0" class="space-y-1 pt-2">
             <li
@@ -329,12 +292,11 @@
         </div>
       </section>
 
-      <!-- SSO -->
-      <section class="space-y-2">
+      <!-- SSO (Enterprise only — hidden otherwise) -->
+      <section v-if="flags.audit" class="space-y-2">
         <div class="flex items-center justify-between">
           <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.sso || 'Single Sign-On (SSO)' }}</p>
           <button
-            v-if="flags.audit"
             class="text-xs text-primary dark:text-primary-light hover:underline rounded focus-visible:ring-2 focus-visible:ring-secondary"
             @click="sso.showForm = !sso.showForm"
           >
@@ -342,13 +304,7 @@
           </button>
         </div>
 
-        <div v-if="!flags.audit" class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-6">
-          <p class="text-sm text-neutral-500 dark:text-neutral-400">
-            {{ tr.ssoRequiresEnterprise || 'SSO requires the Enterprise plan.' }}
-          </p>
-        </div>
-
-        <template v-else>
+        <template>
           <div v-if="sso.loading" class="text-xs text-neutral-500 py-4">{{ tr.ssoLoading || 'Loading…' }}</div>
 
           <div v-else-if="sso.configs.length === 0 && !sso.showForm" class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-6">
@@ -436,6 +392,8 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/lib/dialog';
 import { useClipboard } from '@/composable/clipboard';
 import { roleLabel } from '@/utils/roleLabel';
+import { deviceDisplayName, devicePlatform } from '@/utils/device/device-label';
+import { getSyncDeviceId } from '@/utils/sync/sync-repository';
 import { triggerInteractionHaptic } from '@/lib/native/haptics';
 
 export default {
@@ -467,14 +425,41 @@ export default {
       return roleLabel(role, translations.value);
     }
     function sessionLabel(s) {
-      return s?.deviceLabel || s?.deviceId || tr.value.unknownDevice || 'Unknown device';
+      return s ? deviceDisplayName(s) || tr.value.unknownDevice || 'Unknown device' : 'Unknown device';
     }
-    // Client-computed presence: Online when lastSeen is within 5 minutes.
-    function isOnline(lastSeen) {
-      if (!lastSeen) return false;
-      const t = new Date(lastSeen).getTime();
-      return Number.isFinite(t) && Date.now() - t < 5 * 60 * 1000;
+    // Presence is only claimed where the server actually bumps a timestamp on
+    // activity (auth sessions); device rows show relative last-seen instead of
+    // pretending an Online/Offline verdict, and raw ids stay in tooltips.
+    function deviceName(d) {
+      return d ? deviceDisplayName(d) || tr.value.unknownDevice || 'Unknown device' : 'Unknown device';
     }
+    function platformLabel(row) {
+      const platform = devicePlatform(row);
+      return platform ? platform[0].toUpperCase() + platform.slice(1) : '';
+    }
+    // Relative "last seen" — minutes/hours/days, then the raw timestamp.
+    function seenLabel(lastSeen) {
+      const t = lastSeen ? new Date(lastSeen).getTime() : NaN;
+      if (!Number.isFinite(t)) return tr.value.never || 'never';
+      const diff = Date.now() - t;
+      if (diff < 60 * 1000) return tr.value.seenJustNow || 'just now';
+      if (diff < 60 * 60 * 1000) {
+        const n = Math.floor(diff / (60 * 1000));
+        return (tr.value.seenMinutes || '{n} min ago').replace('{n}', n);
+      }
+      if (diff < 24 * 60 * 60 * 1000) {
+        const n = Math.floor(diff / (60 * 60 * 1000));
+        return (tr.value.seenHours || '{n} h ago').replace('{n}', n);
+      }
+      if (diff < 7 * 24 * 60 * 60 * 1000) {
+        const n = Math.floor(diff / (24 * 60 * 60 * 1000));
+        return (tr.value.seenDays || '{n} d ago').replace('{n}', n);
+      }
+      return new Date(t).toLocaleDateString();
+    }
+    // The id this very install reports to the sync server, for the
+    // "This device" badge (async — resolved in onMounted).
+    const thisDeviceId = ref(null);
 
     const workspaceId = computed(
       () => workspaceStore.activeId || accountStore.activeWorkspaceId || null
@@ -832,6 +817,9 @@ export default {
       if (flags.value.audit) {
         await loadSsoConfigs();
       }
+      try {
+        thisDeviceId.value = await getSyncDeviceId();
+      } catch { /* badge only — absence hides it */ }
     });
 
     watch(workspaceId, () => {
@@ -851,9 +839,10 @@ export default {
       storagePercent,
       historyLabel,
       devicesSummary,
-      memberSheet,
-      openMemberSheet,
-      handleRemoveFromSheet,
+      thisDeviceId,
+      deviceName,
+      platformLabel,
+      seenLabel,
       showDevices,
       toggleDevices,
       plansLoaded,
@@ -864,7 +853,6 @@ export default {
       fmt,
       memberLabel,
       sessionLabel,
-      isOnline,
       displayRole,
       goToUpgrade,
       admin,

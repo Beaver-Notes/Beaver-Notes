@@ -1,0 +1,75 @@
+{
+  "name": "tauri-plugin-passkey-api",
+  "version": "0.2.0",
+  "author": "Don Kackman",
+  "description": "Tauri plugin for WebAuthn / passkey (FIDO2) authentication on macOS/iOS, Windows, Android, and Linux.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dkackman/tauri-plugin-passkey"
+  },
+  "homepage": "https://github.com/dkackman/tauri-plugin-passkey",
+  "bugs": "https://github.com/dkackman/tauri-plugin-passkey/issues",
+  "keywords": [
+    "tauri",
+    "tauri-plugin",
+    "webauthn",
+    "passkey",
+    "fido2",
+    "authentication",
+    "mobile",
+    "ios",
+    "android"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "types": "./dist-js/index.d.ts",
+  "main": "./dist-js/index.cjs",
+  "module": "./dist-js/index.js",
+  "exports": {
+    "types": "./dist-js/index.d.ts",
+    "import": "./dist-js/index.js",
+    "require": "./dist-js/index.cjs"
+  },
+  "files": [
+    "dist-js",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "verify:package": "node scripts/verify-package.mjs",
+    "prepublishOnly": "pnpm build && pnpm verify:package",
+    "pretest": "pnpm build",
+    "test": "pnpm test:js && pnpm test:rust && (pnpm test:swift || echo '⚠️  Swift tests skipped (require iOS simulator)') && pnpm test:android",
+    "test:js": "vitest run",
+    "test:js:watch": "vitest",
+    "test:rust": "cargo test",
+    "test:swift": "pnpm test:swift:macos && pnpm test:swift:ios",
+    "test:swift:macos": "cd macos && swift test",
+    "test:swift:ios": "./scripts/materialize-tauri-ios.sh && cd ios && xcodebuild test -scheme tauri-plugin-passkey -destination 'platform=iOS Simulator,name=iPhone 17'",
+    "test:android": "cd android && (./gradlew test || gradle test || echo 'Note: Gradle wrapper not found. Install Gradle or run from Android Studio')",
+    "test:android:instrumented": "cd android && (./gradlew connectedAndroidTest || gradle connectedAndroidTest || echo 'Note: Gradle wrapper not found. Install Gradle or run from Android Studio')",
+    "format": "prettier --write . && cargo fmt && (swiftformat ios/ macos/ 2>/dev/null || echo 'Note: swiftformat not installed. Install with: brew install swiftformat') && pnpm format:kotlin",
+    "format:check": "prettier --check . && cargo fmt --check && (swiftformat --lint ios/ macos/ 2>/dev/null || echo 'Note: swiftformat not installed') && pnpm format:check:kotlin",
+    "format:js": "prettier --write .",
+    "format:rust": "cargo fmt",
+    "format:swift": "swiftformat ios/ macos/ || echo 'Note: swiftformat not installed. Install with: brew install swiftformat'",
+    "format:kotlin": "pnpm exec ktlint -F 'android/src/**/*.kt'",
+    "format:check:kotlin": "pnpm exec ktlint 'android/src/**/*.kt'",
+    "lint": "cargo clippy --all-targets -- -D warnings && (swiftlint lint --no-cache || { command -v swiftlint >/dev/null 2>&1 && exit 1; echo 'Note: swiftlint not installed. Install with: brew install swiftlint'; }) && pnpm lint:kotlin",
+    "lint:js": "prettier --check .",
+    "lint:rust": "cargo clippy --all-targets -- -D warnings",
+    "lint:swift": "swiftlint lint --no-cache || { command -v swiftlint >/dev/null 2>&1 && exit 1; echo 'Note: swiftlint not installed. Install with: brew install swiftlint'; }",
+    "lint:kotlin": "pnpm exec ktlint 'android/src/**/*.kt'"
+  },
+  "dependencies": {
+    "@tauri-apps/api": ">=2.0.0-beta.6"
+  },
+  "devDependencies": {
+    "@naturalcycles/ktlint": "1.16.1",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "rollup": "^4.62.4",
+    "tslib": "^2.8.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

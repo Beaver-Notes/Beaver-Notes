@@ -115,16 +115,19 @@ describe('HomeNoteMasonry', () => {
 
     // Scroll 6000px down. The masonry listens on `window` (its scroll parent in
     // this detached mount), so dispatch there, then flush the rAF-deferred
-    // onScroll handler. With lanes... (round-robin: item i sits at
-    // y = floor(i / cols) * 274, cols = 2), the visible window spans roughly
-    // indices 28..53, so note-n40 appears and the window stays bounded.
+    // onScroll handler. With 3 lanes at the 800px test width (round-robin:
+    // item i sits at y = floor(i / 3) * 274), row 21 starts the window, so it
+    // covers indices ~63..89 while staying bounded.
     mockScrollY = 6000;
     window.dispatchEvent(new Event('scroll'));
     await new Promise((resolve) => requestAnimationFrame(resolve));
     await nextTick();
 
-    expect(wrapper.findAll('.note-masonry__card').length).toBeLessThan(80);
-    expect(wrapper.find('[data-item-id="note-n40"]').exists()).toBe(true);
+    const ids = wrapper
+      .findAll('[data-item-id]')
+      .map((el) => Number(el.attributes('data-item-id').replace('note-n', '')));
+    expect(ids.length).toBeLessThan(80);
+    expect(Math.max(...ids)).toBeGreaterThanOrEqual(60);
   });
 
   it('emits item-click with the note id', async () => {

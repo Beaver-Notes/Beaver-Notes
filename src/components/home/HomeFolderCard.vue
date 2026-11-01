@@ -8,7 +8,7 @@
     <div
       class="absolute top-[10%] left-0 z-0 h-[20%] w-[40%] rounded-tl-xl rounded-tr-md transition-colors"
       :style="{
-        backgroundColor: folder.color || DEFAULT_FOLDER_COLOR,
+        backgroundColor: folder.color || CUSTOMIZE_DEFAULT_COLOR,
         filter: 'saturate(0.8)',
       }"
     ></div>
@@ -16,7 +16,7 @@
     <div
       class="absolute top-[20%] left-0 z-0 w-full h-[80%] rounded-xl rounded-tl-none transition-colors"
       :style="{
-        backgroundColor: folder.color || DEFAULT_FOLDER_COLOR,
+        backgroundColor: folder.color || CUSTOMIZE_DEFAULT_COLOR,
         filter: 'saturate(0.8)',
       }"
     ></div>
@@ -44,8 +44,8 @@
       class="folder-card__body absolute bottom-0 left-0 z-20 flex w-full flex-col rounded-xl px-3 pb-2.5 pt-3 text-neutral-800 h-[65%]"
       :style="{
         background: `linear-gradient(to bottom, ${
-          folder.color || lightenHex(DEFAULT_FOLDER_COLOR, 0.18)
-        }, ${folder.color || DEFAULT_FOLDER_COLOR})`,
+          folder.color || lightenHex(CUSTOMIZE_DEFAULT_COLOR, 0.18)
+        }, ${folder.color || CUSTOMIZE_DEFAULT_COLOR})`,
         transformOrigin: 'bottom center',
       }"
     >
@@ -144,8 +144,9 @@
       </div>
     </div>
 
-    <folder-customize-modal
+    <ui-customize-modal
       v-model="showCustomizeModal"
+      kind="folder"
       :folder="customizeFolder"
       :parent-id="customizeParent"
       @saved="onCustomizeSaved"
@@ -176,10 +177,9 @@ import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useDialog } from '@/lib/dialog';
 import { useRouter } from 'vue-router';
-import FolderCustomizeModal from './FolderCustomizeModal.vue';
 import FolderContextMenu from './FolderContextMenu.vue';
 import FolderTree from './FolderTree.vue';
-import { DEFAULT_FOLDER_COLOR } from '@/lib/folder-styles';
+import { CUSTOMIZE_DEFAULT_COLOR } from '@/lib/customize';
 
 const props = defineProps({
   folder: { type: Object, required: true },

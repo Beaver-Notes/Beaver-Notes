@@ -14,7 +14,7 @@
           class="transition-colors duration-150 rounded-xl flex items-center h-10 mobile:h-11 w-full gap-2 cursor-pointer"
         >
           <span
-            class="shrink-0 w-9 h-9 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
+            class="w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
           >
             <span v-if="activeEmoji">{{ activeEmoji }}</span>
             <v-remixicon v-else name="riFolderLine" size="14" />
@@ -23,12 +23,6 @@
             class="text-sm font-medium truncate flex-1 min-w-0 text-neutral-700 dark:text-neutral-300"
           >
             {{ activeName }}
-          </span>
-          <span
-            v-if="activeRole && activeRole !== 'owner'"
-            class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-medium"
-          >
-            {{ activeRole }}
           </span>
           <v-remixicon
             name="riExpandUpDownLine"
@@ -43,10 +37,10 @@
           v-tooltip:right="'Workspaces'"
           aria-label="Workspaces"
           data-testid="workspace-switcher-trigger"
-          class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+          class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
         >
           <span
-            class="w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
+            class="w-9 h-9  rounded-xl flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
           >
             <span v-if="activeEmoji">{{ activeEmoji }}</span>
             <v-remixicon v-else name="riFolderLine" size="14" />
@@ -68,7 +62,7 @@
                 ? 'account-option-active'
                 : 'account-option'
             "
-            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
             @click="switchToAccount(acct.id)"
           >
             <span
@@ -111,12 +105,14 @@
           <!-- Only the active account has a live workspace list; another
                account's workspaces appear after one switch. -->
           <div v-if="acct.id === activeAccountId" class="pl-3">
-            <div v-for="ws in workspaces" :key="ws.id" class="group relative">
+            <div v-for="ws in workspaces" :key="ws.id">
               <button
                 :data-testid="
-                  ws.id === activeId ? 'workspace-option-active' : 'workspace-option'
+                  ws.id === activeId
+                    ? 'workspace-option-active'
+                    : 'workspace-option'
                 "
-                class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+                class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
                 @click="switchWorkspace(ws.id)"
               >
                 <span
@@ -142,11 +138,42 @@
                   {{ ws.name }}
                 </span>
 
+                <!-- Customize + team settings are always visible: on phones
+                     there is no hover, and hiding management behind one made
+                     them undiscoverable. -->
                 <span
-                  v-if="ws.role && ws.role !== 'owner'"
-                  class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-bold font-medium"
+                  v-if="canManageWorkspace(ws)"
+                  class="shrink-0 -mr-1 flex items-center gap-0.5"
                 >
-                  {{ ws.role }}
+                  <button
+                    class="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 motion-press"
+                    :aria-label="`Customize ${ws.name}`"
+                    @click.stop="promptRename(ws)"
+                  >
+                    <v-remixicon
+                      name="riEditLine"
+                      size="14"
+                      class="text-neutral-400"
+                    />
+                  </button>
+                  <button
+                    class="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 motion-press"
+                    :aria-label="`Team settings for ${ws.name}`"
+                    @click.stop="goToTeamSettings(ws)"
+                  >
+                    <v-remixicon
+                      name="riSettingsLine"
+                      size="14"
+                      class="text-neutral-400"
+                    />
+                  </button>
+                </span>
+
+                <span
+                  v-if="ws.local"
+                  class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-medium"
+                >
+                  Local
                 </span>
 
                 <v-remixicon
@@ -156,29 +183,37 @@
                   class="shrink-0 text-primary"
                 />
               </button>
-              <button
-                v-if="canManageWorkspace(ws)"
-                class="absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
-                @click.stop="promptRename(ws)"
-                aria-label="Rename workspace"
-              >
-                <v-remixicon name="riEditLine" size="12" class="text-neutral-400" />
-              </button>
-              <button
-                v-if="canManageWorkspace(ws)"
-                class="absolute ltr:right-6 rtl:left-6 top-1/2 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
-                @click.stop="goToTeamSettings"
-                aria-label="Team settings"
-              >
-                <v-remixicon
-                  name="riSettingsLine"
-                  size="12"
-                  class="text-neutral-400"
-                />
-              </button>
             </div>
           </div>
         </div>
+
+        <template v-if="archived.length">
+          <div
+            class="px-2.5 pb-1.5 pt-2 text-xs font-semibold font-bold text-neutral-500 dark:text-neutral-400 select-none"
+          >
+            Deleted (restorable 10 days)
+          </div>
+          <div
+            v-for="ws in archived"
+            :key="ws.id"
+            class="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-sm text-neutral-500 dark:text-neutral-400"
+          >
+            <span
+              class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center bg-neutral-100 dark:bg-neutral-800"
+            >
+              <v-remixicon name="riDeleteBin6Line" size="14" />
+            </span>
+            <span class="truncate flex-1 min-w-0">{{ ws.name }}</span>
+            <button
+              class="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 motion-press"
+              :aria-label="`Restore ${ws.name}`"
+              :title="archivedUntil(ws)"
+              @click="restoreArchived(ws)"
+            >
+              <v-remixicon name="riArrowGoBackLine" size="14" />
+            </button>
+          </div>
+        </template>
 
         <template v-if="pendingRequests.length">
           <div
@@ -200,13 +235,11 @@
           </div>
         </template>
 
-        <div
-          class="border-t border-neutral-200 dark:border-neutral-700 my-1"
-        />
+        <div class="border-t border-neutral-200 dark:border-neutral-700 my-1 px-2" />
 
         <button
           v-if="canCreateWorkspace"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="promptCreate"
         >
           <span
@@ -219,7 +252,7 @@
 
         <button
           v-if="isPaid"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="promptJoin"
         >
           <span
@@ -232,7 +265,7 @@
 
         <button
           data-testid="add-account"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="addAccount"
         >
           <span
@@ -247,7 +280,7 @@
           v-if="activeAccount"
           data-testid="account-signout"
           :data-account-id="activeAccountId"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="promptSignOut"
         >
           <span
@@ -271,18 +304,22 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useAccountStore } from '@/store/account';
-import { getPlans } from '@/lib/api/plans';
 import { normalizeInviteToken } from '@/lib/api/collaboration';
 import { useDialog } from '@/lib/dialog';
 import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
+import {
+  listArchivedWorkspaces,
+  restoreLocalWorkspace,
+} from '@/lib/native/workspaces';
 import { signOutAccount, switchAccount } from '@/composable/useAccountAuth';
 import { isPhoneRuntime } from '@/lib/tauri/runtime';
+import { foldState } from '@/lib/foldable';
 import WorkspaceFormDialog from './WorkspaceFormDialog.vue';
 
 export default {
@@ -301,11 +338,13 @@ export default {
     const popoverOpen = ref(false);
     // Phones get a bottom sheet: a dropdown anchored to the top of a phone screen
     // has no room for the list, and its 36px rows are under the touch minimum.
-    const sheetMode = isPhoneRuntime();
-    const dashboardFlag = ref(false);
+    // The rail is a popover context, not a sheet one: a bottom sheet from a rail
+    // button is a phone interaction on what may be a 951px canvas.
+    const sheetMode = isPhoneRuntime() && !foldState.isFoldable;
     const formDialogShow = ref(false);
     const formDialogMode = ref('create');
     const formDialogWorkspace = ref(null);
+    const archived = ref([]);
 
     const workspaces = computed(() => workspaceStore.workspaces);
     const pendingRequests = computed(() => cloud.pendingRequests);
@@ -315,11 +354,8 @@ export default {
         workspaces.value.find((w) => w.id === activeId.value) ??
         workspaces.value[0],
     );
-    const activeName = computed(
-      () => activeWs.value?.name ?? 'Default',
-    );
+    const activeName = computed(() => activeWs.value?.name ?? 'Default');
     const activeEmoji = computed(() => activeWs.value?.emoji ?? '');
-    const activeRole = computed(() => activeWs.value?.role ?? null);
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const isPaid = computed(() => accountStore.isPaidPlan);
     const accounts = computed(() => listAccounts());
@@ -333,7 +369,7 @@ export default {
     const canCreateWorkspace = computed(() => {
       if (accountStore.planLimits?.flags?.teamWorkspaces === true) return true;
       if (!isPaid.value) return false;
-      const list = workspaces.value;
+      const list = workspaces.value.filter((w) => !w.local);
       if (!list || workspaceStore.loading) return false;
       return list.length === 0;
     });
@@ -354,27 +390,48 @@ export default {
       return typeof plan === 'string' ? plan : '';
     }
 
-    function canManageWorkspace(ws) {
-      return (
-        dashboardFlag.value && (ws.role === 'owner' || ws.role === 'admin')
-      );
+    const canManageWorkspace = (ws) =>
+      ws.role === 'owner' || ws.role === 'admin';
+
+    // Deleted local workspaces whose files are still kept: restoring is just a
+    // move back, so the list is read on every open instead of being cached.
+    async function loadArchived() {
+      archived.value = (await listArchivedWorkspaces().catch(() => [])) || [];
+    }
+
+    function archivedUntil(ws) {
+      const at = Date.parse(ws?.archivedAt || '');
+      if (!Number.isFinite(at)) return '';
+      const until = new Date(at + 10 * 24 * 60 * 60 * 1000);
+      return `Restorable until ${until.toLocaleDateString()}`;
+    }
+
+    async function restoreArchived(ws) {
+      try {
+        await restoreLocalWorkspace(ws.id);
+        await workspaceStore.retrieve();
+        await loadArchived();
+      } catch (err) {
+        useDialog().alert({
+          title: 'Restore failed',
+          description: err?.message || 'The kept copy is no longer available.',
+        });
+      }
     }
 
     onMounted(async () => {
       await workspaceStore.retrieve();
       if (accountStore.isAuthenticated) {
-        getPlans({ baseUrl: accountStore.serverUrl })
-          .then((plans) => {
-            dashboardFlag.value = Boolean(plans?.flags?.dashboard);
-          })
-          .catch(() => {
-            /* plans optional */
-          });
         cloud.fetchMyPendingRequests().catch(() => {
           /* pending list is non-critical */
         });
+        await loadArchived();
       }
       await nextTick();
+    });
+
+    watch(popoverOpen, (open) => {
+      if (open && accountStore.isAuthenticated) loadArchived();
     });
 
     // Switching is in place now: the leaving workspace is flushed and the
@@ -456,12 +513,10 @@ export default {
           }
         }
       }
-      // Renaming/re-decorating updates in place; a new workspace is switched to
-      // in place too. Land on the workspace settings page so the fresh (empty)
-      // workspace immediately offers the invite affordance instead of dumping
-      // the user into a blank workspace.
+      // A new workspace is switched to in place and lands on its notes list.
+      // Forcing the settings page here stranded mobile users in Settings with
+      // no way back to the workspace they had just created (F25).
       if (created) {
-        window.location.hash = '#/settings/workspace';
         await switchAccount({
           accountId: activeAccountId.value,
           workspaceId: created.id,
@@ -475,8 +530,17 @@ export default {
       formDialogShow.value = true;
     }
 
-    function goToTeamSettings() {
-      popoverOpen.value = false;
+    // Team settings manages the workspace it was opened for: if that isn't the
+    // active one, switch first so the settings page shows the right team.
+    async function goToTeamSettings(ws) {
+      if (ws && ws.id !== activeId.value) {
+        await switchAccount({
+          accountId: activeAccountId.value,
+          workspaceId: ws.id,
+        });
+      } else {
+        popoverOpen.value = false;
+      }
       router.push('/settings/workspace');
     }
 
@@ -518,11 +582,11 @@ export default {
       popoverOpen,
       sheetMode,
       workspaces,
+      archived,
       pendingRequests,
       activeId,
       activeName,
       activeEmoji,
-      activeRole,
       isAuthenticated,
       isPaid,
       accounts,
@@ -533,6 +597,8 @@ export default {
       accountPlan,
       canCreateWorkspace,
       canManageWorkspace,
+      archivedUntil,
+      restoreArchived,
       switchWorkspace,
       switchToAccount,
       addAccount,

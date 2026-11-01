@@ -23,7 +23,7 @@
             @click="selectAccount(acct.id)"
           >
             <ui-user-avatar
-              :name="displayName"
+              :name="accountLabel(acct)"
               :size="40"
               :class="acct.id === activeAccountId ? 'ring-2 ring-primary' : ''"
             />
@@ -235,94 +235,6 @@
           </ui-expand-collapse>
         </div>
 
-        <!-- Quick connect -->
-        <div class="acct-divided px-4 py-3">
-          <button
-            type="button"
-            class="acct-toggle"
-            :aria-expanded="showQuickConnect"
-            @click="showQuickConnect = !showQuickConnect"
-          >
-            <span>{{
-              translations.account?.quickConnect ||
-              'Signing in from another device?'
-            }}</span>
-            <v-remixicon
-              name="riArrowDownSLine"
-              size="18"
-              class="transition-transform"
-              :class="{ 'rotate-180': showQuickConnect }"
-            />
-          </button>
-          <ui-expand-collapse
-            :open="showQuickConnect"
-            max-open="max-h-[32rem]"
-            :inert="showQuickConnect ? null : true"
-          >
-            <div class="space-y-2 p-1 pt-3">
-              <p class="acct-desc">
-                {{
-                  translations.account?.quickConnectBody ||
-                  'Approve a code on another device that is already signed in.'
-                }}
-              </p>
-              <ui-button
-                v-if="!quickConnectSecret"
-                class="w-full"
-                variant="secondary"
-                :loading="accountStore.busy"
-                :disabled="accountStore.busy"
-                @click="startQuickConnect"
-              >
-                <v-remixicon name="riQrCodeLine" class="mr-1" />
-                {{ translations.account?.quickConnectStart || 'Start' }}
-              </ui-button>
-              <template v-else>
-                <ui-card
-                  padding="px-3 py-2"
-                  radius="rounded-xl"
-                  class="text-center font-mono text-lg dark:text-neutral-200"
-                >
-                  {{
-                    translations.account?.quickConnectHint ||
-                    'Enter this code on your other device, or paste a code from another device here.'
-                  }}
-                </ui-card>
-                <ui-input
-                  v-model="quickConnectCode"
-                  class="w-full"
-                  :placeholder="
-                    translations.account?.quickConnectEnterCode ||
-                    'Enter code from another device'
-                  "
-                  @keyup.enter="authorizeQuickConnect"
-                />
-                <div class="flex gap-2">
-                  <ui-button
-                    class="flex-1"
-                    variant="secondary"
-                    @click="pollQuickConnect"
-                  >
-                    <v-remixicon name="riRefreshLine" class="mr-1" />
-                    {{
-                      translations.account?.quickConnectCheck ||
-                      'Check approval'
-                    }}
-                  </ui-button>
-                  <ui-button
-                    class="flex-1"
-                    :loading="accountStore.busy"
-                    :disabled="accountStore.busy"
-                    @click="authorizeQuickConnect"
-                  >
-                    {{ translations.account?.quickConnectUse || 'Use code' }}
-                  </ui-button>
-                </div>
-              </template>
-            </div>
-          </ui-expand-collapse>
-        </div>
-
         <div v-if="accountStore.error" class="acct-divided px-4 py-3">
           <p class="text-sm text-red-500" role="alert">
             {{ accountStore.error }}
@@ -343,7 +255,10 @@
         {{ translations.account?.title || 'Beaver Account' }}
       </h2>
 
-      <div v-if="showVaultImportPrompt" class="bg-primary/5 border-primary rounded-xl p-4">
+      <div
+        v-if="showVaultImportPrompt"
+        class="bg-primary/5 border-primary rounded-xl p-4"
+      >
         <div class="flex items-center space-x-2">
           <div>
             <v-remixicon name="riShieldKeyholeLine" class="h-full" />

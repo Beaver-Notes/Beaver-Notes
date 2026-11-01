@@ -7,7 +7,7 @@
       <transition name="modal" mode="out-in">
         <div
           v-if="show"
-          class="modal-ui__content-container fixed inset-0 flex items-center justify-center bg-black/20 p-0 md:p-5 mobile:items-end"
+          class="modal-ui__content-container group fixed inset-0 flex items-center justify-center bg-black/20 p-0 md:p-5 mobile:items-end mobile:p-0 tablet:items-end tablet:p-0 folded:items-end folded:p-0"
           :class="overlayClass"
           :style="{ 'backdrop-filter': blur && 'blur(2px)' }"
           @click.self="closeModal"
@@ -20,52 +20,76 @@
             aria-modal="true"
             :aria-label="title || undefined"
             :class="[
-              // Vertical-only pan: kills diagonal page pans; grid scroll + close-drag unaffected.
-              // On foldables the card sits left of the app rail; the backdrop
-              // itself must still cover the rail side (fixed inset-0 above).
-              'modal-ui__content w-full shadow-lg touch-pan-y foldable:mr-[var(--app-rail-width)] mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm mobile:max-h-[calc(100dvh_-_0.75rem)] mobile:overflow-y-auto',
+              'modal-ui__content w-full shadow-lg touch-pan-y foldable:max-w-xl foldable:max-h-[100dvh] foldable:mr-[var(--app-rail-width)]',
+              'folded:max-w-full folded:max-h-[100dvh] folded:overflow-y-auto',
+              'folded:mr-0',
+              'folded:pl-[calc(var(--app-safe-area-left)+1rem)]',
+              'folded:pr-[var(--app-rail-width)]',
+              'folded:rounded-t-[1.25rem] folded:rounded-b-none folded:border-x-0 folded:border-b-0 folded:shadow-sm',
+              'folded:origin-bottom folded:!pb-[max(env(safe-area-inset-bottom,0px),0.75rem)]',
+              'folded:motion-safe:group-[.modal-enter-from]:[transform:translate3d(0,24px,0)]',
+              'folded:motion-safe:group-[.modal-leave-to]:[transform:translate3d(0,24px,0)]',
+              'mobile:max-w-full mobile:max-h-[calc(100dvh_-_0.75rem)] mobile:overflow-y-auto',
+              'mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm',
+              'mobile:origin-bottom mobile:!pb-[max(env(safe-area-inset-bottom,0px),0.75rem)]',
+              'mobile:motion-safe:group-[.modal-enter-from]:[transform:translate3d(0,24px,0)]',
+              'mobile:motion-safe:group-[.modal-leave-to]:[transform:translate3d(0,24px,0)]',
+              'tablet:max-w-2xl tablet:overflow-y-auto',
+              'tablet:rounded-t-[1.25rem] tablet:rounded-b-none tablet:border-x-0 tablet:border-b-0 tablet:shadow-sm',
+              'tablet:origin-bottom tablet:!pb-[max(env(safe-area-inset-bottom,0px),0.75rem)]',
+              'tablet:motion-safe:group-[.modal-enter-from]:[transform:translate3d(0,24px,0)]',
+              'tablet:motion-safe:group-[.modal-leave-to]:[transform:translate3d(0,24px,0)]',
               contentClass,
               { '!transition-none': isDragging },
             ]"
             :style="modalContentStyle"
           >
             <div
-              class="hidden cursor-grab touch-none select-none mobile:block -mt-2 px-8 pb-1 pt-3"
+              class="hidden cursor-grab touch-none select-none mobile:block tablet:block folded:block -mt-2 px-8 pb-1 pt-3"
               @touchstart.passive="handleTouchStart"
               @touchmove="handleTouchMove"
               @touchend="handleTouchEnd"
               @touchcancel="handleTouchCancel"
             >
-              <div
-                class="mx-auto h-1 w-9 rounded-full bg-neutral-400/60"
-              ></div>
+              <div class="mx-auto h-1 w-9 rounded-full bg-neutral-400/60"></div>
             </div>
+
             <div v-if="$slots.header || title" class="mb-4">
               <slot name="header">
                 <div class="flex flex-row items-center gap-4">
                   <div
                     v-if="icon"
                     class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-                    :class="iconVariant === 'danger'
-                      ? 'bg-red-100 dark:bg-red-900/30'
-                      : 'bg-neutral-100 dark:bg-neutral-700'"
+                    :class="
+                      iconVariant === 'danger'
+                        ? 'bg-red-100 dark:bg-red-900/30'
+                        : 'bg-neutral-100 dark:bg-neutral-700'
+                    "
                   >
                     <v-remixicon
                       :name="icon"
                       size="24"
-                      :class="iconVariant === 'danger' ? 'text-red-500' : 'text-neutral-600 dark:text-neutral-300'"
+                      :class="
+                        iconVariant === 'danger'
+                          ? 'text-red-500'
+                          : 'text-neutral-600 dark:text-neutral-300'
+                      "
                     />
                   </div>
-                  <h3 class="font-semibold text-lg tracking-tight leading-snug">{{ title }}</h3>
+                  <h3 class="font-semibold text-lg tracking-tight leading-snug">
+                    {{ title }}
+                  </h3>
                 </div>
               </slot>
             </div>
+
             <div>
               <slot></slot>
             </div>
+
             <div
               v-if="$slots.actions"
-              class="flex gap-3 mobile:flex-col-reverse pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700"
+              class="flex gap-3 mobile:flex-col-reverse tablet:flex-col-reverse pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700"
             >
               <slot name="actions"></slot>
             </div>
@@ -75,6 +99,7 @@
     </teleport>
   </div>
 </template>
+
 <script>
 import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
 import { useUiState } from '@/composable/useUiState';
@@ -337,6 +362,7 @@ export default {
   },
 };
 </script>
+
 <style>
 .modal-enter-active,
 .modal-leave-active {
@@ -374,22 +400,9 @@ export default {
 
 /* Fixed backdrop must never be a scroller: `clip` (unlike `hidden`) is not a
    scroll container, so chained scrolls from inner scrollers skip it entirely
-   instead of displacing the whole sheet. Inner scrollers (picker grid,
-   customizer list) keep working; no consumer uses the `scrollable` prop. */
+   instead of displacing the whole sheet. */
 .modal-ui__content-container {
   overflow-y: clip;
-}
-
-@media (max-width: 767px) {
-  .modal-ui__content {
-    transform-origin: center bottom;
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.75rem) !important;
-  }
-
-  .modal-enter-from .modal-ui__content,
-  .modal-leave-to .modal-ui__content {
-    transform: translate3d(0, 24px, 0);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

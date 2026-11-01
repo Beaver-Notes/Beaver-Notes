@@ -1,5 +1,5 @@
 <template>
-  <div class="general mb-14 w-full max-w-2xl">
+  <div class="general mb-14 w-full max-w-xl">
     <settings-group
       :title="translations.labels?.title || 'Labels'"
       :badge="`${sortedLabels.length} ${translations.labels?.total || 'total'}`"

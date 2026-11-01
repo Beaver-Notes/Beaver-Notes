@@ -104,9 +104,9 @@ const props = defineProps({
     type: Array,
     default: () => [
       { min: 0, cols: 2 },
-      { min: 640, cols: 2 },
-      { min: 768, cols: 2 },
-      { min: 1024, cols: 3 },
+      { min: 640, cols: 2},
+      { min: 768, cols: 3 },
+      { min: 1024, cols: 4 },
       { min: 1280, cols: 4 },
     ],
   },
@@ -156,9 +156,6 @@ const isItemLeaving = (id) => leavingItems.has(id);
 const isItemEntering = (id) => enteringItems.has(id);
 
 function estimateNoteHeight(note) {
-  // Pre-measure guess so cards land close to their real size before the
-  // ResizeObserver corrects them. Chrome: pt-4 (16) + shell mt-1.5 (6) +
-  // preview shell (140) + action bar (44) + card border (2) = 208.
   const tLines = Math.min(
     2,
     Math.max(1, Math.ceil(String(note.title ?? '').trim().length / 28)),
@@ -274,9 +271,6 @@ const visibleItems = computed(() => {
 const skeletonCount = computed(() => columnCount.value * 3);
 
 const onScroll = () => {
-  // While the user is actively scrolling, height corrections must apply
-  // instantly — the card transform transition would otherwise turn every
-  // late measurement into a visible glide.
   isScrolling.value = true;
   clearTimeout(scrollIdleTimer);
   scrollIdleTimer = setTimeout(() => {
@@ -377,8 +371,6 @@ function onCardObserved(entries) {
   });
 }
 
-// On container resize, column count changes → cards reflow and change height.
-// Clear the cache and re-measure mounted cards; per-card ResizeObserver fixes the rest.
 watch(columnCount, () => {
   cardHeights.clear();
   measuredVersion.value++;
@@ -589,9 +581,6 @@ onBeforeUnmount(() => {
   }
 }
 
-/* The masonry windows the DOM itself, so the card's own
-   content-visibility:auto (HomeNoteCard.vue) is redundant here and causes
-   320px placeholder flashes on scroll. Force it off for cards in the grid. */
 .note-masonry :deep(.note-card) {
   content-visibility: visible;
 }

@@ -9,6 +9,8 @@ import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { getAppDirectory } from '@/lib/native/app';
 import { getSettingSync, setSettingsMirrorNamespace } from '@/lib/settings';
 import { initializeThemeHandling } from './utils/themeHandler';
+import { initFoldState } from '@/lib/foldable';
+import { initScribbleTargets } from '@/lib/native/scribble';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
@@ -20,6 +22,10 @@ setSettingsMirrorNamespace(await getAppDirectory().catch(() => ''));
 performance.mark('app:init');
 
 initializeThemeHandling();
+
+// Foldable geometry: publishes <html>.runtime-foldable and --fold-* variables.
+initFoldState();
+initScribbleTargets();
 
 // ponytail: iOS WKWebView shows black if JS throws before mount, log and keep bg white
 window.addEventListener('error', (e) => console.error('[app] global error:', e.message, e.error));

@@ -36,12 +36,27 @@ impl<R: Runtime> SafeAreaInsetsCss<R> {
             .map_err(Into::into)
     }
 
+    pub fn get_fold_state(&self) -> crate::Result<FoldState> {
+        self.0
+            .run_mobile_plugin("getFoldState", ())
+            .map_err(Into::into)
+    }
+
     pub fn set_scribble_enabled(&self, enabled: bool) -> crate::Result<()> {
         self.0
             .run_mobile_plugin(
                 "setScribbleEnabled",
                 SetScribbleEnabledRequest { enabled },
             )
+            .map_err(Into::into)
+    }
+
+    pub fn set_scribble_targets(
+        &self,
+        targets: Vec<ScribbleTargetRect>,
+    ) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("setScribbleTargets", ScribbleTargetsRequest { targets })
             .map_err(Into::into)
     }
 }

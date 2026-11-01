@@ -1,12 +1,16 @@
 <template>
   <div
     v-if="show"
-    class="flex items-center gap-0.5 rounded-full border border-neutral-200 py-1 px-1.5 shadow-xl backdrop-blur-xl dark:border-neutral-800 bg-white dark:bg-neutral-900"
+    class="max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-full border border-neutral-200 bg-white py-1 px-1.5 shadow-xl backdrop-blur-xl dark:border-neutral-800 dark:bg-neutral-900"
     :class="fixed ? `fixed z-[70] ${position}` : ''"
     :role="ariaLabel ? 'region' : undefined"
     :aria-label="ariaLabel || undefined"
   >
-    <slot />
+    <div
+      class="flex items-center gap-0.5 overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0"
+    >
+      <slot />
+    </div>
   </div>
 </template>
 

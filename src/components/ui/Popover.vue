@@ -23,15 +23,30 @@
         <div
           v-show="isShow"
           ref="content"
-          :style="sheet ? undefined : floatingStyles"
+          :role="sheet ? 'dialog' : undefined"
+          :aria-modal="sheet ? 'true' : undefined"
+          :style="[sheet ? undefined : floatingStyles, sheetDragStyle]"
           :class="[
             originClass,
             sheet
               ? 'ui-popover__content--sheet fixed inset-x-0 bottom-0 w-full rounded-t-2xl border-x-0 border-b-0 max-h-[80dvh] overflow-y-auto p-2 pb-[max(env(safe-area-inset-bottom),0.75rem)]'
               : 'rounded-xl p-1',
+            { '!transition-none': sheetDragging },
           ]"
           class="ui-popover__content bg-white dark:bg-neutral-900 shadow-xl border z-50"
         >
+          <!-- Grab strip: swipe-down closes the sheet; listeners live here so
+               list/grid touches inside the panel are never hijacked. -->
+          <div
+            v-if="sheet"
+            class="cursor-grab touch-none select-none px-8 pb-1 pt-1.5"
+            @touchstart.passive="onSheetTouchStart"
+            @touchmove="onSheetTouchMove"
+            @touchend="onSheetTouchEnd"
+            @touchcancel="onSheetTouchCancel"
+          >
+            <div class="mx-auto h-1 w-9 rounded-full bg-neutral-400/60"></div>
+          </div>
           <slot v-bind="{ isShow }"></slot>
         </div>
       </Transition>
@@ -106,6 +121,46 @@ export default {
     });
 
     const { lock: lockScroll, unlock: unlockScroll } = useScrollLock();
+
+    // Sheet drag-to-close: dx of the grab strip only; the panel springs back
+    // when the release is short, closes when the drag crosses the threshold.
+    const sheetDragOffset = ref(null);
+    let sheetStartY = 0;
+    const sheetDragging = computed(() => (sheetDragOffset.value ?? 0) > 0);
+    const sheetDragStyle = computed(() => {
+      if (props.sheet === false || sheetDragOffset.value === null) return null;
+      return { transform: `translateY(${Math.max(sheetDragOffset.value, 0)}px)` };
+    });
+
+    const onSheetTouchStart = (event) => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      sheetStartY = touch.clientY;
+      sheetDragOffset.value = 0;
+    };
+
+    const onSheetTouchMove = (event) => {
+      if (sheetDragOffset.value === null) return;
+      if (!event.cancelable) return;
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      const delta = touch.clientY - sheetStartY;
+      sheetDragOffset.value = delta > 0 ? delta : 0;
+      event.preventDefault();
+    };
+
+    const onSheetTouchEnd = () => {
+      if (sheetDragging.value && sheetDragOffset.value >= 120) {
+        sheetDragOffset.value = null;
+        hide();
+        return;
+      }
+      sheetDragOffset.value = null;
+    };
+
+    const onSheetTouchCancel = () => {
+      sheetDragOffset.value = null;
+    };
 
     const show = () => {
       if (props.disabled) return;
@@ -185,6 +240,14 @@ export default {
       originClass,
       onTriggerClick,
       hide,
+      // Sheet drag-to-close: without these the template reads undefined props
+      // (a warning on every render) and the drag does nothing.
+      sheetDragging,
+      sheetDragStyle,
+      onSheetTouchStart,
+      onSheetTouchMove,
+      onSheetTouchEnd,
+      onSheetTouchCancel,
     };
   },
 };

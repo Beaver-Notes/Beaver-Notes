@@ -163,8 +163,7 @@
       </settings-row>
     </settings-group>
 
-    <div :title="translations.appearance.interfaceSize || 'Interface size'">
-      <div class="p-4 pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div class="grid grid-cols-4 gap-3">
         <div
           v-for="opt in [
             {
@@ -193,15 +192,15 @@
             },
           ]"
           :key="opt.key"
-          class="flex flex-col items-center gap-1.5"
+          class="cursor-pointer min-w-0 select-none"
         >
           <button
             type="button"
-            class="relative w-full bg-white dark:bg-neutral-900 p-4 rounded-xl border-2 transition flex flex-col items-center gap-2 focus:outline-none"
+            class="relative w-full h-[84px] sm:h-[96px] flex items-center justify-center rounded-2xl border-2 transition focus:outline-none"
             :class="
               String(state.zoomLevel) === opt.key
-                ? 'ring-2 ring-primary'
-                : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
+                ? 'ring-primary'
+                : 'border'
             "
             :aria-pressed="String(state.zoomLevel) === opt.key"
             @click="setZoom(Number(opt.key))"
@@ -213,17 +212,16 @@
             >
           </button>
           <span
-            class="text-xs font-medium tracking-wide font-bold text-center"
+            class="mt-1.5 block text-xs sm:text-sm font-medium text-center"
             :class="
               String(state.zoomLevel) === opt.key
                 ? 'text-primary'
-                : 'text-neutral-500 dark:text-neutral-400'
+                : 'text-neutral-600 dark:text-neutral-400'
             "
             >{{ opt.label }}</span
           >
         </div>
       </div>
-    </div>
 
     <settings-group :title="translations.appearance.font || 'Typography'">
       <settings-row

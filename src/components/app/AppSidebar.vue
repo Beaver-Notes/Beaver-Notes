@@ -5,13 +5,14 @@
   >
     <div
       class="pt-5 px-3 mb-3 shrink-0"
-      :class="expanded ? 'flex justify-end' : ''"
+      :class="expanded ? 'flex items-center gap-1' : ''"
     >
       <WorkspaceSwitcher :expanded="expanded" />
       <button
         v-tooltip:right="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
         :aria-label="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
-        class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+        class="w-9 h-9 mt-1 flex items-center justify-center rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+        :class="expanded ? 'ltr:ml-auto rtl:mr-auto' : ''"
         @click="toggleExpanded"
       >
         <v-remixicon
@@ -27,7 +28,10 @@
       class="px-3 pb-3 shrink-0"
       :class="expanded ? 'flex' : 'flex justify-center'"
     >
-      <PresenceAvatars :peers="workspacePresence.peers.value" :max-visible="4" />
+      <PresenceAvatars
+        :peers="workspacePresence.peers.value"
+        :max-visible="4"
+      />
     </div>
 
     <div class="px-3 mb-4 shrink-0">
@@ -422,8 +426,9 @@
       </router-link>
     </div>
 
-    <folder-customize-modal
+    <ui-customize-modal
       v-model="showCreateFolderModal"
+      kind="folder"
       :folder="null"
       :parent-id="currentFolderId"
       @saved="onFolderCreated"
@@ -445,7 +450,6 @@ import { useAppShellActions } from '@/composable/useAppShellActions';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useSounds } from '@/composable/useSounds';
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
-import FolderCustomizeModal from '../home/FolderCustomizeModal.vue';
 import { useSyncProgressStore } from '@/store/sync-progress';
 import { useSidebar } from '@/composable/useSidebar';
 import { useAccountStore } from '@/store/account';
@@ -453,7 +457,7 @@ import { useWorkspacePresence } from '@/composable/useWorkspacePresence';
 import PresenceAvatars from '@/components/note/PresenceAvatars.vue';
 
 export default {
-  components: { WorkspaceSwitcher, FolderCustomizeModal, PresenceAvatars },
+  components: { WorkspaceSwitcher, PresenceAvatars },
   setup() {
     const { play } = useSounds();
     const router = useRouter();

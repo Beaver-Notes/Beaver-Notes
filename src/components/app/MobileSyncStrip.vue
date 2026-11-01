@@ -3,7 +3,7 @@
     <div
       v-if="visible"
       data-testid="mobile-sync-strip"
-      class="mx-4 mt-[calc(var(--app-safe-area-top)+0.5rem)] rounded-2xl bg-white/95 px-3 py-2 shadow-lg ring-1 ring-black/5 backdrop-blur-xl dark:bg-neutral-900/95 dark:ring-white/10"
+      class="mx-4 rounded-2xl px-3 py-2"
     >
       <div
         role="status"
@@ -32,19 +32,6 @@
         >
           {{ lastSyncLabel }}
         </span>
-        <button
-          type="button"
-          data-testid="sync-toggle"
-          class="shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
-          :disabled="syncProgressStore.isSyncing"
-          @click="syncNow"
-        >
-          {{
-            syncProgressStore.isSyncing
-              ? translations.settings?.syncing || 'Syncing...'
-              : translations.settings?.syncNow || 'Sync now'
-          }}
-        </button>
       </div>
 
       <div
@@ -75,7 +62,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useSyncProgressStore } from '@/store/sync-progress';
 import { useSyncControl } from '@/composable/useSyncControl';
 
-const AUTO_HIDE_MS = 4000;
+const AUTO_HIDE_MS = 1500;
 const REVEAL_PX = 20;
 const TRIGGER_PX = 64;
 
@@ -166,8 +153,16 @@ function atTop() {
   return !scroller || scroller.scrollTop <= 0;
 }
 
+function dialogOpen() {
+  return Boolean(
+    typeof document !== 'undefined' &&
+      document.querySelector('[role="dialog"]'),
+  );
+}
+
 function onTouchStart(event) {
-  if ((event.touches?.length ?? 0) !== 1 || !atTop()) {
+  // Modals close by swipe-down; that gesture must never also pull-to-sync.
+  if ((event.touches?.length ?? 0) !== 1 || dialogOpen() || !atTop()) {
     startY = null;
     return;
   }

@@ -47,12 +47,27 @@
   --app-mobile-floating-offset: calc(
     var(--app-mobile-content-offset) + 0.75rem
   );
+  /* Right rail: 0 on every device without one, so `right: var(--app-rail-width)`
+     is a no-op everywhere else. Fold geometry lands here from src/lib/foldable. */
+  --app-rail-width: 0px;
+  --fold-segment-width: 0px;
+  --fold-crease-left: 0px;
+  --fold-crease-width: 0px;
+  --fold-orientation: none;
   --text-dark: theme('colors.neutral.900');
   --text-muted: theme('colors.neutral.500');
   --bg-code: theme('colors.neutral.50');
   --bg-code-dark: theme('colors.neutral.900');
   --border-input: theme('colors.neutral.300');
   --scrollbar-thumb: #d8d9d9;
+}
+
+/* html. prefix beats :root on specificity, so rule order cannot zero the rail. */
+html.runtime-foldable {
+  --app-rail-width: max(calc(env(safe-area-inset-right, 0px) + 2rem));
+  --app-rail-safe-top: calc(
+    max(var(--app-safe-area-top), var(--app-safe-area-right)) + 0.75rem
+  );
 }
 
 :root.dark {
@@ -361,4 +376,3 @@ html.prefers-reduced-motion .route-stage-leave-to {
 .motion-press:active {
   transform: scale(0.98);
 }
-

@@ -1,9 +1,9 @@
 <template>
   <ui-modal :model-value="state.show" content-class="max-w-md" overlay-class="z-[70]" persist>
     <template v-if="state.type === 'alert'">
-      <div class="text-left mb-6 mobile:text-center">
+      <div class="text-left mb-6">
         <div
-          class="flex flex-row items-start gap-7 mb-2 mobile:flex-col mobile:items-center mobile:gap-4 mobile:mt-6"
+          class="flex flex-row items-start gap-7 mb-2 mobile:flex-col mobile:gap-4 mobile:mt-6"
         >
           <div v-if="state.options.icon" class="flex-shrink-0">
             <div
@@ -46,7 +46,7 @@
 
     <template v-else>
       <div
-        class="flex flex-col items-start text-left mobile:flex-col mobile:items-center mobile:text-center gap-3 mb-4 mobile:mt-6"
+        class="flex flex-col items-start text-left mobile:flex-col gap-3 mb-4 mobile:mt-6"
       >
         <div v-if="state.options.icon" class="flex-shrink-0">
           <div

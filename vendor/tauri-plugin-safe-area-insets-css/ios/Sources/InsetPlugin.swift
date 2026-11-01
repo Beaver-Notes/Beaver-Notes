@@ -11,6 +11,21 @@ class SetScribbleEnabledArgs: Decodable {
   let enabled: Bool
 }
 
+struct ScribbleTargetRect: Decodable {
+  let left: Double
+  let top: Double
+  let width: Double
+  let height: Double
+
+  var rect: CGRect {
+    CGRect(x: CGFloat(left), y: CGFloat(top), width: CGFloat(width), height: CGFloat(height))
+  }
+}
+
+struct SetScribbleTargetsArgs: Decodable {
+  let targets: [ScribbleTargetRect]
+}
+
 @available(iOS 14.0, *)
 class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
   private weak var trackedWebView: WKWebView?
@@ -18,7 +33,9 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
   private var baselineIndicatorInset = UIEdgeInsets.zero
   private var didCaptureBaselineInsets = false
   private var scribbleInteraction: UIScribbleInteraction?
-  private var scribbleEnabled = true
+  private var scribbleEnabled = false
+  private var scribbleTargets: [CGRect] = []
+  private let scribbleLock = NSLock()
 
   // MARK: - Plugin loading
   override func load(webview: WKWebView) {
@@ -72,8 +89,24 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
 
   @objc public func setScribbleEnabled(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(SetScribbleEnabledArgs.self)
-    scribbleEnabled = args.enabled
-    invoke.resolve()
+    DispatchQueue.main.async {
+      self.scribbleEnabled = args.enabled
+      invoke.resolve()
+    }
+  }
+
+  @objc public func setScribbleTargets(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SetScribbleTargetsArgs.self)
+    let targets = args.targets.map(\.rect).filter {
+      $0.width.isFinite && $0.height.isFinite && $0.minX.isFinite && $0.minY.isFinite
+        && $0.width > 0 && $0.height > 0
+    }
+    DispatchQueue.main.async {
+      self.scribbleLock.lock()
+      self.scribbleTargets = targets
+      self.scribbleLock.unlock()
+      invoke.resolve()
+    }
   }
 
   // MARK: - Command: top inset (status bar / notch)
@@ -96,6 +129,65 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
       let bottomInsetDIP = self.toDIPFromPixel(bottomInset)
       logger.info("Bottom inset: \(bottomInsetDIP)")
       invoke.resolve(["inset": bottomInset])
+    }
+  }
+
+  // MARK: - Command: fold geometry (iPhone Duo and other foldables)
+  // The crease is a `division` reserved region. A flat device still reports its
+  // region, only inactive — hence `.includeInactive`: the rail is keyed off
+  // hardware, and must survive closing.
+  @objc public func getFoldState(_ invoke: Invoke) throws {
+    DispatchQueue.main.async { [weak self] in
+      let state = self?.trackedWebView.map(Self.foldState(of:)) ?? Self.unknownFoldState()
+      logger.info("[safe-area] fold state \(state, privacy: .public)")
+      invoke.resolve(state)
+    }
+  }
+
+  private static func unknownFoldState() -> [String: Any] {
+    [
+      "foldable": false,
+      "posture": "unknown",
+      "hingeAngle": NSNull(),
+      "orientation": "none",
+      "crease": NSNull(),
+      "verticalBarEdge": "none",
+    ]
+  }
+
+  private static func foldState(of view: UIView) -> [String: Any] {
+    // ponytail: hinge angle needs UIHingeInteraction; posture open/flat is all the layout uses
+    guard #available(iOS 27.1, *) else { return unknownFoldState() }
+
+    var state = unknownFoldState()
+    state["verticalBarEdge"] = verticalBarEdgeName(of: view)
+
+    let regions = view.reservedRegions(kind: .division, options: [.includeInactive])
+    guard let region = regions.first else { return state }
+
+    let frame = region.frame
+    state["foldable"] = true
+    state["posture"] = region.isActive ? "open" : "flat"
+    state["crease"] = [
+      "left": Double(frame.minX),
+      "top": Double(frame.minY),
+      "width": Double(frame.width),
+      "height": Double(frame.height),
+    ]
+    state["orientation"] = frame.width <= frame.height ? "vertical" : "horizontal"
+    return state
+  }
+
+  @available(iOS 27.1, *)
+  private static func verticalBarEdgeName(of view: UIView) -> String {
+    let isRTL = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
+    switch view.traitCollection.verticalBarEdge {
+    case .leading:
+      return isRTL ? "right" : "left"
+    case .trailing:
+      return isRTL ? "left" : "right"
+    default:
+      return "none"
     }
   }
 
@@ -305,7 +397,10 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     _ interaction: UIScribbleInteraction,
     shouldBeginAt location: CGPoint
   ) -> Bool {
-    return scribbleEnabled
+    guard scribbleEnabled else { return false }
+    scribbleLock.lock()
+    defer { scribbleLock.unlock() }
+    return scribbleTargets.contains { $0.contains(location) }
   }
 }
 

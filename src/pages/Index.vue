@@ -1,9 +1,7 @@
 <template>
-  <div>
+  <div class="mobile:pb-[calc(var(--app-mobile-content-offset)+1.5rem)]">
     <mobile-sync-strip v-if="isMobile" />
-    <!-- The mobile workspace label: the same switcher the sidebar shows on
-         desktop, so accounts and workspaces are reachable on a phone. -->
-    <div v-if="isMobile" class="px-4 pt-2">
+    <div v-if="isMobile && !isFoldableDevice" class="px-4 pt-2">
       <workspace-switcher expanded />
     </div>
 
@@ -110,13 +108,6 @@
               :selection-mode="selectionMode"
               :pulse="isFiltering"
               :gap-px="24"
-              :breakpoints="[
-                { min: 0, cols: 2 },
-                { min: 640, cols: 2 },
-                { min: 768, cols: 2 },
-                { min: 1024, cols: 3 },
-                { min: 1280, cols: 4 },
-              ]"
               @item-click="
                 handleItemClick(
                   $event.event,
@@ -147,7 +138,7 @@
         v-if="
           noteStore.notes.length === 0 && folderStore.rootFolders.length === 0
         "
-        class="flex items-center justify-center min-h-[calc(100vh-250px)]"
+        class="flex items-center justify-center min-h-[calc(100vh-250px)] mobile:min-h-[calc(100vh-250px-var(--app-mobile-content-offset))]"
       />
 
       <folder-tree
@@ -168,7 +159,7 @@
       :token="joinToken"
       @close="closeJoinDialog"
     />
-    <folder-customize-modal v-model="showCustomizeModal" :folder="customizeFolder" @saved="clearSelection" />
+    <ui-customize-modal v-model="showCustomizeModal" kind="folder" :folder="customizeFolder" @saved="clearSelection" />
   </div>
 </template>
 
@@ -189,7 +180,6 @@ import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
 import HomeSearch from '../components/home/HomeSearch.vue';
 import FolderTree from '../components/home/FolderTree.vue';
-import FolderCustomizeModal from '../components/home/FolderCustomizeModal.vue';
 import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
@@ -197,6 +187,7 @@ import MobileSyncStrip from '../components/app/MobileSyncStrip.vue';
 import WorkspaceSwitcher from '../components/app/WorkspaceSwitcher.vue';
 import JoinInviteDialog from '../components/app/JoinInviteDialog.vue';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { foldState } from '@/lib/foldable';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {
@@ -205,7 +196,6 @@ export default {
     HomeSearch,
     HomeFolderCard,
     FolderTree,
-    FolderCustomizeModal,
     Actions,
     EmptyState,
     MobileSyncStrip,
@@ -215,6 +205,7 @@ export default {
   setup() {
     const { translations } = useTranslations();
     const isMobile = isMobileRuntime();
+    const isFoldableDevice = computed(() => foldState.isFoldable);
     const highlightedFolderIds = ref(new Set());
     const route = useRoute();
     const router = useRouter();
@@ -395,9 +386,6 @@ export default {
     const showCustomizeModal = ref(false);
     const customizeFolder = ref(null);
 
-    // Invite links land here as `?join=<token>`; the redirect from the old
-    // /join/:token route rewrites the URL to this shape. Closing the modal
-    // strips the query so a reload doesn't resurrect the dialog.
     const showJoinDialog = ref(false);
     const joinToken = ref('');
     watch(
@@ -441,6 +429,7 @@ export default {
       folders,
       highlightedFolderIds,
       isMobile,
+      isFoldableDevice,
       showCustomizeModal,
       customizeFolder,
       openCustomizeFor,

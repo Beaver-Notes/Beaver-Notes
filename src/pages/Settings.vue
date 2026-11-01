@@ -41,7 +41,10 @@
           </ui-list>
         </div>
       </div>
-      <router-view />
+      <!-- min-w-0 lets the routed page shrink instead of overflowing at narrow widths -->
+      <div class="flex-1 min-w-0">
+        <router-view />
+      </div>
     </div>
 
     <!-- Mobile -->
@@ -123,8 +126,11 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
+import { useAccountStore } from '@/store/account';
+import { PLAN_NAMES } from '@/lib/api/types';
 
 const { translations } = useTranslations();
+const accountStore = useAccountStore();
 const route = useRoute();
 const router = useRouter();
 const searchQuery = ref('');
@@ -132,6 +138,14 @@ const searchQuery = ref('');
 // On mobile '/settings' is shared between the category menu and the "General"
 // section; this flag tracks explicit entry into General since the URL doesn't change.
 const enteredGeneralOnMobile = ref(false);
+
+// Team admin lives here; nothing on the page makes sense without a team
+// plan, so the nav entry itself stays hidden for solo/pro accounts.
+const hasTeamPlan = computed(
+  () =>
+    accountStore.isAuthenticated &&
+    [PLAN_NAMES.TEAM, PLAN_NAMES.ENTERPRISE].includes(accountStore.plan),
+);
 
 const settings = computed(() => {
   const t = translations.value;
@@ -162,12 +176,16 @@ const settings = computed(() => {
       path: '/settings/account',
       keywords: [t.settings.account?.toLowerCase() || 'account'],
     },
-    'Settings-Workspace': {
-      name: t.settings.workspace || 'Workspace',
-      icon: 'riGroupLine',
-      path: '/settings/workspace',
-      keywords: ['workspace', 'team', 'members', 'invite', 'roles'],
-    },
+    ...(hasTeamPlan.value
+      ? {
+          'Settings-Workspace': {
+            name: t.settings.workspace || 'Workspace',
+            icon: 'riGroupLine',
+            path: '/settings/workspace',
+            keywords: ['workspace', 'team', 'members', 'invite', 'roles'],
+          },
+        }
+      : {}),
     'Settings-Labels': {
       name: t.labels?.title || 'Labels',
       icon: 'riPriceTag3Line',
