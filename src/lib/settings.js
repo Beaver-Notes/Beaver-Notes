@@ -1,6 +1,13 @@
 import { useStorage } from './storage';
 
 const settingsStorage = useStorage('settings');
+
+// Same source of truth as the API client: a build pointed at another server
+// (self-hosted, or a dev rig) must not show the vendor URL in onboarding.
+export const DEFAULT_SERVER_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BEAVER_SYNC_API_URL) ||
+  'https://api.beavernotes.com';
+
 export const DEFAULT_UI_FONT_STACK =
   "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif";
 
@@ -119,7 +126,7 @@ const settingDefs = {
   },
   beaverAccountServerUrl: {
     legacyKey: 'beaverAccountServerUrl',
-    defaultValue: 'https://api.beavernotes.com',
+    defaultValue: DEFAULT_SERVER_URL,
     parse: String,
   },
   syncTransport: {

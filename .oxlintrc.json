@@ -10,5 +10,5 @@
     "no-loss-of-precision": "error",
     "no-console": ["error", { "allow": ["warn", "error", "time", "timeEnd"] }]
   },
-  "ignorePatterns": ["scripts/**", "tests/**", "wdio.conf.mjs"]
+  "ignorePatterns": ["scripts/**", "tests/**", "vendor/**", "wdio.conf.mjs"]
 }

@@ -78,6 +78,7 @@
     "@choochmeque/tauri-plugin-biometry-api": "0.2.8",
     "@choochmeque/tauri-plugin-iap-api": "0.10.0-rc.10",
     "@eioluseyi/tailwind-fade": "^1.1.1",
+    "@fastify/compress": "^7.0.3",
     "@floating-ui/dom": "^1.8.0",
     "@floating-ui/vue": "^2",
     "@hypothesi/tauri-plugin-device-ai-apis": "^0.2.0",

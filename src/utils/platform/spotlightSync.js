@@ -48,15 +48,6 @@ export function deleteNoteFromSpotlight(id) {
   });
 }
 
-export function bulkDeleteFromSpotlight(ids) {
-  if (!isSpotlightEnabled()) return;
-  if (!ids || ids.length === 0) return;
-
-  deleteItems(ids).catch((err) => {
-    console.error('[spotlight] failed to bulk remove notes:', err);
-  });
-}
-
 export async function reindexAllNotes(notes, force = false) {
   if (!force && !isSpotlightEnabled()) return;
 

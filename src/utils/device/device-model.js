@@ -32,7 +32,3 @@ export function getDeviceModel() {
   else cached = model || os || '';
   return cached;
 }
-
-export function resetDeviceModelCache() {
-  cached = null;
-}

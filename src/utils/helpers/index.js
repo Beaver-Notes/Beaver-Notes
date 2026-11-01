@@ -1,7 +1,6 @@
 import { shallowReactive } from 'vue';
 import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
 import { memoizedSort } from './memoized-sort.js';
-import dayjs from '@/lib/dayjs.js';
 
 export function debounce(callback, time = 200) {
   let interval;
@@ -52,11 +51,6 @@ export function sanitizeFileName(name, fallback = 'Untitled') {
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
     .trim();
   return sanitized || fallback;
-}
-
-export function formatTime(time, format = 'YY-MM-DD HH:mm:ss') {
-  if (!time) return '';
-  return dayjs(time).format(format.replace('hh', 'HH'));
 }
 
 export function collectExpiredIds(deletedIds, days = 30) {
