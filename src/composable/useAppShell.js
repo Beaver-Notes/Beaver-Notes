@@ -19,6 +19,7 @@ import {
   setSetting,
 } from '@/lib/settings';
 import { useUiState } from '@/composable/useUiState';
+import { foldState } from '@/lib/foldable';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
@@ -31,7 +32,7 @@ import { logger } from '@/utils/logger';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
 import {
   appReady,
-  notify,
+  initNotificationClicks,
   setMenuVisibility,
   setZoomLevel,
 } from '@/lib/native/app';
@@ -118,6 +119,60 @@ export function runWorkspaceInit() {
   return liveWorkspaceInit ? liveWorkspaceInit() : undefined;
 }
 
+// A tier change happens on another device or through the billing webhook;
+// nothing pushes it to a running app, and the plan is otherwise read once at
+// boot. Refetch on return-to-window so an upgrade or downgrade lands without a
+// reload. `accountPlan` in the switcher reads the stored account record, so
+// both that record and the live limits have to be updated.
+// Throttled: focus fires often, and this is two authenticated GETs. Lives at
+// module scope (and is exported) so the org heal stays unit-testable without
+// mounting the whole shell.
+let lastPlanRefresh = 0;
+export function refreshPlanQuietly() {
+  const now = Date.now();
+  if (now - lastPlanRefresh < 60000) return;
+  const store = useAccountStore();
+  if (!store.isAuthenticated || !store.activeAccountId) return;
+  lastPlanRefresh = now;
+  return (async () => {
+    try {
+      const [{ getAccount }, { getPlans }] = await Promise.all([
+        import('@/lib/api/account'),
+        import('@/lib/api/plans'),
+      ]);
+      const [data, plans] = await Promise.all([
+        getAccount({ baseUrl: store.serverUrl }),
+        getPlans({ baseUrl: store.serverUrl }),
+      ]);
+      const patch = { id: store.activeAccountId };
+      if (plans) {
+        store.setPlanLimits(plans);
+        patch.planLimits = plans;
+      }
+      if (data?.subscription) {
+        store.setSubscription(data.subscription);
+        patch.subscription = data.subscription;
+      }
+      // The plan getters read the org record, which was only written at
+      // sign-in; without this a mid-session plan or org change stays
+      // invisible until the next login.
+      patch.organizations = data?.organizations || [];
+      // A member added to their first org mid-session has no stored selection;
+      // pick the only org so the plan getters see it. Never override an
+      // existing choice, and never guess with 0 or 2+ orgs.
+      if (!store.activeOrgId && data?.organizations?.length === 1) {
+        store.activeOrgId = data.organizations[0].id;
+        // persistActiveAccount re-derives activeOrgId from the stored record,
+        // so the selection has to ride in the patch.
+        patch.activeOrgId = store.activeOrgId;
+      }
+      await store.persistActiveAccount(patch);
+    } catch {
+      /* non-critical: the next focus retries. */
+    }
+  })();
+}
+
 export function useAppShell(onboardingCompleted = true) {
   const { translations } = useTranslations();
   const theme = useTheme();
@@ -144,6 +199,8 @@ export function useAppShell(onboardingCompleted = true) {
   const pluginKeyboardVisible = ref(false);
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
+  // Hardware, not size: a folded Duo must keep the same chrome as an open one.
+  const isFoldableDevice = computed(() => foldState.isFoldable);
   const showSidebar = computed(
     () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME,
   );
@@ -151,6 +208,7 @@ export function useAppShell(onboardingCompleted = true) {
     () =>
       route.name !== ONBOARDING_ROUTE_NAME &&
       route.name !== 'Note' &&
+      !isFoldableDevice.value &&
       (!isPhoneRuntime.value || !keyboardVisible.value),
   );
   const useMobileBottomDockSpacing = computed(
@@ -161,7 +219,10 @@ export function useAppShell(onboardingCompleted = true) {
       return undefined;
     return {
       paddingTop: 'var(--app-safe-area-top)',
-      paddingRight: 'var(--app-safe-area-right)',
+      // The rail owns that edge when there is one; it already includes the inset.
+      paddingRight: isFoldableDevice.value
+        ? 'var(--app-rail-width)'
+        : 'var(--app-safe-area-right)',
       paddingBottom: useMobileBottomDockSpacing.value
         ? 'var(--app-mobile-content-offset)'
         : 'var(--app-safe-area-bottom)',
@@ -174,6 +235,7 @@ export function useAppShell(onboardingCompleted = true) {
       bottom: useMobileBottomDockSpacing.value
         ? 'var(--app-mobile-floating-offset)'
         : 'var(--app-safe-area-bottom)',
+      ...(isFoldableDevice.value ? { right: 'var(--app-rail-width)' } : {}),
     };
   });
   const { expanded: sidebarExpanded } = useSidebar();
@@ -182,7 +244,7 @@ export function useAppShell(onboardingCompleted = true) {
       return {
         ...bottomBannerStyle.value,
         left: '0',
-        right: '0',
+        right: isFoldableDevice.value ? 'var(--app-rail-width)' : '0',
       };
     }
     if (!showSidebar.value) return undefined;
@@ -637,12 +699,7 @@ export function useAppShell(onboardingCompleted = true) {
       runBackfill();
     }
 
-    if (appStore.setting.openLastEdited) {
-      const lastNoteEdit = localStorage.getItem('lastNoteEdit');
-      if (lastNoteEdit && route.name !== ONBOARDING_ROUTE_NAME) {
-        router.push(`/note/${lastNoteEdit}`);
-      }
-    }
+    // The last note is restored below, once the active workspace is known.
 
     // Always init so runtime sync works without restart. Autosync on: periodic sync when visible.
     try {
@@ -705,6 +762,18 @@ export function useAppShell(onboardingCompleted = true) {
         }
         await useWorkspaceStore().retrieve();
 
+        // Open the last note only inside the workspace it belongs to: a note
+        // restored under another workspace left the chip and the open note
+        // disagreeing (F26). No marker (older build) keeps the old behaviour.
+        if (appStore.setting.openLastEdited && route.name !== ONBOARDING_ROUTE_NAME) {
+          const lastNoteEdit = localStorage.getItem('lastNoteEdit');
+          const noteWorkspace = localStorage.getItem('lastNoteWorkspace') || '';
+          const activeWorkspace = useWorkspaceStore().activeId || '';
+          if (lastNoteEdit && (!noteWorkspace || noteWorkspace === activeWorkspace)) {
+            router.push(`/note/${lastNoteEdit}`);
+          }
+        }
+
         // Join meta room now activeId known (was null at loadWorkspaceDoc).
         const { getWsSync, retryParkedNoteJoins } = await import('@/lib/sync/ws-sync');
         const { ensureMetaRoomKey } = await import('@/lib/yjs/workspace-doc');
@@ -723,6 +792,8 @@ export function useAppShell(onboardingCompleted = true) {
       console.warn('[app] pre-sync auth/workspace hydrate failed:', err);
     }
     initAppSync();
+    // Tapping a notification must land on the note it announced.
+    initNotificationClicks();
     disposeWorkspaceInitListeners();
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', refreshSharedNotesQuietly);
@@ -847,16 +918,6 @@ export function useAppShell(onboardingCompleted = true) {
         updateBanner.secondaryText = bannerData.secondaryText;
         updateBanner.version = bannerData.version;
         updateBanner.show = true;
-        if (!backend.isTouchRuntime()) {
-          const copy = translations.value.app || {};
-          notify({
-            title: copy.updateAvailableTitle || 'Update available',
-            body:
-              copy.updateAvailableBody ||
-              bannerData.content ||
-              'An update is ready to install.',
-          }).catch(() => {});
-        }
       }),
       backend.listen('spellcheck-changed', () => {}),
       backend.listen('deep-link://received', (_, payload) => {
@@ -958,50 +1019,16 @@ export function useAppShell(onboardingCompleted = true) {
       .catch(() => {});
   }
 
-  // A tier change happens on another device or through the billing webhook;
-  // nothing pushes it to a running app, and the plan is otherwise read once at
-  // boot. Refetch on return-to-window so an upgrade or downgrade lands without a
-  // reload. `accountPlan` in the switcher reads the stored account record, so
-  // both that record and the live limits have to be updated.
-  // Throttled: focus fires often, and this is two authenticated GETs.
-  let lastPlanRefresh = 0;
-  function refreshPlanQuietly() {
-    const now = Date.now();
-    if (now - lastPlanRefresh < 60000) return;
-    const store = useAccountStore();
-    if (!store.isAuthenticated || !store.activeAccountId) return;
-    lastPlanRefresh = now;
-    void (async () => {
-      try {
-        const [{ getAccount }, { getPlans }] = await Promise.all([
-          import('@/lib/api/account'),
-          import('@/lib/api/plans'),
-        ]);
-        const [data, plans] = await Promise.all([
-          getAccount({ baseUrl: store.serverUrl }),
-          getPlans({ baseUrl: store.serverUrl }),
-        ]);
-        const patch = { id: store.activeAccountId };
-        if (plans) {
-          store.setPlanLimits(plans);
-          patch.planLimits = plans;
-        }
-        if (data?.subscription) {
-          store.setSubscription(data.subscription);
-          patch.subscription = data.subscription;
-        }
-        await store.persistActiveAccount(patch);
-      } catch {
-        /* non-critical: the next focus retries. */
-      }
-    })();
-  }
-
   function handleVisibilityChange() {
     if (document.hidden) {
       kickRustDirty();
     } else {
       kickRustSync();
+      // iOS suspends the webview: the relay sockets die with their single-use
+      // tickets, so the rooms must be reopened or nothing arrives afterwards.
+      import('@/lib/sync/ws-sync')
+        .then(({ getWsSync }) => getWsSync().repairRealtime())
+        .catch(() => {});
       refreshSharedNotesQuietly();
       refreshPlanQuietly();
     }

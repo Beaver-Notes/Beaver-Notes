@@ -128,10 +128,10 @@ describe('PaywallDialog triggering + copy', () => {
     await flushPromises();
     usePaywall().open('history');
     await flushPromises();
-    expect(w.text()).toContain('Never lose an edit again');
+    expect(w.text()).toContain('Every edit, safely kept');
     usePaywall().open('storage');
     await flushPromises();
-    expect(w.text()).toContain('Almost out of storage');
+    expect(w.text()).toContain('Room for everything');
     usePaywall().open('nope');
     await flushPromises();
     expect(w.text()).toContain('Choose your plan');
@@ -177,7 +177,10 @@ describe('PaywallDialog plans (desktop)', () => {
     const w = mountPaywall();
     usePaywall().open('settings');
     await flushPromises();
-    expect(w.text()).toMatch(/You're all set/);
+    // Shipped behavior: a signed-in opener lands on the plans grid with the
+    // current plan preselected and badged — not the success view.
+    expect(w.vm.view).toBe('plans');
+    expect(w.vm.selected).toBe('starter');
     const cards = radios(w);
     expect(cards[0].text()).toMatch(/Current/);
   });
@@ -427,5 +430,20 @@ describe('PaywallDialog tablet (wide viewport, store billing)', () => {
     // store billing has no per-card buttons: only the pinned CTA buys
     expect(w.html()).not.toContain("You're all set");
     expect(w.html()).not.toMatch(/createCheckout|checkout\.stripe\.com/);
+  });
+});
+
+describe('PaywallDialog VAT caption', () => {
+  it('shows the excl. VAT note on desktop (Stripe) and hides it for mobile IAP', async () => {
+    const w = mountPaywall();
+    await flushPromises();
+    usePaywall().open('history');
+    await flushPromises();
+    expect(w.text()).toContain('VAT calculated at checkout');
+    while (mounted.length) mounted.pop().unmount();
+    ctl.isMobile = true;
+    const m = mountPaywall();
+    await flushPromises();
+    expect(m.text()).not.toContain('VAT');
   });
 });

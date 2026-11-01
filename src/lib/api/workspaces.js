@@ -236,15 +236,6 @@ export async function joinWorkspace(token, { baseUrl, signal } = {}) {
   return client.post(`/workspaces/join/${encodeURIComponent(token)}`, {}, { signal });
 }
 
-export async function listWorkspaceJoinRequests(workspaceId, { baseUrl, signal } = {}) {
-  const client = getClient(baseUrl);
-  const res = await client.get(
-    `/workspaces/${encodeURIComponent(workspaceId)}/join-requests`,
-    { signal }
-  );
-  return res?.requests ?? [];
-}
-
 export async function listAllWorkspaceJoinRequests({ baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   const res = await client.get('/workspaces/join-requests', { signal });

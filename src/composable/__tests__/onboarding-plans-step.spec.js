@@ -65,6 +65,8 @@ vi.mock('@/utils/onboarding/import-finalize.js', () => ({
 
 vi.mock('@/utils/crypto/encryption.js', () => ({
   setupEncryption: vi.fn(async () => ({ ok: true })),
+  encryptionIsConfigured: vi.fn(async () => false),
+  verifyPassphrase: vi.fn(async () => ({ ok: true })),
   hasRemoteVaultKeyParams: vi.fn(async () => false),
   adoptVaultKey: vi.fn(async () => ({ ok: true })),
   isKeyLoaded: vi.fn(() => false),

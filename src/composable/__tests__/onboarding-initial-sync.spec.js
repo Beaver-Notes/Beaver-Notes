@@ -49,6 +49,8 @@ vi.mock('@/utils/onboarding/index.js', () => ({
 const isKeyLoadedMock = vi.fn(() => false);
 vi.mock('@/utils/crypto/encryption.js', () => ({
   setupEncryption: vi.fn(async () => ({ ok: true })),
+  encryptionIsConfigured: vi.fn(async () => false),
+  verifyPassphrase: vi.fn(async () => ({ ok: true })),
   hasRemoteVaultKeyParams: vi.fn(async () => false),
   adoptVaultKey: vi.fn(async () => ({ ok: true })),
   isKeyLoaded: (...a) => isKeyLoadedMock(...a),

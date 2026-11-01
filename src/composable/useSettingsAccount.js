@@ -1,7 +1,7 @@
 import { onMounted, ref } from 'vue';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
-import { setSetting } from '@/lib/settings';
+import { DEFAULT_SERVER_URL, setSetting } from '@/lib/settings';
 import { useAccountAuth } from '@/composable/useAccountAuth';
 import { updateUsername as apiUpdateUsername, getAccountExport } from '@/lib/api/account';
 import { logger } from '@/utils/logger';
@@ -16,11 +16,7 @@ export function useSettingsAccount({ dialog, translations }) {
   const signInPassword = ref('');
   const signUpUsername = ref('');
   const passkeyEmail = ref('');
-  const quickConnectCode = ref('');
-  const quickConnectSecret = ref('');
-  const quickConnectExpiresAt = ref(null);
   const showPasswordAuth = ref(false);
-  const showQuickConnect = ref(false);
   const showServerUrlEditor = ref(false);
   const draftServerUrl = ref(accountStore.serverUrl);
   const deletingAccount = ref(false);
@@ -30,7 +26,7 @@ export function useSettingsAccount({ dialog, translations }) {
   const sessions = ref([]);
   const loadingSessions = ref(false);
 
-  const defaultServerUrl = 'https://api.beavernotes.com';
+  const defaultServerUrl = DEFAULT_SERVER_URL;
 
   function activeBaseUrl() {
     return accountStore.serverUrl;
@@ -54,6 +50,18 @@ export function useSettingsAccount({ dialog, translations }) {
       return;
     }
     await setSetting('beaverAccountServerUrl', accountStore.serverUrl);
+    // The account record captured the old URL at sign-in and activateAccount
+    // restores it on restart, which would 401 the account off the new server;
+    // keep the per-account record in step. (No active account: the store
+    // refuses the unknown id and only the install-level setting applies.)
+    await accountStore
+      .persistActiveAccount({
+        id: accountStore.activeAccountId,
+        serverUrl: accountStore.serverUrl,
+      })
+      .catch((e) =>
+        logger.warn('[settings] account serverUrl patch failed:', e)
+      );
     showServerUrlEditor.value = false;
     // Restart the relay here: the socket already holds the old host, and
     // sign-in/onboarding only start it, so presence would stay on the old
@@ -236,48 +244,6 @@ export function useSettingsAccount({ dialog, translations }) {
       return false;
     }
     return true;
-  }
-
-  async function startQuickConnect() {
-    clearError();
-    try {
-      const result = await auth.startQuickConnect();
-      if (result) {
-        quickConnectSecret.value = result.secret || '';
-        quickConnectExpiresAt.value = result.expiresAt || null;
-      }
-    } catch {
-      // error already on the store
-    }
-  }
-
-  async function pollQuickConnect() {
-    if (!quickConnectSecret.value) return;
-    try {
-      await auth.pollQuickConnect(quickConnectSecret.value);
-      if (accountStore.isAuthenticated) {
-        quickConnectSecret.value = '';
-        quickConnectExpiresAt.value = null;
-      }
-    } catch {
-      // error already on the store
-    }
-  }
-
-  async function authorizeQuickConnect() {
-    clearError();
-    if (!quickConnectCode.value?.trim()) {
-      accountStore.setError(
-        translations.value.account?.quickConnectCodeRequired ||
-          'Enter the code shown on the other device.'
-      );
-      return;
-    }
-    try {
-      await auth.authorizeQuickConnect(quickConnectCode.value.trim(), null);
-    } catch {
-      // error already on the store
-    }
   }
 
   async function handleSignOut() {
@@ -494,11 +460,7 @@ export function useSettingsAccount({ dialog, translations }) {
     signInPassword,
     signUpUsername,
     passkeyEmail,
-    quickConnectCode,
-    quickConnectSecret,
-    quickConnectExpiresAt,
     showPasswordAuth,
-    showQuickConnect,
     showServerUrlEditor,
     draftServerUrl,
     defaultServerUrl,
@@ -510,9 +472,6 @@ export function useSettingsAccount({ dialog, translations }) {
     handleSignUpWithPassword,
     handleSignInWithPasskey,
     handleSignUpWithPasskey,
-    startQuickConnect,
-    pollQuickConnect,
-    authorizeQuickConnect,
     handleSignOut,
     handleSignOutEverywhere,
     handleRevokeDevice,

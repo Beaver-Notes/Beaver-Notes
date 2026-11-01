@@ -10,6 +10,7 @@ import {
   upsertAccount,
 } from '@/lib/accounts-index';
 import { clearAllAccountStorage, loadSessionToken } from '@/lib/account-storage';
+import { OFFICIAL_SERVER_ORIGIN, isOfficialServer } from '@/lib/server-url';
 
 const PLAN_LIMITS_KEY = 'accountPlanLimits';
 
@@ -28,7 +29,7 @@ export const useAccountStore = defineStore('account', {
   state: () => ({
     status: 'anonymous',
     serverUrl:
-      getSettingSync('beaverAccountServerUrl') || 'https://api.beavernotes.com',
+      getSettingSync('beaverAccountServerUrl') || OFFICIAL_SERVER_ORIGIN,
     token: null,
     accounts: [],
     activeAccountId: null,
@@ -53,6 +54,12 @@ export const useAccountStore = defineStore('account', {
   getters: {
     isAuthenticated: (state) => state.status === 'authenticated' && !!state.token,
     isAnonymous: (state) => state.status === 'anonymous',
+    isOfficialServer: (state) => isOfficialServer(state.serverUrl),
+    // History is a plan capability: free accounts (historyDays 0) have none.
+    // Null means unlimited or not loaded yet, so keep the UI available.
+    canUseHistory() {
+      return this.isAuthenticated && this.historyDays !== 0;
+    },
 
     activeAccount: (state) =>
       state.accounts.find((a) => a.id === state.activeAccountId) ?? null,

@@ -28,6 +28,8 @@ import {
 } from '@/utils/onboarding/import-finalize.js';
 import {
   setupEncryption,
+  verifyPassphrase,
+  encryptionIsConfigured,
   hasRemoteVaultKeyParams,
   adoptVaultKey,
   isKeyLoaded,
@@ -130,6 +132,9 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   const encryptionPasswordLoading = ref(false);
 
   const vaultJoinMode = ref(false);
+  // A vault already on this device (leftover app data, interrupted setup):
+  // the native command can only unlock it, never mint a second key.
+  const localVaultExists = ref(false);
 
   async function detectVaultJoin() {
     vaultJoinMode.value = false;
@@ -290,6 +295,34 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
         t?.settings?.invalidPassword || 'Please enter a password.';
       return;
     }
+
+    const existingVault = await encryptionIsConfigured().catch(() => false);
+    localVaultExists.value = existingVault;
+    if (existingVault) {
+      // The device already holds a vault (e.g. app data from an earlier
+      // install): the native command only unlocks, so the same key must be
+      // re-entered instead of minting a new one that can never match.
+      if (isKeyLoaded()) {
+        goToNextStep();
+        return;
+      }
+      encryptionPasswordLoading.value = true;
+      try {
+        const result = await verifyPassphrase(pw);
+        if (!result.ok) {
+          encryptionPasswordError.value = result.error || 'Wrong vault key.';
+          return;
+        }
+        await publishLocalKeyParamsToFolder();
+        goToNextStep();
+      } catch (e) {
+        encryptionPasswordError.value = e?.message || String(e);
+      } finally {
+        encryptionPasswordLoading.value = false;
+      }
+      return;
+    }
+
     if (pw.length < 8) {
       encryptionPasswordError.value =
         t?.settings?.passwordTooShort ||
@@ -463,6 +496,10 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
 
       await detectVaultJoin();
 
+      localVaultExists.value =
+        !vaultJoinMode.value &&
+        (await encryptionIsConfigured().catch(() => false));
+
       if (accountStore.isAuthenticated && isKeyLoaded()) {
         try {
           const { useAccountAuth } =
@@ -471,6 +508,13 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
             .triggerSeed()
             .catch(() => {});
         } catch {}
+      }
+      // Onboarding can be reopened on a device whose vault already exists
+      // (Settings → Show onboarding again). Minting a key there would only
+      // fail as "wrong password", so the password step has nothing to do.
+      if (!vaultJoinMode.value && isKeyLoaded()) {
+        goToStep('import');
+        return;
       }
       goToNextStep();
     } catch (e) {
@@ -563,6 +607,13 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
   }
 
   async function migrateLegacyData() {
+    // One import per install (Rust writes the marker). A fresh, empty workspace
+    // must not re-import the Electron store on top of data that came from it.
+    if (state.status?.alreadyMigrated && !customLegacyPath.value) {
+      state.error =
+        'Your old Beaver Notes data was already imported on this device.';
+      return;
+    }
     state.error = '';
     state.migrating = true;
     state.migrationDone = false;
@@ -1078,6 +1129,7 @@ export function useOnboardingFlow({ router, clipboard, runImportSource }) {
     encryptionPasswordLoading,
     setupEncryptionPassword,
     vaultJoinMode,
+    localVaultExists,
     detectVaultJoin,
     adoptVaultPassword,
 

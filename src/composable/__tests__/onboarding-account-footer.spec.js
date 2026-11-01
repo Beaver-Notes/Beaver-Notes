@@ -65,6 +65,8 @@ vi.mock('@/utils/onboarding/import-finalize.js', () => ({
 
 vi.mock('@/utils/crypto/encryption.js', () => ({
   setupEncryption: vi.fn(async () => ({ ok: true })),
+  encryptionIsConfigured: vi.fn(async () => false),
+  verifyPassphrase: vi.fn(async () => ({ ok: true })),
   hasRemoteVaultKeyParams: vi.fn(async () => false),
   adoptVaultKey: vi.fn(async () => ({ ok: true })),
   isKeyLoaded: vi.fn(() => false),
@@ -269,8 +271,10 @@ describe('onboarding account step footer', () => {
     expect(btns[0].text()).toBe('Continue');
   });
 
-  it('free signed-out user still picks a folder, then the button commits it', async () => {
+  it('free signed-out user reaches the folder substep, then the button commits it', async () => {
     const wrapper = await mountOnAccountStep();
+    await connectButtons(wrapper)[0].trigger('click');
+    await nextTick();
     expect(wrapper.find('[data-testid="onboarding-sync-path"]').exists()).toBe(
       true,
     );
@@ -279,14 +283,32 @@ describe('onboarding account step footer', () => {
     wrapper.vm.fresh.syncPath = '/tmp/sync';
     await nextTick();
 
-    const btns = connectButtons(wrapper);
-    await nextTick();
+    const btns = wrapper.findAll(
+      '[data-testid="onboarding-folder-sync-continue"]',
+    );
     expect(btns).toHaveLength(1);
     expect(btns[0].text()).toBe('Continue');
 
     await btns[0].trigger('click');
     await flushPromises();
     expect(syncPrefs.calls[0]).toMatchObject({ syncPath: '/tmp/sync' });
+  });
+
+  it('folder substep skip advances without committing a path', async () => {
+    const wrapper = await mountOnAccountStep();
+    await connectButtons(wrapper)[0].trigger('click');
+    await nextTick();
+
+    const btns = wrapper.findAll(
+      '[data-testid="onboarding-folder-sync-continue"]',
+    );
+    expect(btns).toHaveLength(1);
+    expect(btns[0].text()).toBe('Skip for now');
+    await btns[0].trigger('click');
+    await flushPromises();
+
+    expect(syncPrefs.calls).toHaveLength(0);
+    expect(wrapper.vm.step).toBe('password');
   });
 
   it('paid signed-in user: no folder-sync block, single Continue button', async () => {

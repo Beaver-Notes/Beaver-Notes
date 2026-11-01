@@ -405,9 +405,7 @@
                           :style="{ width: state.migrationProgress + '%' }"
                         ></div>
                       </div>
-                      <p
-                        class="text-xs text-neutral-600 dark:text-neutral-400"
-                      >
+                      <p class="text-xs text-neutral-600 dark:text-neutral-400">
                         {{ state.migrationStatus }}
                       </p>
                       <p
@@ -454,29 +452,31 @@
                           :style="{ width: state.migrationProgress + '%' }"
                         ></div>
                       </div>
-                      <p
-                        class="text-xs text-neutral-600 dark:text-neutral-400"
-                      >
+                      <p class="text-xs text-neutral-600 dark:text-neutral-400">
                         {{ state.migrationStatus }}
                       </p>
                     </div>
 
-                    <div v-if="state.migrationResult" class="flex flex-col gap-1">
+                    <div
+                      v-if="state.migrationResult"
+                      class="flex flex-col gap-1"
+                    >
                       <p
                         class="text-xs font-semibold text-neutral-500 dark:text-neutral-500 mb-1"
                       >
                         Import summary
                       </p>
-                      <p
-                        class="text-sm text-neutral-600 dark:text-neutral-400"
-                      >
+                      <p class="text-sm text-neutral-600 dark:text-neutral-400">
                         Imported
                         {{ state.migrationResult.imported || 0 }} notes across
                         {{ state.migrationResult.folders || 0 }} folders.
                       </p>
                     </div>
 
-                    <div v-if="state.migrationIssuesText" class="flex flex-col gap-2">
+                    <div
+                      v-if="state.migrationIssuesText"
+                      class="flex flex-col gap-2"
+                    >
                       <div class="flex items-center justify-between gap-3">
                         <p
                           class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
@@ -500,501 +500,501 @@
                   </template>
                 </template>
 
-                <!-- Account -->
+                <!-- Account and folder sync are separate substeps for local/free users. -->
                 <template v-else-if="step === 'account'">
-                  <template v-if="accountStore.isAuthenticated">
-                    <div
-                      class="flex flex-col items-center gap-3 text-center mb-1 px-2"
-                    >
+                  <div v-if="!showFolderSync || connectSubstep === 'account'">
+                    <template v-if="accountStore.isAuthenticated">
                       <div
-                        class="shrink-0 w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
-                      >
-                        <v-remixicon name="riUserLine" size="24" />
-                      </div>
-                      <h2
-                        class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
-                      >
-                        You're signed in
-                      </h2>
-                      <p
-                        class="text-sm text-neutral-600 dark:text-neutral-400 truncate"
-                      >
-                        {{
-                          accountStore.profile?.email ||
-                          accountStore.profile?.username ||
-                          translations.account?.signedInAs ||
-                          'Signed in'
-                        }}
-                      </p>
-                    </div>
-
-                    <!-- One status line: the most urgent thing that is
-                         actually true about this account, and nothing else. -->
-                    <div
-                      class="mt-4 rounded-xl border px-4 py-3"
-                      :class="signedInStatus.box"
-                    >
-                      <div class="flex items-center gap-2.5">
-                        <v-remixicon
-                          :name="signedInStatus.icon"
-                          size="18"
-                          class="shrink-0"
-                          :class="[
-                            signedInStatus.iconClass,
-                            { 'animate-spin': signedInStatus.spin },
-                          ]"
-                        />
-                        <p
-                          class="min-w-0 flex-1 text-left text-sm font-medium"
-                          :class="signedInStatus.textClass"
-                        >
-                          {{ signedInStatus.text }}
-                        </p>
-
-                        <button
-                          v-if="signedInStatus.key === 'verify'"
-                          class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          :disabled="verifySending || verifyCooldown > 0"
-                          @click="handleResendVerification"
-                        >
-                          {{
-                            verifyCooldown > 0
-                              ? `Resend (${verifyCooldown}s)`
-                              : verifySending
-                                ? 'Sending…'
-                                : 'Resend email'
-                          }}
-                        </button>
-
-                        <ui-button
-                          v-if="signedInStatus.key === 'error'"
-                          size="sm"
-                          class="shrink-0"
-                          :loading="seedRetrying"
-                          :disabled="seedRetrying"
-                          @click="retrySeed"
-                        >
-                          {{ tr.retrySyncSetup || 'Retry' }}
-                        </ui-button>
-
-                        <button
-                          v-if="signedInStatus.key === 'error'"
-                          class="shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
-                          @click="copyLogPath"
-                        >
-                          {{
-                            logCopied
-                              ? tr.logPathCopied || 'Log path copied'
-                              : tr.copyLogPath || 'Copy log path'
-                          }}
-                        </button>
-                      </div>
-
-                      <div
-                        v-if="signedInStatus.key === 'seeding'"
-                        class="mt-2.5 flex items-center gap-2"
+                        class="flex flex-col items-center gap-3 text-center mb-1 px-2"
                       >
                         <div
-                          class="h-1.5 flex-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+                          class="shrink-0 w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
+                        >
+                          <v-remixicon name="riUserLine" size="24" />
+                        </div>
+                        <h2
+                          class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+                        >
+                          You're signed in
+                        </h2>
+                        <p
+                          class="text-sm text-neutral-600 dark:text-neutral-400 truncate"
+                        >
+                          {{
+                            accountStore.profile?.email ||
+                            accountStore.profile?.username ||
+                            translations.account?.signedInAs ||
+                            'Signed in'
+                          }}
+                        </p>
+                      </div>
+
+                      <!-- One status line: the most urgent thing that is
+                         actually true about this account, and nothing else. -->
+                      <div
+                        class="mt-4 rounded-xl border px-4 py-3"
+                        :class="signedInStatus.box"
+                      >
+                        <div class="flex items-center gap-2.5">
+                          <v-remixicon
+                            :name="signedInStatus.icon"
+                            size="18"
+                            class="shrink-0"
+                            :class="[
+                              signedInStatus.iconClass,
+                              { 'animate-spin': signedInStatus.spin },
+                            ]"
+                          />
+                          <p
+                            class="min-w-0 flex-1 text-left text-sm font-medium"
+                            :class="signedInStatus.textClass"
+                          >
+                            {{ signedInStatus.text }}
+                          </p>
+
+                          <button
+                            v-if="signedInStatus.key === 'verify'"
+                            class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            :disabled="verifySending || verifyCooldown > 0"
+                            @click="handleResendVerification"
+                          >
+                            {{
+                              verifyCooldown > 0
+                                ? `Resend (${verifyCooldown}s)`
+                                : verifySending
+                                  ? 'Sending…'
+                                  : 'Resend email'
+                            }}
+                          </button>
+
+                          <ui-button
+                            v-if="signedInStatus.key === 'error'"
+                            size="sm"
+                            class="shrink-0"
+                            :loading="seedRetrying"
+                            :disabled="seedRetrying"
+                            @click="retrySeed"
+                          >
+                            {{ tr.retrySyncSetup || 'Retry' }}
+                          </ui-button>
+
+                          <button
+                            v-if="signedInStatus.key === 'error'"
+                            class="shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+                            @click="copyLogPath"
+                          >
+                            {{
+                              logCopied
+                                ? tr.logPathCopied || 'Log path copied'
+                                : tr.copyLogPath || 'Copy log path'
+                            }}
+                          </button>
+                        </div>
+
+                        <div
+                          v-if="signedInStatus.key === 'seeding'"
+                          class="mt-2.5 flex items-center gap-2"
                         >
                           <div
-                            class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
-                            :style="{ width: seedProgressPercent + '%' }"
-                          ></div>
+                            class="h-1.5 flex-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+                          >
+                            <div
+                              class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                              :style="{ width: seedProgressPercent + '%' }"
+                            ></div>
+                          </div>
+                          <span
+                            class="shrink-0 text-xs text-neutral-500 dark:text-neutral-400"
+                          >
+                            {{ accountStore.seedProgress.uploaded }} /
+                            {{ accountStore.seedProgress.total }}
+                          </span>
                         </div>
-                        <span
-                          class="shrink-0 text-xs text-neutral-500 dark:text-neutral-400"
-                        >
-                          {{ accountStore.seedProgress.uploaded }} /
-                          {{ accountStore.seedProgress.total }}
-                        </span>
                       </div>
-                    </div>
-                  </template>
+                    </template>
 
-                  <template v-else>
-                    <div
-                      class="flex flex-col items-center gap-2 text-center mb-1 px-2"
-                    >
+                    <template v-else>
                       <div
-                        class="shrink-0 w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
+                        class="flex flex-col items-center gap-2 text-center mb-1 px-2"
                       >
-                        <v-remixicon name="riUserLine" size="24" />
-                      </div>
-                      <h2
-                        class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
-                      >
-                        {{
-                          translations.account?.onboardingTitle ||
-                          'Sign in'
-                        }}
-                      </h2>
-                      <p
-                        class="text-sm text-neutral-600 dark:text-neutral-400 max-w-sm leading-relaxed"
-                      >
-                        {{
-                          translations.account?.onboardingBody ||
-                          'A Beaver Account lets your notes follow you across devices with end-to-end encrypted cloud sync. Local-only mode stays fully working without one.'
-                        }}
-                      </p>
-                    </div>
-
-                    <div class="flex flex-col gap-5 px-1">
-                      <template v-if="accountView === 'signin'">
-                      <ui-input
-                        v-model="signInEmail"
-                        type="email"
-                        autocomplete="email"
-                        inputmode="email"
-                        class="w-full"
-                        :placeholder="
-                          translations.account?.emailPlaceholder || 'Email'
-                        "
-                        :aria-label="
-                          translations.account?.emailPlaceholder || 'Email'
-                        "
-                      />
-                      <ui-input
-                        v-model="signInPassword"
-                        :password="true"
-                        autocomplete="current-password"
-                        class="w-full"
-                        :placeholder="
-                          translations.account?.passwordPlaceholder ||
-                          'Password'
-                        "
-                        @keyup.enter="handleSignInWithPassword"
-                      />
-                      <ui-button
-                        class="w-full"
-                        variant="primary"
-                        :loading="accountStore.busy"
-                        :disabled="accountStore.busy"
-                        @click="handleSignInWithPassword"
-                      >
-                        {{
-                          translations.account?.signInWithPassword ||
-                          'Sign in'
-                        }}
-                      </ui-button>
-                      <ui-button
-                        class="w-full"
-                        variant="secondary"
-                        :loading="accountStore.busy"
-                        :disabled="accountStore.busy"
-                        @click="handleSignInWithPasskey"
-                      >
-                        <v-remixicon name="riFingerprintLine" class="mr-1" />
-                        {{
-                          translations.account?.continueWithPasskey ||
-                          'Continue with passkey'
-                        }}
-                      </ui-button>
-                      <p class="text-center text-sm text-neutral-500 dark:text-neutral-400">
-                        <button
-                          class="text-primary hover:underline font-semibold cursor-pointer"
-                          type="button"
-                          @click="accountView = 'recovery'"
-                        >
-                          {{
-                            translations.account?.cantSignIn ||
-                            "Can't sign in?"
-                          }}
-                        </button>
-                      </p>
-                      <p
-                        v-if="accountStore.error"
-                        class="text-sm text-red-500 text-center"
-                        role="alert"
-                      >
-                        {{ accountStore.error }}
-                      </p>
-
-                      <div
-                        class="border-t border-neutral-200 dark:border-neutral-700 pt-3"
-                      >
-                        <button
-                          class="inline-flex items-center gap-1 text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-                          @click="showMoreOptions = !showMoreOptions"
-                        >
-                          <v-remixicon
-                            v-if="showMoreOptions"
-                            name="riArrowUpSLine"
-                            size="14"
-                          />
-                          <v-remixicon
-                            v-else
-                            name="riArrowDownSLine"
-                            size="14"
-                          />
-                          {{
-                            translations.account?.moreSignInOptions ||
-                            'Advanced options'
-                          }}
-                        </button>
                         <div
-                          v-if="showMoreOptions"
-                          class="mt-2 flex flex-col gap-2"
+                          class="shrink-0 w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
                         >
-                          <div class="flex flex-col gap-2">
+                          <v-remixicon name="riUserLine" size="24" />
+                        </div>
+                        <h2
+                          class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+                        >
+                          {{
+                            translations.account?.onboardingTitle || 'Sign in'
+                          }}
+                        </h2>
+                        <p
+                          class="text-sm text-neutral-600 dark:text-neutral-400 max-w-sm leading-relaxed"
+                        >
+                          {{
+                            translations.account?.onboardingBody ||
+                            'A Beaver Account lets your notes follow you across devices with end-to-end encrypted cloud sync. Local-only mode stays fully working without one.'
+                          }}
+                        </p>
+                      </div>
+
+                      <div class="flex flex-col gap-5 px-1">
+                        <template v-if="accountView === 'signin'">
+                          <ui-input
+                            v-model="signInEmail"
+                            type="email"
+                            autocomplete="email"
+                            inputmode="email"
+                            class="w-full"
+                            :placeholder="
+                              translations.account?.emailPlaceholder || 'Email'
+                            "
+                            :aria-label="
+                              translations.account?.emailPlaceholder || 'Email'
+                            "
+                          />
+                          <ui-input
+                            v-model="signInPassword"
+                            :password="true"
+                            autocomplete="current-password"
+                            class="w-full"
+                            :placeholder="
+                              translations.account?.passwordPlaceholder ||
+                              'Password'
+                            "
+                            @keyup.enter="handleSignInWithPassword"
+                          />
+                          <ui-button
+                            class="w-full"
+                            variant="primary"
+                            :loading="accountStore.busy"
+                            :disabled="accountStore.busy"
+                            @click="handleSignInWithPassword"
+                          >
+                            {{
+                              translations.account?.signInWithPassword ||
+                              'Sign in'
+                            }}
+                          </ui-button>
+                          <ui-button
+                            v-if="passkeysAvailable"
+                            class="w-full"
+                            variant="secondary"
+                            :loading="accountStore.busy"
+                            :disabled="accountStore.busy"
+                            @click="handleSignInWithPasskey"
+                          >
+                            <v-remixicon
+                              name="riFingerprintLine"
+                              class="mr-1"
+                            />
+                            {{
+                              translations.account?.continueWithPasskey ||
+                              'Continue with passkey'
+                            }}
+                          </ui-button>
+                          <p
+                            v-if="accountStore.error"
+                            class="text-sm text-red-500 text-center"
+                            role="alert"
+                          >
+                            {{ accountStore.error }}
+                          </p>
+
+                          <div class="pt-3">
+                            <button
+                              class="inline-flex items-center gap-1 text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                              @click="showMoreOptions = !showMoreOptions"
+                            >
+                              <v-remixicon
+                                v-if="showMoreOptions"
+                                name="riArrowUpSLine"
+                                size="14"
+                              />
+                              <v-remixicon
+                                v-else
+                                name="riArrowDownSLine"
+                                size="14"
+                              />
+                              {{
+                                translations.account?.moreSignInOptions ||
+                                'Advanced options'
+                              }}
+                            </button>
+                            <div
+                              v-if="showMoreOptions"
+                              class="mt-2 flex flex-col gap-2"
+                            >
+                              <div class="flex flex-col gap-2">
+                                <p
+                                  class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
+                                >
+                                  {{ translations.account?.server || 'Server' }}
+                                </p>
+                                <ui-input
+                                  v-model="draftServerUrl"
+                                  class="w-full"
+                                  :placeholder="defaultServerUrl"
+                                />
+                                <p
+                                  class="text-xs text-neutral-400 dark:text-neutral-500"
+                                >
+                                  {{
+                                    translations.account?.serverHint ||
+                                    'Default works with Beaver Cloud. Change this for a self-hosted instance.'
+                                  }}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="pt-3 flex flex-col gap-2">
                             <p
                               class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
                             >
-                              {{ translations.account?.server || 'Server' }}
-                            </p>
-                            <ui-input
-                              v-model="draftServerUrl"
-                              class="w-full"
-                              :placeholder="defaultServerUrl"
-                            />
-                            <p
-                              class="text-xs text-neutral-400 dark:text-neutral-500"
-                            >
                               {{
-                                translations.account?.serverHint ||
-                                'Default works with Beaver Cloud. Change this for a self-hosted instance.'
+                                translations.account?.noAccountYet ||
+                                'No account yet?'
                               }}
                             </p>
+                            <ui-button
+                              class="w-full"
+                              variant="secondary"
+                              @click="accountView = 'signup'"
+                            >
+                              {{
+                                translations.account?.createAccount ||
+                                'Create account'
+                              }}
+                            </ui-button>
+                            <ui-button
+                              class="w-full"
+                              @click="accountView = 'recovery'"
+                            >
+                              {{
+                                translations.account?.cantSignIn ||
+                                "Can't sign in? Reset or recover"
+                              }}
+                            </ui-button>
                           </div>
-
-                        </div>
-                      </div>
-                      <p class="text-center text-sm text-neutral-500 dark:text-neutral-400">
-                        {{
-                          translations.account?.noAccountYet ||
-                          'No account yet?'
-                        }}
-                        <button
-                          class="text-primary hover:underline font-semibold cursor-pointer"
-                          type="button"
-                          @click="accountView = 'signup'"
-                        >
-                          {{
-                            translations.account?.createOne ||
-                            'Create one'
-                          }}
-                        </button>
-                      </p>
-                    </template>
-                    <template v-else-if="accountView === 'signup'">
-                      <button
-                        class="self-start inline-flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-                        type="button"
-                        @click="accountView = 'signin'"
-                      >
-                        <v-remixicon name="riArrowLeftSLine" size="14" />
-                        {{
-                          translations.account?.backToSignIn ||
-                          'Back to sign in'
-                        }}
-                      </button>
-                      <p
-                        class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 text-center"
-                      >
-                        {{
-                          translations.account?.createAccountTitle ||
-                          'Create your account'
-                        }}
-                      </p>
-                      <ui-input
-                        v-model="signUpUsername"
-                        class="w-full"
-                        :placeholder="
-                          trAccount.displayNamePlaceholder ||
-                          'Display name'
-                        "
-                        maxlength="50"
-                      />
-                      <ui-input
-                        v-model="signInEmail"
-                        type="email"
-                        autocomplete="email"
-                        inputmode="email"
-                        class="w-full"
-                        :placeholder="
-                          translations.account?.emailPlaceholder || 'Email'
-                        "
-                      />
-                      <ui-input
-                        v-model="signInPassword"
-                        :password="true"
-                        autocomplete="new-password"
-                        class="w-full"
-                        :placeholder="
-                          translations.account?.passwordPlaceholder ||
-                          'Password'
-                        "
-                        @keyup.enter="handleSignUpWithPassword"
-                      />
-                      <ui-button
-                        class="w-full"
-                        variant="primary"
-                        :loading="accountStore.busy"
-                        :disabled="accountStore.busy"
-                        @click="handleSignUpWithPassword"
-                      >
-                        {{
-                          translations.account?.createAccount ||
-                          'Create account'
-                        }}
-                      </ui-button>
-                      <ui-button
-                        class="w-full"
-                        variant="secondary"
-                        :loading="accountStore.busy"
-                        :disabled="accountStore.busy"
-                        @click="handleSignUpWithPasskey"
-                      >
-                        <v-remixicon name="riFingerprintLine" class="mr-1" />
-                        {{
-                          translations.account?.createWithPasskey ||
-                          'Create with passkey'
-                        }}
-                      </ui-button>
-                      <p
-                        v-if="accountStore.error"
-                        class="text-sm text-red-500 text-center"
-                        role="alert"
-                      >
-                        {{ accountStore.error }}
-                      </p>
-                    </template>
-                    <template v-else>
-                      <button
-                        class="self-start inline-flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-                        type="button"
-                        @click="accountView = 'signin'"
-                      >
-                        <v-remixicon name="riArrowLeftSLine" size="14" />
-                        {{
-                          translations.account?.backToSignIn ||
-                          'Back to sign in'
-                        }}
-                      </button>
-                      <p
-                        class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 text-center"
-                      >
-                        {{
-                          translations.account?.cantSignIn ||
-                          "Can't sign in?"
-                        }}
-                      </p>
-                      <ui-input
-                        v-model="forgotEmail"
-                        type="email"
-                        :placeholder="
-                          trAccount.forgotEmailPlaceholder ||
-                          'Email for reset link'
-                        "
-                        class="w-full"
-                      />
-                      <ui-button
-                        variant="secondary"
-                        :loading="forgotBusy"
-                        @click="handleForgot"
-                        >{{
-                          trAccount.sendResetLink || 'Send reset link'
-                        }}</ui-button
-                      >
-                      <p
-                        v-if="forgotMessage"
-                        class="text-xs text-center"
-                        :class="
-                          forgotSent ? 'text-green-600' : 'text-amber-600'
-                        "
-                        >{{ forgotMessage }}</p
-                      >
-                      <p
-                        class="text-xs text-neutral-500 dark:text-neutral-400 text-center"
-                      >
-                        {{
-                          trAccount.inboxHint ||
-                          'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
-                        }}
-                      </p>
-                      <div
-                        class="border-t border-neutral-200 dark:border-neutral-700 pt-3 flex flex-col gap-2"
-                      >
-                        <p
-                          class="text-xs font-semibold tracking-wide text-neutral-500 dark:text-neutral-400 text-center"
-                        >
-                          {{
-                            trAuth.recoverPrompt ||
-                            tr.recoverAccount ||
-                            'Have an account recovery code?'
-                          }}
-                        </p>
-                        <ui-input
-                          v-model="recoverEmail"
-                          type="email"
-                          class="w-full"
-                          :placeholder="
-                            trAccount.emailPlaceholder || 'Email'
-                          "
-                        />
-                        <ui-input
-                          v-model="recoverCode"
-                          type="password"
-                          autocomplete="off"
-                          class="w-full font-mono text-xs"
-                          :placeholder="
-                            trAuth.recoveryCodePlaceholder ||
-                            '64-char account recovery code'
-                          "
-                        />
-                        <p
-                          class="text-xs text-amber-600 dark:text-amber-400 text-center"
-                        >
-                          {{
-                            trAccount.recoveryHint ||
-                            'Restores account sign-in only. Notes need the vault key.'
-                          }}
-                        </p>
-                        <ui-button
-                          class="w-full"
-                          variant="secondary"
-                          :loading="recoverBusy"
-                          @click="handleRecover"
-                          >{{
-                            tr.recoverAccount ||
-                            trAuth.recoverAccount ||
-                            'Recover account'
-                          }}</ui-button
-                        >
-                        <p
-                          v-if="recoverMessage"
-                          class="text-xs text-center"
-                          :class="
-                            recoverSuccess
-                              ? 'text-green-600'
-                              : 'text-red-500'
-                          "
-                          >{{ recoverMessage }}</p
-                        >
+                        </template>
+                        <template v-else-if="accountView === 'signup'">
+                          <button
+                            class="self-start inline-flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                            type="button"
+                            @click="accountView = 'signin'"
+                          >
+                            <v-remixicon name="riArrowLeftSLine" size="14" />
+                            {{
+                              translations.account?.backToSignIn ||
+                              'Back to sign in'
+                            }}
+                          </button>
+                          <p
+                            class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 text-center"
+                          >
+                            {{
+                              translations.account?.createAccountTitle ||
+                              'Create your account'
+                            }}
+                          </p>
+                          <ui-input
+                            v-model="signUpUsername"
+                            class="w-full"
+                            :placeholder="
+                              trAccount.displayNamePlaceholder || 'Display name'
+                            "
+                            maxlength="50"
+                          />
+                          <ui-input
+                            v-model="signInEmail"
+                            type="email"
+                            autocomplete="email"
+                            inputmode="email"
+                            class="w-full"
+                            :placeholder="
+                              translations.account?.emailPlaceholder || 'Email'
+                            "
+                          />
+                          <ui-input
+                            v-model="signInPassword"
+                            :password="true"
+                            autocomplete="new-password"
+                            class="w-full"
+                            :placeholder="
+                              translations.account?.passwordPlaceholder ||
+                              'Password'
+                            "
+                            @keyup.enter="handleSignUpWithPassword"
+                          />
+                          <ui-button
+                            class="w-full"
+                            variant="primary"
+                            :loading="accountStore.busy"
+                            :disabled="accountStore.busy"
+                            @click="handleSignUpWithPassword"
+                          >
+                            {{
+                              translations.account?.createAccount ||
+                              'Create account'
+                            }}
+                          </ui-button>
+                          <ui-button
+                            v-if="passkeysAvailable"
+                            class="w-full"
+                            variant="secondary"
+                            :loading="accountStore.busy"
+                            :disabled="accountStore.busy"
+                            @click="handleSignUpWithPasskey"
+                          >
+                            <v-remixicon
+                              name="riFingerprintLine"
+                              class="mr-1"
+                            />
+                            {{
+                              translations.account?.createWithPasskey ||
+                              'Create with passkey'
+                            }}
+                          </ui-button>
+                          <p
+                            v-if="accountStore.error"
+                            class="text-sm text-red-500 text-center"
+                            role="alert"
+                          >
+                            {{ accountStore.error }}
+                          </p>
+                        </template>
+                        <template v-else>
+                          <button
+                            class="self-start inline-flex items-center gap-1 text-xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                            type="button"
+                            @click="accountView = 'signin'"
+                          >
+                            <v-remixicon name="riArrowLeftSLine" size="14" />
+                            {{
+                              translations.account?.backToSignIn ||
+                              'Back to sign in'
+                            }}
+                          </button>
+                          <p
+                            class="text-sm font-semibold text-neutral-800 dark:text-neutral-200 text-center"
+                          >
+                            {{
+                              translations.account?.cantSignIn ||
+                              "Can't sign in?"
+                            }}
+                          </p>
+                          <ui-input
+                            v-model="forgotEmail"
+                            type="email"
+                            :placeholder="
+                              trAccount.forgotEmailPlaceholder ||
+                              'Email for reset link'
+                            "
+                            class="w-full"
+                          />
+                          <ui-button
+                            variant="secondary"
+                            :loading="forgotBusy"
+                            @click="handleForgot"
+                            >{{
+                              trAccount.sendResetLink || 'Send reset link'
+                            }}</ui-button
+                          >
+                          <p
+                            v-if="forgotMessage"
+                            class="text-xs text-center"
+                            :class="
+                              forgotSent ? 'text-green-600' : 'text-amber-600'
+                            "
+                          >
+                            {{ forgotMessage }}
+                          </p>
+                          <p
+                            class="text-xs text-neutral-500 dark:text-neutral-400 text-center"
+                          >
+                            {{
+                              trAccount.inboxHint ||
+                              'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
+                            }}
+                          </p>
+                          <div class="pt-3 flex flex-col gap-2">
+                            <p
+                              class="text-xs font-semibold tracking-wide text-neutral-500 dark:text-neutral-400 text-center"
+                            >
+                              {{
+                                trAuth.recoverPrompt ||
+                                tr.recoverAccount ||
+                                'Have an account recovery code?'
+                              }}
+                            </p>
+                            <ui-input
+                              v-model="recoverEmail"
+                              type="email"
+                              class="w-full"
+                              :placeholder="
+                                trAccount.emailPlaceholder || 'Email'
+                              "
+                            />
+                            <ui-input
+                              v-model="recoverCode"
+                              type="password"
+                              autocomplete="off"
+                              class="w-full font-mono text-xs"
+                              :placeholder="
+                                trAuth.recoveryCodePlaceholder ||
+                                '64-char account recovery code'
+                              "
+                            />
+                            <p
+                              class="text-xs text-amber-600 dark:text-amber-400 text-center"
+                            >
+                              {{
+                                trAccount.recoveryHint ||
+                                'Restores account sign-in only. Notes need the vault key.'
+                              }}
+                            </p>
+                            <ui-button
+                              class="w-full"
+                              variant="secondary"
+                              :loading="recoverBusy"
+                              @click="handleRecover"
+                              >{{
+                                tr.recoverAccount ||
+                                trAuth.recoverAccount ||
+                                'Recover account'
+                              }}</ui-button
+                            >
+                            <p
+                              v-if="recoverMessage"
+                              class="text-xs text-center"
+                              :class="
+                                recoverSuccess
+                                  ? 'text-green-600'
+                                  : 'text-red-500'
+                              "
+                            >
+                              {{ recoverMessage }}
+                            </p>
+                          </div>
+                        </template>
                       </div>
                     </template>
-                    </div>
-                  </template>
-
-                  <!--
-                    Folder sync lives side-by-side with the Connect step inside
-                    its own card: sign-in is optional, but a signed-out or free
-                    user can still point sync at a folder. Cloud (paid) users
-                    get the honest location line instead.
-                  -->
+                  </div>
                   <div
-                    v-if="showFolderSync"
-                    class="mt-5 rounded-xl bg-neutral-50 dark:bg-neutral-900/40 ring-1 ring-neutral-200 dark:ring-neutral-700 p-4 flex flex-col gap-3"
+                    v-if="showFolderSync && connectSubstep === 'folderSync'"
+                    class="flex flex-col gap-4"
                   >
+                    <!-- Header Text -->
                     <div class="flex flex-col gap-1">
-                      <p
-                        class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                      <h3
+                        class="text-base font-semibold text-neutral-900 dark:text-neutral-100"
                       >
-                        {{ translations.onboarding?.folderSync || 'Folder sync' }}
-                      </p>
-                      <p
-                        class="text-sm text-neutral-600 dark:text-neutral-400"
-                      >
+                        {{
+                          translations.onboarding?.folderSync || 'Folder sync'
+                        }}
+                      </h3>
+                      <p class="text-sm text-neutral-600 dark:text-neutral-400">
                         {{
                           fresh.syncPath
                             ? 'Beaver Notes will sync with this folder.'
@@ -1003,33 +1003,60 @@
                       </p>
                     </div>
 
-                    <div class="flex items-center justify-between gap-3">
+                    <!-- Main Action & Selected Path Display -->
+                    <div class="flex flex-col gap-3">
                       <div
-                        v-if="fresh.syncPath"
-                        class="min-w-0 rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
                       >
-                        {{ fresh.syncPath }}
-                      </div>
-                      <div class="flex gap-2 shrink-0 ml-auto">
-                        <ui-button @click="chooseSyncPath">{{
-                          fresh.syncPath ? 'Change' : 'Choose folder'
-                        }}</ui-button>
-                        <ui-button
+                        <!-- Selected Path Preview (if set) -->
+                        <div
                           v-if="fresh.syncPath"
-                          icon
-                          variant="danger"
-                          @click="clearSyncPath"
+                          class="min-w-0 flex-1 rounded-lg bg-neutral-100 px-3 py-2 text-xs font-mono break-all text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
                         >
-                          <v-remixicon name="riDeleteBin6Line" />
-                        </ui-button>
-                      </div>
-                    </div>
+                          {{ fresh.syncPath }}
+                        </div>
 
-                    <ui-input
-                      v-model="fresh.syncPath"
-                      data-testid="onboarding-sync-path"
-                      placeholder="Or type a folder path"
-                    />
+                        <!-- Action Buttons -->
+                        <div
+                          class="flex items-center gap-2 shrink-0 sm:ml-auto"
+                        >
+                          <ui-button
+                            class="w-full sm:w-auto"
+                            @click="chooseSyncPath"
+                          >
+                            {{ fresh.syncPath ? 'Change' : 'Choose folder' }}
+                          </ui-button>
+                          <ui-button
+                            v-if="fresh.syncPath"
+                            icon
+                            variant="danger"
+                            @click="clearSyncPath"
+                          >
+                            <v-remixicon name="riDeleteBin6Line" />
+                          </ui-button>
+                        </div>
+                      </div>
+
+                      <!-- Manual Path Divider / Input -->
+                      <div class="relative flex items-center py-1 mobile:hidden">
+                        <div
+                          class="grow border-t border-neutral-200 dark:border-neutral-800"
+                        ></div>
+                        <span
+                          class="shrink mx-2 text-xs text-neutral-400 dark:text-neutral-500 uppercase tracking-wider"
+                          >or</span
+                        >
+                        <div
+                          class="grow border-t border-neutral-200 dark:border-neutral-800"
+                        ></div>
+                      </div>
+
+                      <ui-input
+                        v-model="fresh.syncPath"
+                        data-testid="onboarding-sync-path"
+                        placeholder="Type or paste a folder path"
+                      />
+                    </div>
                   </div>
                 </template>
 
@@ -1045,26 +1072,31 @@
                       {{
                         vaultJoinMode
                           ? 'Join existing vault'
-                          :                         translations.settings?.encryptionPassphrase ||
-                            'Vault key'
+                          : localVaultExists
+                            ? 'Unlock this device'
+                            : translations.settings?.encryptionPassphrase ||
+                              'Vault key'
                       }}
                     </h2>
                     <p class="text-neutral-600 dark:text-neutral-400">
                       {{
                         vaultJoinMode
                           ? 'This sync source has an existing encrypted vault. Enter its vault key to join.'
-                          : translations.onboarding?.passwordDescription ||
-                            'Encryption is built into Beaver Notes. Set a vault key to protect every note and asset on this device.'
+                          : localVaultExists
+                            ? 'This device already has a vault. Enter its vault key to unlock your notes.'
+                            : translations.onboarding?.passwordDescription ||
+                              'Encryption is built into Beaver Notes. Set a vault key to protect every note and asset on this device.'
                       }}
                     </p>
                   </div>
 
-                  <template v-if="!vaultJoinMode">
+                  <template v-if="!vaultJoinMode && !localVaultExists">
                     <ui-input
                       v-model="encryptionPassword"
                       password
                       :placeholder="
-                        translations.settings?.vaultKeyPlaceholder || 'Vault key'
+                        translations.settings?.vaultKeyPlaceholder ||
+                        'Vault key'
                       "
                     />
 
@@ -1102,9 +1134,14 @@
                     <ui-input
                       v-model="encryptionPassword"
                       password
-                      data-testid="vault-join-password"
+                      :data-testid="
+                        vaultJoinMode
+                          ? 'vault-join-password'
+                          : 'vault-unlock-password'
+                      "
                       :placeholder="
-                        translations.settings?.vaultKeyPlaceholder || 'Vault key'
+                        translations.settings?.vaultKeyPlaceholder ||
+                        'Vault key'
                       "
                       autofocus
                     />
@@ -1126,7 +1163,7 @@
               :disabled="step === 'import' && importPhase === 'running'"
               @click="wizardBack"
             >
-              <v-remixicon name="riArrowLeftLine" /> Back
+              <v-remixicon name="riArrowLeftLine" /> {{ backLabel }}
             </ui-button>
 
             <div
@@ -1256,13 +1293,14 @@
 </template>
 
 <script>
-    import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStorage } from '@/lib/storage';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useAccountStore } from '@/store/account';
+import { canUsePasskeys } from '@/lib/api/auth';
 import { clipboard } from '@/lib/tauri-bridge';
 import { useSounds } from '@/composable/useSounds';
 import { useTranslations } from '@/composable/useTranslations';
@@ -1297,6 +1335,9 @@ export default {
       );
     }
     const accountStore = useAccountStore();
+    const passkeysAvailable = computed(() =>
+      canUsePasskeys(accountStore.serverUrl),
+    );
 
     // Lazy-load useImportExport (tiptap, marked, ~13MB) only when import is triggered
     const importExportRef = ref(null);
@@ -1506,6 +1547,15 @@ export default {
     const showFolderSync = computed(
       () => !(accountStore.isAuthenticated && accountStore.isPaidPlan),
     );
+    const connectSubstep = ref('account');
+    watch(
+      () => [flow.step.value, showFolderSync.value],
+      ([step, folderSyncAvailable]) => {
+        if (step !== 'account' || !folderSyncAvailable) {
+          connectSubstep.value = 'account';
+        }
+      },
+    );
     const forgotEmail = ref('');
     const forgotBusy = ref(false);
     const forgotMessage = ref('');
@@ -1513,7 +1563,8 @@ export default {
     async function handleForgot() {
       forgotMessage.value = '';
       forgotSent.value = false;
-      const email = forgotEmail.value.trim() || account.signInEmail.value.trim();
+      const email =
+        forgotEmail.value.trim() || account.signInEmail.value.trim();
       if (!email) {
         forgotMessage.value = 'Enter your email.';
         return;
@@ -1553,23 +1604,20 @@ export default {
       recoverBusy.value = true;
       try {
         const { recoverAccount } = await import('@/lib/api/auth');
-        const { saveSessionToken, saveCachedProfile } =
-          await import('@/lib/account-storage');
-        const { resetApiClient } = await import('@/lib/api/client');
         const res = await recoverAccount(email, code, {
           baseUrl: accountStore.serverUrl,
         });
         const token = res?.token || res?.sessionToken;
         if (token) {
-          await saveSessionToken(token);
-          const { getAccount } = await import('@/lib/api/account');
-          accountStore.setToken(token);
-          accountStore.setStatus('authenticated');
-          resetApiClient();
-          try {
-            const data = await getAccount({ baseUrl: accountStore.serverUrl });
-            if (data?.profile) await saveCachedProfile(data.profile);
-          } catch {}
+          // The normal sign-in path, not a bare token save: it persists the
+          // session (and the rotating refresh token, so the next expiry is a
+          // silent refresh, not a hard sign-out), fetches profile/subscription
+          // and re-arms realtime.
+          const { useAccountAuth } = await import('@/composable/useAccountAuth');
+          await useAccountAuth().performSignIn({
+            token,
+            refreshToken: res?.refreshToken || null,
+          });
           recoverSuccess.value = true;
           recoverMessage.value = 'Recovered! Please enroll a new passkey now.';
           // prompt passkey enroll
@@ -1619,8 +1667,12 @@ export default {
     );
 
     // 'confirm' phase steps back to source-picking, not out of import.
+    // Inside the account step's create/recover views, Back returns to
+    // sign-in instead of leaving the step entirely.
     function wizardBack() {
-      if (
+      if (flow.step.value === 'account' && accountView.value !== 'signin') {
+        accountView.value = 'signin';
+      } else if (
         flow.step.value === 'import' &&
         flow.importPhase.value === 'confirm'
       ) {
@@ -1629,6 +1681,12 @@ export default {
         flow.goToPreviousStep();
       }
     }
+
+    const backLabel = computed(() =>
+      flow.step.value === 'account' && accountView.value !== 'signin'
+        ? trAccount.value?.backToSignIn || 'Back to sign in'
+        : 'Back',
+    );
 
     // Footer button set per step/phase (Skip vs Start import vs Decrypt
     // notes, …) centralized so each step doesn't need a bespoke nav row.
@@ -1696,21 +1754,51 @@ export default {
         return [];
       }
 
-      // Connect is skippable: one footer button — it reads "Continue" when
-      // the user has something to commit (account + folder), and "Skip for
-      // now" when everything stays local, jumping to the vault step.
+      // Account and folder sync are separate screens for signed-out/free users.
       if (s === 'account') {
-        const hasChoice = flow.accountStepHasSyncChoice.value;
+        if (showFolderSync.value && connectSubstep.value === 'folderSync') {
+          // A picked folder must go through completeAccountStep: that is what
+          // commits the path and detects whether it already holds a vault.
+          const hasPath = !!flow.fresh.syncPath;
+          return [
+            {
+              key: 'folder-sync',
+              label: hasPath ? 'Continue' : 'Skip for now',
+              variant: hasPath ? 'primary' : 'secondary',
+              icon: hasPath ? 'riArrowRightLine' : null,
+              testid: 'onboarding-folder-sync-continue',
+              loading: hasPath && flow.state.savingPreferences,
+              onClick: hasPath ? flow.completeAccountStep : flow.goToNextStep,
+            },
+          ];
+        }
+
+        if (showFolderSync.value) {
+          return [
+            {
+              key: 'account-next',
+              label: accountStore.isAuthenticated
+                ? 'Continue'
+                : t?.account?.skip || 'Skip for now',
+              variant: accountStore.isAuthenticated ? 'primary' : 'secondary',
+              icon: accountStore.isAuthenticated ? 'riArrowRightLine' : null,
+              testid: 'onboarding-connect-continue',
+              onClick: () => {
+                connectSubstep.value = 'folderSync';
+              },
+            },
+          ];
+        }
+
         return [
           {
             key: 'continue',
-            label: hasChoice ? 'Continue' : t?.account?.skip || 'Skip for now',
+            label: 'Continue',
+            icon: 'riArrowRightLine',
             variant: 'primary',
             testid: 'onboarding-connect-continue',
             loading: flow.state.savingPreferences,
-            onClick: hasChoice
-              ? flow.completeAccountStep
-              : flow.goToNextStep,
+            onClick: flow.completeAccountStep,
           },
         ];
       }
@@ -1800,6 +1888,7 @@ export default {
       trAccount,
       trAuth,
       accountStore,
+      passkeysAvailable,
       draftServerUrl: account.draftServerUrl,
       defaultServerUrl: account.defaultServerUrl,
       ...flow,
@@ -1810,10 +1899,12 @@ export default {
       handleSignUpWithPassword,
       showMoreOptions,
       accountView,
+      backLabel,
       verifySending,
       verifyCooldown,
       handleResendVerification,
       showFolderSync,
+      connectSubstep,
       forgotEmail,
       forgotBusy,
       forgotMessage,

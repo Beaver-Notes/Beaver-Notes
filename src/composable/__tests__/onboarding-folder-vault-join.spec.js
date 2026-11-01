@@ -58,8 +58,12 @@ vi.mock('@/utils/onboarding/index.js', () => ({
 }));
 
 const hasRemoteVaultKeyParamsMock = vi.fn(async () => false);
+const encryptionIsConfiguredMock = vi.fn(async () => false);
+const verifyPassphraseMock = vi.fn(async () => ({ ok: true }));
 vi.mock('@/utils/crypto/encryption.js', () => ({
   setupEncryption: vi.fn(async () => ({ ok: true })),
+  encryptionIsConfigured: (...a) => encryptionIsConfiguredMock(...a),
+  verifyPassphrase: (...a) => verifyPassphraseMock(...a),
   hasRemoteVaultKeyParams: (...a) => hasRemoteVaultKeyParamsMock(...a),
   adoptVaultKey: vi.fn(async () => ({ ok: true })),
   isKeyLoaded: () => false,
@@ -150,6 +154,8 @@ describe('useOnboardingFlow.completeAccountStep with an existing folder vault', 
     vi.clearAllMocks();
     dialogState.confirm.length = 0;
     hasRemoteVaultKeyParamsMock.mockResolvedValue(false);
+    encryptionIsConfiguredMock.mockResolvedValue(false);
+    verifyPassphraseMock.mockResolvedValue({ ok: true });
   });
 
   const makeFlow = () =>
@@ -217,5 +223,51 @@ describe('useOnboardingFlow.completeAccountStep with an existing folder vault', 
 
     expect(flow.fresh.syncPath).toBe('/other-folder');
     expect(setDeclinedVaultJoin).toHaveBeenCalledWith('');
+  });
+});
+
+describe('useOnboardingFlow password step with a vault already on this device', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    encryptionIsConfiguredMock.mockResolvedValue(true);
+    verifyPassphraseMock.mockResolvedValue({ ok: true });
+  });
+
+  const makeFlow = () =>
+    useOnboardingFlow({
+      router: { replace: vi.fn(async () => {}) },
+      clipboard: {},
+      runImportSource: vi.fn(async () => {}),
+    });
+
+  it('unlocks with the existing key instead of minting a new one', async () => {
+    const { setupEncryption } = await import('@/utils/crypto/encryption.js');
+    const flow = makeFlow();
+    flow.goToStep('password');
+    flow.encryptionPassword.value = 'existing-key';
+    flow.encryptionConfirmPassword.value = 'typed-something-else';
+
+    await flow.setupEncryptionPassword();
+
+    expect(verifyPassphraseMock).toHaveBeenCalledWith('existing-key');
+    expect(setupEncryption).not.toHaveBeenCalled();
+    expect(flow.step.value).toBe('import');
+  });
+
+  it('stays on the password step when the key does not unlock the vault', async () => {
+    const { setupEncryption } = await import('@/utils/crypto/encryption.js');
+    verifyPassphraseMock.mockResolvedValue({
+      ok: false,
+      error: 'Wrong password.',
+    });
+    const flow = makeFlow();
+    flow.goToStep('password');
+    flow.encryptionPassword.value = 'not-the-key';
+
+    await flow.setupEncryptionPassword();
+
+    expect(setupEncryption).not.toHaveBeenCalled();
+    expect(flow.encryptionPasswordError.value).toBe('Wrong password.');
+    expect(flow.step.value).toBe('password');
   });
 });

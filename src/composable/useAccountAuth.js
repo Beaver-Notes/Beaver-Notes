@@ -231,6 +231,17 @@ async function performSwitch({ accountId, workspaceId, force = false } = {}) {
     console.warn('[auth] leaving key material cleanup failed:', err?.message || err);
   }
 
+  // Leave the note/folder route before the pools swap. A page still bound to a
+  // note from the leaving workspace saves it into the arriving pool, so the note
+  // shows up in both workspaces and can never sync back (F38). Notes and folders
+  // also belong to one workspace, so the id in the address bar is almost never in
+  // the arriving one.
+  if (/^#\/(note|folder)\//.test(window.location.hash)) {
+    window.location.hash = '#/';
+    // Let the router unmount the note page before the pool moves.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   // The durable half first: if the pool swap fails the index still points at
   // the leaving account, so a relaunch is coherent.
   try {
@@ -249,13 +260,6 @@ async function performSwitch({ accountId, workspaceId, force = false } = {}) {
   // Re-runs the live init for the arriving account: profile, plans, identity
   // republish and the meta-room join all ride on it.
   await runWorkspaceInit();
-  // Notes and folders belong to a workspace, so the id in the address bar is
-  // almost never in the arriving one; the note view only re-checks its id when
-  // the route changes, which an in-place switch does not do, and would show
-  // blank. Home re-renders for whichever workspace just arrived.
-  if (/^#\/(note|folder)\//.test(window.location.hash)) {
-    window.location.hash = '#/';
-  }
   return { switched: true };
 }
 
@@ -303,6 +307,156 @@ export async function signOutAccount(accountId) {
     workspaceId: remaining[0].activeWorkspaceId,
     force: true,
   });
+}
+
+// Notes made before an account existed live in a local-only workspace. Adding
+// an account moves the app to the arriving account's workspace, so capture the
+// local notes first and copy them after the swap.
+async function captureLocalWorkspaceNotes() {
+  try {
+    const { getActiveLocalWorkspace, localNotesCopied } = await import(
+      '@/lib/native/workspaces'
+    );
+    const active = await getActiveLocalWorkspace().catch(() => null);
+    if (!active || active.cloudSync !== false) return null;
+    // One copy per local workspace, ever. Without this, signing into a second
+    // account while the local workspace is active copies the same notes into
+    // that account's workspace too.
+    if (await localNotesCopied(active.id).catch(() => false)) return null;
+    const [{ useNoteStore }, { useFolderStore }, { useLabelStore }, { getSnapshots }] =
+      await Promise.all([
+        import('@/store/note'),
+        import('@/store/folder'),
+        import('@/store/label'),
+        import('@/lib/native/yjs'),
+      ]);
+    const notes = useNoteStore().data || {};
+    const ids = Object.keys(notes);
+    if (!ids.length) return null;
+    // Bodies are copied as stored Yjs bytes: no decryption needed, and locked
+    // notes stay locked.
+    const snapshots = (await getSnapshots(ids).catch(() => null)) || {};
+    return {
+      workspaceId: active.id,
+      workspaceName: active.name,
+      notes,
+      folders: { ...useFolderStore().data },
+      labels: [...(useLabelStore().data || [])],
+      labelColors: { ...useLabelStore().colors },
+      snapshots,
+    };
+  } catch (err) {
+    console.warn('[auth] local workspace capture failed:', err?.message || err);
+    return null;
+  }
+}
+
+// Resolves false only when the copy failed, so the caller retries on the next
+// sign-in instead of marking the local workspace as copied.
+async function seedArrivingWorkspace(captured) {
+  if (!captured) return true;
+  try {
+    const [{ appendBatch }, { getDeviceId }, { getWorkspaceDoc }] = await Promise.all([
+      import('@/lib/native/yjs'),
+      import('@/lib/yjs/helpers'),
+      import('@/lib/yjs/meta-doc'),
+    ]);
+    // Copy only the ids the arriving workspace does not already have: a second
+    // sign-in, or a workspace seeded elsewhere, must not get duplicates or
+    // overwritten metadata.
+    const existing = new Set(getWorkspaceDoc().getMap('notes').keys());
+    const notes = Object.fromEntries(
+      Object.entries(captured.notes).filter(([id]) => !existing.has(id)),
+    );
+    const ids = Object.keys(notes);
+    if (!ids.length) return true;
+    const withBytes = ids.filter((id) => captured.snapshots[id]?.length);
+    if (withBytes.length) {
+      const device = getDeviceId();
+      await appendBatch(
+        withBytes,
+        withBytes.map((id) => captured.snapshots[id]),
+        withBytes.map(() => device),
+      );
+    }
+    // A note can hold content in the store with no stored bytes yet; convert
+    // those instead of copying, skipping ids already written above.
+    const rest = ids
+      .filter((id) => !withBytes.includes(id))
+      .map((id) => notes[id]);
+    if (rest.length) {
+      const { convertLegacyNotesToYjs } = await import(
+        '@/utils/onboarding/legacyContentToYjs'
+      );
+      await convertLegacyNotesToYjs(rest, {
+        alreadyConvertedIds: new Set(withBytes),
+      });
+    }
+    const { seedWorkspaceDocFromData, writeStoresFromWorkspace } = await import(
+      '@/lib/yjs/meta-store'
+    );
+    await seedWorkspaceDocFromData(
+      notes,
+      captured.folders,
+      captured.labels,
+      captured.labelColors,
+      {},
+      {},
+      new Set(),
+    );
+    // Project the seeded doc into the stores now, instead of waiting for the
+    // observer tick, so the notes list is populated before the page repaints.
+    await writeStoresFromWorkspace();
+    // Push the copies on the next cycle rather than waiting for an edit.
+    const { kickRustSync } = await import('@/utils/sync/rust-shim');
+    kickRustSync?.();
+    return true;
+  } catch (err) {
+    console.warn('[auth] local workspace copy failed:', err?.message || err);
+    return false;
+  }
+}
+
+// The copy leaves the local workspace untouched. Once it is done, ask whether
+// to delete it; the backend keeps the files for ten days so the answer stays
+// reversible. The marker makes both the copy and this question one-shot.
+async function offerArchiveOfLocalWorkspace(captured) {
+  if (!captured?.workspaceId) return;
+  try {
+    const { getActiveLocalWorkspace, markLocalNotesCopied, archiveLocalWorkspace } =
+      await import('@/lib/native/workspaces');
+    // Signed in offline: the account kept the local workspace, so there is no
+    // second copy to delete.
+    const active = await getActiveLocalWorkspace().catch(() => null);
+    if (active?.id === captured.workspaceId) return;
+    await markLocalNotesCopied(captured.workspaceId);
+    const { useDialog } = await import('@/lib/dialog');
+    const name = captured.workspaceName || 'the local workspace';
+    useDialog().confirm({
+      title: 'Workspace copied',
+      body: `Your notes from “${name}” are now in this account's workspace. Delete the local copy? It can be restored for 10 days.`,
+      okText: 'Delete local copy',
+      cancelText: 'Keep it',
+      icon: 'riDeleteBin6Line',
+      async onConfirm() {
+        try {
+          await archiveLocalWorkspace(captured.workspaceId);
+          const { useWorkspaceStore } = await import('@/store/workspace');
+          await useWorkspaceStore().retrieve();
+        } catch (err) {
+          useDialog().alert({
+            title: 'Could not delete the local copy',
+            description: err?.message || 'Nothing was removed.',
+          });
+        }
+      },
+    });
+  } catch (err) {
+    console.warn(
+      '[auth] local workspace delete prompt failed:',
+      err?.message || err,
+    );
+  }
 }
 
 export function useAccountAuth() {
@@ -372,6 +526,10 @@ export function useAccountAuth() {
         // storage (anonymous) while ws-sync reads this store (still authenticating).
         accountStore.setToken(null);
         accountStore.setStatus('anonymous');
+        // Mirror the plain signOut() teardown: leftover subscription/planLimits
+        // would keep a signed-out account rendering paid-plan UI.
+        accountStore.setSubscription(null);
+        accountStore.setPlanLimits(null);
         console.warn('[auth] fetchProfile 401: session rejected, signing out');
       } else {
         console.error('[auth] fetchProfile failed:', err);
@@ -499,8 +657,14 @@ export function useAccountAuth() {
     // workspace for the arriving account. In place nothing did, so the notes
     // list and the sync scope stayed on the account we just left.
     if (persist && accountId) {
+      // Captured before the switch: it clears the note store and swaps the
+      // pool, so a local-only workspace's notes are only readable right now.
+      const localNotes = await captureLocalWorkspaceNotes();
       try {
-        await performSwitch({ accountId, force: true });
+        const { switched } = await performSwitch({ accountId, force: true });
+        if (switched && (await seedArrivingWorkspace(localNotes))) {
+          await offerArchiveOfLocalWorkspace(localNotes);
+        }
       } catch (err) {
         console.warn('[auth] workspace handover after sign-in failed:', err?.message || err);
       }
@@ -597,46 +761,6 @@ export function useAccountAuth() {
       });
       return performSignIn(result || {});
     });
-  }
-
-  async function startQuickConnect() {
-    clearAuthError();
-    try {
-      const result = await authApi.quickConnectInitiate({
-        baseUrl: activeBaseUrl(),
-      });
-      return result;
-    } catch (err) {
-      setAuthError(normalizeError(err));
-      throw err;
-    }
-  }
-
-  async function pollQuickConnect(secret) {
-    try {
-      const result = await authApi.quickConnectPoll(secret, {
-        baseUrl: activeBaseUrl(),
-      });
-      if (result && result.authorized && result.payload) {
-        await performSignIn({ token: result.payload });
-      }
-      return result;
-    } catch (err) {
-      setAuthError(normalizeError(err));
-      throw err;
-    }
-  }
-
-  async function authorizeQuickConnect(code, payload = null) {
-    clearAuthError();
-    try {
-      return await authApi.quickConnectAuthorize(code, payload, {
-        baseUrl: activeBaseUrl(),
-      });
-    } catch (err) {
-      setAuthError(normalizeError(err));
-      throw err;
-    }
   }
 
   async function signOut() {
@@ -916,9 +1040,9 @@ export function useAccountAuth() {
     signUpWithPasskey,
     signInWithPassword,
     signUpWithPassword,
-    startQuickConnect,
-    pollQuickConnect,
-    authorizeQuickConnect,
+    // Recovery (Onboarding.vue) re-enters the normal sign-in path instead of
+    // hand-saving a bare token.
+    performSignIn,
     signOut,
     signOutAccount,
     signOutEverywhere,

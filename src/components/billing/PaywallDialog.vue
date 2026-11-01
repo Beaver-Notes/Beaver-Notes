@@ -1,21 +1,23 @@
 <template>
-  <ui-modal
-    v-model="show"
-    :content-class="contentClass"
-  >
-    <!-- Solid amber header band; the mascot peeks up from its bottom edge. -->
+  <ui-modal v-model="show" :content-class="contentClass">
     <template #header>
-      <div class="relative -m-3 mb-3 overflow-hidden bg-amber-400 px-5 pb-4 pt-5 dark:bg-amber-500">
+      <div
+        class="flex items-center justify-between gap-4 rounded-2xl bg-primary/10 px-5 py-4 dark:bg-primary/20"
+      >
+        <div class="min-w-0">
+          <h2
+            class="text-xl font-semibold leading-tight tracking-tight text-neutral-900 dark:text-neutral-50"
+          >
+            {{ headline }}
+          </h2>
+          <p class="mt-1 text-sm text-neutral-700 dark:text-neutral-300">
+            {{ subtext }}
+          </p>
+        </div>
         <ui-beaver-character
           :state="characterState"
-          class="pointer-events-none absolute -bottom-8 right-3 w-24"
+          class="pointer-events-none w-32 shrink-0 md:w-20"
         />
-        <h2 class="text-lg font-semibold tracking-tight text-neutral-900">
-          {{ headline }}
-        </h2>
-        <p class="mt-1 max-w-[70%] text-sm text-neutral-800">
-          {{ subtext }}
-        </p>
       </div>
     </template>
 
@@ -24,16 +26,17 @@
       v-if="visibleNotice"
       class="mb-3 text-sm"
       role="status"
-      :class="noticeIsError ? 'text-red-500' : 'text-neutral-600 dark:text-neutral-300'"
+      :class="
+        noticeIsError
+          ? 'text-red-500'
+          : 'text-neutral-600 dark:text-neutral-300'
+      "
     >
       {{ visibleNotice }}
     </p>
 
-    <!-- Inline sign-in step (never a dead-end) -->
+    <!-- Inline sign-in step: step 1 of 2, never a dead-end -->
     <div v-if="view === 'signing'" class="flex flex-col gap-3">
-      <p class="text-sm text-neutral-600 dark:text-neutral-400">
-        {{ tr.signInPrompt || 'Sign in to choose your plan.' }}
-      </p>
       <ui-input
         v-model="email"
         type="email"
@@ -62,24 +65,41 @@
       >
         {{ tr.maybeLater || 'Maybe later' }}
       </button>
+      <p
+        class="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400"
+      >
+        <span class="h-1.5 w-8 rounded-full bg-primary" />
+        <span
+          class="h-1.5 w-8 rounded-full bg-neutral-200 dark:bg-neutral-700"
+        />
+        {{ tr.stepOne || 'Step 1 of 2' }}
+      </p>
     </div>
 
     <!-- Loading skeleton -->
     <div v-else-if="loading" class="flex flex-col gap-3" aria-hidden="true">
-      <div v-for="n in wide ? 3 : 2" :key="n" class="h-32 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-700" />
+      <div
+        v-for="n in wide ? 3 : 2"
+        :key="n"
+        class="h-32 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-700"
+      />
     </div>
 
     <!-- Store / price error with retry -->
-    <div v-else-if="loadError" class="flex flex-col items-center gap-3 py-6 text-center">
+    <div
+      v-else-if="loadError"
+      class="flex flex-col items-center gap-3 py-6 text-center"
+    >
       <p class="text-sm text-red-500">{{ loadError }}</p>
-      <ui-button variant="primary" @click="loadPlans">{{ tr.retry || 'Try again' }}</ui-button>
+      <ui-button variant="primary" @click="loadPlans">{{
+        tr.retry || 'Try again'
+      }}</ui-button>
     </div>
 
-    <!-- Success -->
-    <div v-else-if="view === 'success'" class="flex flex-col items-center gap-3 py-2 text-center">
-      <p class="text-base font-medium text-neutral-900 dark:text-neutral-50">
-        {{ tr.successTitle?.replace('{plan}', planLabel(currentPlan)) || `Subscribed to ${planLabel(currentPlan)}. Your plan is now active.` }}
-      </p>
+    <div
+      v-else-if="view === 'success'"
+      class="flex flex-col items-center gap-3 py-2 text-center"
+    >
       <p class="text-sm text-neutral-600 dark:text-neutral-400">
         {{ tr.successBody || 'Restart sync to pick up your new plan limits.' }}
       </p>
@@ -90,184 +110,282 @@
 
     <!-- Plans -->
     <div v-else>
-      <div class="mb-3 flex flex-col gap-2">
-        <div class="flex gap-2" role="group" :aria-label="tr.intervalLabel || 'Billing interval'">
-          <ui-button
-            :variant="interval === 'monthly' ? 'primary' : 'secondary'"
-            @click="interval = 'monthly'"
+      <!-- What you get. Wide: tiles with the triggering feature outlined.
+           Phone: an icon list. -->
+      <div v-if="wide" class="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div
+          v-for="f in features"
+          :key="f.key"
+          class="rounded-2xl border p-3"
+          :class="
+            reason === f.key
+              ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-400 dark:bg-amber-400/10'
+              : 'border'
+          "
+        >
+          <v-remixicon :name="f.icon" class="h-5 w-5 text-primary" />
+          <p
+            class="mt-2 text-sm font-semibold text-neutral-900 dark:text-neutral-50"
           >
-            {{ tr.monthly || 'Monthly' }}
-          </ui-button>
-          <ui-button
-            :variant="interval === 'yearly' ? 'primary' : 'secondary'"
-            @click="interval = 'yearly'"
-          >
-            {{ tr.yearly || 'Yearly' }}
-          </ui-button>
+            {{ f.title }}
+          </p>
+          <p class="text-xs text-neutral-500 dark:text-neutral-400">
+            {{ f.body }}
+          </p>
+        </div>
+      </div>
+      <ul v-else class="mb-4 flex flex-col gap-2.5">
+        <li v-for="f in features" :key="f.key" class="flex items-center gap-3">
           <span
-            v-if="savePercent > 0"
-            class="self-center rounded-full bg-green-600 px-2 py-0.5 text-xs font-medium text-white"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+            :class="
+              reason === f.key
+                ? 'bg-amber-400 text-neutral-900'
+                : 'bg-neutral-100 text-primary dark:bg-neutral-800'
+            "
           >
+            <v-remixicon :name="f.icon" class="h-5 w-5" />
+          </span>
+          <span class="text-sm text-neutral-900 dark:text-neutral-50">
+            <b class="font-semibold">{{ f.title }}</b>
+            <span class="text-neutral-500 dark:text-neutral-400">
+              {{ f.body }}</span
+            >
+          </span>
+        </li>
+      </ul>
+
+      <!-- Mobile collab: Team is not sold via store billing -->
+      <div
+        v-if="teamOnlyNote"
+        class="rounded-2xl bg-neutral-100 p-4 text-sm dark:bg-neutral-800"
+      >
+        <p class="font-semibold text-neutral-900 dark:text-neutral-50">
+          {{ tr.teamNoteTitle || 'Included with Team' }}
+        </p>
+        <p class="mt-1 text-neutral-600 dark:text-neutral-300">
+          {{
+            tr.teamNoteBody ||
+            'Shared workspaces come with the Team plan, which you can set up from the desktop app.'
+          }}
+        </p>
+      </div>
+
+      <template v-else>
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+          <div
+            class="inline-flex rounded-full bg-neutral-100 p-1 text-sm dark:bg-neutral-800"
+            role="group"
+            :aria-label="tr.intervalLabel || 'Billing interval'"
+          >
+            <button
+              v-for="i in ['monthly', 'yearly']"
+              :key="i"
+              type="button"
+              :aria-pressed="interval === i"
+              class="rounded-full px-4 py-1.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              :class="
+                interval === i
+                  ? 'bg-white shadow dark:bg-neutral-700'
+                  : 'text-neutral-500 dark:text-neutral-400'
+              "
+              @click="interval = i"
+            >
+              {{
+                i === 'monthly'
+                  ? tr.monthly || 'Monthly'
+                  : tr.yearly || 'Yearly'
+              }}
+            </button>
+          </div>
+          <span v-if="savePercent > 0" class="text-sm font-medium text-primary">
             {{ savePercent }}% off
           </span>
         </div>
-      </div>
 
-      <!-- Wide viewport: a compact card grid — three cards (with Team) on
-           desktop checkout, two store-billing cards on tablets/foldables,
-           sized like an iPad-style centered modal. -->
-      <div
-        v-if="wide"
-        role="radiogroup"
-        :aria-label="tr.plansLabel || 'Plans'"
-        class="grid gap-3"
-        :class="isMobile ? 'grid-cols-2' : 'grid-cols-3'"
-      >
+        <!-- Wide viewport: compact card grid (three with Team on desktop
+             checkout, two store-billing cards on tablets/foldables).
+             Cards only select; the CTA below buys. -->
         <div
-          v-for="plan in gridPlans"
-          :key="plan"
-          role="radio"
-          :aria-checked="selected === plan"
-          tabindex="0"
-          class="relative flex h-full cursor-pointer flex-col gap-2 rounded-xl border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          :class="selected === plan
-            ? 'border-primary bg-primary/5 dark:bg-primary/10'
-            : 'border-neutral-200 dark:border-neutral-700'"
-          @click="selected = plan"
-          @keydown.enter.prevent="selected = plan"
-          @keydown.space.prevent="selected = plan"
+          v-if="wide"
+          role="radiogroup"
+          :aria-label="tr.plansLabel || 'Plans'"
+          class="mt-1 grid gap-2.5"
+          :class="isMobile ? 'grid-cols-2' : 'grid-cols-3'"
         >
-          <span
-            v-if="plan === 'pro'"
-            class="absolute right-3 top-3 rounded-full bg-blue-600 px-2 py-0.5 text-xs font-medium text-white"
+          <div
+            v-for="plan in gridPlans"
+            :key="plan"
+            role="radio"
+            :aria-checked="selected === plan"
+            tabindex="0"
+            class="relative flex h-full cursor-pointer flex-col gap-1 rounded-2xl border p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            :class="
+              selected === plan
+                ? 'border-primary bg-primary/5 ring-1 ring-primary dark:bg-primary/10'
+                : ' hover:border-neutral-400 dark:'
+            "
+            @click="selected = plan"
+            @keydown.enter.prevent="selected = plan"
+            @keydown.space.prevent="selected = plan"
           >
-            {{ tr.popularBadge || 'Most popular' }}
-          </span>
-          <span
-            v-else-if="isCurrentPlan(plan)"
-            class="absolute right-3 top-3 rounded-full border border-neutral-300 px-2 py-0.5 text-xs text-neutral-600 dark:border-neutral-600 dark:text-neutral-300"
-          >
-            {{ tr.currentBadge || 'Current' }}
-          </span>
-
-          <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-            {{ planLabel(plan) }}
-          </p>
-          <p class="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
-            {{ planPriceLine(plan) }}
-          </p>
-          <p
-            v-if="plan === 'team'"
-            class="text-xs text-neutral-500"
-          >
-            {{ tr.perSeat || 'per seat / month' }}
-          </p>
-          <p class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-            {{ planFeatures(plan) }}
-          </p>
-
-          <!-- Store billing selects by tapping the card; the pinned CTA buys.
-               Only desktop checkout gets a per-card button. -->
-          <div v-if="!isMobile" class="mt-auto">
-            <ui-button
-              v-if="!isCurrentPlan(plan)"
-              variant="primary"
-              class="w-full"
-              :loading="busy"
-              :disabled="busy"
-              @click="selectPlan(plan)"
+            <span
+              v-if="isCurrentPlan(plan)"
+              class="absolute -top-2.5 left-3 rounded-full border border-neutral-300 bg-white px-2 py-0.5 text-xs text-neutral-600 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
             >
-              {{ tr.chooseButton || 'Upgrade' }}
-            </ui-button>
-            <ui-button v-else variant="secondary" class="w-full" disabled>
-              {{ tr.currentButton || "You're all set" }}
-            </ui-button>
+              {{ tr.currentBadge || 'Current' }}
+            </span>
+
+            <p
+              class="text-sm font-semibold text-neutral-900 dark:text-neutral-50"
+            >
+              {{ planLabel(plan) }}
+            </p>
+            <p
+              class="text-lg font-semibold text-neutral-900 dark:text-neutral-50"
+            >
+              {{ planPriceLine(plan) }}
+            </p>
+            <p v-if="!isMobile" class="text-xs text-neutral-500">
+              {{ tr.vatNote || 'VAT calculated at checkout' }}
+            </p>
+            <p v-if="plan === 'team'" class="text-xs text-neutral-500">
+              {{ tr.perSeat || 'per seat / month' }}
+            </p>
+            <p
+              class="mt-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              {{ planFeatures(plan) }}
+            </p>
           </div>
         </div>
-      </div>
 
-      <!-- Mobile sheet: two rows; selected row expands to show features -->
-      <div
-        v-else
-        role="radiogroup"
-        :aria-label="tr.plansLabel || 'Plans'"
-        class="flex flex-col gap-3"
-      >
-        <template v-for="plan in mobilePlans" :key="plan">
-          <ui-card
-            :padding="'p-0'"
-            hover
-            class="transition-colors"
-            :class="selected === plan ? 'border-primary' : ''"
-          >
-            <button
-              type="button"
-              role="radio"
-              :aria-checked="selected === plan"
-              class="flex w-full items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
-              @click="selected = plan"
+        <!-- Phone sheet: rows; the selected row expands to show features -->
+        <div
+          v-else
+          role="radiogroup"
+          :aria-label="tr.plansLabel || 'Plans'"
+          class="flex flex-col gap-2.5"
+        >
+          <template v-for="plan in mobilePlans" :key="plan">
+            <ui-card
+              :padding="'p-0'"
+              hover
+              class="transition-colors"
+              :class="
+                selected === plan ? 'border-primary ring-1 ring-primary' : ''
+              "
             >
-              <span class="text-left">
-                <span class="block text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                  {{ planLabel(plan) }}
+              <button
+                type="button"
+                role="radio"
+                :aria-checked="selected === plan"
+                class="flex w-full items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                @click="selected = plan"
+              >
+                <span class="text-left">
+                  <span
+                    class="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-50"
+                  >
+                    {{ planLabel(plan) }}
+                  </span>
+                  <span
+                    class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400"
+                  >
+                    {{ mobilePriceText(plan) }}
+                  </span>
+                  <span
+                    v-if="selected !== plan"
+                    class="mt-0.5 block text-xs text-neutral-400"
+                  >
+                    {{ planFeatures(plan) }}
+                  </span>
                 </span>
-                <span class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">
-                  {{ mobilePriceText(plan) }}
-                </span>
-                <span
-                  v-if="selected !== plan"
-                  class="mt-0.5 block text-xs text-neutral-400"
-                >
-                  {{ planFeatures(plan) }}
-                </span>
-              </span>
-              <v-remixicon
-                name="riRadioButtonLine"
-                class="h-5 w-5 shrink-0"
-                :class="selected === plan ? 'text-primary' : 'text-neutral-400'"
-              />
-            </button>
-            <expand-transition>
-              <div v-if="selected === plan" class="border-t border-neutral-200 px-4 pb-4 pt-3 dark:border-neutral-700">
-                <p class="text-xs leading-relaxed text-neutral-600 dark:text-neutral-300">
-                  {{ planFeatures(plan) }}
-                </p>
-              </div>
-            </expand-transition>
-          </ui-card>
-        </template>
-      </div>
+                <v-remixicon
+                  name="riRadioButtonLine"
+                  class="h-5 w-5 shrink-0"
+                  :class="
+                    selected === plan ? 'text-primary' : 'text-neutral-400'
+                  "
+                />
+              </button>
+              <expand-transition>
+                <div v-if="selected === plan" class="px-4 pb-4 pt-3 dark:">
+                  <p
+                    class="text-xs leading-relaxed text-neutral-600 dark:text-neutral-300"
+                  >
+                    {{ planFeatures(plan) }}
+                  </p>
+                </div>
+              </expand-transition>
+            </ui-card>
+          </template>
+        </div>
+      </template>
 
-      <p v-if="busy" class="mt-3 text-sm text-neutral-600 dark:text-neutral-300" role="status">
-        {{ tr.pendingText || 'Activating your plan — this can take up to a minute…' }}
-      </p>
-
-      <!-- Enterprise link (desktop only; mobile has no external purchase links) -->
-      <a
-        v-if="!isMobile"
-        class="mt-4 block text-center text-xs text-neutral-500 underline hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-        :href="WEBSITE_URL"
-        target="_blank"
-        rel="noopener noreferrer"
+      <p
+        v-if="busy"
+        class="mt-3 text-sm text-neutral-600 dark:text-neutral-300"
+        role="status"
       >
-        {{ tr.enterpriseLink || 'Talk to us about Enterprise' }}
-      </a>
+        {{
+          tr.pendingText ||
+          'Activating your plan — this can take up to a minute…'
+        }}
+      </p>
     </div>
 
     <template #actions>
-      <!-- Mobile: pinned primary CTA + footnote; no external purchase links -->
       <div class="flex w-full flex-col gap-2">
-        <ui-button
-          v-if="isMobile"
-          variant="primary"
-          class="w-full"
-          :loading="busy"
-          :disabled="busy || !selected"
-          @click="selectPlan(selected)"
+        <template v-if="view === 'plans' && !loading && !loadError">
+          <ui-button
+            v-if="teamOnlyNote"
+            variant="secondary"
+            class="w-full"
+            @click="show = false"
+          >
+            {{ tr.gotIt || 'Got it' }}
+          </ui-button>
+          <div
+            v-else
+            class="flex gap-1"
+            :class="isMobile ? 'flex-col-reverse' : 'items-center gap-3'"
+          >
+            <ui-button
+              type="button"
+              variant="default"
+              :class="isMobile ? 'w-full' : 'w-full'"
+              @click="show = false"
+            >
+              {{ tr.maybeLater || 'Maybe later' }}
+            </ui-button>
+            <ui-button
+              variant="primary"
+              :class="isMobile ? 'w-full' : 'w-full'"
+              :loading="busy"
+              :disabled="busy || !selected || isCurrentPlan(selected)"
+              @click="selectPlan(selected)"
+            >
+              {{ ctaLabel }}
+            </ui-button>
+          </div>
+          <p
+            v-if="!isMobile && !teamOnlyNote"
+            class="text-center text-xs text-neutral-500 dark:text-neutral-400"
+          >
+            {{ tr.checkoutHint || 'Checkout opens in your browser' }}
+          </p>
+        </template>
+
+        <p
+          class="flex items-center justify-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400"
         >
-          {{ mobilePriceText(selected) ? tr.subscribeWithPrice || `Subscribe · ${mobilePriceText(selected)}` : tr.subscribeButton || 'Subscribe' }}
-        </ui-button>
-        <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 py-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+          <v-remixicon name="riLockLine" class="h-3.5 w-3.5" />
+          {{ tr.encrypted || 'Zero-knowledge encrypted sync' }}
+        </p>
+        <div
+          class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 py-0.5 text-xs text-neutral-500 dark:text-neutral-400"
+        >
           <button
             v-if="isMobile"
             type="button"
@@ -277,13 +395,35 @@
           >
             {{ tr.restore || 'Restore purchases' }}
           </button>
-          <a :href="TERMS_URL" target="_blank" rel="noopener noreferrer" class="underline hover:text-neutral-700 dark:hover:text-neutral-200">
+          <a
+            :href="TERMS_URL"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline hover:text-neutral-700 dark:hover:text-neutral-200"
+          >
             {{ tr.terms || 'Terms' }}
           </a>
           <span aria-hidden="true">·</span>
-          <a :href="PRIVACY_URL" target="_blank" rel="noopener noreferrer" class="underline hover:text-neutral-700 dark:hover:text-neutral-200">
+          <a
+            :href="PRIVACY_URL"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline hover:text-neutral-700 dark:hover:text-neutral-200"
+          >
             {{ tr.privacy || 'Privacy' }}
           </a>
+          <!-- Enterprise link: desktop only; mobile has no external purchase links -->
+          <template v-if="!isMobile">
+            <span aria-hidden="true">·</span>
+            <a
+              :href="WEBSITE_URL"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="underline hover:text-neutral-700 dark:hover:text-neutral-200"
+            >
+              {{ tr.enterpriseLink || 'Talk to us about Enterprise' }}
+            </a>
+          </template>
         </div>
       </div>
     </template>
@@ -299,11 +439,7 @@ import { useIapBilling } from '@/composable/useIapBilling';
 import { useTranslations } from '@/composable/useTranslations';
 import { getPlans } from '@/lib/api/plans';
 import { createCheckoutSession } from '@/lib/api/billing';
-import {
-  PLAN_NAMES,
-  planFeatures,
-  planLabel,
-} from '@/lib/api/types';
+import { PLAN_NAMES, planFeatures, planLabel } from '@/lib/api/types';
 
 const WEBSITE_URL = 'https://www.beavernotes.com';
 const TERMS_URL = `${WEBSITE_URL}/terms`;
@@ -315,16 +451,23 @@ const MOBILE_PLANS = [PLAN_NAMES.STARTER, PLAN_NAMES.PRO];
 
 const REASON_COPY = {
   sync: {
-    headline: 'Sync your notes everywhere',
-    subtext: 'Upgrade to keep every note available on all your devices.',
+    headline: 'Take your notes with you',
+    subtext: 'Use as many devices as you like. Everything is already there.',
   },
   history: {
-    headline: 'Never lose an edit again',
-    subtext: 'Upgrade to unlock note history and restore earlier versions.',
+    headline: 'Every edit, safely kept',
+    subtext:
+      'Go back to any earlier version of a note whenever you change your mind.',
+  },
+  collab: {
+    headline: 'Write together',
+    subtext:
+      'Shared workspaces let your team keep notes and edit them together.',
   },
   storage: {
-    headline: 'Almost out of storage',
-    subtext: 'Upgrade for more room as your notes grow.',
+    headline: 'Room for everything',
+    subtext:
+      'Cloud storage starts at 10 GB, so your notes and attachments are always backed up.',
   },
   settings: {
     headline: 'Choose your plan',
@@ -332,10 +475,41 @@ const REASON_COPY = {
   },
 };
 
+const FEATURES = [
+  {
+    key: 'sync',
+    icon: 'riRefreshLine',
+    title: 'Sync',
+    body: 'Unlimited devices',
+  },
+  {
+    key: 'history',
+    icon: 'riHistoryLine',
+    title: 'History',
+    body: '30 days to 1 year',
+  },
+  {
+    key: 'collab',
+    icon: 'riGroupLine',
+    title: 'Collab',
+    body: 'Share notes, team workspaces',
+  },
+  {
+    key: 'storage',
+    icon: 'riDatabase2Line',
+    title: 'Storage',
+    body: '10 GB and up',
+  },
+];
+
 // Same trust rule Account.vue enforces: https-only, known billing hosts,
 // or the account's own sync server (passed per call so multi-account
 // switches are respected).
-const BILLING_HOSTS = ['checkout.stripe.com', 'billing.stripe.com', 'js.stripe.com'];
+const BILLING_HOSTS = [
+  'checkout.stripe.com',
+  'billing.stripe.com',
+  'js.stripe.com',
+];
 function isAllowedBillingUrl(url, serverUrl) {
   try {
     const parsed = new URL(url);
@@ -386,7 +560,7 @@ export default {
     );
     const contentClass = computed(() => {
       if (!wide.value) return '';
-      return isMobile ? 'max-w-lg' : 'max-w-4xl';
+      return isMobile ? 'max-w-lg' : 'max-w-xl';
     });
     function planPriceLine(plan) {
       return isMobile ? mobilePriceText(plan) : planPriceText(plan);
@@ -420,16 +594,53 @@ export default {
         : accountStore.plan,
     );
 
-    const headline = computed(
-      () => tr.value[`headline-${reason.value}`] || REASON_COPY[reason.value]?.headline || REASON_COPY.settings.headline,
-    );
-    const subtext = computed(
-      () => tr.value[`subtext-${reason.value}`] || REASON_COPY[reason.value]?.subtext || REASON_COPY.settings.subtext,
-    );
+    const headline = computed(() => {
+      if (view.value === 'signing')
+        return tr.value.signInHeadline || 'First, a quick sign-in';
+      if (view.value === 'success')
+        return tr.value.successHeadline || 'You’re all set';
+      return (
+        tr.value[`headline-${reason.value}`] ||
+        REASON_COPY[reason.value]?.headline ||
+        REASON_COPY.settings.headline
+      );
+    });
+    const subtext = computed(() => {
+      if (view.value === 'signing') {
+        return (
+          tr.value.signInSubtext || 'So your plan follows you to every device.'
+        );
+      }
+      if (view.value === 'success') {
+        return (
+          tr.value.successTitle?.replace(
+            '{plan}',
+            planLabel(currentPlan.value),
+          ) ||
+          `Subscribed to ${planLabel(currentPlan.value)}. Your plan is now active.`
+        );
+      }
+      return (
+        tr.value[`subtext-${reason.value}`] ||
+        REASON_COPY[reason.value]?.subtext ||
+        REASON_COPY.settings.subtext
+      );
+    });
 
     const characterState = computed(() =>
-      view.value === 'success' ? 'happy' : undefined,
+      view.value === 'success' ? 'happy' : 'wink',
     );
+
+    const features = computed(() =>
+      FEATURES.map((f) => ({
+        ...f,
+        title: tr.value[`feature-${f.key}-title`] || f.title,
+        body: tr.value[`feature-${f.key}-body`] || f.body,
+      })),
+    );
+    // Team is not sold through store billing, so the collab prompt on
+    // mobile explains where to get it instead of showing plans.
+    const teamOnlyNote = computed(() => isMobile && reason.value === 'collab');
 
     const desktopPlans = DESKTOP_PLANS;
     const mobilePlans = MOBILE_PLANS;
@@ -439,7 +650,8 @@ export default {
     }
 
     function formatAmount(entry) {
-      if (!entry || !Number.isFinite(entry.amount) || !entry.currency) return '';
+      if (!entry || !Number.isFinite(entry.amount) || !entry.currency)
+        return '';
       return new Intl.NumberFormat(undefined, {
         style: 'currency',
         currency: String(entry.currency).toUpperCase(),
@@ -480,6 +692,19 @@ export default {
       return 0;
     });
 
+    const ctaLabel = computed(() => {
+      if (isMobile) {
+        const price = mobilePriceText(selected.value);
+        return price
+          ? tr.value.subscribeWithPrice || `Subscribe · ${price}`
+          : tr.value.subscribeButton || 'Subscribe';
+      }
+      return (
+        tr.value.continueWith?.replace('{plan}', planLabel(selected.value)) ||
+        `Continue with ${planLabel(selected.value)}`
+      );
+    });
+
     const visibleNotice = computed(() => notice.value || null);
 
     function setNotice(text, isError = false) {
@@ -512,7 +737,10 @@ export default {
           prices.value = plans?.prices || null;
         }
       } catch (e) {
-        loadError.value = e?.message || dialogTr.value.genericError || 'Something went wrong. Please try again.';
+        loadError.value =
+          e?.message ||
+          dialogTr.value.genericError ||
+          'Something went wrong. Please try again.';
       } finally {
         loading.value = false;
       }
@@ -561,7 +789,8 @@ export default {
           setNotice('');
         } else {
           setNotice(
-            trAccount.value.iapProcessing || 'Payment processing — your plan will activate shortly.',
+            trAccount.value.iapProcessing ||
+              'Payment processing — your plan will activate shortly.',
             false,
           );
         }
@@ -591,7 +820,11 @@ export default {
               'Checkout opened in your browser. Complete your purchase there.',
           );
         } else {
-          setNotice(dialogTr.value.checkoutInvalidUrl || 'Checkout could not be opened.', true);
+          setNotice(
+            dialogTr.value.checkoutInvalidUrl ||
+              'Checkout could not be opened.',
+            true,
+          );
         }
       } catch (e) {
         if (e?.body?.error === 'EMAIL_NOT_VERIFIED') {
@@ -601,7 +834,12 @@ export default {
             true,
           );
         } else {
-          setNotice(e?.message || dialogTr.value.genericError || 'Checkout failed. Please try again.', true);
+          setNotice(
+            e?.message ||
+              dialogTr.value.genericError ||
+              'Checkout failed. Please try again.',
+            true,
+          );
         }
       } finally {
         busy.value = false;
@@ -618,7 +856,8 @@ export default {
           view.value = 'success';
         } else {
           setNotice(
-            trAccount.value.noPurchases || 'No purchases found for this account.',
+            trAccount.value.noPurchases ||
+              'No purchases found for this account.',
             false,
           );
         }
@@ -635,6 +874,13 @@ export default {
       if (DESKTOP_PLANS.includes(currentPlan.value)) {
         selected.value = currentPlan.value;
       }
+      if (reason.value === 'collab' && !isMobile)
+        selected.value = PLAN_NAMES.TEAM;
+      // Only a plan whose price is on the displayed grid may stay preselected:
+      // the phone/narrow grid shows starter+pro only, and buying 'team' there
+      // has no store product (it dies as an error notice).
+      if (!gridPlans.value.includes(selected.value))
+        selected.value = PLAN_NAMES.PRO;
       show.value = true;
       if (accountStore.isAuthenticated) loadPlans();
     }
@@ -687,6 +933,9 @@ export default {
       headline,
       subtext,
       characterState,
+      features,
+      teamOnlyNote,
+      ctaLabel,
       wide,
       gridPlans,
       contentClass,

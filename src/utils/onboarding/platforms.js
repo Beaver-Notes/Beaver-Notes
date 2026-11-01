@@ -122,27 +122,12 @@ const PLATFORM_ORDER = [
   'simplenote',
 ];
 
-export const MIGRATION_PLATFORMS = PLATFORMS;
-
 export const ALL_PLATFORMS = [...PLATFORMS].sort(
   (a, b) => PLATFORM_ORDER.indexOf(a.id) - PLATFORM_ORDER.indexOf(b.id)
 );
 
 export const PLATFORM_LABELS = Object.fromEntries(
   PLATFORMS.map((p) => [p.id, p.label])
-);
-
-export const PLATFORM_ICONS = Object.fromEntries(
-  PLATFORMS.map((p) => [
-    p.id,
-    {
-      icon: p.icon,
-      useLogo: p.useLogoImg,
-      bg: p.iconBg,
-      color: p.iconColor,
-      iconClass: p.iconClass,
-    },
-  ])
 );
 
 export const ONBOARDING_IMPORT_SOURCE_MAP = Object.fromEntries(

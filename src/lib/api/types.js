@@ -92,86 +92,6 @@ function isObject(value) {
   return value != null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function isString(value) {
-  return typeof value === 'string';
-}
-
-function isNumber(value) {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isBoolean(value) {
-  return typeof value === 'boolean';
-}
-
-function isArray(value) {
-  return Array.isArray(value);
-}
-
-export function assertShape(value, shape, label) {
-  if (!isObject(value)) {
-    throw new Error(`Invalid ${label}: expected an object.`);
-  }
-  for (const [key, type] of Object.entries(shape)) {
-    const v = value[key];
-    if (type === 'string' && !isString(v)) {
-      throw new Error(`Invalid ${label}.${key}: expected string.`);
-    }
-    if (type === 'number' && !isNumber(v)) {
-      throw new Error(`Invalid ${label}.${key}: expected number.`);
-    }
-    if (type === 'boolean' && !isBoolean(v)) {
-      throw new Error(`Invalid ${label}.${key}: expected boolean.`);
-    }
-    if (type === 'object' && !isObject(v)) {
-      throw new Error(`Invalid ${label}.${key}: expected object.`);
-    }
-    if (type === 'array' && !isArray(v)) {
-      throw new Error(`Invalid ${label}.${key}: expected array.`);
-    }
-  }
-  return value;
-}
-
-export const ProfileShape = Object.freeze({
-  id: 'string',
-  username: 'string?',
-  emailHash: 'string?',
-  email: 'string?',
-  emailVerified: 'boolean?',
-  createdAt: 'string?',
-  kemPublicKey: 'string?',
-});
-
-export const SubscriptionShape = Object.freeze({
-  plan: 'string',
-  status: 'string',
-  renewsAt: 'string?',
-  storage: 'object?',
-});
-
-export const StorageShape = Object.freeze({
-  usedBytes: 'number',
-  quotaBytes: 'number',
-  usedPercent: 'number',
-  usedMB: 'string?',
-  quotaMB: 'string?',
-});
-
-export const DeviceShape = Object.freeze({
-  deviceId: 'string',
-  label: 'string',
-  lastSeen: 'string',
-});
-
-export const SessionShape = Object.freeze({
-  id: 'string',
-  deviceLabel: 'string',
-  ipSubnet: 'string?',
-  lastSeenAt: 'string',
-  createdAt: 'string',
-});
-
 export function normalizeProfile(raw) {
   if (!isObject(raw)) return null;
   return {
@@ -213,17 +133,6 @@ export function normalizeDevice(raw) {
   };
 }
 
-export function normalizeSession(raw) {
-  if (!isObject(raw)) return null;
-  return {
-    id: raw.id || raw.idHash,
-    deviceLabel: raw.deviceLabel || 'Unknown device',
-    ipSubnet: raw.ipSubnet || null,
-    lastSeenAt: raw.lastSeenAt || null,
-    createdAt: raw.createdAt || null,
-  };
-}
-
 export function normalizeAccountResponse(raw) {
   if (!isObject(raw)) return null;
   const organizations = Array.isArray(raw.organizations)
@@ -248,32 +157,6 @@ export function normalizeAccountResponse(raw) {
   };
 }
 
-export const CommitPayloadShape = Object.freeze({
-  enc: 'string',
-  iv: 'string',
-  ct: 'string',
-  tag: 'string',
-});
-
-export function normalizeCommit(raw) {
-  if (!isObject(raw)) return null;
-  return {
-    commitId: raw.commitId || raw.id,
-    deviceId: raw.deviceId,
-    clock: Number(raw.clock) || 0,
-    ts: Number(raw.ts) || 0,
-  };
-}
-
-export const WorkspaceShape = Object.freeze({
-  id: 'string',
-  name: 'string',
-  role: 'string',
-  ownerId: 'string?',
-  storageUsedBytes: 'number?',
-  createdAt: 'string?',
-});
-
 export function normalizeWorkspace(raw) {
   if (!isObject(raw)) return null;
   return {
@@ -290,6 +173,7 @@ export function normalizeWorkspace(raw) {
     orgId: raw.orgId || null,
     emoji: raw.emoji || null,
     color: raw.color || null,
+    memberCount: Number(raw.memberCount) || 1,
   };
 }
 

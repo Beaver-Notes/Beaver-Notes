@@ -25,9 +25,12 @@ async function defaultGetDeviceLabel() {
 const DEFAULT_TIMEOUT_MS = 15000;
 
 // Shared by every client instance: `getApiClient(overrides)` hands out more
-// than one, and two instances refreshing at once each present the same
-// pre-rotation token — the second looks like a replay and burns the family.
-let refreshInFlight = null;
+// than one, and two instances refreshing the same account at once would each
+// present the same pre-rotation token — the second looks like a replay and
+// burns the family. Keyed per account: two accounts expiring at once must
+// refresh independently, or the second would await the first's verdict, retry
+// on its own still-expired token and get signed out.
+const refreshInFlight = new Map();
 const DEFAULT_API_URL =
   (typeof import.meta !== 'undefined' &&
     import.meta.env?.VITE_BEAVER_SYNC_API_URL) ||
@@ -264,6 +267,11 @@ export function createApiClient({
           if (getActiveAccountId() === requestAccountId) {
             store.setToken(null);
             store.setStatus('anonymous');
+            // Billing state belongs to the session too: keep the signed-out
+            // account from still rendering "Pro / Manage billing" (which now
+            // 401s). Mirrors the plain signOut() teardown.
+            store.setSubscription(null);
+            store.setPlanLimits(null);
           }
         } catch (err) {
           console.warn('[api] could not reset the account store after a dead session:', err);
@@ -275,13 +283,13 @@ export function createApiClient({
     return body2;
   }
 
-  // One refresh at a time (see the module-scoped `refreshInFlight` above):
-  // concurrent 401s must not each rotate the token, or the loser of the race
-  // would present an already-rotated value and trip the replay guard, killing
-  // the whole family.
+  // One refresh per account at a time (see the module-scoped `refreshInFlight`
+  // above): concurrent 401s from one account must not each rotate the token,
+  // or the loser of the race would present an already-rotated value and trip
+  // the replay guard, killing the whole family.
   function tryRefreshToken(accountId = getActiveAccountId()) {
-    if (!refreshInFlight) {
-      refreshInFlight = (async () => {
+    if (!refreshInFlight.has(accountId)) {
+      refreshInFlight.set(accountId, (async () => {
         const { loadRefreshToken, saveRefreshToken, saveSessionToken, clearRefreshToken } = await import('@/lib/account-storage');
         const refreshToken = await loadRefreshToken(accountId);
         if (!refreshToken) return false;
@@ -318,10 +326,10 @@ export function createApiClient({
       })()
         .catch(() => false)
         .finally(() => {
-          refreshInFlight = null;
-        });
+          refreshInFlight.delete(accountId);
+        }));
     }
-    return refreshInFlight;
+    return refreshInFlight.get(accountId);
   }
 
   return {
@@ -396,5 +404,3 @@ export function getApiClient(overrides) {
 export function resetApiClient() {
   defaultClient = null;
 }
-
-export { DEFAULT_API_URL };
