@@ -5,8 +5,14 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
+	/**
+	 *  Persist a batch of activity entries (one is the common case). Growth is
+	 *  capped per note inside `db::activity_append`.
+	 */
 	activityAppend: (entries: ActivityEntry[]) => typedError<null, AppError>(__TAURI_INVOKE("activity_append", { entries })),
+	/**  Newest-first activity for a note. `before` is an exclusive epoch-ms cursor. */
 	activityList: (noteId: string, limit: number | null, before: number | null) => typedError<ActivityEntry[], AppError>(__TAURI_INVOKE("activity_list", { noteId, limit, before })),
+	/**  Delete every activity entry for a note. */
 	activityClear: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("activity_clear", { noteId })),
 	appInfo: () => typedError<AppInfo, AppError>(__TAURI_INVOKE("app_info")),
 	appDirectory: () => typedError<string, AppError>(__TAURI_INVOKE("app_directory")),
@@ -31,16 +37,26 @@ export const commands = {
 	helperIsDarkTheme: () => typedError<boolean, AppError>(__TAURI_INVOKE("helper_is_dark_theme")),
 	showEditContextMenu: (x: number | null, y: number | null) => typedError<null, AppError>(__TAURI_INVOKE("show_edit_context_menu", { x, y })),
 	/**
-	 *  Export a full-state backup folder. Each selected workspace's clean DB
-	 *  copies go under `<dir>/workspaces/<id>/`; the global `assets/` tree and
+	 *  Export a full-state backup folder. Each selected workspace's clean DB copies
+	 *  go under `<dir>/workspaces/<id>/`; the global `assets/` tree and encryption
 	 *  manifest stay at the bundle root. `workspaces` defaults to the active
-	 *  workspace.
+	 *  workspace so existing callers keep their single-workspace behavior.
+	 * 
+	 *  Every artifact is staged beside its target and renamed into place only once
+	 *  complete, so an existing backup is never deleted before the replacement is
+	 *  ready.
 	 */
 	backupExport: (dir: string, workspaces: string[] | null) => typedError<null, AppError>(__TAURI_INVOKE("backup_export", { dir, workspaces })),
 	/**
-	 *  Import a backup folder from `backup_export`: replaces every row of both
-	 *  live DBs and swaps the assets directory. Caller must relaunch afterwards so
-	 *  cached state rehydrates.
+	 *  Import a backup folder from `backup_export`: every workspace in the bundle
+	 *  has its live rows replaced (legacy root-level DBs restore into the active
+	 *  workspace) and the assets directory is swapped atomically. The bundled payloads are
+	 *  first probed against the current vault key; when they belong to a different
+	 *  vault, `vault_key` (the source vault key) derives the source items key from
+	 *  the bundle's manifest and the staged copies are re-encrypted to the current
+	 *  key before anything live is touched. Returns `VaultKeyRequired` when a
+	 *  different key is needed but none was supplied. Caller must relaunch
+	 *  afterwards so cached state rehydrates.
 	 */
 	backupImport: (dir: string, vaultKey: string | null) => typedError<null, AppError>(__TAURI_INVOKE("backup_import", { dir, vaultKey })),
 	openFileExternal: (src: string) => typedError<string, AppError>(__TAURI_INVOKE("open_file_external", { src })),
@@ -130,12 +146,46 @@ export const commands = {
 	 *  failure errors the whole batch.
 	 */
 	syncEncryptBatch: (metas: string[], dataB64s: string[], aads: string[]) => typedError<string[], AppError>(__TAURI_INVOKE("sync_encrypt_batch", { metas, dataB64s, aads })),
-	/**
-	 *  Batch-decrypt sync payloads in parallel; each envelope is independent and
-	 *  failed items yield `None` instead of aborting the batch.
-	 */
-	syncDecryptBatch: (envelopes: string[], aads: string[]) => typedError<(SyncDecryptedPayload | null)[], AppError>(__TAURI_INVOKE("sync_decrypt_batch", { envelopes, aads })),
 	syncKeyReady: () => __TAURI_INVOKE<boolean>("sync_key_ready"),
+	/**
+	 *  Register the collaboration key the durable sync path should seal a note
+	 *  under: the per-note shared key for a note, or the workspace key for the
+	 *  `meta` doc. The server and Rust never see plaintext; only this device's
+	 *  session holds the raw key, so it is in-memory and dropped on lock.
+	 * 
+	 *  `previous_keys` carries older generations recovered from a rotated note's
+	 *  envelope keyring (a fresh device after a collaborator was removed). The
+	 *  existing current key for the note is archived automatically, so a rotation
+	 *  that registers a genuinely new key keeps the old one decryptable.
+	 */
+	syncRegisterSharedKey: (noteId: string, keyHex: string, previousKeys: string[] | null) => typedError<null, AppError>(__TAURI_INVOKE("sync_register_shared_key", { noteId, keyHex, previousKeys })),
+	/**
+	 *  Batched transport for the JS workspace sweep: registers every entry with
+	 *  the exact per-note logic of [`sync_register_shared_key`] and answers with
+	 *  one result per entry — never all-or-nothing, one bad key must not fail its
+	 *  neighbours. Retry and dedupe stay JS-side. The pool opens once for the
+	 *  whole batch and the scheduler is kicked once at the end.
+	 */
+	syncRegisterSharedKeys: (entries: SharedKeyEntry[]) => __TAURI_INVOKE<(Result<null, AppError>)[]>("sync_register_shared_keys", { entries }),
+	/**
+	 *  Mark (or unmark) a note as expected to be shared with cross-account
+	 *  collaborators. The durable cloud path defers sealing a marked note with the
+	 *  account items key until [`sync_register_shared_key`] lands, so a push that
+	 *  races key resolution can never strand peers on an items-key envelope.
+	 *  `expected = false` restores the exact v5 items-key behaviour for a note
+	 *  confirmed personal.
+	 */
+	syncExpectSharedNote: (noteId: string, expected: boolean) => typedError<null, AppError>(__TAURI_INVOKE("sync_expect_shared_note", { noteId, expected })),
+	/**  Forget every registered collaboration key (account/workspace switch, lock). */
+	syncClearSharedKeys: () => typedError<null, AppError>(__TAURI_INVOKE("sync_clear_shared_keys")),
+	/**
+	 *  Record that a note belongs to a workspace the caller is *not* a member of
+	 *  (a shared-with-me invitation), so the active-workspace push skips it instead
+	 *  of copying it into the caller's own workspace. The note syncs through the
+	 *  note-scoped `sync_cloud_note` command under `workspace_id`. Pass an empty
+	 *  `workspace_id` to forget the note (it becomes a normal local note again).
+	 */
+	syncRegisterSharedNoteLocation: (noteId: string, workspaceId: string) => typedError<null, AppError>(__TAURI_INVOKE("sync_register_shared_note_location", { noteId, workspaceId })),
 	/**
 	 *  Keep the local manifest and shared `keyParams.json` consistent so every
 	 *  device derives the same items key. `passphrase` adopts a remote items key on
@@ -218,6 +268,37 @@ export const commands = {
 	yjsCompactBatch: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact_batch", { noteId })),
 	/**  Delete all Yjs updates for a note on note delete. */
 	yjsDelete: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_delete", { noteId })),
+	syncLocalCycle: (folderId: string) => typedError<LocalStats, AppError>(__TAURI_INVOKE("sync_local_cycle", { folderId })),
+	syncDeviceId: (seed: string | null) => typedError<string, AppError>(__TAURI_INVOKE("sync_device_id", { seed })),
+	syncCompactNote: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("sync_compact_note", { noteId })),
+	/**
+	 *  One full sync cycle: local folder (Task 2) + cloud pull/push, emitting
+	 *  `sync:status` and `sync:applied { noteIds }`.
+	 */
+	syncTick: () => typedError<SyncStatus, AppError>(__TAURI_INVOKE("sync_tick")),
+	/**
+	 *  Start (or reconfigure) the background scheduler: immediate tick, then a
+	 *  30s interval plus debounced kick channels.
+	 */
+	syncStart: (workspaceId: string, serverUrl: string | null, token: string, folderId: string | null, transport: string | null, deviceLabel: string | null) => typedError<SyncStatusPayload, AppError>(__TAURI_INVOKE("sync_start", { workspaceId, serverUrl, token, folderId, transport, deviceLabel })),
+	syncStop: () => typedError<null, AppError>(__TAURI_INVOKE("sync_stop")),
+	/**
+	 *  WS-notify path: coalesced (500ms) full tick, force-pushing past the idle
+	 *  throttle floor.
+	 */
+	syncKick: (workspaceId: string, serverUrl: string | null, token: string, folderId: string | null, transport: string | null, deviceLabel: string | null) => typedError<null, AppError>(__TAURI_INVOKE("sync_kick", { workspaceId, serverUrl, token, folderId, transport, deviceLabel })),
+	/**
+	 *  Immediate-on-dirty cloud push without waiting for the tick: coalesced
+	 *  ~1500ms and budget-gated (locked/offline/backoff/401 → skipped).
+	 */
+	syncKickDirty: (workspaceId: string, serverUrl: string | null, token: string, folderId: string | null, transport: string | null, deviceLabel: string | null) => typedError<null, AppError>(__TAURI_INVOKE("sync_kick_dirty", { workspaceId, serverUrl, token, folderId, transport, deviceLabel })),
+	/**
+	 *  Sync exactly one shared-with-me note under its owning workspace id. The
+	 *  background loop stays scoped to the active workspace; this is the note-scoped
+	 *  path an invited non-member uses. Emits `sync:applied` / `sync:pushed` like a
+	 *  full tick so the client materialises the note.
+	 */
+	syncCloudNote: (noteId: string, workspaceId: string, serverUrl: string | null, token: string) => typedError<SyncStatus, AppError>(__TAURI_INVOKE("sync_cloud_note", { noteId, workspaceId, serverUrl, token })),
 	indexSave: (searchJson: string, linksJson: string, signaturesJson: string) => typedError<null, AppError>(__TAURI_INVOKE("index_save", { searchJson, linksJson, signaturesJson })),
 	indexLoad: () => typedError<{
 	searchJson: string,
@@ -229,16 +310,16 @@ export const commands = {
 	 *  via `spawn_blocking`; entries are MiniSearch-ready on the JS side.
 	 */
 	searchExtractIndexData: () => typedError<SearchEntry[], AppError>(__TAURI_INVOKE("search_extract_index_data")),
-	workspaceList: () => typedError<WorkspaceInfo[], AppError>(__TAURI_INVOKE("workspace_list")),
-	workspaceGetActive: () => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_get_active")),
+	workspaceList: () => typedError<WorkspaceInfo_Serialize[], AppError>(__TAURI_INVOKE("workspace_list")),
+	workspaceGetActive: () => typedError<WorkspaceInfo_Serialize, AppError>(__TAURI_INVOKE("workspace_get_active")),
 	/**  Create a new workspace and switch to it. */
-	workspaceCreate: (name: string, copySettings: boolean | null) => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_create", { name, copySettings })),
+	workspaceCreate: (name: string, copySettings: boolean | null) => typedError<WorkspaceInfo_Serialize, AppError>(__TAURI_INVOKE("workspace_create", { name, copySettings })),
 	/**
 	 *  Register a backend (cloud) workspace in the local registry so local mirrors
 	 *  of shared workspaces participate in removal reconciliation. Creates the
 	 *  directory + DBs on first registration; never changes the active workspace.
 	 */
-	workspaceRegisterCloud: (id: string, name: string, orgId: string | null, ownerId: string | null, workspaceType: string | null, createdAt: string | null) => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_register_cloud", { id, name, orgId, ownerId, workspaceType, createdAt })),
+	workspaceRegisterCloud: (id: string, name: string, orgId: string | null, ownerId: string | null, workspaceType: string | null, createdAt: string | null) => typedError<WorkspaceInfo_Serialize, AppError>(__TAURI_INVOKE("workspace_register_cloud", { id, name, orgId, ownerId, workspaceType, createdAt })),
 	/**  Switch the active workspace. The frontend must reload stores after this. */
 	workspaceSwitch: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_switch", { id })),
 	workspaceRename: (id: string, name: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_rename", { id, name })),
@@ -252,16 +333,26 @@ export const commands = {
 	workspaceDetach: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_detach", { id })),
 	/**  Delete a workspace (never the active or default one); removes its directory. */
 	workspaceDelete: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_delete", { id })),
+	/**
+	 *  Delete a local workspace but keep its files for `WORKSPACE_ARCHIVE_RETENTION_DAYS`,
+	 *  so the user can undo the "delete the local copy" answer after a copy into an
+	 *  account workspace. The registry row stays behind hidden: the default
+	 *  workspace is re-created at boot when its row disappears.
+	 */
+	workspaceArchive: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_archive", { id })),
+	/**  Deleted local workspaces whose files are still kept and can be restored. */
+	workspaceArchivedList: () => typedError<WorkspaceInfo_Serialize[], AppError>(__TAURI_INVOKE("workspace_archived_list")),
+	/**  Put a deleted local workspace's files back. The user stays where they are. */
+	workspaceRestore: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_restore", { id })),
+	/**
+	 *  Workspaces whose notes were already copied into an account workspace. Read
+	 *  once per sign-in so the same local notes never land in a second workspace.
+	 */
+	workspaceNotesCopied: (id: string) => typedError<boolean, AppError>(__TAURI_INVOKE("workspace_notes_copied", { id })),
+	workspaceMarkNotesCopied: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_mark_notes_copied", { id })),
 };
 
 /* Types */
-export type AppError = ({ Io: string }) & { Crypto?: never; Other?: never; Serialization?: never } | ({ Crypto: string }) & { Io?: never; Other?: never; Serialization?: never } | ({ Serialization: string }) & { Crypto?: never; Io?: never; Other?: never } | "WrongPassword" | "EncryptionLocked" | "VaultKeyRequired" | "DevicePasswordRequired" | "WrongDevicePassword" | "SecureStorageUnavailable" | ({ Other: string }) & { Crypto?: never; Io?: never; Serialization?: never };
-
-export type AppInfo = {
-	name: string,
-	version: string,
-};
-
 /**
  *  One durable edit-log row (see `db::activity_append`). `summary` is a short
  *  human snippet of the affected text, not the document body.
@@ -275,6 +366,13 @@ export type ActivityEntry = {
 	summary: string,
 	at: number,
 	anchorHint: string | null,
+};
+
+export type AppError = ({ Io: string }) & { Crypto?: never; Other?: never; Serialization?: never } | ({ Crypto: string }) & { Io?: never; Other?: never; Serialization?: never } | ({ Serialization: string }) & { Crypto?: never; Io?: never; Other?: never } | "WrongPassword" | "EncryptionLocked" | "VaultKeyRequired" | "DevicePasswordRequired" | "WrongDevicePassword" | "SecureStorageUnavailable" | ({ Other: string }) & { Crypto?: never; Io?: never; Serialization?: never };
+
+export type AppInfo = {
+	name: string,
+	version: string,
 };
 
 export type AssetMigrationResult = {
@@ -354,6 +452,24 @@ export type LegacyMigrationStatus = {
 	targetHasData: boolean,
 };
 
+export type LocalStats = {
+	pulled: number,
+	pushed: number,
+	pendingIcloud: number,
+	/**
+	 *  Commits that were readable but could not be applied (bad JSON, foreign
+	 *  vault, unknown envelope version). Counted and logged so a persistently
+	 *  skipped commit is visible instead of silently retried forever (F5).
+	 */
+	skipped: number,
+	/**
+	 *  Note ids newly applied by this cycle, so the scheduler can emit
+	 *  `sync:applied` and the renderer hydrates them (folder transport never
+	 *  runs the cloud pull that would otherwise supply ids).
+	 */
+	pulledNotes: string[],
+};
+
 /**
  *  Which secure backend currently protects the master key: OS keychain on
  *  macOS/Windows/iOS, Secret Service / kernel keyring on Linux, Android
@@ -384,6 +500,11 @@ export type OpenDialogOptions = {
  */
 export type RawJson = any;
 
+export type Result<T, E> = {
+	ok: T,
+	err: E,
+};
+
 export type SafeStorageBackendInfo = {
 	available: boolean,
 	backend: MasterKeyBackendKind,
@@ -408,6 +529,12 @@ export type SearchEntry = {
 	labelsText: string,
 };
 
+/**  One entry of [`sync_register_shared_keys`]. */
+export type SharedKeyEntry = {
+	noteId: string,
+	keyHex: string,
+};
+
 export type SyncDecryptedPayload = {
 	meta: SyncMeta,
 	update: string,
@@ -420,6 +547,22 @@ export type SyncMeta = {
 	noteId: string,
 };
 
+/**
+ *  Status payload returned by `sync_tick` and emitted as `sync:status`.
+ *  Field shapes mirror the JS engine emits (`engine.js`).
+ */
+export type SyncStatus = {
+	status: string,
+	pushed: number,
+	pulled: number,
+	pendingIcloud: number,
+	noteIds: string[],
+};
+
+export type SyncStatusPayload = {
+	status: string,
+};
+
 export type UpdateInfo = {
 	isChecking: boolean,
 	isDownloading: boolean,
@@ -429,7 +572,9 @@ export type UpdateInfo = {
 	isBusy: boolean,
 };
 
-export type WorkspaceInfo = {
+export type WorkspaceInfo = WorkspaceInfo_Serialize | WorkspaceInfo_Deserialize;
+
+export type WorkspaceInfo_Deserialize = {
 	id: string,
 	name: string,
 	createdAt: string,
@@ -437,6 +582,20 @@ export type WorkspaceInfo = {
 	orgId?: string | null,
 	ownerId?: string | null,
 	cloudSync?: boolean,
+	/**  Set when the workspace was deleted but its files are still restorable. */
+	archivedAt?: string | null,
+};
+
+export type WorkspaceInfo_Serialize = {
+	id: string,
+	name: string,
+	createdAt: string,
+	workspaceType: string,
+	orgId: string | null,
+	ownerId: string | null,
+	cloudSync: boolean,
+	/**  Set when the workspace was deleted but its files are still restorable. */
+	archivedAt?: string | null,
 };
 
 /* Tauri Specta runtime */

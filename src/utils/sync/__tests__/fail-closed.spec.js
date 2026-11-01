@@ -6,7 +6,6 @@ vi.mock('@/utils/crypto/encryption.js', () => ({ isEncryptionEnabled: () => true
 vi.mock('@/lib/native/security.js', () => ({
   syncEncryptPayload: vi.fn(),
   syncDecryptPayload: vi.fn(),
-  syncDecryptBatch: vi.fn(),
   syncKeyReady: () => Promise.resolve(true),
 }));
 

@@ -11,6 +11,9 @@ import { useLabelStore } from '@/store/label';
 import { saveNote, syncSearchIndex } from '@/store/note/index';
 import { yMapToObj, toUint8Array, getDeviceId } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from './meta-doc.js';
+import { registerWsKeyForNotes } from '@/utils/sync/shared-keys.js';
+import { getCachedWorkspaceKey } from '@/lib/api/workspaces';
+import { useWorkspaceStore } from '@/store/workspace';
 import { mergeNoteEntry, diffRemovedNoteIds } from './meta-merge.js';
 import { isPendingNoteMeta } from './shared.js';
 
@@ -84,12 +87,29 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   const yFolders = doc.getMap('folders');
   const yNotes = doc.getMap('notes');
 
-  const changedIds = changedNoteIds instanceof Set ? changedNoteIds : null;
+  // Peers' note docs are sealed with this workspace's key, but the pull only
+  // learns the ids from this map. Register the key again on every projection:
+  // on a fresh device the workspace key arrives before the note list, so the
+  // one-shot registration at init sees no ids and their rows stay unreadable.
+  const wsId = useWorkspaceStore().activeId;
+  void registerWsKeyForNotes([...yNotes.keys()], wsId ? getCachedWorkspaceKey(wsId) : null);
 
+  // A meta-doc pull used to force a full-list sweep (every note re-merged,
+  // re-indexed, re-rendered) several times a minute on big shared workspaces.
+  // Keep the per-id path instead: entries hydrate individually, and 'meta'
+  // only forces the folder/label/color rebuilds plus eviction. Eviction reads
+  // the full doc key set, so notes the doc still holds are never pruned.
+  const sweptMeta = changedNoteIds instanceof Set && changedNoteIds.has('meta');
+  const changedIds = changedNoteIds instanceof Set
+    ? (sweptMeta ? new Set([...changedNoteIds].filter((id) => id !== 'meta')) : changedNoteIds)
+    : null;
   const isInitialHydration = !metaChanges;
-  let foldersNeedRebuild = isInitialHydration || metaChanges.folders;
+  let foldersNeedRebuild = isInitialHydration || metaChanges.folders || sweptMeta;
   let labelsNeedRebuild =
-    isInitialHydration || metaChanges.labels || metaChanges.labelColors;
+    isInitialHydration ||
+    metaChanges.labels ||
+    metaChanges.labelColors ||
+    sweptMeta;
 
   // Incremental batches rebuild only when flagged: avoids app-wide re-renders at scale. Initial rebuilds all.
   if (foldersNeedRebuild) {
@@ -137,6 +157,9 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
 
     evictRemovedNotes(noteStore, new Set(yNotes.keys()));
   }
+
+  // Direct Yjs hydration bypasses the store's incremental counters.
+  noteStore.rebuildFolderCounts();
 
   // Batch-load snapshots for notes with no in-memory content source.
   if (pendingPreviews.length > 0) {

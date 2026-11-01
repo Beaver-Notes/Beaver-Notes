@@ -24,6 +24,7 @@ vi.mock('@/store/collaborator', () => ({
 vi.mock('@/lib/yjs/meta-doc', () => ({
   getWorkspaceDoc: vi.fn(() => ({ on: vi.fn(), off: vi.fn() })),
   onWorkspaceDocDestroy: vi.fn(),
+  onWorkspaceDocCreate: vi.fn(),
 }))
 vi.mock('@/lib/yjs/shared', () => ({
   registerActiveDoc: vi.fn(),

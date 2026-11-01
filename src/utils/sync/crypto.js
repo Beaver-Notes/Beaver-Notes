@@ -4,7 +4,6 @@ import {
 import {
   syncEncryptPayload,
   syncDecryptPayload,
-  syncDecryptBatch,
   syncKeyReady,
 } from '@/lib/native/security.js';
 import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
@@ -74,18 +73,4 @@ export async function decryptJSON(raw, aad = '') {
   }
 
   throw new Error('sync: non-envelope payload rejected');
-}
-
-/** Batch-decrypt sync envelopes in one IPC call; failed items are `null`. */
-export async function decryptBatch(rawEnvelopes, aads) {
-  if (!rawEnvelopes.length) return [];
-  const results = await syncDecryptBatch(rawEnvelopes, aads);
-  const nullCount = results.filter((r) => !r).length;
-  if (nullCount > 0 && import.meta.env.DEV) {
-    console.warn(`[sync][debug] decryptBatch: ${nullCount}/${results.length} items returned null from Rust`);
-  }
-  return results.map((res) => {
-    if (!res) return null;
-    return { ...res.meta, update: base64ToBuf(res.update) };
-  });
 }

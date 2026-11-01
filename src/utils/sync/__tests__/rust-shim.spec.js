@@ -14,6 +14,12 @@ vi.mock('@/lib/native/fs', () => ({
   writeJson: vi.fn(() => Promise.resolve()),
 }));
 
+const nativeWorkspace = vi.hoisted(() => ({ active: null }));
+
+vi.mock('@/lib/native/workspaces', () => ({
+  getActiveLocalWorkspace: vi.fn(async () => nativeWorkspace.active),
+}));
+
 const accountState = vi.hoisted(() => ({
   activeAccountId: 'acct-a',
   serverUrl: '',
@@ -171,5 +177,26 @@ describe('folder ownership', () => {
     )?.[1];
     expect(config.folder_id).toBe('');
     expect(config.transport).toBe('remote');
+  });
+});
+
+// A device-local workspace has no server counterpart. Sending its id to the
+// cloud path would publish local notes under the signed-in account's token.
+describe('local-only workspace', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    accountState.isPaidPlan = true;
+    backend.invoke.mockResolvedValue(undefined);
+    getSyncPath.mockResolvedValue('');
+    nativeWorkspace.active = { id: 'default', cloudSync: false };
+  });
+
+  it('hands Rust an empty workspace id so the cloud path stays off', async () => {
+    await startRustSync();
+
+    const config = backend.invoke.mock.calls.find(
+      ([c]) => c === 'sync:start',
+    )?.[1];
+    expect(config.workspace_id).toBe('');
   });
 });

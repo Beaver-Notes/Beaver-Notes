@@ -43,6 +43,11 @@ export function clearPendingNoteMeta(noteId) {
   pendingNoteMeta.delete(noteId);
 }
 
+/** A workspace switch invalidates every pending meta mark: they name notes of the doc that just closed. */
+export function clearAllPendingNoteMeta() {
+  pendingNoteMeta.clear();
+}
+
 export function isPendingNoteMeta(noteId) {
   return pendingNoteMeta.has(noteId);
 }

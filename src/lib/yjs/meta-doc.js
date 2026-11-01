@@ -6,9 +6,25 @@ export const META_DOC_ID = 'meta';
 
 let wsDoc = null;
 let _onDestroy = null;
+let _onCreate = null;
+
+/** Register a callback that runs for every freshly created doc (attach handlers). */
+export function onWorkspaceDocCreate(cb) {
+  _onCreate = cb;
+}
 
 export function getWorkspaceDoc() {
-  if (!wsDoc) wsDoc = new Y.Doc();
+  if (!wsDoc) {
+    const created = new Y.Doc();
+    wsDoc = created;
+    if (_onCreate) {
+      try {
+        _onCreate(created);
+      } catch {
+        // Attaching handlers must never block doc creation.
+      }
+    }
+  }
   return wsDoc;
 }
 
@@ -19,9 +35,16 @@ export function onWorkspaceDocDestroy(cb) {
 
 /** Destroy singleton, release resources. Required for account/switch to avoid stale observers. Next get creates fresh doc. */
 export function destroyWorkspaceDoc() {
-  if (wsDoc) {
-    wsDoc.destroy();
-    wsDoc = null;
-    if (_onDestroy) { _onDestroy(); _onDestroy = null; }
+  const doc = wsDoc;
+  if (!doc) return;
+  wsDoc = null;
+  // Fire before destroy so a callback calling getWorkspaceDoc() builds a fresh one.
+  if (_onDestroy) {
+    try {
+      _onDestroy();
+    } catch {
+      // Listener errors must not keep a destroyed doc alive.
+    }
   }
+  doc.destroy();
 }

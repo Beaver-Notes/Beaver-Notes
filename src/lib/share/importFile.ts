@@ -6,6 +6,49 @@ import { bufToBase64 } from '@/utils/crypto/codec.js';
 
 const TEXT_DECODER = new TextDecoder();
 
+// The share path never writes .bea asset files to disk (no note id exists
+// until saveAll), so inline the base64 payloads embedded in BEA into data:
+// URLs — same convention as the image/fileEmbed share branches. Srcs whose
+// file is missing from the asset dicts stay untouched, as on desktop import.
+function inlineBeaAssets(
+  content: Record<string, any>,
+  note: { assets?: { notesAssets?: Record<string, string>; fileAssets?: Record<string, string> } }
+): Record<string, any> {
+  if (!note.assets) return content;
+  const dicts: Array<[string, Record<string, string>]> = [
+    ['assets://', note.assets.notesAssets || {}],
+    ['file-assets://', note.assets.fileAssets || {}],
+  ];
+  const rewrite = (node: any): void => {
+    if (Array.isArray(node)) {
+      node.forEach(rewrite);
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    const src = node.attrs?.src;
+    if (typeof src === 'string') {
+      for (const [prefix, dict] of dicts) {
+        if (!src.startsWith(prefix)) continue;
+        const raw = src.slice(prefix.length).split('/').pop() || '';
+        let key = raw;
+        try {
+          const decoded = decodeURIComponent(raw);
+          if (!(key in dict)) key = decoded;
+        } catch { /* keep raw key */ }
+        const base64 = dict[key];
+        if (base64) {
+          const type = mime.getType(raw) || 'application/octet-stream';
+          node.attrs.src = `data:${type};base64,${base64}`;
+        }
+        break;
+      }
+    }
+    for (const value of Object.values(node)) rewrite(value);
+  };
+  rewrite(content);
+  return content;
+}
+
 export async function importSharedFile(args: {
   fileName: string;
   data: Uint8Array | string;
@@ -19,7 +62,7 @@ export async function importSharedFile(args: {
     // hand-made or third-party files are flat. Unwrap, then validate.
     const note = parsed?.data && typeof parsed.data === 'object' ? parsed.data : parsed;
     if (!note || note.content?.type !== 'doc') throw new Error('Invalid .bea payload');
-    return { title: note.title || '', content: note.content };
+    return { title: note.title || '', content: inlineBeaAssets(note.content, note) };
   }
   if (name.endsWith('.md') || name.endsWith('.mdx') || name.endsWith('.markdown')) {
     const { title, content } = await convertMarkdownToTiptap(text, '', '');

@@ -3,6 +3,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { describeStatus, isPlanUpgradeRequired, useSyncProgressStore } from '../sync-progress'
 const mocks = vi.hoisted(() => ({
   statusListeners: new Map(),
+  onboardingCompleted: true,
+}))
+
+vi.mock('@/lib/settings.js', () => ({
+  getSettingSync: (key) =>
+    key === 'onboardingCompleted' ? mocks.onboardingCompleted : undefined,
 }))
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -59,6 +65,8 @@ describe('describeStatus', () => {
       .toEqual({ tone: 'action', text: 'Upgrade required to sync this workspace' })
     expect(isPlanUpgradeRequired('sync: cloud request failed with status 402 Payment Required')).toBe(true)
     expect(isPlanUpgradeRequired('{"error":"plan_upgrade_required"}')).toBe(true)
+    expect(isPlanUpgradeRequired('Your subscription has expired. Renew to continue syncing.')).toBe(true)
+    expect(isPlanUpgradeRequired('{"error":"sync_inactive","message":"Your subscription has expired. Renew to continue syncing."}')).toBe(true)
     expect(isPlanUpgradeRequired('sync: pull failed')).toBe(false)
   })
 })
@@ -85,6 +93,19 @@ describe('sync progress store action persistence', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     mocks.statusListeners.clear()
+    mocks.onboardingCompleted = true
+  })
+
+  it('hides the locked banner while the onboarding wizard owns unlocking', () => {
+    mocks.onboardingCompleted = false
+    const store = makeStore()
+    emitStatus({ status: 'unlock-required' })
+    expect(store.attention).toBeNull()
+
+    mocks.onboardingCompleted = true
+    emitStatus({ status: 'complete' })
+    emitStatus({ status: 'unlock-required' })
+    expect(store.attention?.status).toBe('unlock-required')
   })
 
   it('clears lastAction when a cycle completes successfully', () => {

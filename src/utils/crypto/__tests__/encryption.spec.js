@@ -126,9 +126,16 @@ describe('hasRemoteVaultKeyParams', () => {
 });
 
 describe('cloud key params on encryption lifecycle', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     cloudKeyParamsAbsent.mockReturnValue(false);
+    // clearAllMocks keeps implementations, so an earlier scoped-folder test
+    // would otherwise leave a fake keyParams.json visible here.
+    const fs = await import('@/lib/native/fs');
+    const syncPath = await import('@/utils/sync/path.js');
+    fs.readFile.mockResolvedValue(null);
+    syncPath.getSyncPath.mockResolvedValue('');
+    hasRemoteKeyParams.mockResolvedValue(false);
   });
 
   // setup/verify must fetch server params (so reconcile adopts the vault
@@ -158,6 +165,20 @@ describe('cloud key params on encryption lifecycle', () => {
     expect(res.ok).toBe(true);
     await vi.waitFor(() => expect(fetchCloudKeyParams).toHaveBeenCalled());
     expect(publishCloudKeyParams).not.toHaveBeenCalled();
+  });
+
+  // Minting a fresh vault while the folder already holds one leaves the device
+  // on a different vault than its own sync folder, which the settings page then
+  // reports as "Vault detected" for a vault the user created themselves.
+  it('refuses to mint a vault when the folder already has an unjoined one', async () => {
+    hasRemoteKeyParams.mockResolvedValue(true);
+    submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });
+
+    const res = await setupEncryption('a-passphrase');
+
+    expect(res.ok).toBe(false);
+    expect(res.code).toBe('vault_join_required');
+    expect(submitEncryptionPassword).not.toHaveBeenCalled();
   });
 });
 

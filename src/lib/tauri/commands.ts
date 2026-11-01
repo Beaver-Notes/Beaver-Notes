@@ -68,13 +68,13 @@ const commandAliases = {
   'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
   'sync:encryptPayload': 'sync_encrypt_payload',
   'sync:decryptPayload': 'sync_decrypt_payload',
-  'sync:decryptBatch': 'sync_decrypt_batch',
   'sync:keyReady': 'sync_key_ready',
   'sync:start': 'sync_start',
   'sync:stop': 'sync_stop',
   'sync:kick': 'sync_kick',
   'sync:kick-dirty': 'sync_kick_dirty',
   'sync:registerSharedKey': 'sync_register_shared_key',
+  'sync:registerSharedKeys': 'sync_register_shared_keys',
   'sync:expectSharedNote': 'sync_expect_shared_note',
   'sync:clearSharedKeys': 'sync_clear_shared_keys',
   'sync:cloud-note': 'sync_cloud_note',
@@ -148,6 +148,11 @@ const commandAliases = {
   'workspace:rename': 'workspace_rename',
   'workspace:detach': 'workspace_detach',
   'workspace:delete': 'workspace_delete',
+  'workspace:archive': 'workspace_archive',
+  'workspace:archivedList': 'workspace_archived_list',
+  'workspace:restore': 'workspace_restore',
+  'workspace:notesCopied': 'workspace_notes_copied',
+  'workspace:markNotesCopied': 'workspace_mark_notes_copied',
   'fetch_page_html': 'fetch_page_html',
   'get_pending_shares': 'get_pending_shares',
   'clear_pending_shares': 'clear_pending_shares',
@@ -356,6 +361,15 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('key_hex', payload?.keyHex ?? payload?.key_hex),
         ...withKeyVariants('previous_keys', payload?.previousKeys ?? payload?.previous_keys),
       };
+    case 'sync:registerSharedKeys': {
+      const entries = Array.isArray(payload?.entries) ? payload.entries : [];
+      return {
+        entries: entries.map((entry) => ({
+          ...withKeyVariants('note_id', entry?.noteId ?? entry?.note_id),
+          ...withKeyVariants('key_hex', entry?.keyHex ?? entry?.key_hex),
+        })),
+      };
+    }
     case 'sync:expectSharedNote':
       return {
         ...withKeyVariants('note_id', payload?.noteId ?? payload?.note_id),
@@ -476,6 +490,13 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'workspace:delete':
       return withKeyVariants('id', payload?.id ?? payload);
     case 'workspace:detach':
+      return withKeyVariants('id', payload?.id ?? payload);
+    case 'workspace:archivedList':
+      return {};
+    case 'workspace:archive':
+    case 'workspace:restore':
+    case 'workspace:notesCopied':
+    case 'workspace:markNotesCopied':
       return withKeyVariants('id', payload?.id ?? payload);
     default:
       return payload ?? {};

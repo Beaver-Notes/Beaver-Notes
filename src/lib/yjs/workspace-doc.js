@@ -1,15 +1,12 @@
 /** Workspace Y.Doc for metadata (folders, labels, tombstones, note meta). Content lives per-note. Owns lifecycle and sync. */
 
 import * as Y from 'yjs';
+import { getActivePinia } from 'pinia';
 import { appendUpdate, getSnapshot, getUpdates } from '@/lib/native/yjs.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import { registerActiveDoc } from './shared.js';
 import { getDeviceId, objToYMap, toUint8Array } from '@/lib/yjs/helpers.js';
-import {
-  getWorkspaceDoc,
-  META_DOC_ID,
-  onWorkspaceDocDestroy,
-} from './meta-doc.js';
+import { getWorkspaceDoc, META_DOC_ID, onWorkspaceDocCreate } from './meta-doc.js';
 import { getWsSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/ws-sync';
 import { useWorkspaceStore } from '@/store/workspace';
 import { getCachedWorkspaceKey, recoverWorkspaceKeyHex } from '@/lib/api/workspaces';
@@ -41,15 +38,37 @@ const NOTE_META_FIELDS = [
   'access',
 ];
 
-let observerAttached = false;
-let persistHandlerAttached = false;
+// Per-doc guards, not module flags. A workspace switch destroys the doc and
+// builds a fresh one; with a module flag stuck at `true`, that new doc got no
+// persist handler and every meta write after the first switch was dropped
+// silently — the note list then never reached SQLite or the server.
+const persistDocs = new WeakSet();
+const observedDocs = new WeakSet();
 
-// Reset module-level flags when the doc singleton is destroyed (workspace
-// switch, account switch) so observers re-attach on next creation.
-onWorkspaceDocDestroy(() => {
-  observerAttached = false;
-  persistHandlerAttached = false;
-});
+/**
+ * Persist local meta writes for one doc. Idempotent per doc, and wired into
+ * doc creation as well: a workspace switch builds a fresh doc, and without this
+ * its meta writes (the note list!) would never reach SQLite or the server.
+ */
+function attachPersistHandler(doc) {
+  if (persistDocs.has(doc)) return;
+  doc.on('update', (update, origin, _doc, transaction) => {
+    if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
+    // Remote transactions are already persisted by the native pull path;
+    // appending them here too echoes the same update back to the server.
+    if (!transaction?.local) return;
+    pendingMetaUpdates.push(update);
+    scheduleMetaFlush();
+  });
+
+  // Flush buffered meta updates on pagehide so nothing is lost.
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', flushPendingMetaUpdates);
+  }
+  persistDocs.add(doc);
+}
+
+onWorkspaceDocCreate(attachPersistHandler);
 
 // Debounced, merged persistence: a burst of meta edits would otherwise issue
 // one SQLite IPC + AES encrypt per change. Buffer deltas, merge once
@@ -71,7 +90,15 @@ export async function flushPendingMetaUpdates() {
   const updates = pendingMetaUpdates.splice(0);
   const merged = Y.mergeUpdates(updates);
   if (merged.byteLength === 0) return;
-  await persistWorkspace(merged);
+  try {
+    await persistWorkspace(merged);
+  } catch {
+    // Persist failed after retries: put the merged update back so a later
+    // flush (next meta write, pagehide, next load) retries it instead of
+    // silently losing the change (same policy as useNoteYjs.persistUpdate).
+    pendingMetaUpdates.unshift(merged);
+    scheduleMetaFlush();
+  }
 }
 
 const MAX_WRITE_RETRIES = 3;
@@ -120,14 +147,12 @@ async function retryWrite(fn, label) {
 
 async function persistWorkspace(update) {
   if (!update || update.byteLength === 0) return;
-  try {
-    await retryWrite(
-      () => appendUpdate(META_DOC_ID, update, getDeviceId()),
-      `SQLite appendUpdate for meta`,
-    );
-  } catch {
-    // Update lost despite retries: documented in retryWrite.
-  }
+  // No swallow: a failed append must not dirty-kick Rust for a write that
+  // never landed — flushPendingMetaUpdates re-buffers and retries instead.
+  await retryWrite(
+    () => appendUpdate(META_DOC_ID, update, getDeviceId()),
+    `SQLite appendUpdate for meta`,
+  );
   queueSyncWrite(META_DOC_ID);
 }
 
@@ -137,24 +162,8 @@ export async function loadWorkspaceDoc() {
   await flushPendingMetaUpdates();
 
   const doc = getWorkspaceDoc();
-
-  if (!persistHandlerAttached) {
-    doc.on('update', (update, origin, _doc, transaction) => {
-      if (origin === 'load' || origin === 'sync' || origin === 'ws-relay')
-        return;
-      // Remote transactions are already persisted by the native pull path;
-      // appending them here too echoes the same update back to the server.
-      if (!transaction?.local) return;
-      pendingMetaUpdates.push(update);
-      scheduleMetaFlush();
-    });
-
-    // Flush buffered meta updates on pagehide so nothing is lost.
-    if (typeof window !== 'undefined') {
-      window.addEventListener('pagehide', flushPendingMetaUpdates);
-    }
-    persistHandlerAttached = true;
-  }
+  // Already attached at doc creation; this covers a doc built before this module loaded.
+  attachPersistHandler(doc);
 
   let snapshotLoaded = false;
   // ponytail: the backend can still be starting when the UI boots (migrations,
@@ -256,15 +265,22 @@ export async function ensureMetaRoomKey(wsId) {
     console.warn('[meta-yjs] no recoverable workspace key for this device', wsId);
     return null;
   }
-  await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
   // Durable `meta` doc seals under the shared workspace key, not the account
-  // items key, so every member can read folders/labels.
+  // items key, so every member can read folders/labels. Registration must not
+  // depend on the realtime relay: a failed room-key join used to abort here and
+  // leave the Rust session sealing every row with the account items key, which
+  // no peer (and no later session) can open.
+  setActiveWsKey(workspaceKeyHex);
   await registerSharedSyncKey(META_DOC_ID, workspaceKeyHex);
   // O7 Fix A: workspace note bodies seal under the workspace key too, so every
   // member can read each other's content. Registered per existing note id now;
   // new notes are covered by the meta-doc observer via registerWsKeyForNotes.
-  setActiveWsKey(workspaceKeyHex);
-  await registerWsKeyForNotes(getWorkspaceDoc().getMap('notes').keys());
+  await registerWsKeyForNotes(getWorkspaceDoc().getMap('notes').keys(), workspaceKeyHex);
+  try {
+    await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
+  } catch (err) {
+    console.warn('[meta-yjs] meta room key not applied:', err?.message || err);
+  }
   return workspaceKeyHex;
 }
 
@@ -273,7 +289,7 @@ let pendingChangedNoteIds = new Set();
 let metaFlags = { folders: false, labels: false, labelColors: false };
 export function observeWorkspace(callback, debounceMs = 150) {
   const doc = getWorkspaceDoc();
-  if (observerAttached) return;
+  if (observedDocs.has(doc)) return;
   doc.getMap('folders').observeDeep((_events, transaction) => {
     if (transaction?.origin === 'seed') return;
     metaFlags.folders = true;
@@ -302,7 +318,7 @@ export function observeWorkspace(callback, debounceMs = 150) {
     metaFlags.labelColors = true;
     schedule();
   });
-  observerAttached = true;
+  observedDocs.add(doc);
 
   function schedule() {
     if (observerTimer) clearTimeout(observerTimer);
@@ -312,7 +328,7 @@ export function observeWorkspace(callback, debounceMs = 150) {
       pendingChangedNoteIds = new Set();
       // O7 Fix A: notes appearing after the initial join (created locally or
       // synced from a teammate) must also seal under the workspace key.
-      void registerWsKeyForNotes([...changed]);
+      void registerWsKeyForNotes([...changed], getCachedWorkspaceKey(useWorkspaceStore().activeId));
       const flags = metaFlags;
       metaFlags = { folders: false, labels: false, labelColors: false };
       callback(changed, flags);
@@ -419,6 +435,13 @@ function reconcileLabels(yNote, desired) {
 
 export function syncNoteMeta(note) {
   if (!note || !note.id) return;
+  // A note belongs to exactly one workspace. Writing it into whichever
+  // workspace happens to be active is how one library ended up inside every
+  // workspace (F30/F26): the meta doc is per-workspace truth, so a foreign
+  // note must never be claimed here.
+  // `getActivePinia` keeps unit tests (no app) from throwing here.
+  const activeId = getActivePinia() ? useWorkspaceStore().activeId : null;
+  if (note.workspaceId && activeId && note.workspaceId !== activeId) return;
   const notesMap = getWorkspaceDoc().getMap('notes');
   transactWorkspace(() => {
     const meta = {};

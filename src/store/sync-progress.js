@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { listen } from '@tauri-apps/api/event';
-import { notify } from '@/lib/native/app';
+import { getSettingSync } from '@/lib/settings.js';
 
 const PHASE_MESSAGES = {
   bootstrap: (p) =>
@@ -82,10 +82,12 @@ function readLastSyncAt() {
 
 // The Rust engine reports a free-plan 402 as a fatal `sync:error` string
 // (`status 402 Payment Required`) rather than a typed status; recognize both
-// that and the server's `plan_upgrade_required` body either way.
+// that and the server's `plan_upgrade_required` body either way. The
+// server's expired-subscription block (`sync_inactive`, "subscription has
+// expired") is the same 402 class — it blocks with a renew door, not a retry.
 export function isPlanUpgradeRequired(message) {
   if (typeof message !== 'string') return false;
-  return /plan_upgrade_required|plan[- ]upgrade[- ]required/i.test(message) || /\b402\b/.test(message);
+  return /plan_upgrade_required|plan[- ]upgrade[- ]required|sync_inactive|subscription has expired/i.test(message) || /\b402\b/.test(message);
 }
 
 // A dead session (revoked device, rotated signing key, idle timeout) aborts the
@@ -108,16 +110,6 @@ export function describeStatus(status, message) {
   return { tone: entry.tone, text: message || entry.text };
 }
 
-const NOTIFICATION_THROTTLE_MS = 5 * 60 * 1000;
-const lastNotifiedAt = new Map();
-
-function notifyOnce(status, text) {
-  const now = Date.now();
-  if (now - (lastNotifiedAt.get(status) || 0) < NOTIFICATION_THROTTLE_MS)
-    return;
-  lastNotifiedAt.set(status, now);
-  notify({ title: 'Sync needs attention', body: text }).catch(() => {});
-}
 
 export const useSyncProgressStore = defineStore('syncProgress', {
   state: () => ({
@@ -141,6 +133,12 @@ export const useSyncProgressStore = defineStore('syncProgress', {
       return fn ? fn(state) : state.message || 'Syncing...';
     },
     attention: (state) => {
+      // The wizard owns unlocking while onboarding runs: its password step is
+      // next, so "open Settings to unlock" is both wrong and unreachable.
+      const status = state.lastAction?.status ?? state.status;
+      if (status === 'unlock-required' && !getSettingSync('onboardingCompleted')) {
+        return null;
+      }
       if (state.lastAction) {
         return {
           tone: state.lastAction.tone ?? 'action',
@@ -178,7 +176,6 @@ export const useSyncProgressStore = defineStore('syncProgress', {
         const described = describeStatus(status, event.payload?.message);
         if (described.tone === 'action') {
           this.lastAction = { status, text: described.text, at: Date.now() };
-          notifyOnce(status, described.text);
         } else if (status === 'complete') {
           // A finished cycle resolves any earlier lock/decrypt/auth warning.
           this.lastAction = null;
@@ -220,7 +217,6 @@ export const useSyncProgressStore = defineStore('syncProgress', {
         this.progress = 0;
         this.total = 0;
         this.processed = 0;
-        notifyOnce(status, described.text);
       });
 
       const unlistenProgress = listen('sync:progress', (event) => {

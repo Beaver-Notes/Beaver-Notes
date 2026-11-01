@@ -12,14 +12,3 @@ export async function shareFileViaNative(path, mimeType) {
     return false;
   }
 }
-
-export async function shareTextViaNative(text, mimeType) {
-  if (!isTauri() || !isMobileRuntime()) return false;
-  try {
-    await invoke('plugin:sharesheet|share_text', { text, mimeType });
-    return true;
-  } catch (e) {
-    console.error('[shareTextViaNative]', e);
-    return false;
-  }
-}

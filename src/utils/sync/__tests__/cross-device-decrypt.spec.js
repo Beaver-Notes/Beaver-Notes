@@ -93,10 +93,6 @@ vi.mock('@/lib/native/security.js', () => ({
   syncDecryptPayload: (raw, aad) => decryptOne(raw, aad),
   syncEncryptBatch: (metas, dataB64s, aads) =>
     Promise.all(metas.map((m, i) => encryptOne(m, dataB64s[i], aads[i]))),
-  syncDecryptBatch: (envelopes, aads) =>
-    Promise.all(
-      envelopes.map((e, i) => decryptOne(e, aads[i]).catch(() => null))
-    ),
   reconcileSyncKeyParams: () => Promise.resolve({ ok: true }),
   adoptKeyParams: (passphrase, keyParams) => {
     if (keyParams) ctx.keyParams = keyParams;

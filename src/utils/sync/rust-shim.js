@@ -1,11 +1,10 @@
-import { applyRemote } from '@/lib/yjs/shared.js';
+import { applyRemote, getActiveDoc } from '@/lib/yjs/shared.js';
 import { base64ToBuf } from '@/utils/crypto/codec.js';
 import { getSettingSync } from '@/lib/settings';
 import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types';
 import { logger } from '@/utils/logger';
 
 let rustSyncActive = false;
-let rustFolderOwned = false;
 let unlistenApplied = null;
 let unlistenPushed = null;
 let kickTimer = null;
@@ -13,19 +12,6 @@ let dirtyTimer = null;
 
 export function isRustSyncActive() {
   return rustSyncActive;
-}
-
-export function isRustFolderOwner() {
-  return rustFolderOwned;
-}
-
-export async function refreshRustOwnership() {
-  try {
-    const { getSyncPath } = await import('./path.js');
-    const folderId = (await getSyncPath().catch(() => '')) || '';
-    rustFolderOwned = rustSyncActive && Boolean(folderId) && !folderId.startsWith('scoped:');
-  } catch {}
-  return rustFolderOwned;
 }
 
 // A sync folder carries no workspace identity — commits are named
@@ -121,8 +107,21 @@ async function getSyncConfig() {
     deviceLabel = getDeviceModel() || '';
   } catch {}
 
+  // A workspace that lives only on this device has no server counterpart. Its
+  // id must not reach the cloud path, or the account token would publish local
+  // notes under a workspace the account does not own. Rust treats an empty
+  // workspace id as "no cloud target" and its folder path still works.
+  let workspaceId = useWorkspaceStore().activeId || '';
+  try {
+    const { getActiveLocalWorkspace } = await import('@/lib/native/workspaces');
+    const activeLocal = await getActiveLocalWorkspace();
+    if (activeLocal?.cloudSync === false) workspaceId = '';
+  } catch {
+    /* web build: nothing to check */
+  }
+
   return {
-    workspace_id: useWorkspaceStore().activeId || '',
+    workspace_id: workspaceId,
     server_url: useAccountStore().serverUrl || '',
     token: useAccountStore().token || '',
     folder_id: folderId,
@@ -157,6 +156,24 @@ async function hydrateAfterApply(noteIds) {
   // appears one tick later with its real title instead.
 }
 
+// A pulled doc often has updates but no snapshot yet (snapshots are written on
+// compaction), so applying only snapshots left a rebuilt list invisible until
+// the next boot replayed the updates. Apply whatever the doc actually has.
+async function applyStored(backend, noteId, snapshot) {
+  if (snapshot) applyRemote(noteId, base64ToBuf(snapshot));
+  // Only an open doc needs the update replay: buffering it for every closed
+  // note churns the 8-entry pending buffer and the note reloads from disk on
+  // open anyway (F24).
+  if (!getActiveDoc(noteId)) return;
+  // Snapshot first, then every stored update. Yjs applies are idempotent, and
+  // replaying the updates is what brings an already-open editor current: the
+  // snapshot is only as fresh as the last compaction (F24).
+  const updates = await backend.invoke('yjs:getUpdates', noteId);
+  for (const upd of Array.isArray(updates) ? updates : []) {
+    if (typeof upd === 'string' && upd) applyRemote(noteId, base64ToBuf(upd));
+  }
+}
+
 export async function applySyncedNotes(noteIds) {
   if (!noteIds?.length) return;
   logger.debug('[sync] applied notes from rust pull:', noteIds.join(','));
@@ -180,8 +197,8 @@ export async function applySyncedNotes(noteIds) {
       try {
         const noteId = entry.noteId ?? entry[0];
         const snapshot = entry.snapshot ?? entry[1];
-        if (!noteId || !snapshot) continue;
-        applyRemote(noteId, base64ToBuf(snapshot));
+        if (!noteId) continue;
+        await applyStored(backend, noteId, snapshot);
       } catch (err) {
         logger.warn('[sync] snapshot apply failed, skipping note in batch', err?.message);
       }
@@ -190,8 +207,7 @@ export async function applySyncedNotes(noteIds) {
     for (const noteId of noteIds) {
       try {
         const snapshot = await backend.invoke('yjs:getSnapshot', noteId);
-        if (!snapshot) continue;
-        applyRemote(noteId, base64ToBuf(snapshot));
+        await applyStored(backend, noteId, snapshot);
       } catch (err) {
         logger.warn('[sync] snapshot apply failed for', noteId, err?.message);
       }
@@ -202,7 +218,6 @@ export async function applySyncedNotes(noteIds) {
 
 export async function stopRustSync() {
   rustSyncActive = false;
-  rustFolderOwned = false;
   if (kickTimer) { clearTimeout(kickTimer); kickTimer = null; }
   if (dirtyTimer) { clearTimeout(dirtyTimer); dirtyTimer = null; }
   try {
@@ -217,8 +232,6 @@ export async function startRustSync() {
 
   await backend.invoke('sync:start', config);
   rustSyncActive = true;
-  rustFolderOwned =
-    Boolean(config.folder_id) && !config.folder_id.startsWith('scoped:');
   if (!unlistenApplied) {
     unlistenApplied = await backend.listenPayload('sync:applied', (payload) => {
       applySyncedNotes(payload?.noteIds ?? []).catch(() => {});

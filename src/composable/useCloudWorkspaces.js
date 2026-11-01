@@ -18,6 +18,8 @@ import {
   getCachedWorkspaceKey,
 } from '@/lib/api/workspaces';
 import { normalizeWorkspaceList } from '@/lib/api/types';
+import { useStorage } from '@/lib/storage';
+import { useWorkspaceStore } from '@/store/workspace';
 import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
 
 const workspaces = ref([]);
@@ -183,6 +185,14 @@ async function teardownLiveWorkspaceState() {
     ]);
     await flushPendingMetaUpdates();
     destroyWorkspaceDoc();
+    // The note list belongs to the workspace that just closed: clear it so the
+    // next workspace's projection can never show the previous one's notes.
+    const [{ useNoteStore }, { clearAllPendingNoteMeta }] = await Promise.all([
+      import('@/store/note'),
+      import('@/lib/yjs/shared.js'),
+    ]);
+    useNoteStore().data = {};
+    clearAllPendingNoteMeta();
   } catch (err) {
     console.warn('[useCloudWorkspaces] workspace doc teardown failed:', err?.message || err);
   }
@@ -215,6 +225,13 @@ export function useCloudWorkspaces() {
       try {
         const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl(), signal: fetchController.signal });
         workspaces.value = normalizeWorkspaceList(raw);
+        // Durable shared mark: the Rust push path must know a workspace has
+        // peers before it decides how to seal note payloads, even offline.
+        const sharedFlags = useStorage();
+        for (const ws of workspaces.value) {
+          if ((ws.memberCount || 1) > 1) await sharedFlags.set(`wsShared:${ws.id}`, true);
+          else await sharedFlags.delete(`wsShared:${ws.id}`);
+        }
         if (!activeId.value && workspaces.value.length > 0) {
           // The native active id is the persisted one; honor it so a reload
           // doesn't silently move the user back to the first workspace.
@@ -336,25 +353,6 @@ export function useCloudWorkspaces() {
     return ws;
   }
 
-  async function switchWorkspace(id) {
-    if (activeId.value === id) return;
-    const previous = activeId.value;
-    // Teardown first: pending writes must reach the OLD pool and the live doc
-    // must die before workspace_switch swaps pools (see teardownLiveWorkspaceState).
-    await teardownLiveWorkspaceState();
-    // Persist natively too: workspace_switch saves the active id and swaps the
-    // data/settings pools, which is what actually switches content. Callers
-    // reload right after, satisfying the native "reload stores" contract.
-    try {
-      const { switchLocalWorkspace } = await import('@/lib/native/workspaces');
-      await switchLocalWorkspace(id);
-    } catch (err) {
-      console.warn('[useCloudWorkspaces] native workspace switch failed:', err?.message || err);
-    }
-    activeId.value = id;
-    return { previous };
-  }
-
   async function addMember(workspaceId, identifier, role = 'editor') {
     if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
     const result = await apiAddMember(workspaceId, identifier, role, { baseUrl: activeBaseUrl() });
@@ -432,9 +430,15 @@ export function useCloudWorkspaces() {
     const identity = await loadOrCreateIdentity();
     if (!identity?.privateKeyHex) return 0;
 
-    const workspaceKeyHex = await apiRecoverWorkspaceKeyHex(workspaceId, identity, {
-      baseUrl: activeBaseUrl(),
-    });
+    // Share the key this device actually seals with. Server recovery can hand
+    // back an envelope addressed to an older device row (this account keeps
+    // stale `default`/rotated entries), and wrapping that older key for a peer
+    // leaves it unable to read any current update. Recovery is the fallback.
+    const workspaceKeyHex =
+      getCachedWorkspaceKey(workspaceId) ||
+      (await apiRecoverWorkspaceKeyHex(workspaceId, identity, {
+        baseUrl: activeBaseUrl(),
+      }));
     if (!workspaceKeyHex) {
       // No envelope this device can unwrap yet (fresh device, locked vault):
       // retryable, not terminal. Surfaces not-synced via provisionPending and
@@ -678,7 +682,13 @@ export function useCloudWorkspaces() {
     // Direct repeats without a fetch (the contract tests) still re-run: they
     // assert observable retry, not fetch counts.
     const parkedThisPass = new Set();
-    for (const ws of workspaces.value) {
+    // The cloud list can be empty after an account reset while the workspace
+    // store still holds the account's workspaces. Sweeping the empty list left a
+    // reinstalled device without an envelope forever, so fall back to the store.
+    const list = workspaces.value.length
+      ? workspaces.value
+      : (useWorkspaceStore().workspaces || []);
+    for (const ws of list) {
       // Any member who holds the workspace key can re-wrap it for a member or
       // device still missing one (server accepts owner/admin/editor).
       if (provisionFailures.has(`ws:${ws.id}`)) continue;
@@ -736,7 +746,6 @@ export function useCloudWorkspaces() {
     renameWorkspace,
     updateWorkspaceDecoration,
     deleteWorkspace,
-    switchWorkspace,
     addMember,
     removeMember,
     joinWorkspace,

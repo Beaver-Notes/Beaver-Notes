@@ -1,5 +1,9 @@
 import { defineStore } from 'pinia';
 import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
+import {
+  getActiveLocalWorkspace,
+  listLocalWorkspaces,
+} from '@/lib/native/workspaces';
 
 interface Workspace {
   id: string;
@@ -10,6 +14,9 @@ interface Workspace {
   createdAt?: string | null;
   emoji?: string | null;
   color?: string | null;
+  // A workspace that lives only on this device: it has no server counterpart,
+  // so switching to it must never push its notes under the account's token.
+  local?: boolean;
 }
 
 interface WorkspaceState {
@@ -47,7 +54,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       try {
         const cloud = useCloudWorkspaces();
         await cloud.fetchWorkspaces();
-        this.workspaces = (cloud.workspaces.value as Workspace[]).map((w) => ({
+        const cloudList = (cloud.workspaces.value as Workspace[]).map((w) => ({
           id: w.id,
           name: w.name,
           role: w.role,
@@ -57,7 +64,33 @@ export const useWorkspaceStore = defineStore('workspace', {
           emoji: w.emoji,
           color: w.color,
         }));
-        if (cloud.activeId.value) {
+        // Local-only workspaces keep their registry entry when an account is
+        // added, but the cloud list never mentions them. Without this merge the
+        // local vault disappears from the switcher and its notes become
+        // unreachable (only `cloudSync: false` rows qualify; cloud mirrors are
+        // already in the cloud list or belong to another account). Signed out
+        // there is no switcher and no account, so retrieve stays IPC-free.
+        const { useAccountStore } = await import('@/store/account');
+        const account = useAccountStore();
+        // Same test as the store's `isAuthenticated` getter, which is typed out
+        // of reach from this TS module.
+        const authenticated = account.status === 'authenticated' && !!account.token;
+        let localList: Array<Workspace> = [];
+        let native = null;
+        if (authenticated) {
+          const local = (await listLocalWorkspaces().catch(
+            () => [],
+          )) as Array<{ id: string; name: string; cloudSync?: boolean }>;
+          const cloudIds = new Set(cloudList.map((w) => w.id));
+          localList = (local || [])
+            .filter((w) => w.cloudSync === false && !cloudIds.has(w.id))
+            .map((w) => ({ id: w.id, name: w.name, local: true }));
+          native = await getActiveLocalWorkspace().catch(() => null);
+        }
+        this.workspaces = [...cloudList, ...localList];
+        if (native?.id) {
+          this.activeId = native.id;
+        } else if (cloud.activeId.value) {
           this.activeId = cloud.activeId.value;
         } else if (this.workspaces.length > 0 && !this.activeId) {
           this.activeId = this.workspaces[0].id;
@@ -85,8 +118,14 @@ export const useWorkspaceStore = defineStore('workspace', {
 
     async switchTo(id: string) {
       if (id === this.activeId) return;
-      const cloud = useCloudWorkspaces();
-      await cloud.switchWorkspace(id);
+      // The full switch: pool swap, account state, live re-init and a fresh
+      // sync identity. A bare workspace swap left the Rust scheduler stopped
+      // and the account pinned to the old workspace (F40).
+      const [{ switchAccount }, { getActiveAccountId }] = await Promise.all([
+        import('@/composable/useAccountAuth'),
+        import('@/lib/accounts-index'),
+      ]);
+      await switchAccount({ accountId: getActiveAccountId(), workspaceId: id });
       this.activeId = id;
     },
 

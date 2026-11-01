@@ -10,6 +10,7 @@ import {
   importCollabKey,
   isValidCollabKey,
 } from '@/utils/crypto/collab'
+import { logger } from '@/utils/logger'
 import { clearUnwrappedKeyCache } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
 import {
@@ -73,10 +74,55 @@ const notificationListeners = new WeakMap()
 // stop/start cycle.
 const noteRoomArgs = new Map()
 
+// The room a note joined under, recorded at join time. Leaving resolves from
+// here first: after a revoked share the note's `access` is gone, so resolving
+// the room at leave time would build the active workspace's room, never find
+// the owner-workspace provider, and leave a ghost socket in a 403 rejoin loop.
+const roomByNote = new Map()
+
 /** Notify-only sync trigger: the Rust scheduler owns pull/push (debounced
  * `sync_kick`). */
 function notifySyncNow() {
   kickRustSync()
+}
+
+/** Wording for the human events the server relays (ids only, no text). */
+const USER_NOTIFICATION_TITLES = {
+  mention: 'You were mentioned in a comment',
+  comment: 'New comment',
+  note_shared: 'A note was shared with you',
+}
+
+/** OS notification for a human event. Best-effort: no store yet or no
+ * permission must not break the relay handler. */
+async function showUserNotification(msg) {
+  const title = USER_NOTIFICATION_TITLES[msg.kind]
+  if (!title) return
+  // Already looking at that note: the editor shows it live.
+  if (msg.noteId && document.hasFocus() && location.hash.includes(msg.noteId)) return
+  let body = 'Beaver Notes'
+  try {
+    const { useNoteStore } = await import('@/store/note')
+    body = useNoteStore().data?.[msg.noteId]?.title || body
+  } catch {
+    // Store not ready: the generic body is enough.
+  }
+  try {
+    const { notify } = await import('@/lib/native/app')
+    // iOS stores `extra` as string pairs: a null value drops the whole payload,
+    // and a tap without it cannot open the note it announced.
+    const extra = {}
+    if (msg.noteId) extra.noteId = msg.noteId
+    if (msg.workspaceId) extra.workspaceId = msg.workspaceId
+    const shown = await notify({
+      title,
+      body,
+      extra: Object.keys(extra).length ? extra : null,
+    })
+    logger.debug(`[ws-sync] user-notification ${msg.kind} -> ${shown ? 'shown' : 'suppressed'}`)
+  } catch {
+    // Notifications are best-effort.
+  }
 }
 
 /** y-websocket handles only binary (types 0-3). Relay sends JSON text notifications: intercept and pull. Re-attaches on reconnect. */
@@ -85,6 +131,10 @@ function createNotificationHandler() {
     if (typeof event.data !== 'string') return
     try {
       const msg = JSON.parse(event.data)
+      if (msg.type === 'user-notification') {
+        void showUserNotification(msg)
+        return
+      }
       if (msg.type === 'notification') {
         console.warn('[ws-sync] notification from server, triggering sync')
         notifySyncNow()
@@ -353,14 +403,21 @@ export async function ensureMetaRoomKey(workspaceId) {
     console.warn('[ws-sync] no recoverable workspace key for this device', workspaceId)
     return null
   }
-  await setRoomKey(buildMetaRoomName(workspaceId), workspaceKeyHex)
+  // Keys first, room key last: the room key is a live-connection nicety, while
+  // a missing shared key seals every later row under the account items key,
+  // which no peer can ever open (F32).
+  setActiveWsKey(workspaceKeyHex)
   // The durable `meta` doc seals under the workspace key so every member can
   // read folders/labels; without this it stays under the account items key.
   await registerSharedSyncKey('meta', workspaceKeyHex)
   // O7 Fix A: register the workspace key under every workspace note id so note
   // bodies seal under it too (all members readable), not the account items key.
-  setActiveWsKey(workspaceKeyHex)
-  await registerWsKeyForNotes(getWorkspaceDoc().getMap('notes').keys())
+  await registerWsKeyForNotes(getWorkspaceDoc().getMap('notes').keys(), workspaceKeyHex)
+  try {
+    await setRoomKey(buildMetaRoomName(workspaceId), workspaceKeyHex)
+  } catch (err) {
+    console.warn('[ws-sync] meta room key not applied:', err?.message || err)
+  }
   return workspaceKeyHex
 }
 
@@ -588,6 +645,7 @@ export function useWsSync() {
       docToRoom.set(doc, roomName)
       // What `start()` needs to rebuild this room after a teardown.
       noteRoomArgs.set(roomName, { noteId, doc, awareness: externalAwareness })
+      roomByNote.set(noteId, roomName)
     })()
     pendingRooms.set(roomName, join)
     try {
@@ -600,8 +658,14 @@ export function useWsSync() {
   }
 
   function leaveNoteRoom(noteId) {
-    const workspaceId = resolveNoteWorkspaceId(noteId, getActiveWorkspaceId() || '')
-    const roomName = buildRoomName(workspaceId, noteId)
+    // The join-time room name first: after a revoked share the note's
+    // `access` is gone, so re-resolving the workspace here would build the
+    // active workspace's room, never find the owner-workspace provider, and
+    // leave a ghost socket in a 403 rejoin loop (finding 17).
+    const roomName =
+      roomByNote.get(noteId) ||
+      buildRoomName(resolveNoteWorkspaceId(noteId, getActiveWorkspaceId() || ''), noteId)
+    roomByNote.delete(noteId)
     clearRejoin(roomName)
     pendingKeyJoins.delete(roomName)
     // Leaving drops the parked entry too, or a stale closure would re-join a
@@ -683,6 +747,47 @@ export function useWsSync() {
     }
   }
 
+  // iOS suspends the webview: on resume the sockets are dead and their
+  // single-use tickets were already redeemed, so y-websocket's own retry 401s
+  // and the provider parks with `shouldConnect = false` — the room then stays
+  // silent for the rest of the session. Reopen every dead room with a fresh one.
+  async function repairRealtime() {
+    if (!isAuthenticated()) return
+    for (const [roomName, provider] of Array.from(activeProviders)) {
+      if (provider.wsconnected) continue
+      detachNotificationListener(provider)
+      provider.shouldConnect = false
+      let revived = false
+      try {
+        revived = await refreshProviderParams(roomName, provider)
+      } catch (err) {
+        console.warn(`[ws-sync] resume repair of ${roomName} failed: ${err?.message || err}`)
+      }
+      if (revived) {
+        provider.shouldConnect = true
+        provider.connect()
+        continue
+      }
+      provider.destroy()
+      activeProviders.delete(roomName)
+      clearRejoin(roomName)
+    }
+    // Whatever did not come back above is re-joined exactly as `start()` does.
+    const workspaceId = getActiveWorkspaceId()
+    if (workspaceId) {
+      const metaRoom = buildMetaRoomName(workspaceId)
+      if (!activeProviders.has(metaRoom) && !pendingRooms.has(metaRoom)) joinMetaRoom(workspaceId)
+    }
+    for (const [roomName, args] of Array.from(noteRoomArgs.entries())) {
+      if (activeProviders.has(roomName) || pendingRooms.has(roomName)) continue
+      try {
+        Promise.resolve(joinNoteRoom(args.noteId, args.doc, args.awareness)).catch(() => {})
+      } catch {
+        /* Realtime is an accelerator: a failed repair costs only live updates. */
+      }
+    }
+  }
+
   function disconnect() {
     for (const [, provider] of activeProviders) {
       detachNotificationListener(provider)
@@ -697,6 +802,10 @@ export function useWsSync() {
     docToRoom.clear()
     collabKeys.clear()
     pendingKeyJoins.clear()
+    // Note rooms carry the previous account's decrypted Y.Docs; sign-out must
+    // not replay them into a new sign-in within the same session.
+    noteRoomArgs.clear()
+    roomByNote.clear()
     metaRoomAwareness.value = null
     clearUnwrappedKeyCache()
     clearWorkspaceKeyCache()
@@ -805,6 +914,7 @@ export function useWsSync() {
     start,
     stop: disconnect,
     connect,
+    repairRealtime,
     disconnect,
     joinNoteRoom,
     leaveNoteRoom,

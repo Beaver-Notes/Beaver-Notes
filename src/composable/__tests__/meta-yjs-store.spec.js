@@ -4,7 +4,7 @@ import * as Y from 'yjs';
 const { folderStoreMock, labelStoreMock, noteStoreMock, docHolder } = vi.hoisted(() => {
   const folderStoreMock = { data: {}, deletedIds: {}, _rebuildIndex: vi.fn() };
   const labelStoreMock = { data: [], colors: {} };
-  const noteStoreMock = { data: {}, deletedIds: {} };
+  const noteStoreMock = { data: {}, deletedIds: {}, rebuildFolderCounts: vi.fn() };
   const docHolder = { doc: null };
   return { folderStoreMock, labelStoreMock, noteStoreMock, docHolder };
 });
@@ -15,6 +15,7 @@ vi.mock('@/lib/native/yjs.js', () => ({
 vi.mock('@/store/folder', () => ({ useFolderStore: () => folderStoreMock }));
 vi.mock('@/store/label', () => ({ useLabelStore: () => labelStoreMock }));
 vi.mock('@/store/note', () => ({ useNoteStore: () => noteStoreMock }));
+vi.mock('@/store/workspace.ts', () => ({ useWorkspaceStore: () => ({ activeId: null }) }));
 vi.mock('@/store/note/index', () => ({
   saveNote: vi.fn(),
   syncSearchIndex: vi.fn(),
@@ -59,6 +60,7 @@ beforeEach(() => {
   labelStoreMock.colors = {};
   noteStoreMock.data = {};
   noteStoreMock.deletedIds = {};
+  noteStoreMock.rebuildFolderCounts.mockClear();
 });
 
 describe('writeStoresFromWorkspace incremental folder/label rebuilds', () => {

@@ -1,10 +1,8 @@
 import {
   getEncryptionState,
-  lockEncryption,
   submitEncryptionPassword,
   encryptNotePayload,
   decryptNotePayload,
-  clearDecryptedCaches,
   reconcileSyncKeyParams,
   adoptKeyParams,
   hasRemoteKeyParams,
@@ -106,6 +104,18 @@ export async function setupEncryption(passphrase) {
   }
 
   try {
+    // A sync folder that already carries a vault must be joined, not replaced:
+    // minting here leaves this device on a fresh vault while the folder keeps
+    // the older one, and the app then reports "vault detected" for its own
+    // folder. Declining the join (setDeclinedVaultJoin) clears this.
+    if (await remoteVaultJoinPending().catch(() => false)) {
+      return {
+        ok: false,
+        code: 'vault_join_required',
+        error:
+          'This sync folder already has an encrypted vault. Join it with its vault key, or decline it, before creating a new one.',
+      };
+    }
     const result = await submitEncryptionPassword(passphrase);
     if (!result?.ok) {
       return {
@@ -381,12 +391,6 @@ export function isAppEncryptedEnvelope(contentVal) {
 export function isEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
   return contentVal.ae === 6;
-}
-
-export async function lockEncryptionKey() {
-  await lockEncryption();
-  await clearDecryptedCaches();
-  await refreshState();
 }
 
 export { encryptContent as encryptPayload, decryptContent as decryptPayload };

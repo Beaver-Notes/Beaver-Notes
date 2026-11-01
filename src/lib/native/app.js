@@ -37,10 +37,6 @@ export function readLegacyPreferences(dir) {
   return backend.invoke('migration:read-legacy-preferences', { dir });
 }
 
-export function writeLegacyData(dir, content) {
-  return backend.invoke('migration:write-legacy-data', { dir, content });
-}
-
 export function appReady() {
   return backend.invoke('app-ready');
 }
@@ -73,18 +69,6 @@ export async function setReducedMotion(enabled) {
   return backend.invoke('app:set-reduced-motion', { enabled });
 }
 
-export async function getReducedMotion() {
-  return backend.invoke('app:get-reduced-motion');
-}
-
-export async function setHighContrast(enabled) {
-  return backend.invoke('app:set-high-contrast', { enabled });
-}
-
-export async function getHighContrast() {
-  return backend.invoke('app:get-high-contrast');
-}
-
 export function getHelperPath(name) {
   return backend.invoke('helper:get-path', name);
 }
@@ -99,7 +83,13 @@ export function relaunchApp() {
 
 let _notifyPermission = null; // 'granted' | 'denied' | null (unknown)
 
-export async function notify({ title, body }) {
+// Where a notification points, keyed by the notification's own id. iOS drops
+// `extra` on the way back — its tap payload carries only id/title/body — so the
+// click handler finds the target here instead.
+const _notificationTargets = new Map();
+let _nextNotificationId = Date.now() % 1000000000;
+
+export async function notify({ title, body, extra = null }) {
   try {
     if (_notifyPermission !== 'granted') {
       let granted = await isPermissionGranted();
@@ -110,7 +100,20 @@ export async function notify({ title, body }) {
       _notifyPermission = granted ? 'granted' : 'denied';
     }
     if (_notifyPermission !== 'granted') return false;
-    sendNotification({ title, body });
+    // `extra` rides along to the click handler, so a tap can open what it
+    // announced instead of just raising the window. iOS does not hand it back,
+    // so the target is also remembered under the notification's own id.
+    const id = _nextNotificationId++;
+    if (extra?.noteId || extra?.workspaceId) {
+      _notificationTargets.set(id, {
+        noteId: extra.noteId ?? null,
+        workspaceId: extra.workspaceId ?? null,
+      });
+      if (_notificationTargets.size > 50) {
+        _notificationTargets.delete(_notificationTargets.keys().next().value);
+      }
+    }
+    sendNotification(extra ? { id, title, body, extra } : { id, title, body });
     return true;
   } catch (error) {
     // Fail gracefully on any platform error (missing notification daemon on
@@ -120,9 +123,53 @@ export async function notify({ title, body }) {
   }
 }
 
-/**
- * @deprecated Use `notify({ title, body })` instead.
- */
-export async function showNotification(title, body) {
-  return notify({ title, body });
+// Clicking a notification raises the app and opens the note it announced. The
+// target comes from the in-memory map (iOS) or the `extra` the notification was
+// sent with (Android); a notification with neither only raises the app.
+//
+// shortcut: the map lives in memory, so a tap on a notification from a previous
+// session finds nothing and only raises the app. Upgrade if cold-start routing
+// matters.
+// One listener per process: the shell's init re-runs on workspace switches.
+let _notificationClicksBound = false;
+
+export async function initNotificationClicks() {
+  if (_notificationClicksBound) return;
+  _notificationClicksBound = true;
+  try {
+    const { onAction } = await import('@tauri-apps/plugin-notification');
+    await onAction((payload) => {
+      void (async () => {
+        const extra = payload?.notification?.extra ?? payload?.extra ?? null;
+        const target =
+          _notificationTargets.get(payload?.notification?.id) ??
+          (extra
+            ? { noteId: extra.noteId ?? null, workspaceId: extra.workspaceId ?? null }
+            : null);
+        const noteId = target?.noteId || null;
+        const workspaceId = target?.workspaceId || null;
+        const { logger } = await import('@/utils/logger');
+        logger.debug(`[native] notification clicked -> ${noteId ?? 'no-note'}`);
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window');
+          await getCurrentWindow().setFocus();
+        } catch {
+          // Focusing is best-effort: the route below still runs.
+        }
+        if (!noteId) return;
+        try {
+          const { useWorkspaceStore } = await import('@/store/workspace');
+          const workspace = useWorkspaceStore();
+          if (workspaceId && workspace.activeId !== workspaceId) {
+            await workspace.switchTo(workspaceId);
+          }
+        } catch {
+          // A workspace switch that fails must not block the note route.
+        }
+        location.hash = `#/note/${noteId}`;
+      })();
+    });
+  } catch {
+    // Notifications are optional on every platform.
+  }
 }

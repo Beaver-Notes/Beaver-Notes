@@ -28,13 +28,14 @@ import {
 import { getSnapshot } from '@/lib/native/yjs.js';
 import { createCommit } from '@/lib/api/history.js';
 import { logger } from '@/utils/logger';
-import { recordPushedCommits } from '../record-commits.js';
+import { recordPushedCommits, _resetCommitCache } from '../record-commits.js';
 
 const snapshot = { content: '<p>hi</p>', title: 'hi' };
 
 describe('recordPushedCommits', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    _resetCommitCache();
     captureNoteSnapshot.mockResolvedValue(snapshot);
     captureNoteSnapshotFromBytes.mockResolvedValue(snapshot);
     getSnapshot.mockResolvedValue(null);

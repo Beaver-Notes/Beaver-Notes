@@ -1,4 +1,3 @@
-import { importCollabKey } from './collab.js';
 import { bytesToHex, hexToBytes } from './hex.js';
 
 export async function encryptComment(key, plaintext, aad) {
@@ -91,5 +90,3 @@ export async function decryptName(key, nameEncryptedHex) {
   );
   return new TextDecoder().decode(plaintext);
 }
-
-export { importCollabKey };

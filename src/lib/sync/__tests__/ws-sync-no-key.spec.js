@@ -37,7 +37,7 @@ vi.mock('y-protocols/awareness', () => ({
   Awareness: class { constructor(doc) { this.doc = doc } },
 }))
 vi.mock('@/lib/yjs/meta-doc', () => ({
-  getWorkspaceDoc: vi.fn(() => ({ on: vi.fn(), off: vi.fn() })),
+  getWorkspaceDoc: vi.fn(() => ({ on: vi.fn(), off: vi.fn(), getMap: () => new Map() })),
   onWorkspaceDocDestroy: vi.fn(),
 }))
 vi.mock('@/lib/yjs/shared', () => ({
@@ -72,6 +72,8 @@ vi.mock('@/utils/sync/rust-shim.js', () => ({
   kickRustSync: mocks.kickRustSync,
 }))
 vi.mock('@/utils/sync/shared-keys.js', () => ({
+  setActiveWsKey: vi.fn(),
+  registerWsKeyForNotes: vi.fn(async () => {}),
   registerSharedSyncKey: vi.fn(async () => true),
   clearSharedSyncKeys: vi.fn(async () => {}),
   expectSharedSyncNote: vi.fn(async () => true),

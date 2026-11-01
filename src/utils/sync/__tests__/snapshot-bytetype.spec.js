@@ -44,12 +44,11 @@ async function rustDecrypt(env, aad) {
 vi.mock('@/utils/crypto/encryption.js', () => ({ isEncryptionEnabled: () => true }));
 vi.mock('@/lib/native/security.js', () => ({
   syncEncryptPayload: (meta, data, aad) => rustEncrypt(meta, data, aad),
-  syncDecryptBatch: (envs, aads) =>
-    Promise.all(envs.map((e, i) => rustDecrypt(e, aads[i]).catch(() => null))),
+  syncDecryptPayload: (env, aad) => rustDecrypt(env, aad),
   syncKeyReady: () => Promise.resolve(true),
 }));
 
-const { encryptJSON, decryptBatch } = await import('@/utils/sync/crypto.js');
+const { encryptJSON, decryptJSON } = await import('@/utils/sync/crypto.js');
 
 describe('snapshot vs incremental byte-type consistency', () => {
   test('seed-style Array.from(state) and incremental Uint8Array both round-trip to identical Yjs bytes', async () => {
@@ -72,8 +71,8 @@ describe('snapshot vs incremental byte-type consistency', () => {
       `${noteId}-${ts}`
     );
 
-    const [seedDec] = await decryptBatch([seedEnv], [`${noteId}-${ts}`]);
-    const [incDec] = await decryptBatch([incEnv], [`${noteId}-${ts}`]);
+    const seedDec = await decryptJSON(seedEnv, `${noteId}-${ts}`);
+    const incDec = await decryptJSON(incEnv, `${noteId}-${ts}`);
 
     expect(seedDec.update).toBeInstanceOf(Uint8Array);
     expect(incDec.update).toBeInstanceOf(Uint8Array);
