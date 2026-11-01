@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
@@ -39,7 +39,7 @@ afterEach(() => {
 
 describe('version-preview block-aware decorations', () => {
   it('ghosts a deleted image as its real DOM and marks an added list block', () => {
-    const editor = makeEditor([VersionPreview.configure({ onRestore: vi.fn() })]);
+    const editor = makeEditor([VersionPreview]);
     editor.commands.setContent('<p>Hello</p><ul><li>new item</li></ul>');
 
     const snapshotHtml = '<p>Hello</p><p><img src="x.png" alt="pic"></p>';
@@ -58,46 +58,28 @@ describe('version-preview block-aware decorations', () => {
     // (b) the added list renders as a node-decoration block pill
     expect(dom.querySelector('.version-preview-added-block')).toBeTruthy();
 
-    // (c) banner widget exists at doc start with the meta label
-    expect(
-      dom.querySelector('.version-preview-banner')?.textContent
-    ).toContain('v1');
+    // no banner/legend chrome is emitted — the panel owns all controls
+    expect(dom.querySelector('.version-preview-banner')).toBeNull();
 
     // inline added text is scenario-dependent: here the added side is a whole
     // block (the list), so nothing else needs an inline mark.
 
-    // (d) clear removes every decoration the mode added
+    // (c) clear removes every decoration the mode added
     editor.commands.clearVersionPreview();
     expect(dom.querySelector('.version-preview-ghost')).toBeNull();
     expect(dom.querySelector('.version-preview-added-block')).toBeNull();
-    expect(dom.querySelector('.version-preview-banner')).toBeNull();
   });
 
-  it('renders review chunk controls and fires onReviewExit from the done pill', () => {
-    const onReviewExit = vi.fn();
-    const onReviewAction = vi.fn();
-    const editor = makeEditor([
-      VersionPreview.configure({ onReviewExit, onReviewAction }),
-    ]);
+  it('renders change-review marks without any chunk controls', () => {
+    const editor = makeEditor([VersionPreview]);
     editor.commands.setContent('<p>Hello there</p>');
     editor.commands.setChangeReview('<p>Hello</p>', { label: 'x' });
 
     const dom = editor.view.dom;
-    expect(dom.querySelector('.version-preview-chunk')).toBeTruthy();
-    expect(dom.querySelector('.version-preview-chunk__keep')?.textContent).toBe(
-      'Keep'
-    );
+    expect(dom.querySelector('.version-preview-chunk')).toBeNull();
     // plain added text stays an inline mark (no block pill, no ghost)
     expect(dom.querySelector('.version-preview-added')).toBeTruthy();
     expect(dom.querySelector('.version-preview-ghost')).toBeNull();
-
-    dom.querySelector('.version-preview-chunk__keep').click();
-    expect(onReviewAction).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'keep' })
-    );
-
-    dom.querySelector('.version-review-banner__done').click();
-    expect(onReviewExit).toHaveBeenCalledTimes(1);
   });
 });
 

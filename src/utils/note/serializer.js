@@ -8,10 +8,7 @@ import {
   EMPTY_CARD_PREVIEW,
 } from '@/utils/note/cardPreview.js';
 import {
-  isEncryptionEnabled,
-  ensureKeyReadyForWrite,
   decryptContent,
-  encryptContent,
   isEncryptedContent,
 } from '@/utils/crypto/encryption.js';
 
@@ -147,15 +144,3 @@ export async function batchDecryptNotesForMemory(notes, options = {}) {
   return results;
 }
 
-/**
- * If app-level encryption is active, encrypts the note's content before it is
- * written to storage. Throws if the encryption key is locked.
- */
-export async function encryptNoteForStorage(note) {
-  if (!isEncryptionEnabled()) return note;
-  await ensureKeyReadyForWrite();
-  if (note?.content) {
-    return { ...note, content: await encryptContent(note.content) };
-  }
-  return note;
-}

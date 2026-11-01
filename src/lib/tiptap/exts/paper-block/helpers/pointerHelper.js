@@ -192,13 +192,10 @@ export function usePointerHelper(context) {
       return;
     }
 
-    // Start collecting points
     state.isDrawing = true;
     state.currentStrokePoints = [[x, y, pressure]];
     currentPointsRef.value = [[x, y, pressure]];
   };
-
-  // pointer move
 
   const handlePointerMove = (e) => {
     if (state.isPenMode && !isPen(e)) return;

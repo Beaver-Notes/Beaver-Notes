@@ -76,6 +76,17 @@
           :opacity="propsFor(stroke).opacity"
         />
 
+        <path
+          v-for="stroke in highlightedSelection"
+          :key="`lasso-highlight-${stroke.id}`"
+          :d="pathFor(stroke)"
+          fill="none"
+          stroke="rgba(99,102,241,0.9)"
+          :stroke-width="Math.max(2, stroke.size * 0.6)"
+          vector-effect="non-scaling-stroke"
+          pointer-events="none"
+        />
+
         <!-- Live stroke preview (drawn while still in progress) -->
         <path
           v-if="livePathD"
@@ -187,10 +198,13 @@
       <!-- Resize handle (bottom edge drag) -->
       <div
         v-if="interactive"
-        class="resize-handle absolute bottom-0 left-0 right-0 h-3 flex items-center justify-center cursor-row-resize select-none z-10"
+        class="resize-handle absolute bottom-0 left-0 right-0 h-5 flex items-end justify-center pb-1.5 cursor-row-resize select-none z-10"
+        aria-hidden="true"
         @pointerdown.prevent="startResize"
       >
-        <div class="w-8 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600" />
+        <div
+          class="resize-grip w-10 h-1 rounded-full bg-neutral-300 dark:bg-neutral-600"
+        />
       </div>
     </div>
   </div>
@@ -207,6 +221,7 @@ import {
   nextTick,
 } from 'vue';
 import {
+  TOOL_SETTINGS_KEY,
   cloneDrawingToolDefaults,
   getRenderablePath,
   getRenderableStrokeProps,
@@ -262,8 +277,8 @@ const state = reactive({
   // Tools
   tool: 'pen',
   penSettings: { ...defaultSettings.pen },
-  pencilSettings: { color: '#4a4a4a', size: 3 },
-  fountainSettings: { color: '#1a2744', size: 5 },
+  pencilSettings: { ...defaultSettings.pencil },
+  fountainSettings: { ...defaultSettings.fountain },
   highlighterSettings: { ...defaultSettings.highlighter },
   eraserSettings: { ...defaultSettings.eraser },
 
@@ -304,7 +319,7 @@ const viewBoxAttr = computed(() => {
 });
 
 const backgroundClass = computed(() => {
-  const base = 'bg-transparent border rounded-lg';
+  const base = 'bg-transparent';
   const bg = state.background;
   if (bg === 'grid' || bg === 'ruled' || bg === 'dotted')
     return `${base} ${bg}`;
@@ -357,6 +372,11 @@ const liveProps = computed(() => {
 });
 
 const eraserPos = ref(null);
+const highlightedSelection = computed(() =>
+  state.tool === 'lasso' && state.lassoPoints
+    ? state.selectedElement?.lines ?? []
+    : []
+);
 
 const selectionTransform = computed(() => {
   const el = state.selectedElement;
@@ -378,11 +398,7 @@ const cornerHandles = computed(() => {
 });
 
 function activeSettings() {
-  if (state.tool === 'highlighter') return state.highlighterSettings;
-  if (state.tool === 'pencil') return state.pencilSettings;
-  if (state.tool === 'fountain') return state.fountainSettings;
-  if (state.tool === 'eraser') return state.eraserSettings;
-  return state.penSettings;
+  return state[TOOL_SETTINGS_KEY[state.tool]] ?? state.penSettings;
 }
 
 // Called by pointerHelper when drawing near the bottom edge
@@ -536,18 +552,20 @@ function handleKeyDown(e) {
 
   if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedElement) {
     e.preventDefault();
-    const ids = new Set(state.selectedElement.lineIds);
-    state.undoStack = [...state.undoStack, state.lines];
-    state.redoStack = [];
-    state.lines = state.lines.filter((l) => !ids.has(l.id));
-    state.selectedElement = null;
+    deleteSelection();
     return;
   }
 
   if (mod && e.key.toLowerCase() === 'z') {
     e.preventDefault();
-    if (e.shiftKey) handleRedo();
-    else handleUndo();
+    if (e.shiftKey) redo();
+    else undo();
+    return;
+  }
+
+  if (mod && e.key.toLowerCase() === 'y') {
+    e.preventDefault();
+    redo();
   }
 }
 
@@ -583,44 +601,14 @@ function setTool(tool) {
 }
 
 function setColor(color) {
-  if (state.tool === 'pen') {
-    state.penSettings.color = color;
-    return;
-  }
-  if (state.tool === 'pencil') {
-    state.pencilSettings.color = color;
-    return;
-  }
-  if (state.tool === 'fountain') {
-    state.fountainSettings.color = color;
-    return;
-  }
-  if (state.tool === 'highlighter') {
-    state.highlighterSettings.color = color;
-  }
+  if (state.tool === 'eraser') return;
+  const key = TOOL_SETTINGS_KEY[state.tool];
+  if (key) state[key].color = color;
 }
 
 function setSize(size) {
-  const n = Number(size);
-  if (state.tool === 'pen') {
-    state.penSettings.size = n;
-    return;
-  }
-  if (state.tool === 'pencil') {
-    state.pencilSettings.size = n;
-    return;
-  }
-  if (state.tool === 'fountain') {
-    state.fountainSettings.size = n;
-    return;
-  }
-  if (state.tool === 'highlighter') {
-    state.highlighterSettings.size = n;
-    return;
-  }
-  if (state.tool === 'eraser') {
-    state.eraserSettings.size = n;
-  }
+  const key = TOOL_SETTINGS_KEY[state.tool];
+  if (key) state[key].size = Number(size);
 }
 
 function setBackground(type) {
@@ -636,8 +624,11 @@ function clearAll() {
   state.selectedElement = null;
 }
 
+let stopResize = null;
+
 function startResize(e) {
   e.preventDefault();
+  stopResize?.();
   const startY = e.clientY;
   const startH = state.height;
 
@@ -649,14 +640,22 @@ function startResize(e) {
     state.height = newH;
   }
 
-  function onUp() {
+  function cleanup() {
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    stopResize = null;
+  }
+
+  function onUp() {
+    cleanup();
     emit('update-attributes', { height: state.height });
   }
 
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+  stopResize = cleanup;
 }
 
 function exportSVG() {
@@ -879,6 +878,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  stopResize?.();
   if (animationFrameRef.value) cancelAnimationFrame(animationFrameRef.value);
   const svg = svgRef.value;
   if (svg) {
@@ -940,14 +940,23 @@ onUnmounted(() => {
 }
 
 .resize-handle {
-  background: transparent;
+  touch-action: none;
 }
 
-.resize-handle:hover {
-  background: rgba(99, 102, 241, 0.05);
+.resize-grip {
+  opacity: 0.6;
+  transition: opacity 0.15s ease, width 0.15s ease;
 }
 
-.draw:hover .resize-handle {
+.resize-handle:hover .resize-grip,
+.resize-handle:active .resize-grip {
   opacity: 1;
+  width: 3rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resize-grip {
+    transition: none;
+  }
 }
 </style>

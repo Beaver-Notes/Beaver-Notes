@@ -2,7 +2,6 @@
   <teleport to="#pill-dock" :disabled="!dockTarget">
     <ui-pill :fixed="false" :aria-label="ariaLabel">
       <div class="flex items-center py-1 pl-1.5 pr-1.5">
-        <!-- Island toggle: progress ring when limited, bare count while collapsed -->
         <button
           type="button"
           class="flex h-9 shrink-0 items-center rounded-full px-2 transition-transform duration-200 ease-[var(--ease-snappy)] active:scale-95 motion-reduce:transition-none"
@@ -51,13 +50,13 @@
             </div>
             <div v-else key="edit" class="flex items-center gap-1 whitespace-nowrap">
               <span class="text-xs font-medium text-neutral-400">Limit:</span>
-              <input
+              <ui-input
                 v-model="limitInput"
                 type="number"
                 min="1"
                 placeholder="None"
                 :aria-label="translations.noteActions?.wordLimit || 'Word limit'"
-                class="w-16 rounded-md border border-neutral-300 dark:border-neutral-600 bg-transparent px-1.5 py-0.5 text-xs font-mono tabular-nums placeholder:text-neutral-400 focus:outline-none focus:border-primary"
+                class="w-16 px-1.5 py-0.5 text-xs font-mono tabular-nums"
                 @keydown.enter="applyLimit"
               />
               <button

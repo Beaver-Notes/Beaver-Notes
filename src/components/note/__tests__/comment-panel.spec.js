@@ -41,16 +41,16 @@ vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: { value: {} } }),
 }));
 
-import CommentSidebar from '../CommentSidebar.vue';
+import CommentPanel from '../CommentPanel.vue';
 
-function mountSidebar() {
-  return mount(CommentSidebar, {
+function mountPanel() {
+  return mount(CommentPanel, {
     props: { noteId: 'n1' },
     global: { stubs: { 'v-remixicon': true } },
   });
 }
 
-describe('CommentSidebar action failures stay visible', () => {
+describe('CommentPanel action failures stay visible', () => {
   beforeEach(() => {
     ctl.addComment.mockReset();
     ctl.toggleResolve.mockReset();
@@ -61,7 +61,7 @@ describe('CommentSidebar action failures stay visible', () => {
 
   it('shows the failure inline when adding a comment fails', async () => {
     ctl.addComment.mockRejectedValue(new Error('offline'));
-    const wrapper = mountSidebar();
+    const wrapper = mountPanel();
     wrapper.vm.newComment = 'hello';
     await wrapper.vm.submitComment();
     await flushPromises();
@@ -73,7 +73,7 @@ describe('CommentSidebar action failures stay visible', () => {
 
   it('clears the previous error on a later successful action', async () => {
     ctl.addComment.mockRejectedValueOnce(new Error('offline'));
-    const wrapper = mountSidebar();
+    const wrapper = mountPanel();
     wrapper.vm.newComment = 'hello';
     await wrapper.vm.submitComment();
     await flushPromises();

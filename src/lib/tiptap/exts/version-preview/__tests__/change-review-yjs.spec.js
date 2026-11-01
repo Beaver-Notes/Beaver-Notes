@@ -60,7 +60,7 @@ describe('review mode read-only', () => {
 });
 
 describe('review rendering', () => {
-  it('renders the review header and per-chunk Keep/Revert controls', () => {
+  it('renders marks-only decorations with no chunk controls or header', () => {
     const ydoc = new Y.Doc();
     const editor = makeEditor(ydoc);
     editor.commands.setContent('<p>Hello</p>');
@@ -68,29 +68,16 @@ describe('review rendering', () => {
     editor.commands.setChangeReview('<p>Hello world</p>', { label: 'x' });
     const dom = editor.view.dom;
 
-    expect(dom.querySelector('.version-review-banner')?.textContent).toContain(
-      '1 change'
-    );
-    expect(
-      dom.querySelector('.version-preview-chunk__revert')?.textContent
-    ).toBe('Revert');
-    expect(dom.querySelector('.version-preview-chunk__keep')?.textContent).toBe(
-      'Keep'
-    );
-  });
-
-  it('shows "No changes" and no chunk actions when the baseline equals the doc', () => {
-    const ydoc = new Y.Doc();
-    const editor = makeEditor(ydoc);
-    editor.commands.setContent('<p>Hello</p>');
-
-    editor.commands.setChangeReview('<p>Hello</p>');
-    const dom = editor.view.dom;
-
-    expect(dom.querySelector('.version-review-banner')?.textContent).toContain(
-      'No changes'
-    );
+    expect(dom.querySelector('.version-review-banner')).toBeNull();
     expect(dom.querySelector('.version-preview-chunk')).toBeNull();
+    // snapshot has text the doc lacks: struck-through removed mark
+    expect(dom.querySelector('.version-preview-removed')).toBeTruthy();
+    expect(dom.querySelector('.version-preview-added')).toBeNull();
+
+    // baseline equals the doc: no marks at all
+    editor.commands.setChangeReview('<p>Hello</p>');
+    expect(dom.querySelector('.version-preview-removed')).toBeNull();
+    expect(dom.querySelector('.version-preview-added')).toBeNull();
   });
 });
 

@@ -103,7 +103,7 @@
 </template>
 
 <script>
-import { computed } from 'vue';
+import { computed, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAudioRecorder } from '@/composable/useAudioRecorder';
 import { usePillDock } from '@/composable/usePillDock';
@@ -149,7 +149,7 @@ export default {
     // Global fallback when the recording's note is not open in an editor. The
     // open note page claims itself via `recorder.openNoteId` (authority, not
     // the route), so the two paths can never race for the same note.
-    recorder.onStopped((payload) => {
+    const unsubscribeStopped = recorder.onStopped((payload) => {
       const { filePath, noteId, cursorPos } = payload;
       if (noteId === recorder.openNoteId.value) return;
       payload.markConsumed();
@@ -162,6 +162,7 @@ export default {
         console.error('Failed to insert recording into note:', error);
       });
     });
+    onUnmounted(unsubscribeStopped);
 
     return {
       isRecording,

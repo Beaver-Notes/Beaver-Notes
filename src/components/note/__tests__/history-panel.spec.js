@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import HistoryPanel from '@/components/note/HistoryPanel.vue';
 
@@ -106,17 +106,25 @@ beforeEach(() => {
 });
 
 describe('history preview gating', () => {
-  it('selecting a version only highlights it and does not emit preview', async () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('selecting the current version shows the hint and does not preview', async () => {
     const wrapper = mountPanel();
 
     historyMock.selectCommit(0);
     await flushPromises();
+    await vi.advanceTimersByTimeAsync(160);
+    await flushPromises();
 
-    expect(wrapper.emitted('preview')).toBeUndefined();
     expect(historyMock.loadSnapshot).not.toHaveBeenCalled();
-    // version number = total - index
-    expect(wrapper.find('[data-testid="history-panel-title"]').text()).toBe('2');
-    // testids stay available on the history tab
+    expect(wrapper.emitted('preview')).toBeUndefined();
+    // hint copy + testids stay available on the history tab
+    expect(wrapper.text()).toContain('current version');
     expect(wrapper.find('[data-testid="history-timeline"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="history-activity-tab"]').exists()).toBe(true);
     expect(wrapper.findAll('[data-testid="history-entry"]').length).toBe(2);
@@ -124,35 +132,38 @@ describe('history preview gating', () => {
     wrapper.unmount();
   });
 
-  it('Show preview loads the snapshot, then emits preview and reveals restore actions', async () => {
+  it('selecting an older version auto-loads the snapshot and previews it', async () => {
     const wrapper = mountPanel();
 
-    historyMock.selectCommit(0);
+    historyMock.selectCommit(1);
     await flushPromises();
-    expect(wrapper.text()).toContain('Show preview');
+    // debounced while scrubbing
+    expect(historyMock.loadSnapshot).not.toHaveBeenCalled();
 
-    await wrapper.vm.startPreview();
+    await vi.advanceTimersByTimeAsync(160);
+    await flushPromises();
 
-    expect(historyMock.loadSnapshot).toHaveBeenCalledWith('h2', 'n1');
+    expect(historyMock.loadSnapshot).toHaveBeenCalledWith('h1', 'n1');
     const emitted = wrapper.emitted('preview');
     expect(emitted).toHaveLength(1);
     expect(emitted[0][0]).toMatchObject({
-      hash: 'h2',
+      hash: 'h1',
       content: '<p>preview body</p>',
     });
-    expect(wrapper.text()).toContain('Restore');
-    expect(wrapper.text()).toContain('Review changes');
-    expect(wrapper.text()).not.toContain('Show preview');
+    expect(wrapper.text()).toContain('Restore this version');
+    expect(wrapper.text()).toContain('Back to current');
+    expect(wrapper.text()).not.toContain('Review changes');
 
     wrapper.unmount();
   });
 
-  it('Hide preview emits null and returns to the Show preview action', async () => {
+  it('Back to current emits null', async () => {
     const wrapper = mountPanel();
 
-    historyMock.selectCommit(0);
+    historyMock.selectCommit(1);
     await flushPromises();
-    await wrapper.vm.startPreview();
+    await vi.advanceTimersByTimeAsync(160);
+    await flushPromises();
     expect(wrapper.emitted('preview')).toHaveLength(1);
 
     wrapper.vm.hidePreview();
@@ -160,28 +171,30 @@ describe('history preview gating', () => {
 
     const emitted = wrapper.emitted('preview');
     expect(emitted[emitted.length - 1]).toEqual([null]);
-    expect(wrapper.text()).toContain('Show preview');
-    expect(wrapper.text()).not.toContain('Restore');
 
     wrapper.unmount();
   });
 
-  it('changing the selected version clears an active preview', async () => {
+  it('scrubbing back to the current version clears an active preview', async () => {
     const wrapper = mountPanel();
 
-    historyMock.selectCommit(0);
+    historyMock.selectCommit(1);
     await flushPromises();
-    await wrapper.vm.startPreview();
+    await vi.advanceTimersByTimeAsync(160);
+    await flushPromises();
     expect(wrapper.emitted('preview')).toHaveLength(1);
 
-    // scrub to another version: index watch must drop snapshot + preview
-    historyMock.selectedCommitIndex.value = 1;
+    // scrub to current: index watch must drop snapshot + preview
+    historyMock.selectedCommitIndex.value = 0;
     await flushPromises();
 
     const emitted = wrapper.emitted('preview');
     expect(emitted[emitted.length - 1]).toEqual([null]);
     expect(historyMock.selectedCommit.value).toBeNull();
-    expect(wrapper.text()).not.toContain('Restore');
+    // back on the current version: the restore action collapses away (the
+    // .acts 'on' state is gone; the panel re-enters hint mode)
+    expect(wrapper.find('.acts').classes()).not.toContain('on');
+    expect(wrapper.text()).toContain('Pick an earlier one on the timeline');
 
     wrapper.unmount();
   });

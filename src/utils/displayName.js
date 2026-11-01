@@ -57,19 +57,4 @@ function hashId(userId) {
   return hash;
 }
 
-function colorFromId(userId) {
-  return `hsl(${Math.abs(hashId(userId)) % 360}, 55%, 45%)`;
-}
-
-export function avatarMeta(user) {
-  const name = displayName(user);
-  const id = user?.id || user?.userId || user?.accountId || name;
-  return {
-    displayName: name,
-    initials: initialsFrom(name),
-    color: colorFromId(id),
-  };
-}
-
 export const getInitials = initialsFrom;
-export const getAvatarColor = colorFromId;

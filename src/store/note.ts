@@ -33,6 +33,7 @@ import {
   cleanupDeletedIds,
   moveToFolder,
   normalizeInvalidFolderIds,
+  rebuildFolderCounts,
   addLabel,
   removeLabel,
   retryNoteExtraction,
@@ -82,6 +83,7 @@ export const useNoteStore = defineStore('note', {
     // Folder operations
     moveToFolder,
     normalizeInvalidFolderIds,
+    rebuildFolderCounts,
 
     // Note locking
     lockNote,

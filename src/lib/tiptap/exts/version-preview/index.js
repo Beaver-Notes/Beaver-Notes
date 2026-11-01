@@ -138,31 +138,10 @@ function deletedSliceIsStructured(slice) {
 }
 
 /**
- * Blueprint legend/pill copy. The extension builds raw DOM and has no
- * translations access, so these English strings carry the labels; the banner
- * labels themselves still come in through `meta`.
+ * Ghost chip copy. The extension builds raw DOM and has no translations
+ * access, so this English string carries the label.
  */
-const LEGEND_ADDED = 'Added';
-const LEGEND_REMOVED = 'Removed';
-const LEGEND_FORMAT = 'Format changed';
-const LABEL_ADDED = LEGEND_ADDED;
-const LABEL_REMOVED = LEGEND_REMOVED;
-
-/**
- * Zero-size relative anchor so a change-category chip can float at its
- * decoration position without taking layout space or shifting text.
- */
-function createChangeLabel(text, className) {
-  const anchor = document.createElement('span');
-  anchor.className = 'version-preview-label-anchor';
-  const chip = document.createElement('span');
-  chip.className = className;
-  chip.textContent = text;
-  chip.contentEditable = 'false';
-  chip.setAttribute('aria-hidden', 'true');
-  anchor.append(chip);
-  return anchor;
-}
+const LABEL_REMOVED = 'Removed';
 
 function createGhost(editor, slice) {
   const ghost = document.createElement('div');
@@ -179,131 +158,7 @@ function createGhost(editor, slice) {
   return ghost;
 }
 
-function createLegend() {
-  const legend = document.createElement('div');
-  legend.className = 'version-preview-legend';
-  const items = [
-    ['added', LEGEND_ADDED],
-    ['removed', LEGEND_REMOVED],
-    ['format', LEGEND_FORMAT],
-  ];
-  for (const [kind, text] of items) {
-    const item = document.createElement('span');
-    item.className = 'version-preview-legend__item';
-    const swatch = document.createElement('span');
-    swatch.className = `version-preview-legend__swatch version-preview-legend__swatch--${kind}`;
-    if (kind === 'removed') swatch.textContent = 'abc';
-    const label = document.createElement('span');
-    label.textContent = text;
-    item.append(swatch, label);
-    legend.append(item);
-  }
-  return legend;
-}
-
-function createBanner(meta, options) {
-  const banner = document.createElement('div');
-  banner.className = 'version-preview-banner';
-  banner.contentEditable = 'false';
-
-  const label = document.createElement('span');
-  label.className = 'version-preview-banner__label';
-  label.textContent = meta?.label || 'Viewing an older version';
-  banner.append(label);
-  banner.append(createLegend());
-
-  const restore = document.createElement('button');
-  restore.type = 'button';
-  restore.className = 'version-preview-banner__action';
-  restore.textContent = 'Restore this version';
-  restore.addEventListener('click', (event) => {
-    event.preventDefault();
-    options.onRestore?.(meta);
-  });
-  banner.append(restore);
-
-  const exit = document.createElement('button');
-  exit.type = 'button';
-  exit.className = 'version-preview-banner__action version-preview-banner__exit';
-  exit.textContent = 'Exit';
-  exit.addEventListener('click', (event) => {
-    event.preventDefault();
-    options.onExit?.();
-  });
-  banner.append(exit);
-
-  return banner;
-}
-
-function changeCountLabel(count) {
-  if (count === 0) return 'No changes';
-  return count === 1 ? '1 change' : `${count} changes`;
-}
-
-function createReviewHeader(meta, options, count) {
-  const banner = document.createElement('div');
-  banner.className = 'version-preview-banner version-review-banner';
-  banner.contentEditable = 'false';
-
-  const label = document.createElement('span');
-  label.className = 'version-preview-banner__label';
-  const heading = meta?.label || 'Reviewing changes';
-  label.textContent = `${heading} · ${changeCountLabel(count)}`;
-  banner.append(label);
-  banner.append(createLegend());
-
-  const done = document.createElement('button');
-  done.type = 'button';
-  done.className = 'version-preview-banner__action version-review-banner__done';
-  done.textContent = 'Done';
-  done.addEventListener('click', (event) => {
-    event.preventDefault();
-    options.onReviewExit?.();
-  });
-  banner.append(done);
-
-  return banner;
-}
-
-function createChunkControls(editor, snapshot, change, options) {
-  const wrap = document.createElement('span');
-  wrap.className = 'version-preview-chunk';
-  wrap.contentEditable = 'false';
-
-  const keep = document.createElement('button');
-  keep.type = 'button';
-  keep.className = 'version-preview-chunk__btn version-preview-chunk__keep';
-  keep.textContent = 'Keep';
-  keep.addEventListener('mousedown', (event) => event.preventDefault());
-  keep.addEventListener('click', (event) => {
-    event.preventDefault();
-    options.onReviewAction?.({ action: 'keep', change });
-  });
-
-  const revert = document.createElement('button');
-  revert.type = 'button';
-  revert.className = 'version-preview-chunk__btn version-preview-chunk__revert';
-  revert.textContent = 'Revert';
-  revert.addEventListener('mousedown', (event) => event.preventDefault());
-  revert.addEventListener('click', (event) => {
-    event.preventDefault();
-    const ok = revertReviewChange(editor, snapshot, change);
-    if (ok) {
-      options.onReviewAction?.({ action: 'revert', change });
-      return;
-    }
-    // Positions no longer match: apply nothing and point the user at the
-    // refreshed diff instead of writing a wrong edit.
-    wrap.dataset.stale = 'true';
-    wrap.title = 'This change moved — review refreshed';
-  });
-
-  wrap.append(keep, revert);
-  return wrap;
-}
-
-function buildDecorations(state, preview, options, editor) {
-  const isReview = preview.mode === 'review';
+function buildDecorations(state, preview, editor) {
   let rows = [];
   if (preview.snapshot) {
     try {
@@ -314,32 +169,12 @@ function buildDecorations(state, preview, options, editor) {
     }
   }
 
-  const decorations = [
-    Decoration.widget(
-      0,
-      () =>
-        isReview
-          ? createReviewHeader(preview.meta, options, rows.length)
-          : createBanner(preview.meta, options),
-      // The key decides whether ProseMirror reuses the banner's DOM node. A
-      // constant key froze the label at whatever version was opened first, so
-      // the heading never updated when a different commit was selected. Fold
-      // the rendered content into the key: same version keeps its node stable
-      // across doc edits, a different version (or a new review change count)
-      // remounts it.
-      {
-        side: -1,
-        key: `version-banner:${isReview ? 'review' : 'preview'}:${
-          preview.meta?.label || ''
-        }:${isReview ? rows.length : 0}`,
-      }
-    ),
-  ];
+  const decorations = [];
 
   if (preview.snapshot) {
     for (const row of rows) {
       // Added live side: a whole block-level base node starting at the row's
-      // start gets a node decoration (its own pill); anything else inline.
+      // start gets a node decoration (green block tint); anything else inline.
       if (row.kind !== 'attr' && row.toB > row.fromB) {
         const anchor = state.doc.nodeAt(row.fromB);
         if (anchor?.isBlock && row.fromB + anchor.nodeSize <= row.toB) {
@@ -347,17 +182,6 @@ function buildDecorations(state, preview, options, editor) {
             Decoration.node(row.fromB, row.fromB + anchor.nodeSize, {
               class: 'version-preview-added-block',
             })
-          );
-          // Named category chip at the block start, so the mark is never
-          // colour-only. Keyless like the other row widgets. side: 1 sorts
-          // after same-position ghost widgets, so the chip stays attached to
-          // its own block instead of an adjacent Removed ghost.
-          decorations.push(
-            Decoration.widget(
-              row.fromB,
-              () => createChangeLabel(LABEL_ADDED, 'version-preview-block-label'),
-              { side: 1 }
-            )
           );
         } else {
           decorations.push(
@@ -371,14 +195,6 @@ function buildDecorations(state, preview, options, editor) {
           Decoration.inline(row.fromB, row.toB, {
             class: 'version-preview-attr',
           })
-        );
-        decorations.push(
-          Decoration.widget(
-            row.fromB,
-            () =>
-              createChangeLabel(LEGEND_FORMAT, 'version-preview-attr-label'),
-            { side: 1 }
-          )
         );
       }
       // Deleted snapshot side: plain text keeps the compact struck-through
@@ -411,15 +227,6 @@ function buildDecorations(state, preview, options, editor) {
           }
         }
       }
-      if (isReview) {
-        decorations.push(
-          Decoration.widget(
-            row.toB,
-            () => createChunkControls(editor, preview.snapshot, row, options),
-            { side: 1 }
-          )
-        );
-      }
     }
   }
 
@@ -429,15 +236,6 @@ function buildDecorations(state, preview, options, editor) {
 
 const VersionPreview = Extension.create({
   name: 'versionPreview',
-
-  addOptions() {
-    return {
-      onRestore: null,
-      onExit: null,
-      onReviewExit: null,
-      onReviewAction: null,
-    };
-  },
 
   addStorage() {
     return { previousEditable: null };
@@ -496,7 +294,6 @@ const VersionPreview = Extension.create({
   },
 
   addProseMirrorPlugins() {
-    const options = this.options;
     const editor = this.editor;
     return [
       new Plugin({
@@ -530,7 +327,7 @@ const VersionPreview = Extension.create({
           decorations: (state) => {
             const preview = versionPreviewKey.getState(state);
             if (!preview?.active) return null;
-            return buildDecorations(state, preview, options, editor);
+            return buildDecorations(state, preview, editor);
           },
         },
       }),

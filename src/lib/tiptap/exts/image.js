@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from 'prosemirror-state';
 import { useStore } from '@/store';
 import copyImage from '@/utils/assets/storage.js';
 import { writeImageFile } from '@/utils/assets/storage.js';
+import mime from 'mime';
 
 const HANDLE_SIDES = ['left', 'right'];
 const IMAGE_LAYOUTS = new Set(['block', 'wrap-left', 'wrap-right']);
@@ -373,7 +374,12 @@ export async function insertImages(files, callback, swap) {
   const store = useStore();
 
   for (const file of files) {
-    const isImage = file.type.startsWith('image/') && file instanceof File;
+    // Filename mime fallback mirrors drop-file's outer predicate: in the
+    // Tauri/WebKit drop path a File can carry an empty `type`, and skipping it
+    // here drops the file on the floor entirely (drop-file already selected it).
+    const isImage =
+      (file.type || mime.getType(file.name) || '').startsWith('image/') &&
+      file instanceof File;
 
     if (!isImage) {
       continue;

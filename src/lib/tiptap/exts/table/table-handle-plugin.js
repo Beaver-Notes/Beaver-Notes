@@ -119,6 +119,9 @@ export class TableHandleView {
   }
 
   _mouseMoveHandler(event) {
+    // Hover affordance: a touch screen never produces the hover that keeps these
+    // alive, and the toolbar's table panel covers the same operations.
+    if (window.matchMedia('(hover: none)').matches) return;
     if (this.menuFrozen || this.mouseState === 'selecting') return;
     const target = event.target;
     if (!isHTMLElement(target) || !this.editorView.dom.contains(target)) return;

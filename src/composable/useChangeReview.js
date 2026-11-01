@@ -3,7 +3,7 @@ import { ref } from 'vue';
 const DEFAULT_MERGE_BANNER_MS = 12000;
 
 /**
- * Shared state for the "Review changes" experience (plan §6): the note page,
+ * The inline diff/chunk widgets and the actual revert transaction lived here
  * editor and history panel all read `active`/`label` and the merge-banner flag
  * from here. Cross-route state is not needed, so this stays out of Pinia.
  *

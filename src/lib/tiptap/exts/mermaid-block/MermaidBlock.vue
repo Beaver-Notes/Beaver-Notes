@@ -4,8 +4,9 @@
       <MermaidComponent
         ref="mermaidRef"
         :content="mermaidContent"
+        scroll-wide
         :class="[
-          'w-full max-w-full overflow-x-auto bg-neutral-50 dark:bg-neutral-900 pointer-events-none p-2 border min-h-20',
+          'w-full max-w-full overflow-x-auto bg-neutral-50 dark:bg-neutral-900 p-2 border min-h-20',
           isEditing ? 'rounded-t-xl border-b-0' : 'rounded-xl',
         ]"
       />
@@ -36,7 +37,7 @@
           <button
             type="button"
             aria-label="Close"
-            class="flex items-center justify-center rounded-full size-8 text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10 transition-colors"
+            class="flex items-center justify-center rounded-lg size-8 text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10 transition-colors"
             @click="closeTextarea"
           >
             <v-remixicon name="riCloseLine" />

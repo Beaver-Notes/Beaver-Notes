@@ -22,6 +22,7 @@ import { getWorkspaceMembers as apiGetWorkspaceMembers, getWorkspacePublicKeys a
 import { getSettingSync } from '@/lib/settings';
 import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
+import { useStorage } from '@/lib/storage';
 import {
   provisionNoteKey,
   recoverNoteKeyFromEnvelopes,
@@ -179,7 +180,6 @@ export function useNoteSharing() {
   async function fetchCollaborators(noteId) {
     if (!accountStore.isAuthenticated) return;
 
-    // Cancel any in-flight request
     if (fetchAbortController) {
       fetchAbortController.abort();
     }
@@ -309,6 +309,21 @@ export function useNoteSharing() {
     }
   }
 
+  // A workspace with more than one member marks itself durably (`wsShared:<id>`,
+  // written on every workspace-list fetch). In such a workspace a note must never
+  // fall back to a device-local key: peers on other accounts could not decrypt it.
+  async function isActiveWorkspaceShared() {
+    try {
+      const wsId = await resolveWorkspaceId();
+      if (!wsId) return false;
+      return (await useStorage().get(`wsShared:${wsId}`)) === true;
+    } catch {
+      // No active workspace/store (early boot, tests): never let the lookup
+      // throw out of a sealing decision.
+      return false;
+    }
+  }
+
   async function ensureNoteKey(noteId, opts = {}) {
     if (!accountStore.isAuthenticated) return null;
 
@@ -322,6 +337,12 @@ export function useNoteSharing() {
     if (!opts?.skipWorkspaceKey) {
       const wsKeyHex = getActiveWsKey();
       if (wsKeyHex && isWorkspaceIndexedNote(noteId)) return wsKeyHex;
+      // Shared workspace whose key is not loaded yet: hold the note back (the
+      // Rust push defers it) instead of minting a key only this device holds.
+      if (await isActiveWorkspaceShared()) {
+        await expectSharedSyncNote(noteId, true).catch(() => {});
+        return null;
+      }
     }
 
     // Per-note ML-KEM fan-out stays dormant on personal paths: it must never
@@ -438,7 +459,7 @@ export function useNoteSharing() {
         '[notes] collaborator lookup failed, registering shared key:',
         err?.message || err,
       );
-      await registerSharedSyncKey(noteId, noteKeyHex, getPreviousNoteKeys(noteId));
+      await registerSharedSyncKey(noteId, noteKeyHex, getPreviousNoteKeys(noteId), { takeover: true });
       scheduleProvisionRetry(noteId, noteKeyHex);
       return;
     }
@@ -481,8 +502,12 @@ export function useNoteSharing() {
       }
     }
     if (crossAccount) {
-      // registerSharedSyncKey clears the expected mark in Rust.
-      await registerSharedSyncKey(noteId, noteKeyHex, getPreviousNoteKeys(noteId));
+      // registerSharedSyncKey clears the expected mark in Rust. `takeover`
+      // matters for a note in a personal workspace: the workspace key is
+      // device-local, so an invited reader could never obtain it — the note key
+      // (wrapped above for the invitees AND the member devices) must own the
+      // note from here on.
+      await registerSharedSyncKey(noteId, noteKeyHex, getPreviousNoteKeys(noteId), { takeover: true });
     } else {
       // Personal (self-only) note: restore the exact v5 items-key path.
       await expectSharedSyncNote(noteId, false);

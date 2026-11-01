@@ -160,13 +160,6 @@
               :selection-mode="selectionMode"
               :pulse="isFiltering"
               :gap-px="24"
-              :breakpoints="[
-                { min: 0, cols: 2 },
-                { min: 640, cols: 2 },
-                { min: 768, cols: 2 },
-                { min: 1024, cols: 3 },
-                { min: 1280, cols: 4 },
-              ]"
               @item-click="
                 handleItemClick(
                   $event.event,

@@ -1,4 +1,3 @@
-// src/store/share.ts
 import { defineStore } from 'pinia';
 import { nanoid } from 'nanoid';
 import { useNoteStore } from './note';

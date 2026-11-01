@@ -97,32 +97,11 @@ describe('reader mode trap', () => {
     await w.vm.$nextTick();
     expect(w.vm.store.inReaderMode).toBe(true);
     expect(editor.setOptions).toHaveBeenCalledWith({ editable: false });
-    expect(document.documentElement.requestFullscreen).toHaveBeenCalled();
+    // Reader no longer forces native fullscreen
+    expect(document.documentElement.requestFullscreen).not.toHaveBeenCalled();
     // prefs wiring: _id.vue should expose data-reader-theme via prefs
     const { prefs } = useReaderPrefs();
     expect(['light', 'sepia', 'dark']).toContain(prefs.value.theme);
-    w.unmount();
-  });
-
-  it('fullscreenchange exits', async () => {
-    const editor = makeEditor();
-    const Wrapper = defineComponent({
-      setup() {
-        const m = useNoteMenu({ editor, id: 'test-id', note: { title: 't' } });
-        return m;
-      },
-      template: '<div></div>',
-    });
-    const w = mount(Wrapper);
-    w.vm.toggleReaderMode();
-    await w.vm.$nextTick();
-    expect(w.vm.store.inReaderMode).toBe(true);
-    // simulate user exiting fullscreen via browser UI
-    fullscreenEl = null;
-    document.dispatchEvent(new Event('fullscreenchange'));
-    await w.vm.$nextTick();
-    expect(w.vm.store.inReaderMode).toBe(false);
-    expect(editor.setOptions).toHaveBeenCalledWith({ editable: true });
     w.unmount();
   });
 
@@ -207,13 +186,12 @@ describe('reader mode trap', () => {
     w.unmount();
   });
 
-  it('useNoteMenu source has tri-exit wiring', () => {
+  it('useNoteMenu source has exit wiring, no forced fullscreen', () => {
     const src = fs.readFileSync('src/composable/useNoteMenu.js', 'utf8');
     expect(src).toContain('function exitReader');
-    expect(src).toContain('fullscreenchange');
     expect(src).toContain('Escape');
-    expect(src).toContain('exitFullscreen');
-    expect(src).toContain('requestFullscreen');
     expect(src).toContain('setOptions');
+    expect(src).not.toContain('requestFullscreen');
+    expect(src).not.toContain('fullscreenchange');
   });
 });

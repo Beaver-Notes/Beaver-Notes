@@ -9,6 +9,13 @@ import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
 import { backend, path } from '@/lib/tauri-bridge';
+
+import { moveTableColumn, moveTableRow } from '@tiptap/pm/tables';
+import {
+  getIndexCoordinates,
+  getTable,
+  selectCellsByCoords,
+} from '@/lib/tiptap/exts/table/tiptap-table-utils.js';
 import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
 import { exportBEA } from '@/utils/share/BEA';
@@ -329,6 +336,52 @@ export function useNoteMenu(props) {
     },
   ]);
 
+  // The table the caret sits in, plus the row/column it is in. Null outside one.
+  function tableContext() {
+    const table = getTable(props.editor);
+    if (!table) return null;
+    const cell = table.map.findCell(
+      props.editor.state.selection.from - table.start,
+    );
+    return { ...table, row: cell.top, column: cell.left };
+  }
+
+  // ponytail: moveTableRow/moveTableColumn are prosemirror-tables commands, not
+  // TipTap ones, so they run against the view directly instead of chain().
+  function moveRow(delta) {
+    const ctx = tableContext();
+    if (!ctx) return;
+    moveTableRow({ pos: ctx.start, from: ctx.row, to: ctx.row + delta })(
+      props.editor.state,
+      props.editor.view.dispatch,
+    );
+  }
+
+  function moveColumn(delta) {
+    const ctx = tableContext();
+    if (!ctx) return;
+    moveTableColumn({
+      pos: ctx.start,
+      from: ctx.column,
+      to: ctx.column + delta,
+    })(props.editor.state, props.editor.view.dispatch);
+  }
+
+  function selectRowOrColumn(orientation) {
+    const ctx = tableContext();
+    if (!ctx) return;
+    selectCellsByCoords(
+      props.editor,
+      ctx.pos,
+      getIndexCoordinates({
+        editor: props.editor,
+        index: orientation === 'row' ? ctx.row : ctx.column,
+        orientation,
+        tablePos: ctx.pos,
+      }),
+    );
+  }
+
   const tableActions = computed(() => [
     {
       name: 'addRowAbove',
@@ -377,6 +430,42 @@ export function useNoteMenu(props) {
       label: translations.value.menu.toggleHeader || 'Toggle header cell',
       icon: 'riBrush2Fill',
       run: () => props.editor.chain().focus().toggleHeaderCell().run(),
+    },
+    {
+      name: 'moveRowUp',
+      label: translations.value.menu.moveRowUp || 'Move row up',
+      icon: 'riArrowUpLine',
+      run: () => moveRow(-1),
+    },
+    {
+      name: 'moveRowDown',
+      label: translations.value.menu.moveRowDown || 'Move row down',
+      icon: 'riArrowDownLine',
+      run: () => moveRow(1),
+    },
+    {
+      name: 'moveColumnLeft',
+      label: translations.value.menu.moveColumnLeft || 'Move column left',
+      icon: 'riArrowLeftLine',
+      run: () => moveColumn(-1),
+    },
+    {
+      name: 'moveColumnRight',
+      label: translations.value.menu.moveColumnRight || 'Move column right',
+      icon: 'riArrowRightLine',
+      run: () => moveColumn(1),
+    },
+    {
+      name: 'selectRow',
+      label: translations.value.menu.selectRow || 'Select row',
+      icon: 'riTableLine',
+      run: () => selectRowOrColumn('row'),
+    },
+    {
+      name: 'selectColumn',
+      label: translations.value.menu.selectColumn || 'Select column',
+      icon: 'riLayoutColumnLine',
+      run: () => selectRowOrColumn('column'),
     },
     {
       name: 'deleteTable',
@@ -578,8 +667,8 @@ export function useNoteMenu(props) {
     setStoredZoomLevel(level);
   }
 
-  function exitReader(){ store.inReaderMode=false; try{ if(document.fullscreenElement) document.exitFullscreen(); }catch{} props.editor?.setOptions?.({editable:true}); document.documentElement.removeAttribute('data-reader-theme-legacy'); }
-  function toggleReaderMode(){ setZoom(getStoredZoomLevel()); const next=!store.inReaderMode; store.inReaderMode=next; if(next){ try{ document.documentElement.requestFullscreen?.(); }catch{} props.editor?.setOptions?.({editable:false}); } else exitReader(); }
+  function exitReader(){ store.inReaderMode=false; props.editor?.setOptions?.({editable:true}); document.documentElement.removeAttribute('data-reader-theme-legacy'); }
+  function toggleReaderMode(){ setZoom(getStoredZoomLevel()); const next=!store.inReaderMode; store.inReaderMode=next; if(next){ props.editor?.setOptions?.({editable:false}); } else exitReader(); }
 
   function deleteNode() {
     dialog.confirm({
@@ -618,11 +707,9 @@ export function useNoteMenu(props) {
 
   let _unregShortcuts2;
   onMounted(()=>{
-    const onFs=()=>{ if(!document.fullscreenElement && store.inReaderMode) exitReader(); };
     const onKey=(e)=>{ if(e.key==='Escape' && store.inReaderMode) exitReader(); };
-    document.addEventListener('fullscreenchange', onFs);
     document.addEventListener('keydown', onKey);
-    _unregShortcuts2=()=>{document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('keydown', onKey);};
+    _unregShortcuts2=()=>{document.removeEventListener('keydown', onKey);};
     if (props.editor) props.editor.on('selectionUpdate', handleSelectionUpdate);
   });
   onUnmounted(()=>{ props.editor?.off?.('selectionUpdate', handleSelectionUpdate); _unregShortcuts2?.(); });

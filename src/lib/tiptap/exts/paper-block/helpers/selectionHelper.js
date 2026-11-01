@@ -87,13 +87,13 @@ export default function useSelectionHelper(
       return;
     }
 
-    state.selectedElement = null;
     state.isDrawing = true;
 
     if (state.tool === 'lasso') {
       state.lassoPoints = [[x, y]];
       state.selectionBox = null;
     } else {
+      state.selectedElement = null;
       state.selectionBox = { startX: x, startY: y, currentX: x, currentY: y };
       state.lassoPoints = null;
     }
@@ -121,6 +121,10 @@ export default function useSelectionHelper(
         strokeIntersectsLasso(line, state.lassoPoints)
       );
       state.lassoPoints = null;
+      state.selectedElement = null;
+    } else if (state.tool === 'lasso') {
+      state.lassoPoints = null;
+      state.selectedElement = null;
     } else if (state.selectionBox) {
       const sb = state.selectionBox;
       const bounds = {

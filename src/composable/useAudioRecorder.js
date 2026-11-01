@@ -28,6 +28,7 @@ const openNoteId = ref(null);
 let statusInterval = null;
 const stoppedCallbacks = new Set();
 let closeHandlerBound = false;
+let closeHandlerUnsubscribe = null;
 
 const formattedTime = computed(() => {
   return `${String(minutes.value).padStart(2, '0')}:${String(
@@ -96,6 +97,12 @@ async function ensurePermission() {
 
 async function start(noteId, cursor = 0) {
   if (isRecording.value || !noteId) return;
+
+  // A recording must be stopped at app quit; re-register after an earlier
+  // cleanup() unsubscribed the handler.
+  if (!closeHandlerUnsubscribe && typeof addCloseHandler === 'function') {
+    closeHandlerUnsubscribe = addCloseHandler(() => cleanup());
+  }
 
   try {
     const hasPermission = await ensurePermission();
@@ -211,6 +218,10 @@ function cleanup() {
     })
     .finally(() => {
       resetState();
+      // Drop the quit-time handler with the recording it serves; start()
+      // re-registers for the next one.
+      closeHandlerUnsubscribe?.();
+      closeHandlerUnsubscribe = null;
     });
 }
 
@@ -220,7 +231,7 @@ if (
   !closeHandlerBound
 ) {
   closeHandlerBound = true;
-  addCloseHandler(() => cleanup());
+  closeHandlerUnsubscribe = addCloseHandler(() => cleanup());
 }
 
 export function useAudioRecorder() {

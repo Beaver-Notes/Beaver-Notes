@@ -112,7 +112,9 @@ describe('personal notes keep ML-KEM fan-out inert', () => {
     await useNoteSharing().ensureNoteKey('note-shared');
 
     const { registerSharedSyncKey } = await import('@/utils/sync/shared-keys');
-    expect(registerSharedSyncKey).toHaveBeenCalledWith('note-shared', NOTE_KEY, []);
+    expect(registerSharedSyncKey).toHaveBeenCalledWith('note-shared', NOTE_KEY, [], {
+      takeover: true,
+    });
     listCollaboratorPublicKeys.mockResolvedValue({ collaborators: [] });
   });
 
@@ -164,7 +166,9 @@ describe('personal notes keep ML-KEM fan-out inert', () => {
       );
       expect(result).toBe(NOTE_KEY);
       expect(expectSharedSyncNote).toHaveBeenCalledWith('note-transient', true);
-      expect(registerSharedSyncKey).toHaveBeenCalledWith('note-transient', NOTE_KEY, []);
+      expect(registerSharedSyncKey).toHaveBeenCalledWith('note-transient', NOTE_KEY, [], {
+        takeover: true,
+      });
     } finally {
       listCollaboratorPublicKeys.mockResolvedValue({ collaborators: [] });
       vi.clearAllTimers();

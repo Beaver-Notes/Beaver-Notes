@@ -48,7 +48,7 @@
             v-tooltip="'KaTeX Macros (Ctrl+Shift+M)'"
             aria-label="KaTeX macros"
             :class="[
-              'ml-2 flex items-center justify-center rounded-full size-8 transition-colors',
+              'ml-2 flex items-center justify-center rounded-lg size-8 transition-colors',
               useKatexMacros
                 ? 'text-primary'
                 : 'text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10',

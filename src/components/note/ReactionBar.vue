@@ -1,5 +1,7 @@
 <template>
-  <div class="relative flex items-center gap-1 flex-wrap">
+  <!-- `group` is set here so the reveal-on-hover "+" works without callers
+       (inline popover, sidebar card) having to add the class themselves. -->
+  <div class="group relative flex items-center gap-1 flex-wrap">
     <button
       v-for="r in visibleReactions"
       :key="r.emoji"
@@ -65,8 +67,6 @@ export default {
   emits: ['toggle'],
   setup(props, { emit }) {
     const open = ref(false);
-    // Whitelist at render: the server cannot check ciphertext, so unknown
-    // emoji (from a misbehaving client) never renders.
     const visibleReactions = computed(() =>
       (props.reactions || []).filter(
         (r) =>

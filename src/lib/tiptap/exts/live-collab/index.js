@@ -8,30 +8,14 @@ import { computeVersionChanges } from '../version-preview/index.js';
 
 export const liveCollabKey = new PluginKey('liveCollab');
 
-// How long a remote highlight stays before it fades out. Long enough to notice
-// a peer's edit while your own typing continues, short enough that the page
-// does not accumulate stale tints (Google Docs tints persist only while the
-// edit is fresh).
 export const LIVE_COLLAB_FADE_MS = 4000;
-// Typing burst window: remote edits within this gap extend the same highlight
-// (one baseline) instead of replacing it.
 export const LIVE_COLLAB_COALESCE_MS = 250;
-// Activity entries coalesce on the same window as the tint, so one typing burst
-// becomes one durable log row instead of one per keystroke.
 export const LIVE_COLLAB_ACTIVITY_DEBOUNCE_MS = LIVE_COLLAB_COALESCE_MS;
 export const LIVE_COLLAB_NEUTRAL_COLOR = '#9ca3af';
 export const LIVE_COLLAB_FALLBACK_NAME = 'someone';
-// A deletion with no single attributable actor is honestly "a collaborator",
-// never a guess at which peer did it.
 export const LIVE_COLLAB_DELETION_FALLBACK_NAME = 'a collaborator';
-// `summary`/`anchorHint` stay a clipped snippet: the log is a human-readable
-// breadcrumb, never a copy of the document body.
 export const ACTIVITY_SUMMARY_MAX = 80;
 
-// The only object transaction origins in the app are the local y-sync plugin
-// key and the WebsocketProvider instance. Everything else object-shaped is a
-// live relay; strings ('load' | 'sync' | 'ws-relay' | 'local' | 'seed') and
-// null/undefined are local or the async/banner path.
 export function isRemoteLiveOrigin(origin) {
   if (origin == null || typeof origin === 'string') return false;
   if (origin === ySyncPluginKey) return false;
@@ -39,9 +23,6 @@ export function isRemoteLiveOrigin(origin) {
   return true;
 }
 
-// Activity logging follows the same origin split as the tint, except bootstrap
-// and offline catch-up replays must never be logged as user edits: strings carry
-// no author and would flood the log with the note's whole history on open.
 export function shouldRecordActivityOrigin(origin) {
   return typeof origin !== 'string' && origin != null;
 }
@@ -65,8 +46,6 @@ export function clipActivitySummary(text) {
     : clean;
 }
 
-// Union of the burst's changed ranges; deletions name the removed text (from
-// the baseline), everything else names the new text.
 export function activitySummary(kind, changes, baselineDoc, currentDoc) {
   if (!changes.length) return '';
   if (kind === 'delete') {
@@ -83,16 +62,12 @@ function makeActivityId() {
   try {
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   } catch {
-    // Non-secure context: fall through to a non-cryptographic id, which is
-    // only ever used as a dedupe key/client-side marker, never for auth.
+    // Non-secure context: fall through to a non-cryptographic id,
+    // used only as a dedupe key/client-side marker.
   }
   return `act-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Insertions are exact: a client whose clock advanced in this transaction
-// authored the new structs. A pure deletion leaves afterState unchanged, so
-// this returns nothing for it — callers must NOT fall back to the deleted
-// structs' clients, which are the deleted text's authors, not the deleter.
 export function collectChangedClientIds(transaction) {
   const ids = new Set();
   const after = transaction?.afterState;
@@ -113,8 +88,6 @@ function neutralAuthor() {
   };
 }
 
-// Same colour source as the cursor and avatar: awareness `user.color`, falling
-// back to the id-derived colour. Unresolvable author → neutral + "someone".
 export function resolveLiveAuthor(clientIds, awareness) {
   const states = awareness?.getStates?.();
   if (states) {
@@ -131,8 +104,6 @@ export function resolveLiveAuthor(clientIds, awareness) {
   return neutralAuthor();
 }
 
-// Local edits are authored by the cursor's own awareness state (set by
-// CollaborationCursor from the account profile).
 export function resolveLocalAuthor(awareness) {
   const user = awareness?.getLocalState?.()?.user;
   if (!user) {
@@ -149,13 +120,6 @@ export function resolveLocalAuthor(awareness) {
   };
 }
 
-// Yjs records no deleter: the transaction's changed structs belong to the
-// deleted text, so mapping them would blame the deleted author. The only live
-// signal left is presence — with exactly one remote peer in the room they must
-// be the actor; with several (or none) the actor is genuinely unknown, so the
-// label is the honest "a collaborator" rather than a wrong name.
-// ponytail: presence heuristic; swap for a per-message peer id if the relay
-// ever carries one.
 function resolveLiveDeletionActor(awareness) {
   const states = awareness?.getStates?.();
   const remoteIds = new Set();
@@ -313,9 +277,6 @@ const LiveCollab = Extension.create({
               return;
             }
             if (!shouldRecordActivityOrigin(origin)) return;
-            // A Y transaction that added neither structs nor delete-set entries
-            // is a sync echo, not an edit: recording it would overwrite the
-            // real author of the burst with the local user.
             const inserted = collectChangedClientIds(transaction);
             const removed = transaction?.deleteSet?.clients?.size > 0;
             if (!inserted.size && !removed) return;
@@ -353,8 +314,6 @@ const LiveCollab = Extension.create({
           };
 
           const onAfterTransaction = (transaction) => {
-            // Yjs emits afterTransaction with (transaction, doc); the transaction
-            // origin is the authoritative local/remote signal.
             const origin = transaction?.origin;
             const before = lastDoc;
             lastDoc = view.state.doc;
@@ -362,14 +321,8 @@ const LiveCollab = Extension.create({
               recordActivity(origin, before, view.state.doc, transaction);
             }
             if (!isRemoteLiveOrigin(origin) || view.isDestroyed) return;
-            // The room's opening catch-up is not a live edit: skip remote
-            // transactions until the provider's first sync lands, otherwise
-            // applying the note's existing content flashes a highlight.
-            // undefined (no provider / tests) is treated as ready.
             if (awareness && awareness.liveCollabRoomReady === false) return;
 
-            // Insertions name the item author; a pure deletion carries no actor,
-            // so resolve it from presence instead of the deleted text's author.
             const inserted = collectChangedClientIds(transaction);
             let author;
             if (inserted.size) {
@@ -383,8 +336,6 @@ const LiveCollab = Extension.create({
             const prev = liveCollabKey.getState(view.state);
             const sameBatch =
               prev != null && now - prev.at <= LIVE_COLLAB_COALESCE_MS;
-            // Keep the earliest baseline of the burst so the diff covers the
-            // union; a later distinct edit starts a fresh baseline.
             const baseline = sameBatch ? prev.baseline : before;
 
             let changes = [];

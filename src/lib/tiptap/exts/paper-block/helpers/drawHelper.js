@@ -34,15 +34,6 @@ export function isStylusEraser(e) {
   return e.button === 5;
 }
 
-// Double-tap zoom fix for pencil events.
-
-/** Call on touchstart/touchend when isPen(e); needs a real DOM event. */
-export function preventPencilDoubleTapZoom(e) {
-  if (e instanceof PointerEvent && e.pointerType === 'pen') {
-    e.preventDefault();
-  }
-}
-
 // Coordinate conversion
 
 /** Accepts the SVG element directly or a Vue ref wrapping it. */
@@ -66,95 +57,6 @@ export function normalisePressure(_e) {
   return 0.5;
 }
 
-// Point interpolation / smoothing
-
-/** Thinning plus corner-cutting over [x, y, pressure] triplets. */
-export function interpolatePoints(
-  points,
-  { passes = 2, threshold = 2.5 } = {}
-) {
-  if (!points || points.length < 3) return points ?? [];
-
-  let pts = douglasPeucker(points, threshold);
-
-  for (let pass = 0; pass < passes; pass++) {
-    const next = [pts[0]];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const [x0, y0, p0 = 0.5] = pts[i];
-      const [x1, y1, p1 = 0.5] = pts[i + 1];
-      next.push(
-        [x0 * 0.75 + x1 * 0.25, y0 * 0.75 + y1 * 0.25, p0 * 0.75 + p1 * 0.25],
-        [x0 * 0.25 + x1 * 0.75, y0 * 0.25 + y1 * 0.75, p0 * 0.25 + p1 * 0.75]
-      );
-    }
-    next.push(pts[pts.length - 1]);
-    pts = next;
-  }
-
-  return pts;
-}
-
-function douglasPeucker(pts, epsilon) {
-  if (pts.length <= 2) return pts;
-
-  const [x1, y1] = pts[0];
-  const [x2, y2] = pts[pts.length - 1];
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.hypot(dx, dy);
-
-  let maxDist = 0;
-  let maxIdx = 0;
-
-  for (let i = 1; i < pts.length - 1; i++) {
-    const [px, py] = pts[i];
-    const dist =
-      len > 0
-        ? Math.abs(dy * px - dx * py + x2 * y1 - y2 * x1) / len
-        : Math.hypot(px - x1, py - y1);
-    if (dist > maxDist) {
-      maxDist = dist;
-      maxIdx = i;
-    }
-  }
-
-  if (maxDist > epsilon) {
-    const left = douglasPeucker(pts.slice(0, maxIdx + 1), epsilon);
-    const right = douglasPeucker(pts.slice(maxIdx), epsilon);
-    return [...left.slice(0, -1), ...right];
-  }
-
-  return [pts[0], pts[pts.length - 1]];
-}
-
-// Straight-line segment insertion (Shift+draw, from tldraw's Drawing.ts)
-
-/** Insert a straight segment into a stroke's points (Shift+draw mid-stroke). */
-export function appendStraightSegment(
-  existingPoints,
-  fromX,
-  fromY,
-  toX,
-  toY,
-  pressure = 0.5
-) {
-  const dist = Math.hypot(toX - fromX, toY - fromY);
-  const steps = Math.max(2, Math.floor(dist / 4));
-
-  const result = [...existingPoints];
-  result.push([fromX, fromY, pressure]);
-  for (let i = 1; i < steps; i++) {
-    const t = i / steps;
-    result.push([
-      fromX + (toX - fromX) * t,
-      fromY + (toY - fromY) * t,
-      pressure,
-    ]);
-  }
-  result.push([toX, toY, pressure]);
-  return result;
-}
-
 // Coalesced events helper
 
 /** High-Hz styluses fire sub-frame events; falls back to [e] where unsupported. */
@@ -167,9 +69,20 @@ export function getCoalescedEvents(e) {
 
 export { getRenderablePath, getRenderableStrokeProps, getLineBounds };
 
+/** Tool id -> key of that tool's settings object in the draw state. */
+export const TOOL_SETTINGS_KEY = {
+  pen: 'penSettings',
+  pencil: 'pencilSettings',
+  fountain: 'fountainSettings',
+  highlighter: 'highlighterSettings',
+  eraser: 'eraserSettings',
+};
+
 export function cloneDrawingToolDefaults() {
   return {
     pen: { color: '#1a1a1a', size: 4, opacity: 1 },
+    pencil: { color: '#4a4a4a', size: 3 },
+    fountain: { color: '#1a2744', size: 5 },
     highlighter: { color: '#fbbf24', size: 16, opacity: 0.35 },
     eraser: { size: 20 },
   };

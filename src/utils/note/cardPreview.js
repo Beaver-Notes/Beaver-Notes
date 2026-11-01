@@ -3,12 +3,7 @@ import { kindFor, iconFor } from '@/utils/fileKind.js';
 const CARD_PREVIEW_VERSION = 1;
 const MAX_BLOCKS = 5;
 const MAX_TOTAL_CHARS = 240;
-// Diagram source travels with the block so cards can render the SVG live.
-// Capped: oversized diagrams fall back to the Diagram pill, keeping the
-// synced preview payload small.
 const MAX_MERMAID_SOURCE_CHARS = 2000;
-// Same idea for math: LaTeX source travels for live KaTeX rendering.
-// Equations are short — oversized content falls back to the Math pill.
 const MAX_MATH_SOURCE_CHARS = 500;
 
 const MAX_CHARS_BY_KIND = {
@@ -23,10 +18,6 @@ const MAX_CHARS_BY_KIND = {
 
 let _cardLabels = {};
 
-export function setCardPreviewLabels(labels) {
-  _cardLabels = labels || {};
-}
-
 function cl(key, fallback) {
   return _cardLabels[key] || fallback;
 }
@@ -35,8 +26,6 @@ function getMediaTypes() {
   return {
     audioBlock: { label: cl('audio', 'Audio'), tone: 'audio' },
     videoBlock: { label: cl('video', 'Video'), tone: 'video' },
-    // Real node names are capitalized (audio-block/video-block extensions);
-    // legacy lowercase keys kept for older snapshots.
     Audio: { label: cl('audio', 'Audio'), tone: 'audio' },
     Video: { label: cl('video', 'Video'), tone: 'video' },
     fileEmbed: { label: cl('attachment', 'Attachment'), tone: 'file' },
@@ -48,8 +37,6 @@ function getMediaTypes() {
     paper: { label: cl('sketch', 'Sketch'), tone: 'sketch' },
   };
 }
-
-export { getMediaTypes };
 
 export function mediaIconForTone(tone) {
   switch (tone) {

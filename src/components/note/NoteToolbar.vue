@@ -1,16 +1,18 @@
 <template>
   <teleport to="body">
     <div
-      class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex"
+      class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex tablet:flex foldable:right-[var(--app-rail-width)]"
       :class="
-        store.inReaderMode
-          ? 'opacity-0 hover:opacity-100 mobile:hidden'
+        isPaperEditing && isMobile
+          ? 'mobile:!hidden tablet:!hidden'
+          : store.inReaderMode
+          ? 'opacity-0 hover:opacity-100 mobile:hidden tablet:hidden'
           : 'opacity-100'
       "
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
-        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
+        class="pointer-events-auto relative h-14 max-w-full tablet:max-w-xl overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
       >
         <div
           ref="container"
@@ -105,19 +107,16 @@
               :open-sub="openSub"
             />
 
-            <template v-if="isTableActive">
-              <button
-                v-for="t in tableActions"
-                :key="t.name"
-                v-keep-focus
-                v-tooltip.group="t.label"
-                :aria-label="t.label"
-                :class="tbBtn()"
-                @click="t.run()"
-              >
-                <v-remixicon :name="t.icon" />
-              </button>
-            </template>
+            <button
+              v-if="isTableActive"
+              v-keep-focus
+              v-tooltip.group="translations.menu.table || 'Table'"
+              :aria-label="translations.menu.table || 'Table'"
+              :class="tbBtn()"
+              @click="openSub('table')"
+            >
+              <v-remixicon name="riTableLine" />
+            </button>
 
             <span
               v-if="hasBlockControls && hasMediaControls"
@@ -682,6 +681,42 @@
               <v-remixicon name="riCheckLine" class="size-4" />
             </button>
           </div>
+
+          <div
+            :class="[
+              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
+              panelClass('table'),
+            ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
+          >
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
+              <v-remixicon name="riArrowLeftLine" />
+            </button>
+            <span class="tb-divider" />
+            <span class="sub-label">{{ translations.menu.table || 'Table' }}</span>
+            <button
+              v-for="t in tableActions"
+              :key="t.name"
+              v-keep-focus
+              v-tooltip.group="t.label"
+              :aria-label="t.label"
+              :class="tbBtn()"
+              @click="
+                t.run();
+                closeSub();
+              "
+            >
+              <v-remixicon :name="t.icon" />
+            </button>
+          </div>
         </div>
         <!-- /scroll track -->
 
@@ -776,6 +811,7 @@ import { useNoteStore } from '@/store/note';
 import copyImage from '@/utils/assets/storage.js';
 import { assetFileName } from '@/utils/assets/storage.js';
 import { insertFileBlockOptimistic } from '@/lib/tiptap/exts/create-file-block.js';
+import { isPaperEditing } from '@/lib/tiptap/exts/paper-block/helpers/paperEditing.js';
 
 export default {
   components: {
@@ -1178,6 +1214,7 @@ export default {
       triggerVideoInput,
       triggerImageInput,
       showMobileBlockPicker,
+      isPaperEditing,
       isMobile,
       // Link input
       linkInputValue,

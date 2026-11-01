@@ -150,8 +150,8 @@ export function getFreehandOptions(tool, size, { isComplete = true } = {}) {
     simulatePressure: false,
     easing: EASINGS.linear,
     last: isComplete,
-    start: { cap: true, taper: isComplete ? Math.max(size, 16) : 0 },
-    end: { cap: true, taper: isComplete ? Math.max(size, 24) : 0 },
+    start: { cap: true, taper: 0 },
+    end: { cap: true, taper: 0 },
   };
 }
 

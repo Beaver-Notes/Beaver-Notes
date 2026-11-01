@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="editor"
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden tablet:hidden"
   >
     <div class="flex items-center justify-start w-max h-full gap-1">
       <ui-popover>
@@ -169,53 +169,17 @@
         </button>
       </template>
 
-      <ui-popover
+      <button
         v-if="canComment"
-        v-model:model-value="commentPopoverOpen"
-        @show="onCommentPopoverShow"
+        v-keep-focus
+        v-tooltip.group="translations.comments?.title || 'Comment'"
+        data-testid="bubble-comment-trigger"
+        class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+        :class="{ 'bg-neutral-100 dark:bg-neutral-800': commentPopoverOpen }"
+        @click.stop="openCommentComposer"
       >
-        <template #trigger>
-          <button
-            v-keep-focus
-            v-tooltip.group="translations.comments?.title || 'Comment'"
-            class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-          >
-            <v-remixicon name="riChat3Line" class="size-6" />
-          </button>
-        </template>
-
-        <div class="min-w-[260px]">
-          <div class="flex items-end gap-2">
-            <textarea
-              ref="commentInputRef"
-              v-model="commentInputValue"
-              :placeholder="
-                translations.comments?.placeholder || 'Add a comment…'
-              "
-              rows="2"
-              class="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 text-sm outline-none border border-transparent focus:border-primary transition-colors resize-none"
-              @keydown.enter.exact.prevent="saveCommentInput"
-            />
-            <button
-              v-keep-focus
-              class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
-              :title="translations.common?.cancel || 'Cancel'"
-              @click="closeCommentInput"
-            >
-              <v-remixicon name="riCloseLine" class="size-4" />
-            </button>
-            <button
-              v-keep-focus
-              class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
-              :title="translations.common?.save || 'Save'"
-              :disabled="!commentInputValue.trim()"
-              @click="saveCommentInput"
-            >
-              <v-remixicon name="riCheckLine" class="size-4" />
-            </button>
-          </div>
-        </div>
-      </ui-popover>
+        <v-remixicon name="riChat3Line" class="size-6" />
+      </button>
 
       <ui-popover
         v-model:model-value="linkPopoverOpen"
@@ -385,10 +349,83 @@
       </ui-popover>
     </div>
   </div>
+
+  <!-- Comment composer card: anchored under the selected text, not the toolbar. -->
+  <teleport to="body">
+    <div
+      v-if="commentPopoverOpen"
+      ref="commentCardRef"
+      :style="commentCardStyles"
+      class="fixed z-[60] w-[360px] max-w-[90vw] motion-spring-enter"
+      @keydown.esc.stop.prevent="closeCommentInput()"
+    >
+      <div
+        class="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xl overflow-hidden"
+      >
+        <div class="flex items-center gap-2 px-3 pt-3">
+          <ui-user-avatar :name="commentAuthor" :size="24" />
+          <span
+            class="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 truncate"
+          >
+            {{ commentAuthor }}
+          </span>
+          <span class="shrink-0 text-xs text-neutral-400">
+            {{ translations.common?.justNow || 'Just now' }}
+          </span>
+          <button
+            type="button"
+            class="ltr:ml-auto rtl:mr-auto shrink-0 w-6 h-6 grid place-items-center rounded-md text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            :title="translations.common?.cancel || 'Cancel'"
+            @click="closeCommentInput()"
+          >
+            <v-remixicon name="riCloseLine" size="15" />
+          </button>
+        </div>
+
+        <div v-if="commentQuote" class="mt-2.5 mx-3 flex items-stretch gap-2">
+          <span class="w-[3px] shrink-0 rounded-full bg-amber-400" />
+          <span
+            class="min-w-0 truncate text-[13px] leading-6 text-neutral-500 dark:text-neutral-400"
+          >
+            {{ commentQuote }}
+          </span>
+        </div>
+
+        <textarea
+          ref="commentInputRef"
+          v-model="commentInputValue"
+          :placeholder="translations.comments?.placeholder || 'Add a comment…'"
+          rows="2"
+          class="mt-2 w-full resize-none bg-transparent px-3 py-2 text-[14px] leading-relaxed text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none"
+          @keydown.enter.exact.prevent="saveCommentInput"
+        />
+
+        <div class="flex items-center justify-end px-3 pb-3">
+          <button
+            type="button"
+            data-testid="comment-composer-send"
+            class="shrink-0 grid place-items-center w-8 h-8 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition"
+            :disabled="!commentInputValue.trim()"
+            :aria-label="translations.common?.save || 'Save'"
+            @click="saveCommentInput"
+          >
+            <v-remixicon name="riArrowUpLine" size="16" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <script>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import {
+  useFloating,
+  offset,
+  flip,
+  shift,
+  autoUpdate,
+} from '@floating-ui/vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
 import { useCommentStore } from '@/store/comment';
@@ -422,14 +459,91 @@ export default {
     const commentInputRef = ref(null);
     const commentPopoverOpen = ref(false);
     const commentRange = ref({ from: 0, to: 0 });
+    const commentCardRef = ref(null);
+    const commentAnchor = ref(null);
 
-    function onCommentPopoverShow() {
+    const { floatingStyles: commentCardStyles } = useFloating(
+      commentAnchor,
+      commentCardRef,
+      {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        transform: false,
+        middleware: [offset(8), flip(), shift({ padding: 12 })],
+        whileElementsMounted: autoUpdate,
+      },
+    );
+
+    const commentAuthor = computed(
+      () => accountStore.profile?.username || 'You',
+    );
+
+    const commentQuote = computed(() => {
       const { editor } = props;
-      if (editor) {
-        const { from, to } = editor.state.selection;
-        commentRange.value = { from, to };
+      const { from, to } = commentRange.value;
+      if (!editor || from === to) return '';
+      try {
+        return editor.state.doc.textBetween(from, to, ' ').trim();
+      } catch {
+        return '';
       }
+    });
+
+    // Live rect so the card stays glued to the selection while scrolling;
+    // coordsAtPos throws if a remote edit moves the doc out from under it.
+    let lastSelectionRect = null;
+    function selectionRect() {
+      const { editor } = props;
+      const { from, to } = commentRange.value;
+      try {
+        const start = editor.view.coordsAtPos(from);
+        const end = editor.view.coordsAtPos(to);
+        const left = Math.min(start.left, end.left);
+        const right = Math.max(start.right, end.right);
+        lastSelectionRect = {
+          x: left,
+          y: start.top,
+          width: Math.max(right - left, 1),
+          height: Math.max(start.bottom - start.top, 1),
+          top: start.top,
+          bottom: start.bottom,
+          left,
+          right,
+        };
+      } catch {
+        // keep the last known position
+      }
+      return (
+        lastSelectionRect || {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+        }
+      );
+    }
+
+    function openCommentComposer() {
+      const { editor } = props;
+      if (!editor) return;
+      if (commentPopoverOpen.value) {
+        closeCommentInput({ refocus: false });
+        return;
+      }
+      const { from, to } = editor.state.selection;
+      if (from === to) return;
+      commentRange.value = { from, to };
+      lastSelectionRect = null;
+      commentAnchor.value = {
+        contextElement: editor.view.dom,
+        getBoundingClientRect: selectionRect,
+      };
       commentInputValue.value = '';
+      commentPopoverOpen.value = true;
       nextTick(() => commentInputRef.value?.focus());
     }
 
@@ -445,8 +559,7 @@ export default {
         .setTextSelection({ from, to })
         .setComment(threadId)
         .run();
-      commentPopoverOpen.value = false;
-      commentInputValue.value = '';
+      closeCommentInput({ refocus: false });
       try {
         await commentStore.addComment(props.note.id, {
           content,
@@ -459,11 +572,28 @@ export default {
       }
     }
 
-    function closeCommentInput() {
+    function closeCommentInput({ refocus = true } = {}) {
       commentInputValue.value = '';
       commentPopoverOpen.value = false;
-      props.editor?.commands?.focus();
+      commentAnchor.value = null;
+      if (refocus) props.editor?.commands?.focus();
     }
+
+    // Click anywhere outside the card dismisses it without stealing focus.
+    function onDocumentMouseDown(event) {
+      if (!commentPopoverOpen.value) return;
+      if (commentCardRef.value?.contains(event.target)) return;
+      if (event.target.closest?.('[data-testid="bubble-comment-trigger"]')) {
+        return;
+      }
+      closeCommentInput({ refocus: false });
+    }
+    onMounted(() =>
+      document.addEventListener('mousedown', onDocumentMouseDown, true),
+    );
+    onBeforeUnmount(() =>
+      document.removeEventListener('mousedown', onDocumentMouseDown, true),
+    );
 
     const linkInputValue = ref('');
     const linkInputRef = ref(null);
@@ -701,7 +831,11 @@ export default {
       commentInputValue,
       commentInputRef,
       commentPopoverOpen,
-      onCommentPopoverShow,
+      commentCardRef,
+      commentCardStyles,
+      commentAuthor,
+      commentQuote,
+      openCommentComposer,
       saveCommentInput,
       closeCommentInput,
       // Link input

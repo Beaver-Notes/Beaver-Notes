@@ -20,9 +20,6 @@ export function registerMarkdownHandler(handler) {
 export function getMarkdownHandlers() {
   return handlers;
 }
-export function clearMarkdownHandlers() {
-  handlers.length = 0;
-}
 
 function applyPreprocessors(markdown, context) {
   let result = markdown;
@@ -233,15 +230,6 @@ registerMarkdownHandler({
     for (const op of ops) await op();
   },
 });
-
-export const readMarkdownFile = async (filePath) => {
-  try {
-    return await backend.invoke('fs:readFile', filePath);
-  } catch (error) {
-    console.error('Error reading file ' + filePath + ':', error);
-    throw error;
-  }
-};
 
 export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   const context = {

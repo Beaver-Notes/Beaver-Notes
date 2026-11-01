@@ -1,7 +1,6 @@
 import { Node, mergeAttributes, nodeInputRule } from '@tiptap/core';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import { saveFile } from '@/utils/assets/storage.js';
-import { notify } from '@/lib/native/app';
 
 const inputRegex = /!\[(.+|:?)]\((\S+)(?:(?:\s+)["'](\S+)["'])?\)/;
 
@@ -176,7 +175,6 @@ export function insertFileBlockOptimistic(
       if (preview) URL.revokeObjectURL(tempSrc);
       console.error('Background file save failed:', error?.cause ?? error);
       removeFileBlockBySrc(view, typeName, tempSrc, fileName);
-      void notify({ title: `${typeName} insert failed`, body: fileName }).catch(() => {});
     },
   );
 }

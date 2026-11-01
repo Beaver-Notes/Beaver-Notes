@@ -1,6 +1,6 @@
 <template>
   <div
-    class="fixed inset-x-0 z-40 flex justify-center px-2 transition-all duration-300 ease-[var(--ease-standard)] bottom-4"
+    class="fixed inset-x-0 z-40 flex justify-center px-2 transition-all duration-300 ease-[var(--ease-standard)] bottom-4 foldable:right-[var(--app-rail-width)]"
     :style="wrapperStyle"
   >
     <div
@@ -8,7 +8,7 @@
     >
       <!-- Desktop Layout -->
       <div
-        class="flex items-center p-2 space-x-2 max-md:flex-wrap max-md:hidden"
+        class="flex flex-wrap items-center p-2 space-x-2 mobile:hidden foldable:hidden"
       >
         <ui-button
           v-keep-focus
@@ -111,7 +111,7 @@
       </div>
 
       <!-- Mobile Layout -->
-      <div class="hidden max-md:block">
+      <div class="hidden mobile:block foldable:block">
         <!-- Search Row -->
         <div class="flex items-center p-2 space-x-2">
           <div class="relative flex-1">
@@ -255,6 +255,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useUiState } from '@/composable/useUiState';
 import { useSidebar } from '@/composable/useSidebar';
 import { backend } from '@/lib/tauri-bridge';
+import { foldState } from '@/lib/foldable';
 import Mousetrap from '@/lib/mousetrap';
 
 export default {
@@ -275,11 +276,16 @@ export default {
     const { expanded: sidebarExpanded } = useSidebar();
     const mobileSearchInput = ref(null);
 
+    // Presentation, not user agent: the unfolded Duo is a regular-width canvas
+    // and gets the single-row layout.
+    const isMobile = backend.isMobileRuntime() && !foldState.isFoldable;
+
     const wrapperStyle = computed(() => {
-      if (backend.isMobileRuntime()) {
+      if (isMobile) {
         return { bottom: 'var(--app-keyboard-inset-bottom, 1rem)' };
       }
       if (uiState.inReaderMode) return {};
+      if (foldState.isFoldable) return { right: 'var(--app-rail-width)' };
       return { paddingLeft: sidebarExpanded.value ? '16rem' : '4rem' };
     });
 

@@ -1,6 +1,4 @@
 <template>
-  <!-- Anchored to the editor mark via [data-comment-id]; falls back to hidden
-    (sidebar still shows the thread) when the mark is not in the DOM. -->
   <ui-popover
     :to="anchorEl || undefined"
     :model-value="open"
@@ -35,8 +33,17 @@
         </button>
       </div>
 
+      <div v-if="anchorText" class="mx-3 mt-2.5 flex items-stretch gap-2">
+        <span class="w-[3px] shrink-0 rounded-full bg-amber-400" />
+        <span
+          class="min-w-0 truncate text-[13px] leading-6 text-neutral-500 dark:text-neutral-400"
+        >
+          {{ anchorText }}
+        </span>
+      </div>
+
       <div class="max-h-64 overflow-y-auto overscroll-contain px-3 py-2 space-y-3">
-        <div v-for="c in thread?.comments || []" :key="c.id" class="flex gap-2">
+        <div v-for="c in thread?.comments || []" :key="c.id" class="group flex gap-2">
           <ui-user-avatar :name="c.authorName || '?'" :size="22" />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-1.5">
@@ -62,33 +69,43 @@
         </div>
       </div>
 
-      <div class="px-3 pb-1">
-        <ui-input
+      <div class="flex items-center gap-2 px-3 pb-3">
+        <ui-user-avatar :name="myName" :size="22" class="shrink-0" />
+        <input
           v-model="replyText"
-          placeholder="Reply..."
+          type="text"
+          placeholder="Add a comment…"
+          class="flex-1 min-w-0 bg-transparent text-[13px] text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 outline-none"
+          data-testid="inline-popover-input"
           @keydown="onReplyKey"
+        />
+        <button
+          class="shrink-0 grid place-items-center w-7 h-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
+          :disabled="!replyText.trim()"
+          data-testid="inline-popover-reply"
+          aria-label="Reply"
+          @click="submitReply"
         >
-          <template #append>
-            <button
-              class="w-6 h-6 grid place-items-center rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
-              :disabled="!replyText.trim()"
-              data-testid="inline-popover-reply"
-              aria-label="Reply"
-              @click="submitReply"
-            >
-              <v-remixicon name="riArrowUpLine" size="13" />
-            </button>
-          </template>
-        </ui-input>
+          <v-remixicon name="riArrowUpLine" size="13" />
+        </button>
       </div>
 
-      <div class="flex items-center gap-1.5 px-3 py-2">
-        <ui-button variant="secondary" @click="toggleResolve">
+      <div class="flex items-center gap-1.5 px-3 pb-2.5">
+        <button
+          type="button"
+          class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          @click="toggleResolve"
+        >
+          <v-remixicon name="riCheckLine" size="13" />
           {{ thread?.resolved ? 'Re-open' : 'Resolve' }}
-        </ui-button>
-        <ui-button @click="openInSidebar">
+        </button>
+        <button
+          type="button"
+          class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          @click="openInSidebar"
+        >
           Open in sidebar
-        </ui-button>
+        </button>
       </div>
     </div>
   </ui-popover>
@@ -129,6 +146,8 @@ export default {
     });
     const open = computed(() => !!thread.value && !!anchorEl.value);
     const myId = computed(() => accountStore.profile?.id || null);
+    const myName = computed(() => accountStore.profile?.username || 'You');
+    const anchorText = computed(() => (anchorEl.value?.textContent || '').trim());
     const threadAvatars = computed(() => (thread.value?.comments || []).slice(0, 3));
     const threadTitle = computed(() => {
       if (!thread.value) return '';
@@ -248,7 +267,9 @@ export default {
       thread,
       open,
       anchorEl,
+      anchorText,
       myId,
+      myName,
       threadAvatars,
       threadTitle,
       replyText,

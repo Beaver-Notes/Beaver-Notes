@@ -5,10 +5,13 @@
     :class="{ 'is-active': selected, 'is-editing': isEditing }"
     :contenteditable="false"
     tabindex="0"
+    role="group"
+    aria-label="Drawing"
     @keydown.esc="exitEditing"
+    @keydown.enter.self="enterEditing"
   >
     <div
-      class="paper-card relative overflow-hidden rounded-[24px] border border-neutral-200/80 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:border-neutral-700/60 dark:bg-neutral-900"
+      class="paper-card relative overflow-hidden rounded-[24px] border border-neutral-200/80 bg-white dark:border-neutral-700/60 dark:bg-neutral-900"
       @click="enterEditing"
     >
       <DrawMode
@@ -23,11 +26,16 @@
       <div
         v-if="!isEditing"
         class="preview-overlay absolute inset-0 flex items-center justify-center rounded-[24px]"
+        :class="{ 'is-empty': !hasContent }"
       >
         <span
-          class="px-4 py-2 rounded-full text-sm font-medium shadow-lg transition-opacity bg-white/90 dark:bg-neutral-800/90 text-neutral-600 dark:text-neutral-300"
+          class="preview-hint px-4 py-2 rounded-full text-sm font-medium bg-white/90 dark:bg-neutral-800/90 text-neutral-600 dark:text-neutral-300"
         >
-          {{ hasContent ? 'Click to edit drawing' : 'Tap to draw' }}
+          {{
+            hasContent
+              ? translations.paperBlock?.editDrawing || 'Edit drawing'
+              : translations.paperBlock?.startDrawing || 'Start drawing'
+          }}
         </span>
       </div>
     </div>
@@ -47,6 +55,8 @@
       @size="onSize"
       @bg="setBackground"
       @image="insertImage"
+      @undo="undo"
+      @redo="redo"
       @delete="deleteSelection"
     />
   </NodeViewWrapper>
@@ -56,24 +66,41 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useStore } from '@/store';
+import { useTranslations } from '@/composable/useTranslations';
 import {
   setScribbleSuppressed,
   clearScribbleSuppressed,
 } from '@/lib/native/scribble';
+import { setPaperEditing } from './helpers/paperEditing.js';
 import DrawMode from './DrawMode.vue';
 import PaperToolbar from './PaperToolbar.vue';
-import { cloneDrawingToolDefaults } from './helpers/drawHelper.js';
+import {
+  TOOL_SETTINGS_KEY,
+  cloneDrawingToolDefaults,
+} from './helpers/drawHelper.js';
 
 const PRESETS_KEY = 'beaver-paper-presets';
+const PRESET_COUNT = 5;
 const DEFAULT_PRESETS = {
   pen: ['#1a1a1a', '#e53e3e', '#3182ce', '#38a169', '#805ad5'],
+  pencil: ['#4a4a4a', '#78716c', '#2563eb', '#b45309', '#15803d'],
+  fountain: ['#1a2744', '#0f172a', '#7f1d1d', '#065f46', '#4c1d95'],
   highlighter: ['#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'],
 };
+const PRESET_TOOLS = Object.keys(DEFAULT_PRESETS);
 
 function loadPresets() {
   try {
-    const r = localStorage.getItem(PRESETS_KEY);
-    if (r) return { ...DEFAULT_PRESETS, ...JSON.parse(r) };
+    const stored = JSON.parse(localStorage.getItem(PRESETS_KEY) ?? 'null');
+    if (stored && typeof stored === 'object') {
+      const merged = { ...DEFAULT_PRESETS };
+      for (const tool of PRESET_TOOLS) {
+        // Ignore malformed or truncated palettes saved by older versions.
+        if (Array.isArray(stored[tool]) && stored[tool].length === PRESET_COUNT)
+          merged[tool] = stored[tool];
+      }
+      return merged;
+    }
   } catch {}
   return { ...DEFAULT_PRESETS };
 }
@@ -89,6 +116,7 @@ export default {
   props: nodeViewProps,
   setup(props) {
     const store = useStore();
+    const { translations } = useTranslations();
     const wrapperRef = ref(null);
     const drawModeRef = ref(null);
     const isEditing = ref(false);
@@ -104,8 +132,8 @@ export default {
     const toolbarState = ref({
       tool: 'pen',
       penSettings: { ...defaultSettings.pen },
-      pencilSettings: { color: '#4a4a4a', size: 3 },
-      fountainSettings: { color: '#1a2744', size: 5 },
+      pencilSettings: { ...defaultSettings.pencil },
+      fountainSettings: { ...defaultSettings.fountain },
       highlighterSettings: { ...defaultSettings.highlighter },
       eraserSettings: { ...defaultSettings.eraser },
       undoDepth: 0,
@@ -114,35 +142,50 @@ export default {
       hasSelection: false,
     });
 
-    const tools = computed(() => [
-      { id: 'pen', label: 'Pen', hasSwatch: true, _color: toolbarState.value.penSettings?.color ?? '#1a1a1a' },
-      { id: 'pencil', label: 'Pencil', hasSwatch: true, _color: toolbarState.value.pencilSettings?.color ?? '#4a4a4a' },
-      { id: 'fountain', label: 'Fountain', hasSwatch: true, _color: toolbarState.value.fountainSettings?.color ?? '#1a2744' },
-      { id: 'highlighter', label: 'Highlighter', hasSwatch: true, _color: toolbarState.value.highlighterSettings?.color ?? '#fbbf24' },
-      { id: 'eraser', label: 'Eraser', hasSwatch: false, _color: null },
-      { id: 'lasso', label: 'Lasso', hasSwatch: false, _color: null },
-    ]);
+    const tools = computed(() => {
+      const ts = toolbarState.value;
+      const paperLabels = translations.value.paperBlock ?? {};
+      const swatch = (id, label) => ({
+        id,
+        label,
+        hasSwatch: true,
+        _color: ts[TOOL_SETTINGS_KEY[id]]?.color ?? defaultSettings[id].color,
+      });
+      return [
+        swatch('pen', paperLabels.pen || 'Pen'),
+        swatch('pencil', paperLabels.pencil || 'Pencil'),
+        swatch('fountain', paperLabels.fountainPen || 'Fountain pen'),
+        swatch('highlighter', paperLabels.highlighter || 'Highlighter'),
+        {
+          id: 'eraser',
+          label: paperLabels.eraser || 'Eraser',
+          hasSwatch: false,
+          _color: null,
+        },
+        {
+          id: 'lasso',
+          label: paperLabels.lassoSelect || 'Lasso select',
+          hasSwatch: false,
+          _color: null,
+        },
+      ];
+    });
     const paperTypes = ['plain', 'grid', 'ruled', 'dotted'];
 
-    const activePresets = computed(() => {
-      const t = toolbarState.value.tool;
-      return presets.value[t] ?? presets.value.pen ?? DEFAULT_PRESETS.pen;
-    });
-    const currentToolColor = computed(() => {
-      const ts = toolbarState.value;
-      if (ts.tool === 'highlighter') return ts.highlighterSettings?.color ?? '#fbbf24';
-      if (ts.tool === 'pencil') return ts.pencilSettings?.color ?? '#4a4a4a';
-      if (ts.tool === 'fountain') return ts.fountainSettings?.color ?? '#1a2744';
-      return ts.penSettings?.color ?? '#1a1a1a';
-    });
-    const currentToolSize = computed(() => {
-      const ts = toolbarState.value;
-      if (ts.tool === 'highlighter') return ts.highlighterSettings?.size ?? 16;
-      if (ts.tool === 'eraser') return ts.eraserSettings?.size ?? 20;
-      if (ts.tool === 'pencil') return ts.pencilSettings?.size ?? 3;
-      if (ts.tool === 'fountain') return ts.fountainSettings?.size ?? 5;
-      return ts.penSettings?.size ?? 4;
-    });
+    const activeSettings = computed(
+      () =>
+        toolbarState.value[TOOL_SETTINGS_KEY[toolbarState.value.tool]] ??
+        toolbarState.value.penSettings
+    );
+    const activePresets = computed(
+      () => presets.value[toolbarState.value.tool] ?? DEFAULT_PRESETS.pen
+    );
+    const currentToolColor = computed(
+      () => activeSettings.value.color ?? defaultSettings.pen.color
+    );
+    const currentToolSize = computed(
+      () => activeSettings.value.size ?? defaultSettings.pen.size
+    );
 
     function enterEditing() {
       if (isEditing.value) return;
@@ -163,8 +206,12 @@ export default {
     );
     watch(isEditing, (editing) => {
       setScribbleSuppressed(scribbleScope, editing);
+      setPaperEditing(scribbleScope, editing);
     });
-    onUnmounted(() => clearScribbleSuppressed(scribbleScope));
+    onUnmounted(() => {
+      clearScribbleSuppressed(scribbleScope);
+      setPaperEditing(scribbleScope, false);
+    });
 
     function handleToolbarState(s) {
       toolbarState.value = { ...toolbarState.value, ...s };
@@ -190,18 +237,24 @@ export default {
     function deleteSelection() {
       drawModeRef.value?.deleteSelection?.();
     }
+    function undo() {
+      drawModeRef.value?.undo?.();
+    }
+    function redo() {
+      drawModeRef.value?.redo?.();
+    }
     function insertImage() {
       const id = store.activeNoteId;
       if (id) drawModeRef.value?.insertImage?.(id);
     }
     function savePreset(color) {
       const tool = toolbarState.value.tool;
-      if (tool !== 'pen' && tool !== 'pencil' && tool !== 'fountain' && tool !== 'highlighter') return;
-      const list = [...(presets.value[tool] ?? DEFAULT_PRESETS[tool] ?? [])];
-      if (!list.includes(color)) {
-        list.splice(0, 1);
-        list.push(color);
-      }
+      if (!PRESET_TOOLS.includes(tool)) return;
+      const list = [...(presets.value[tool] ?? DEFAULT_PRESETS[tool])];
+      if (list.includes(color)) return;
+      // Newest colour goes last; the oldest one drops off the front.
+      list.shift();
+      list.push(color);
       presets.value = { ...presets.value, [tool]: list };
       savePresetsFn(presets.value);
     }
@@ -211,6 +264,7 @@ export default {
       drawModeRef,
       isEditing,
       hasContent,
+      translations,
       toolbarState,
       tools,
       paperTypes,
@@ -227,6 +281,8 @@ export default {
       onSize,
       setBackground,
       deleteSelection,
+      undo,
+      redo,
       insertImage,
       savePreset,
     };
@@ -237,6 +293,37 @@ export default {
 <style scoped>
 .paper-node {
   position: relative;
+  outline: none;
+}
+
+.paper-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 30px rgba(0, 0, 0, 0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dark .paper-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+.is-active .paper-card {
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+.dark .is-active .paper-card {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Editing: same indigo accent as the lasso/selection UI. */
+.is-editing .paper-card,
+.dark .is-editing .paper-card {
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14),
+    0 12px 40px rgba(0, 0, 0, 0.1);
+}
+
+.paper-node:focus-visible .paper-card {
+  border-color: rgba(99, 102, 241, 0.7);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
 }
 
 .preview-overlay {
@@ -246,12 +333,35 @@ export default {
   background: rgba(0, 0, 0, 0.04);
 }
 
-.paper-card:hover .preview-overlay {
+.dark .preview-overlay {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* An empty drawing always shows its hint, so touch users (no hover) see it. */
+.preview-overlay.is-empty {
+  opacity: 1;
+  background: transparent;
+}
+
+.paper-card:hover .preview-overlay,
+.paper-node:focus-visible .preview-overlay {
   opacity: 1;
   pointer-events: auto;
 }
 
-.is-active .paper-card {
-  border-color: rgba(0, 0, 0, 0.25);
+.preview-hint {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(6px);
+}
+
+.preview-overlay.is-empty .preview-hint {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-card,
+  .preview-overlay {
+    transition: none;
+  }
 }
 </style>

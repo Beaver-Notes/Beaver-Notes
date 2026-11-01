@@ -148,6 +148,11 @@ function initFolderCounts(data: Record<string, NoteData>) {
   bumpFolderCounts();
 }
 
+/** Rebuild after Yjs hydration, which writes data directly. */
+export function rebuildFolderCounts(this: NoteStoreThis) {
+  initFolderCounts(this.data);
+}
+
 
 
 export function notes(state: NoteState) {

@@ -368,17 +368,6 @@ export function getFolderPath(folderId, folders) {
   return parts.join('/');
 }
 
-export function buildFolderTree(folders) {
-  if (!folders) return {};
-  const tree = {};
-  const list = Array.isArray(folders) ? folders : Object.values(folders);
-  list.forEach((folder) => {
-    if (!folder) return;
-    tree[folder.id] = folder.name || 'Unnamed';
-  });
-  return tree;
-}
-
 async function loadExportableNotes() {
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();

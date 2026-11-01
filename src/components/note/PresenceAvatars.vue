@@ -9,7 +9,12 @@
         <button
           type="button"
           class="flex items-center -space-x-2 rounded-full p-0.5 cursor-pointer transition-transform duration-200 ease-[var(--ease-standard)] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900"
-          :class="{ 'scale-[1.03]': isShow }"
+          :class="[
+            { 'scale-[1.03]': isShow },
+            variant === 'card'
+              ? 'w-full !rounded-xl !p-0 h-9 px-2 -space-x-1.5 border border-neutral-200/50 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-800/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/70 transition-colors'
+              : '',
+          ]"
           :aria-label="triggerLabel"
           aria-haspopup="true"
           :aria-expanded="isShow ? 'true' : 'false'"
@@ -20,7 +25,12 @@
             data-testid="presence-avatar"
             :data-peer-id="peer.key"
             :title="peer.label"
-            class="peer-avatar relative w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold select-none z-[var(--z)] ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-[transform,box-shadow] duration-200 ease-[var(--ease-standard)] motion-reduce:transition-none"
+            class="relative rounded-full flex items-center justify-center font-semibold select-none z-[var(--z)] ring-2 ring-white dark:ring-neutral-900 shadow-sm transition-[transform,box-shadow] duration-200 ease-[var(--ease-standard)] motion-reduce:transition-none"
+            :class="
+              variant === 'card'
+                ? 'w-6 h-6 text-[10px]'
+                : 'w-7 h-7 text-[11px]'
+            "
             :style="{
               '--z': visiblePeers.length - i,
               backgroundColor: peer.color,
@@ -34,10 +44,24 @@
             v-if="overflowCount > 0"
             data-testid="presence-overflow"
             :title="overflowNames"
-            class="relative w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-medium tabular-nums select-none text-neutral-500 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 ring-2 ring-white dark:ring-neutral-900 transition-[transform,box-shadow] duration-200 ease-[var(--ease-standard)] motion-reduce:transition-none hover:z-20 hover:-translate-y-0.5"
-            :class="{ 'peer-pulse': isPulsing }"
+            class="relative rounded-full flex items-center justify-center font-medium tabular-nums select-none text-neutral-500 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 ring-2 ring-white dark:ring-neutral-900 transition-[transform,box-shadow] duration-200 ease-[var(--ease-standard)] motion-reduce:transition-none hover:z-20 hover:-translate-y-0.5"
+            :class="{ 'peer-pulse': isPulsing, 'w-6 h-6 text-[10px]': variant === 'card', 'w-7 h-7 text-[11px]': variant !== 'card' }"
           >
             +{{ overflowCount }}
+          </span>
+
+          <!-- Card variant: live count with a pulsing presence dot (sidebar row). -->
+          <span
+            v-if="variant === 'card'"
+            class="ml-auto flex shrink-0 items-center gap-1.5 pl-1.5 text-[11px] font-medium text-neutral-500 dark:text-neutral-400"
+          >
+            <span class="relative flex h-2 w-2 shrink-0">
+              <span
+                class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60 motion-reduce:animate-none"
+              ></span>
+              <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            </span>
+            <span class="tabular-nums">{{ peerList.length }} online</span>
           </span>
         </button>
       </template>
@@ -130,6 +154,12 @@ export default {
     maxVisible: {
       type: Number,
       default: 4,
+    },
+    // 'plain' = bare avatar stack (note pages); 'card' = full-width
+    // bordered row with an "N online" count (app sidebar).
+    variant: {
+      type: String,
+      default: 'plain',
     },
     // Id (or accountId) of the current user. Pinned first and labelled "You".
     selfId: {

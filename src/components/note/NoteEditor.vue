@@ -54,6 +54,7 @@ import {
   Commands,
 } from '@/lib/tiptap';
 import { canEdit } from '@/utils/permissions';
+import { debounce } from '@/utils/helpers/index.js';
 import VersionPreview from '@/lib/tiptap/exts/version-preview';
 import LiveCollab from '@/lib/tiptap/exts/live-collab';
 import { NodeRangeSelection } from '@tiptap/extension-node-range';
@@ -94,10 +95,6 @@ export default {
     'update',
     'update:modelValue',
     'comment-activated',
-    'version-restore',
-    'version-exit',
-    'review-exit',
-    'review-action',
     'activity',
   ],
   setup(props, { emit }) {
@@ -278,14 +275,7 @@ export default {
     // Always registered (mobile keeps its block picker as an extra affordance).
     exts.push(Commands.configure({ id: props.id }));
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
-    exts.push(
-      VersionPreview.configure({
-        onRestore: (meta) => emit('version-restore', meta),
-        onExit: () => emit('version-exit'),
-        onReviewExit: () => emit('review-exit'),
-        onReviewAction: (payload) => emit('review-action', payload),
-      })
-    );
+    exts.push(VersionPreview);
     // Live (Google-Docs-style) attribution for remote websocket edits. Stays
     // editable and does NOT touch the async review/banner path.
     exts.push(
@@ -415,6 +405,15 @@ export default {
       }
     }
 
+    // Yjs owns persistence; downstream (previews, search index) only needs a
+    // periodic JSON snapshot — serialize the document at most ~4×/s instead of
+    // once per transaction. Reads fresh state at emit time.
+    const emitYjsUpdate = debounce(() => {
+      // editor.value is nulled on unmount; the route-leave flush
+      // (persistCurrentNote) persists the final state instead.
+      if (editor.value) emit('update', editor.value.getJSON());
+    }, 250);
+
     onMounted(() => {
       if (!editor.value) return;
       emit('init', editor.value);
@@ -434,9 +433,7 @@ export default {
 
       editor.value.on('update', () => {
         if (isYjs.value) {
-          // Yjs owns persistence, but downstream (previews, search index)
-          // still needs the JSON — emit it instead of discarding.
-          emit('update', editor.value.getJSON());
+          emitYjsUpdate();
           return;
         }
         if (pendingProgrammaticUpdates > 0) {
@@ -528,7 +525,6 @@ export default {
 .comment-highlight {
   background: rgba(254, 240, 138, 0.42);
   border-bottom: 1.5px solid hsl(var(--twc-primary));
-  border-radius: 3px;
   padding: 0 1px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -540,36 +536,15 @@ export default {
 }
 .comment-highlight:hover {
   background: rgba(254, 240, 138, 0.62);
-  outline: 2px solid hsl(var(--twc-primary) / 0.35);
   outline-offset: 2px;
 }
-/* active thread (clicked in sidebar) — ring matches the sidebar card's
-  MARK_ACTIVE_CLASSES outline-primary/2/offset-2 flow */
+
 .comment-highlight.is-active,
 .comment-highlight[data-active='true'] {
   background: rgba(254, 249, 195, 0.95);
   border-bottom-color: #eab308;
   outline: 2px solid hsl(var(--twc-primary) / 0.6);
   outline-offset: 2px;
-}
-.comment-highlight[data-comment-id]::after {
-  content: '';
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  margin-left: 3px;
-  margin-right: 1px;
-  vertical-align: text-bottom;
-  border-radius: 9999px;
-  background-color: #facc15;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z'/%3E%3C/svg%3E");
-  background-size: 9px 9px;
-  background-repeat: no-repeat;
-  background-position: center;
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.08);
-  transform: translateY(1px);
 }
 :root.dark .comment-highlight {
   background: rgba(202, 138, 4, 0.22);
@@ -584,90 +559,7 @@ export default {
   outline-color: hsl(var(--twc-primary) / 0.6);
 }
 
-/* Version preview: blueprint pill styling. Structure/classes are the CE
-   contract; only the look is tuned here. */
-.version-preview-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 12px;
-  padding: 6px 8px 6px 14px;
-  border-radius: 9999px;
-  border: 1px solid hsl(var(--twc-primary) / 0.35);
-  background: hsl(var(--twc-primary) / 0.08);
-  font-size: 0.8rem;
-  color: rgb(82 82 91);
-  transition:
-    opacity var(--motion-base) var(--ease-standard),
-    border-color var(--motion-fast) var(--ease-standard);
-}
-.version-preview-banner__label {
-  flex: 1;
-  font-weight: 500;
-}
-.version-preview-banner__action {
-  border: 1px solid hsl(var(--twc-primary) / 0.4);
-  background: hsl(var(--twc-primary));
-  color: #fff;
-  border-radius: 9999px;
-  padding: 4px 12px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    filter var(--motion-fast) var(--ease-standard),
-    background var(--motion-fast) var(--ease-standard);
-}
-.version-preview-banner__action:hover {
-  filter: brightness(1.08);
-}
-.version-preview-banner__exit {
-  background: transparent;
-  color: inherit;
-  border-color: rgba(0, 0, 0, 0.15);
-}
-.version-review-banner {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  backdrop-filter: blur(6px);
-}
-.version-review-banner__done {
-  background: hsl(var(--twc-primary));
-}
-.version-preview-chunk {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0 4px;
-  vertical-align: baseline;
-  user-select: none;
-}
-.version-preview-chunk__btn {
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  background: transparent;
-  color: inherit;
-  border-radius: 9999px;
-  padding: 2px 10px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  line-height: 1.5;
-  cursor: pointer;
-  transition:
-    background var(--motion-fast) var(--ease-standard),
-    opacity var(--motion-fast) var(--ease-standard);
-}
-.version-preview-chunk__revert {
-  border-color: rgba(239, 68, 68, 0.4);
-  color: #b91c1c;
-  background: rgba(239, 68, 68, 0.08);
-}
-.version-preview-chunk__revert:hover {
-  background: rgba(239, 68, 68, 0.16);
-}
-.version-preview-chunk[data-stale='true'] {
-  opacity: 0.55;
-}
+/* Version preview marks: added tint, dashed attr outline, removed ghosts. */
 .version-preview-added {
   background: rgba(34, 197, 94, 0.18);
   border-radius: 3px;
@@ -714,12 +606,6 @@ export default {
   border-radius: 3px;
   padding: 0 2px;
 }
-:root.dark .version-preview-banner {
-  color: rgb(212 212 216);
-}
-:root.dark .version-preview-banner__exit {
-  border-color: rgba(255, 255, 255, 0.2);
-}
 :root.dark .version-preview-attr {
   outline-color: rgba(120, 113, 108, 0.9);
 }
@@ -733,96 +619,6 @@ export default {
 }
 :root.dark .version-preview-removed {
   color: #fca5a5;
-}
-/* Blueprint legend: a static row inside the banner naming each mark category
-   with the same swatch treatment the marks themselves use. No transitions. */
-.version-preview-banner {
-  flex-wrap: wrap;
-}
-.version-preview-legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  font-size: 0.68rem;
-  line-height: 1.5;
-  color: inherit;
-}
-.version-preview-legend__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-}
-.version-preview-legend__swatch {
-  flex-shrink: 0;
-  width: 14px;
-  line-height: 1;
-}
-.version-preview-legend__swatch--added {
-  height: 9px;
-  border-radius: 3px;
-  background: rgba(34, 197, 94, 0.18);
-}
-.version-preview-legend__swatch--removed {
-  width: auto;
-  font-size: 0.6rem;
-  font-weight: 600;
-  color: #b91c1c;
-  text-decoration: line-through;
-}
-.version-preview-legend__swatch--format {
-  height: 9px;
-  border-radius: 3px;
-  outline: 1.5px dashed rgba(168, 162, 158, 0.7);
-  outline-offset: 0;
-}
-:root.dark .version-preview-legend__swatch--removed {
-  color: #fca5a5;
-}
-:root.dark .version-preview-legend__swatch--format {
-  outline-color: rgba(120, 113, 108, 0.9);
-}
-/* Category chips floating at each block/attr mark's start position. */
-.version-preview-label-anchor {
-  position: relative;
-  display: inline-block;
-  width: 0;
-  height: 0;
-  vertical-align: baseline;
-}
-.version-preview-block-label,
-.version-preview-attr-label {
-  position: absolute;
-  top: -2px;
-  left: 6px;
-  padding: 0 5px;
-  border-radius: 3px;
-  font-size: 0.6rem;
-  font-weight: 600;
-  line-height: 1.4;
-  white-space: nowrap;
-  pointer-events: none;
-  z-index: 2;
-}
-.version-preview-block-label {
-  background: rgba(34, 197, 94, 0.18);
-  color: #166534;
-}
-.version-preview-attr-label {
-  background: rgba(245, 245, 244, 0.8);
-  color: rgb(115 115 115);
-  outline: 1.5px dashed rgba(168, 162, 158, 0.7);
-  outline-offset: 0;
-}
-:root.dark .version-preview-block-label {
-  background: rgba(34, 197, 94, 0.2);
-  color: #86efac;
-}
-:root.dark .version-preview-attr-label {
-  background: rgba(23, 23, 23, 0.8);
-  color: #a8a29e;
-  outline-color: rgba(120, 113, 108, 0.9);
 }
 /* Removed-block ghost carries its own "Removed" chip above the slice. */
 .version-preview-ghost__label {
@@ -841,13 +637,6 @@ export default {
 :root.dark .version-preview-ghost__label {
   background: rgba(248, 113, 113, 0.14);
   color: #fca5a5;
-}
-:root.dark .version-preview-chunk__revert {
-  color: #fca5a5;
-  border-color: rgba(248, 113, 113, 0.45);
-}
-:root.dark .version-preview-chunk__btn {
-  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Added file cards (node views) use opaque neutral backgrounds that would

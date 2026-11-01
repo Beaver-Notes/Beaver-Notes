@@ -4,6 +4,7 @@ import MarkdownIt from 'markdown-it';
 import { generateJSON } from '@tiptap/core';
 import { extensions, CollapseHeading, heading } from '@/lib/tiptap';
 import { sanitizeImportedHtml } from '@/utils/note/contentSecurity.js';
+import { isImageOnlyHtml } from './image-only-html';
 
 export const Paste = Extension.create({
   name: 'paste',
@@ -47,6 +48,21 @@ export const Paste = Extension.create({
               };
 
               if (html) {
+                // "Copy image" (Chrome) places both image/png and text/html
+                // (<img src=…>) on the clipboard: defer to the image plugin so
+                // the bytes are stored as an asset instead of a remote
+                // hotlink. Wrapped-img copies (<p><img>, a lone wrapper div,
+                // stray <br>/comments/&nbsp;) defer too — one <img> anywhere
+                // and no real text. But mixed desktop-app copies (Excel "Copy
+                // as Picture", PowerPoint, LibreOffice) carry real text around
+                // the image, and dropping it here would lose the text — keep
+                // the HTML path for those.
+                if (
+                  clipboardData.files?.length === 1 &&
+                  clipboardData.files[0].type.startsWith('image/')
+                ) {
+                  if (isImageOnlyHtml(html)) return false;
+                }
                 event.preventDefault();
                 const doc = sanitizeImportedHtml(html);
                 const container = doc.body;

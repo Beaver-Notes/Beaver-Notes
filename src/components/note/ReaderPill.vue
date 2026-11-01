@@ -6,13 +6,10 @@
       aria-label="Reader controls"
       class="transition-opacity duration-300 ease-[var(--ease-snappy)] motion-reduce:transition-none max-w-[calc(100vw-2rem)]"
       :class="{
-        // The sheet teleports over the dock (z-50 vs z-[70]); the pill must not
-        // float on top of its content. The sheet closes via overlay/Escape/swipe.
-        'opacity-0 pointer-events-none':
-          (!visible && !showAa) || (isMobile && showAa),
+        'opacity-0 pointer-events-none': !visible && !showAa,
       }"
     >
-      <div class="flex items-center py-1 pl-1.5 pr-1.5">
+      <div class="flex w-max items-center py-1 pl-1.5 pr-1.5">
         <button
           data-testid="reader-done"
           class="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 hover:opacity-90 transition-opacity"
@@ -38,7 +35,6 @@
           Aa
         </button>
         <div
-          v-if="!isMobile"
           class="min-w-0 transition-[max-width,opacity] duration-300 ease-[var(--ease-snappy)] motion-reduce:transition-none"
           :class="
             showAa
@@ -53,25 +49,15 @@
     </ui-pill>
   </teleport>
 
-  <ui-modal
-    v-if="isMobile"
-    v-model="showAa"
-    title="Text appearance"
-    blur
-  >
-    <reader-controls @change="forward" />
-  </ui-modal>
 </template>
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import { backend } from '@/lib/tauri-bridge';
 import ReaderControls from '@/components/note/ReaderControls.vue';
 import { usePillDock } from '@/composable/usePillDock';
 
 const emit = defineEmits(['exit', 'change']);
 const { expandedPill } = usePillDock();
-const isMobile = backend.isMobileRuntime();
 
 const visible = ref(true);
 const showAa = ref(false);
@@ -138,9 +124,7 @@ onMounted(() => {
   window.addEventListener('mousemove', reset);
   window.addEventListener('scroll', reset);
   window.addEventListener('touchstart', reset);
-  // Mobile dismisses via the modal's own overlay/Escape/swipe, which live
-  // outside the pill — a document click there would close the sheet instantly.
-  if (!isMobile) document.addEventListener('click', onDocumentClick);
+  document.addEventListener('click', onDocumentClick);
 });
 
 onUnmounted(() => {

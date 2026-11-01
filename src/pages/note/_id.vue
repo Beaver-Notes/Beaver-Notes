@@ -4,27 +4,36 @@
 
     <template v-if="editor && !isLocked">
       <div
-        class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4"
+        class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4 foldable:hidden"
       >
-        <div
-          v-if="previousNote && !uiState.inReaderMode"
-          class="bg-white dark:bg-neutral-900 border p-1 rounded-xl shadow-sm flex items-center w-fit max-w-content"
-        >
-          <button
-            class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300 mobile:hidden"
-            :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
-            @click="goToPrevious"
+        <!-- On a foldable this rides the app rail instead: icon only, no card. -->
+        <teleport to="#app-rail-top" :disabled="!isFoldableDevice">
+          <div
+            v-if="backTarget && !uiState.inReaderMode"
+            class="shadow-sm flex items-center"
+            :class="
+              isFoldableDevice
+                ? 'py-1'
+                : 'bg-white dark:bg-neutral-900 border p-1 rounded-xl w-fit max-w-content'
+            "
           >
-            <v-remixicon name="riArrowLeftLine" class="flex-shrink-0" />
-            <span class="truncate max-w-[16rem]">
-              {{
-                previousNote.title ||
-                translations.editor.untitledNote ||
-                'Untitled'
-              }}
-            </span>
-          </button>
-        </div>
+            <button
+              class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300"
+              :class="{ 'mobile:hidden': !isFoldableDevice }"
+              :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
+              @click="goToPrevious"
+            >
+              <v-remixicon name="riArrowLeftLine" class="flex-shrink-0" />
+              <span v-if="!isFoldableDevice" class="truncate max-w-[16rem]">
+                {{
+                  backTarget.title ||
+                  translations.editor.untitledNote ||
+                  'Untitled'
+                }}
+              </span>
+            </button>
+          </div>
+        </teleport>
         <div class="flex-1"></div>
         <note-actions
           v-bind="{
@@ -44,7 +53,6 @@
           @toggle-comments="toggleComments"
           @restore="handleRestore"
           @preview="enterVersionPreview"
-          @review="enterChangeReview"
         />
       </div>
     </template>
@@ -140,7 +148,7 @@
             paddingInlineStart: 'var(--drag-handle-gutter, 0px)',
             paddingInlineEnd: 'var(--drag-handle-gutter, 0px)',
           }"
-          @input="handleTitleInput"
+          @input="(event) => handleTitleInput(event, id)"
           @keydown="disallowedEnter"
         ></h1>
       </div>
@@ -211,9 +219,6 @@
           @init="editor = $event"
           @keyup.down="autoScroll"
           @comment-activated="onCommentActivated"
-          @version-restore="handleRestore"
-          @version-exit="exitVersionPreview"
-          @review-exit="exitChangeReview"
           @activity="handleActivity"
         />
         <div v-if="yjsReady && !editor" class="editor-skeleton">
@@ -245,29 +250,21 @@
     <note-headings-progress
       v-if="editor"
       :editor="editor"
-      class="mobile:hidden ipad:hidden"
+      class="mobile:hidden tablet:hidden"
     />
     <word-count-pill
       v-if="editor && !isLocked && note.showWordCount"
       :editor="editor"
       :note="note"
-      class="mobile:hidden ipad:hidden"
+      class="mobile:hidden tablet:hidden"
     />
-    <div
-      v-if="showComments && isDocked"
-      class="hidden xl:flex justify-center px-4 pb-10"
-    >
-      <div class="w-full flex justify-center">
-        <comment-sidebar :note-id="id" :docked="true" :editor="editor" @close="closeComments" />
-      </div>
-    </div>
-    <template v-if="showComments && !isDocked">
-      <div
-        class="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]"
-        @click="closeComments"
-      />
-      <comment-sidebar :note-id="id" :docked="false" :editor="editor" @close="closeComments" />
-    </template>
+    <!-- Floating card on md and up, bottom sheet below md; the panel picks. -->
+    <comment-panel
+      v-if="showComments"
+      :note-id="id"
+      :editor="editor"
+      @close="closeComments"
+    />
   </div>
 </template>
 
@@ -285,6 +282,8 @@ import { debounce } from '@/utils/helpers/index.js';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
+import { useFolderStore } from '@/store/folder';
+import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 import { useUiState } from '@/composable/useUiState';
 import { useSidebar } from '@/composable/useSidebar';
 import { useStore } from '@/store';
@@ -318,13 +317,12 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
 import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
-import { useChangeReview } from '@/composable/useChangeReview';
 import { useActivityLog } from '@/composable/useActivityLog';
 import { getWsSync } from '@/lib/sync/ws-sync';
 import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
 import { useCommentStore } from '@/store/comment';
-import CommentSidebar from '@/components/note/CommentSidebar.vue';
+import CommentPanel from '@/components/note/CommentPanel.vue';
 import CommentInlinePopover from '@/components/note/CommentInlinePopover.vue';
 import UnlockCard from '@/components/app/UnlockCard.vue';
 import { canEdit } from '@/utils/permissions';
@@ -333,6 +331,7 @@ import ReaderPill from '@/components/note/ReaderPill.vue';
 import { useReaderPrefs } from '@/composable/useReaderPrefs';
 import MobileSyncStrip from '@/components/app/MobileSyncStrip.vue';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { foldState } from '@/lib/foldable';
 
 export default {
   components: {
@@ -343,7 +342,7 @@ export default {
     NoteHeadingsProgress,
     WordCountPill,
     NoteBacklinks,
-    CommentSidebar,
+    CommentPanel,
     CommentInlinePopover,
     UnlockCard,
     ReaderPill,
@@ -359,8 +358,10 @@ export default {
     const router = useRouter();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
+    const folderStore = useFolderStore();
     const appStore = useAppStore();
     const isMobile = isMobileRuntime();
+    const isFoldableDevice = computed(() => foldState.isFoldable);
 
     const editor = shallowRef(null);
     function exitReader() {
@@ -376,15 +377,6 @@ export default {
     const showHistory = ref(false);
     const showComments = ref(false);
     const commentStore = useCommentStore();
-    const isLargeScreen = ref(
-      typeof window !== 'undefined' ? window.innerWidth >= 1280 : false,
-    );
-    const isDocked = computed(() => showComments.value && isLargeScreen.value);
-    function onResize() {
-      isLargeScreen.value = window.innerWidth >= 1280;
-    }
-    onMounted(() => window.addEventListener('resize', onResize));
-    onUnmounted(() => window.removeEventListener('resize', onResize));
     // ponytail: hinge = division region (Apple 111463) — cap readable content to one segment, never span the crease
     const hingeSegmentWidth = ref(null);
     const updateHingeSegments = () => {
@@ -402,7 +394,6 @@ export default {
     const titleDiv = ref(null);
     const noteHistory = useNoteHistory();
     const sharing = useNoteSharing();
-    const changeReview = useChangeReview();
     const activityLog = useActivityLog();
     function handleActivity(payload) {
       activityLog.record(payload);
@@ -419,6 +410,12 @@ export default {
     const { translations } = useTranslations();
 
     const recorder = useAudioRecorder();
+    // The page's own id, captured once: `id` reads the live route param, which
+    // already points elsewhere by the time this page unmounts. Comparing
+    // against the live value left `openNoteId` stale after leaving for a
+    // non-note route, so the pill deferred to a page that was gone and the
+    // finished recording was never inserted.
+    const pageNoteId = id.value;
 
     function handleRecordingStopped(payload) {
       const { filePath, noteId, cursorPos } = payload;
@@ -443,7 +440,7 @@ export default {
     }
     const stopRecorderListener = recorder.onStopped(handleRecordingStopped);
 
-    recorder.openNoteId.value = id.value;
+    recorder.openNoteId.value = pageNoteId;
 
     const pushNoteMenuContext = () => {
       pushMenuContext(
@@ -721,8 +718,7 @@ export default {
       },
     );
 
-    const { updateNote, persistCurrentNote, flushScheduledPersist } =
-      useNotePersistence({
+    const { updateNote, persistCurrentNote } = useNotePersistence({
         noteStore,
         labelStore,
         appEncryptedLocked,
@@ -738,6 +734,23 @@ export default {
       const fromId = route.query.from;
       if (!fromId) return null;
       return noteStore.getById(fromId) || null;
+    });
+    // A note opened from a folder has no `from` note, but the folder is the
+    // place to go back to. History state is all the router keeps of it.
+    const backTarget = computed(() => {
+      if (previousNote.value) return { title: previousNote.value.title };
+      const back = router.options.history.state.back;
+      const folderId = typeof back === 'string'
+        ? back.match(/\/folder\/([^/?#]+)/)?.[1]
+        : null;
+      if (!folderId) return null;
+      const folder = folderStore.getById(folderId);
+      return {
+        title:
+          folder?.name ||
+          translations.value.index?.untitledFolder ||
+          'Folder',
+      };
     });
     function goBack() {
       const from = router.options.history.state.back;
@@ -923,8 +936,12 @@ export default {
 
     let titleInitialized = false;
 
-    const handleTitleInput = debounce((event) => {
+    const handleTitleInput = debounce((event, noteId) => {
       if (!titleInitialized) return;
+      // The debounce survives note→note navigation (this page is reused):
+      // only write if the note is still the one that received the input,
+      // else A's trailing title lands in B's Yjs doc.
+      if (noteId !== id.value) return;
       const text = event.target.textContent || '';
       yjsSetTitle(text);
       autoResizeTitle();
@@ -940,7 +957,7 @@ export default {
     }
     function onCompositionEnd(e) {
       isComposing = false;
-      handleTitleInput(e);
+      handleTitleInput(e, id.value);
     }
     watch(
       titleDiv,
@@ -961,72 +978,17 @@ export default {
     let previewActive = false;
     let previewWasEditable = true;
     function formatVersionLabel(createdAt) {
-      if (!createdAt) return 'Viewing an older version';
+      const older =
+        translations.value.editor?.viewingOlderVersion ||
+        'Viewing an older version';
+      if (!createdAt) return older;
       const when = new Date(createdAt).toLocaleString();
       return Number.isNaN(new Date(createdAt).getTime())
-        ? 'Viewing an older version'
-        : `Viewing version from ${when}`;
-    }
-
-    function formatReviewLabel(payload) {
-      if (!payload || (!payload.authorName && !payload.createdAt)) {
-        return 'Reviewing changes';
-      }
-      const who = payload.authorName || 'another device';
-      const when = payload.createdAt
-        ? new Date(payload.createdAt).toLocaleString()
-        : '';
-      return when ? `Changes from ${who} · ${when}` : `Changes from ${who}`;
-    }
-
-    function enterChangeReview(payload) {
-      if (
-        !editor.value ||
-        typeof payload?.content !== 'string' ||
-        !payload.content
-      ) {
-        return;
-      }
-      exitVersionPreview();
-      const started = changeReview.start(editor.value, {
-        content: payload.content,
-        label: formatReviewLabel(payload),
-        meta: {
-          commit: payload.hash,
-          authorName: payload.authorName,
-          createdAt: payload.createdAt,
-        },
-      });
-      if (started) showHistory.value = false;
-    }
-
-    function exitChangeReview() {
-      changeReview.exit(editor.value);
-    }
-
-    async function reviewMergedChanges() {
-      changeReview.dismissMergeBanner();
-      if (!editor.value) return;
-      // The page's history instance is only loaded lazily, so fetch the newest
-      // commit as the baseline (the state before the merged changes).
-      if (!noteHistory.commits.value.length) {
-        await noteHistory.loadCommits(id.value);
-      }
-      const commit = noteHistory.commits.value?.[0];
-      let content = null;
-      let payload = null;
-      if (commit?.hash) {
-        await noteHistory.loadSnapshot(commit.hash, id.value);
-        content = noteHistory.selectedCommit.value?.content || null;
-        payload = commit;
-      }
-      if (!content) {
-        // No baseline commit exists yet: diff against the current doc so the
-        // review is honestly empty ("No changes") rather than inventing one.
-        content = editor.value.getHTML();
-        payload = { createdAt: null, authorName: null };
-      }
-      enterChangeReview({ ...payload, content });
+        ? older
+        : (
+            translations.value.editor?.viewingVersionFrom ||
+            'Viewing version from {when}'
+          ).replace('{when}', when);
     }
 
     function enterVersionPreview(payload) {
@@ -1035,7 +997,6 @@ export default {
         exitVersionPreview();
         return;
       }
-      exitChangeReview();
       if (!previewActive) previewWasEditable = editor.value.isEditable;
       editor.value.commands.setVersionPreview(payload.content, {
         content: payload.content,
@@ -1057,7 +1018,6 @@ export default {
       const content = payload?.content;
       const title = payload?.title;
       if (typeof content !== 'string') return;
-      exitChangeReview();
       exitVersionPreview();
       // Replace the live editor content: the Collaboration extension writes the
       // change into the note's Y.Doc, so it syncs and persists like a normal edit.
@@ -1070,7 +1030,8 @@ export default {
         autoResizeTitle();
         await updateNote(id.value, { title });
       }
-      showHistory.value = false;
+      // Panel stays open (reference behavior): the restore spinner/checkmark
+      // runs in HistoryPanel, which then jumps back to Latest itself.
     }
 
     function closeSearch() {
@@ -1082,15 +1043,20 @@ export default {
       () => route.params.id,
       (noteId, oldNoteId) => {
         previewActive = false;
-        exitChangeReview();
         // Flush on ANY leave (note-to-note AND note-to-home) so home never
         // renders a pre-edit preview while the debounced persist is pending.
         if (oldNoteId && noteStore.getById(oldNoteId)) {
+          // A read-only visit must not bump updatedAt (sort order + no-op
+          // meta write): pass the existing timestamp through the patch.
           noteStore.patchLocal(oldNoteId, {
             lastCursorPosition: editor.value?.state.selection.to,
+            updatedAt: noteStore.getById(oldNoteId).updatedAt,
           });
-          void flushScheduledPersist(oldNoteId).catch((error) => {
-            console.error('Error persisting previous note:', error);
+          // The Yjs-mode emit is throttled: flush from the live editor so
+          // the last keystrokes are not lost to a pending debounce.
+          persistCurrentNote(editor.value, titleDiv.value, oldNoteId, {
+            wait: false,
+            keepUpdatedAt: true,
           });
         }
 
@@ -1105,6 +1071,9 @@ export default {
         }
         store.activeNoteId = currentNote.id;
         localStorage.setItem('lastNoteEdit', noteId);
+        // Restoring the note needs its workspace too, or boot reopens it under
+        // whichever workspace came back first (F26).
+        localStorage.setItem('lastNoteWorkspace', useCloudWorkspaces().activeId.value || '');
 
         // Read content at call time: decrypt watcher may have updated store since fire.
         const currentForLoad = noteStore.getById(noteId);
@@ -1123,9 +1092,12 @@ export default {
     );
 
     const handleBeforeUnload = () => {
-      void persistCurrentNote(editor.value, titleDiv.value, route.params.id);
+      void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
+        keepUpdatedAt: true,
+      });
     };
     let removeGlobalShortcuts = () => {};
+    let removeCloseHandler = () => {};
 
     const scrollTitleIntoView = () => {
       const titleEl = titleDiv.value;
@@ -1187,12 +1159,12 @@ export default {
     onUnmounted(() => {
       stopTitleObserver();
       stopRecorderListener();
-      if (recorder.openNoteId.value === id.value)
+      if (recorder.openNoteId.value === pageNoteId)
         recorder.openNoteId.value = null;
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      removeCloseHandler?.();
       removeGlobalShortcuts();
       removeEditorListeners();
-      exitChangeReview();
     });
 
     onBeforeRouteLeave((to) => {
@@ -1201,13 +1173,15 @@ export default {
       pushMenuContext(buildMenuContext({ routeName: to.name }));
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
         wait: false,
+        keepUpdatedAt: true,
       });
       removeGlobalShortcuts();
-      exitChangeReview();
     });
 
-    addCloseHandler(async () => {
-      await persistCurrentNote(editor.value, titleDiv.value, route.params.id);
+    removeCloseHandler = addCloseHandler(async () => {
+      await persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
+        keepUpdatedAt: true,
+      });
     });
 
     const focusEditor = () => {
@@ -1311,8 +1285,10 @@ export default {
     return {
       id,
       isMobile,
+      isFoldableDevice,
       showBack,
       previousNote,
+      backTarget,
       titleDiv,
       goBack,
       goToPrevious,
@@ -1341,10 +1317,6 @@ export default {
       handleActivity,
       enterVersionPreview,
       exitVersionPreview,
-      changeReview,
-      enterChangeReview,
-      exitChangeReview,
-      reviewMergedChanges,
       closeSearch,
       disallowedEnter,
       autoResizeTitle,
@@ -1356,8 +1328,6 @@ export default {
       presence,
       accountStore,
       showComments,
-      isDocked,
-      isLargeScreen,
       hingeSegmentWidth,
       toggleComments,
       closeComments,
