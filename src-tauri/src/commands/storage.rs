@@ -536,6 +536,49 @@ fn storage_replace_value(
 
 // Commands
 
+/// SC-2-01: the renderer may only persist a path-valued setting when the path
+/// was approved outside the renderer — picked in a system dialog (granted this
+/// session), restored from a previous session's grant at boot, or inside the
+/// app's own storage. Otherwise a compromised renderer could mint an arbitrary
+/// fs root via `syncPath`/`defaultPath` and read/write/delete the home dir
+/// through the `fs_*` commands.
+fn ensure_settings_path_approved(
+    app: &AppHandle,
+    state: &AppState,
+    key: &str,
+    raw: &str,
+) -> Result<(), AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        // Clearing the setting never grants anything.
+        return Ok(());
+    }
+    let path = std::path::Path::new(trimmed);
+    if !path.is_absolute() {
+        return Err(AppError::Other(format!(
+            "[storage] rejected {key}: not an absolute path"
+        )));
+    }
+    let canonical = std::fs::canonicalize(path)
+        .map_err(|e| AppError::Other(format!("[storage] rejected {key}: cannot canonicalize: {e}")))?;
+    if !canonical.is_dir() {
+        return Err(AppError::Other(format!(
+            "[storage] rejected {key}: not a directory"
+        )));
+    }
+    if canonical == std::path::Path::new("/") {
+        return Err(AppError::Other(format!(
+            "[storage] rejected {key}: filesystem root not allowed"
+        )));
+    }
+    if !is_approved_root_path(app, state, &canonical) {
+        return Err(AppError::Other(format!(
+            "[storage] rejected {key}: directory not granted via a system dialog; choose the folder in Settings"
+        )));
+    }
+    Ok(())
+}
+
 /// Full store as nested JSON, only startup/sync (loads everything). Content not encrypted at KV layer.
 /// Yjs blobs encrypted in note_content/yjs_snapshots. DB read plus decrypt on blocking thread.
 #[tauri::command]
@@ -571,20 +614,8 @@ pub(crate) async fn storage_replace(
         let flat = flatten_store_value(data.0.clone());
         for k in ["syncPath", "defaultPath", "default-path"] {
             if let Some(v) = flat.get(k).and_then(|x| x.as_str()) {
-                let trimmed = v.trim();
-                if !trimmed.is_empty() {
-                    let path = std::path::Path::new(trimmed);
-                    if !path.is_absolute() {
-                        return Err(AppError::Other(format!("[storage] rejected {k}: not an absolute path")));
-                    }
-                    let canonical = std::fs::canonicalize(path).map_err(|e| AppError::Other(format!("[storage] rejected {k}: cannot canonicalize: {e}")))?;
-                    if !canonical.is_dir() {
-                        return Err(AppError::Other(format!("[storage] rejected {k}: not a directory")));
-                    }
-                    if canonical == std::path::Path::new("/") {
-                        return Err(AppError::Other(format!("[storage] rejected {k}: filesystem root not allowed")));
-                    }
-                }
+                let state = app.state::<AppState>();
+                ensure_settings_path_approved(&app, state.inner(), k, v)?;
             }
         }
     }
@@ -796,20 +827,7 @@ pub(crate) async fn storage_set(
 ) -> Result<(), AppError> {
     if (name == SETTINGS_STORE || name == "settings") && matches!(key.as_str(), "syncPath" | "defaultPath" | "default-path") {
         if let Some(s) = value.0.as_str() {
-            let trimmed = s.trim();
-            if !trimmed.is_empty() {
-                let path = std::path::Path::new(trimmed);
-                if !path.is_absolute() {
-                    return Err(AppError::Other(format!("[storage] rejected {key}: not an absolute path")));
-                }
-                let canonical = std::fs::canonicalize(path).map_err(|e| AppError::Other(format!("[storage] rejected {key}: cannot canonicalize: {e}")))?;
-                if !canonical.is_dir() {
-                    return Err(AppError::Other(format!("[storage] rejected {key}: not a directory")));
-                }
-                if canonical == std::path::Path::new("/") {
-                    return Err(AppError::Other(format!("[storage] rejected {key}: filesystem root not allowed")));
-                }
-            }
+            ensure_settings_path_approved(&app, state.inner(), &key, s)?;
         }
     }
     let pool = pick_pool(&name, &app, &state)?;

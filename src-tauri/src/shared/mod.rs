@@ -611,6 +611,95 @@ mod path_access_tests {
 
         let _ = fs::remove_dir_all(&base);
     }
+
+    fn unique_test_base(tag: &str) -> PathBuf {
+        let unique = format!(
+            "beaver-notes-{}-{}-{}",
+            tag,
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        );
+        std::env::temp_dir().join(unique)
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn temp_root_only_admits_app_namespaced_entries() {
+        let base = unique_test_base("temp-guard");
+        let temp_root = base.join("T");
+        let app_dir = temp_root.join("beaver-notes-asset-cache");
+        let other_app = temp_root.join("firefox-cache");
+        fs::create_dir_all(&app_dir).unwrap();
+        fs::create_dir_all(&other_app).unwrap();
+
+        assert!(is_allowed_temp_path(&temp_root, &app_dir.join("blob.bin")));
+        assert!(is_allowed_temp_path(
+            &temp_root,
+            &temp_root.join("beaver_import_1")
+        ));
+        // Leading-dot scratch names (e.g. .beaver-backup-asset-probe-*) count.
+        assert!(is_allowed_temp_path(
+            &temp_root,
+            &temp_root.join(".beaver-backup-asset-probe-1-2")
+        ));
+        // The temp root itself is never allowed: fs_remove would wipe it.
+        assert!(!is_allowed_temp_path(&temp_root, &temp_root));
+        // Other apps' temp entries stay out of reach.
+        assert!(!is_allowed_temp_path(&temp_root, &other_app));
+        assert!(!is_allowed_temp_path(&temp_root, &temp_root.join("passwd")));
+        // And anything outside temp is not a temp path at all.
+        assert!(!is_allowed_temp_path(&temp_root, &base.join("elsewhere")));
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn settings_path_gate_accepts_only_approved_roots() {
+        let granted = vec![
+            PathBuf::from("/Users/u/dialog-picked"),
+            PathBuf::from("/Users/u/granted-parent"),
+        ];
+        let app_dir = Some(Path::new("/Users/u/Library/Application Support/app"));
+
+        // Dialog-granted root and anything inside it pass.
+        assert!(is_within_approved_roots(
+            &granted,
+            app_dir,
+            Path::new("/Users/u/dialog-picked/vault")
+        ));
+        // The app's own storage passes.
+        assert!(is_within_approved_roots(
+            &granted,
+            app_dir,
+            Path::new("/Users/u/Library/Application Support/app/assets/a.png")
+        ));
+        // Home dir, /usr/local, anything ungranted is rejected.
+        assert!(!is_within_approved_roots(
+            &granted,
+            app_dir,
+            Path::new("/Users/u")
+        ));
+        assert!(!is_within_approved_roots(
+            &granted,
+            app_dir,
+            Path::new("/usr/local")
+        ));
+        assert!(!is_within_approved_roots(
+            &granted,
+            app_dir,
+            Path::new("/etc")
+        ));
+        // Prefix confusion must not grant: /Users/u/dialog-picked-evilsync is
+        // a sibling, not a descendant.
+        assert!(!is_within_approved_roots(
+            &granted,
+            app_dir,
+            Path::new("/Users/u/dialog-picked-evilsync")
+        ));
+    }
 }
 
 pub(crate) fn now_millis() -> u128 {
@@ -1085,46 +1174,104 @@ pub(crate) fn sync_roots_from_settings(app: &AppHandle, state: &AppState) {
     }
 }
 
+/// Core of the SC-2-01 gate, kept free of `AppHandle` so tests can exercise
+/// it: a settings path value may only designate an fs root when it was
+/// approved outside the renderer — granted by a system dialog (this session
+/// or restored at boot via `sync_roots_from_settings`), or inside the app's
+/// own storage dir.
+pub(crate) fn is_within_approved_roots(
+    granted: &[PathBuf],
+    app_dir: Option<&Path>,
+    candidate: &Path,
+) -> bool {
+    if let Some(app_dir) = app_dir {
+        if is_path_inside(app_dir, candidate) {
+            return true;
+        }
+    }
+    granted.iter().any(|root| is_path_inside(root, candidate))
+}
+
+pub(crate) fn is_approved_root_path(
+    app: &AppHandle,
+    state: &AppState,
+    candidate: &Path,
+) -> bool {
+    let app_dir = app_storage_dir(app, state).ok();
+    let granted = state
+        .security
+        .granted_paths
+        .lock()
+        .map(|paths| paths.iter().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    is_within_approved_roots(&granted, app_dir.as_deref(), candidate)
+}
+
+/// SC-2-08: the system temp dir is not a blanket fs root. Only the app's own
+/// `beaver*`-named entries under it are reachable (the capability file's
+/// `$TEMP/beaver-notes*/**` intent), and the temp root itself never passes, so
+/// `fs_remove` cannot wipe other apps' scratch state.
+fn is_allowed_temp_path(temp_root: &Path, input: &Path) -> bool {
+    if !is_path_inside(temp_root, input) || input == temp_root {
+        return false;
+    }
+    let Ok(relative) = input.strip_prefix(temp_root) else {
+        return false;
+    };
+    let Some(first) = relative.components().next() else {
+        return false;
+    };
+    let name = first.as_os_str().to_string_lossy();
+    name.trim_start_matches('.')
+        .to_ascii_lowercase()
+        .starts_with("beaver")
+}
+
+/// SC-2-03: encrypt/decrypt-in-place asset commands may only touch the app's
+/// own asset store — never arbitrary user files.
+pub(crate) fn assert_asset_store_path(
+    app: &AppHandle,
+    state: &AppState,
+    input: &Path,
+    operation: &str,
+) -> Result<(), AppError> {
+    assert_path_access(app, state, input, operation)?;
+    let assets = app_storage_dir(app, state)?.join("assets");
+    let canonical = fs::canonicalize(input)
+        .map_err(|e| AppError::Other(format!("[assets] {operation}: cannot canonicalize: {e}")))?;
+    let assets_canonical = fs::canonicalize(&assets).unwrap_or_else(|_| assets);
+    if !is_path_inside(&assets_canonical, &canonical) {
+        return Err(AppError::Other(format!(
+            "[assets] Blocked {operation}: path is outside the app asset store"
+        )));
+    }
+    Ok(())
+}
+
 pub(crate) fn assert_path_access(
     app: &AppHandle,
     state: &AppState,
     input: &Path,
     operation: &str,
 ) -> Result<(), AppError> {
-    let mut allowed_roots = vec![
-        app_storage_dir(app, state)?,
-        app.path()
-            .temp_dir()
-            .map_err(|e| AppError::Other(e.to_string()))?,
-    ];
+    // Settings-derived roots are granted at boot (sync_roots_from_settings) or
+    // when a dialog approves the folder, so they arrive via granted_paths;
+    // writing a settings value can never mint a root (SC-2-01).
+    let mut allowed_roots = vec![app_storage_dir(app, state)?];
 
-    for key in ["syncPath", "defaultPath", "default-path"] {
-        if let Some(value) = get_cached_settings_value(app, state, key) {
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            let path = Path::new(trimmed);
-            if !path.is_absolute() {
-                continue;
-            }
-            let Ok(canonical) = fs::canonicalize(path) else {
-                continue;
-            };
-            if !canonical.is_dir() {
-                continue;
-            }
-            if canonical == Path::new("/") {
-                continue;
-            }
-            allowed_roots.push(canonical);
-        }
-    }
     if let Ok(granted) = state.security.granted_paths.lock() {
         allowed_roots.extend(granted.iter().cloned());
     }
 
+    let temp_root = app
+        .path()
+        .temp_dir()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+
     if is_path_allowed_strict(&allowed_roots, input) {
+        return Ok(());
+    }
+    if is_allowed_temp_path(&temp_root, input) && is_path_allowed_strict(&[temp_root], input) {
         return Ok(());
     }
 

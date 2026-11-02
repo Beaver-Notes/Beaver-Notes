@@ -415,6 +415,17 @@ fn copy_directory_missing(
         let source_path = entry.path();
         let target_path = target.join(entry.file_name());
 
+        // SC-2-07: entry.file_type() never follows symlinks; copying a link's
+        // target would harvest arbitrary files into app storage. Skip rather
+        // than abort a user's migration over one odd entry.
+        if entry.file_type().map(|t| t.is_symlink()).unwrap_or(false) {
+            crate::rs_log!(
+                "[migration] skipping symlink in legacy assets: {}",
+                source_path.display()
+            );
+            continue;
+        }
+
         if source_path.is_dir() {
             copy_directory_missing(app, state, &source_path, &target_path, done, total)?;
         } else if !target_path.exists() {
@@ -483,6 +494,10 @@ fn run_migration_core(
     state: &AppState,
     old_dir: PathBuf,
 ) -> Result<LegacyMigrationResult, AppError> {
+    // SC-2-10: migration reads the legacy dir's data files and copies its
+    // asset trees into the app dir; require dialog/boot-granted access like
+    // every other path-consuming command.
+    crate::shared::assert_path_access(app, state, &old_dir, "legacy migration")?;
     let new_dir = crate::shared::app_storage_dir(app, state)?;
     let marker = new_dir.join(".legacy-store-migrated");
 
@@ -1023,12 +1038,9 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
         &state,
         &crate::shared::app_storage_dir(app.handle(), state.inner())?,
     );
-    grant_trusted_path(
-        &state,
-        &app.path()
-            .temp_dir()
-            .map_err(|e| AppError::Other(e.to_string()))?,
-    );
+    // SC-2-08: the whole system temp dir is deliberately NOT granted here —
+    // assert_path_access admits only the app's own `beaver*` temp entries, so
+    // fs_remove can never wipe the temp root or read other apps' files.
     fs::create_dir_all(state.files.asset_cache_dir())?;
 
     // Fold any legacy plaintext `master.key` into the secure chain, then delete; never fails startup.

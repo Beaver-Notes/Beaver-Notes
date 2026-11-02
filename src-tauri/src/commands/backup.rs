@@ -25,6 +25,15 @@ fn copy_dir_raw(src: &Path, dest: &Path) -> Result<(), AppError> {
     std::fs::create_dir_all(dest)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
+        // SC-2-07: entry.file_type() never follows symlinks (is_dir() would),
+        // so a bundle entry that is a link cannot pull its target's contents
+        // into the vault or the export.
+        if entry.file_type()?.is_symlink() {
+            return Err(AppError::Other(format!(
+                "[backup] refusing symlink in bundle contents: {}",
+                entry.path().display()
+            )));
+        }
         let src_path = entry.path();
         let dest_path = dest.join(entry.file_name());
         if src_path.is_dir() {
@@ -838,6 +847,54 @@ fn ensure_workspace_ready(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SC-2-07: a bundle whose assets contain a symlink must be refused, not
+    /// followed — following it would copy the target's contents (files or
+    /// whole directories) into the app's vault.
+    #[test]
+    #[cfg(unix)]
+    fn copy_dir_raw_refuses_symlinks_in_bundle() {
+        use std::os::unix::fs::symlink;
+
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock ok")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "beaver-notes-backup-symlink-{stamp}-{}",
+            std::process::id()
+        ));
+        let bundle_assets = root.join("bundle/assets");
+        std::fs::create_dir_all(&bundle_assets).expect("bundle assets");
+        std::fs::write(bundle_assets.join("ok.bin"), b"ok").expect("regular file");
+
+        let secret = root.join("secret.txt");
+        std::fs::write(&secret, b"harvest-me").expect("secret");
+        symlink(&secret, bundle_assets.join("secret.lnk")).expect("file link");
+
+        let outside_dir = root.join("outside-dir");
+        std::fs::create_dir_all(&outside_dir).expect("outside dir");
+        symlink(&outside_dir, bundle_assets.join("docs-dir.lnk")).expect("dir link");
+
+        let dest = root.join("staged-assets");
+        let err = copy_dir_raw(&bundle_assets, &dest)
+            .expect_err("symlinked bundle contents must be refused");
+        assert!(err.to_string().contains("refusing symlink"), "unexpected: {err}");
+        // Nothing may have been harvested through either link.
+        assert!(!dest.join("secret.lnk").exists());
+        assert!(!dest.join("docs-dir.lnk").exists());
+        assert!(!dest.join("secret.txt").exists());
+        assert!(!dest.join("outside-dir").exists());
+
+        // A clean bundle still copies.
+        std::fs::remove_file(bundle_assets.join("secret.lnk")).unwrap();
+        std::fs::remove_file(bundle_assets.join("docs-dir.lnk")).unwrap();
+        let clean = root.join("staged-clean");
+        copy_dir_raw(&bundle_assets, &clean).expect("clean copy");
+        assert_eq!(std::fs::read(clean.join("ok.bin")).unwrap(), b"ok");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     /// Regression: importing/exporting used to `remove_dir_all` the live assets
     /// tree before copying. The staged swap must always leave a complete tree

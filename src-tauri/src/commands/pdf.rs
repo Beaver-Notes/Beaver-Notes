@@ -1,10 +1,10 @@
 //! PDF export. Export HTML inserts break-after:page markers, each platform prints with native PDF API.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::shared::AppError;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "macos")]
 use std::sync::mpsc;
@@ -59,6 +59,41 @@ pub(crate) async fn render_pdf(
     html: String,
     output_path: String,
 ) -> Result<(), AppError> {
+    let is_scoped = output_path.starts_with("scoped:");
+    // Round-1 fix: desktop has no scoped-storage paths — a `scoped:` value
+    // here would reach the writer as an ungated relative path, so reject it.
+    // (Verified: no desktop JS caller passes `scoped:`; the only exportPDF
+    // call sites pass a save-dialog path or a `beaver-notes-share` temp path.)
+    #[cfg(desktop)]
+    if is_scoped {
+        return Err(AppError::Other(
+            "[pdf] scoped: output paths are only valid on mobile".into(),
+        ));
+    }
+    // SC-2-02: the renderer supplies the destination; without this gate it is
+    // an arbitrary-file-overwrite primitive. Dialog-granted export dirs pass
+    // via granted_paths. On mobile, `scoped:` outputs stay under the
+    // scoped-storage plugin's own access control.
+    #[cfg(desktop)]
+    {
+        let state = app.state::<crate::shared::AppState>();
+        crate::shared::assert_path_access(
+            &app,
+            state.inner(),
+            Path::new(&output_path),
+            "pdf export",
+        )?;
+    }
+    #[cfg(not(desktop))]
+    if !is_scoped {
+        let state = app.state::<crate::shared::AppState>();
+        crate::shared::assert_path_access(
+            &app,
+            state.inner(),
+            Path::new(&output_path),
+            "pdf export",
+        )?;
+    }
     render_native(app, html, output_path).await
 }
 

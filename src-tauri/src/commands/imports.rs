@@ -1,13 +1,13 @@
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use chrono::{Local, NaiveDateTime, TimeZone, Utc};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::shared::*;
 
@@ -161,11 +161,64 @@ fn extract_attribute(fragment: &str, name: &str) -> Option<String> {
     Some(fragment[start..end].to_string())
 }
 
+/// Create `<base>/<prefix>_<random>` owner-only, exclusively. `create` (not
+/// `create_dir_all`) fails when the name already exists, so a planted directory
+/// or symlink can never be adopted; collisions retry with a fresh suffix.
+fn create_private_stage_dir(base: &Path, prefix: &str) -> Result<PathBuf, AppError> {
+    use rand::RngCore;
+    let mut last_err = None;
+    for _ in 0..4 {
+        let mut suffix = [0u8; 8];
+        rand::thread_rng().fill_bytes(&mut suffix);
+        let dir = base.join(format!("{prefix}_{}", hex::encode(suffix)));
+        let created = {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                std::fs::DirBuilder::new().mode(0o700).create(&dir)
+            }
+            #[cfg(not(unix))]
+            std::fs::DirBuilder::new().create(&dir)
+        };
+        match created {
+            Ok(()) => return Ok(dir),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => {
+                last_err = Some(e);
+                break;
+            }
+        }
+    }
+    Err(AppError::Io(match last_err {
+        Some(e) => format!("{}: {e}", base.display()),
+        None => format!("{}: staging name collision", base.display()),
+    }))
+}
+
+/// SC-2-06: refuse to write through a pre-placed symlink or existing file —
+/// `create_new` is O_EXCL, so a shared-temp race cannot redirect attacker-
+/// controlled bytes to an arbitrary destination.
+fn write_stage_bytes(path: &Path, bytes: &[u8]) -> Result<(), AppError> {
+    let mut file = {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(path)
+        }
+        #[cfg(not(unix))]
+        fs::OpenOptions::new().write(true).create_new(true).open(path)
+    }
+    .map_err(|error| AppError::Io(format!("{}: {}", path.display(), error)))?;
+    file.write_all(bytes)
+        .map_err(|error| AppError::Io(format!("{}: {}", path.display(), error)))?;
+    Ok(())
+}
+
 fn resolve_import_stage_dir(app: &AppHandle, prefix: &str) -> Result<PathBuf, AppError> {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
     let mut bases = vec![std::env::temp_dir()];
     if let Ok(dir) = app.path().temp_dir() {
         if !bases.contains(&dir) {
@@ -183,15 +236,17 @@ fn resolve_import_stage_dir(app: &AppHandle, prefix: &str) -> Result<PathBuf, Ap
             }
         }
     }
-    for dir in bases.into_iter().map(|base| base.join(format!("{prefix}_{stamp}"))) {
-        tried.push(dir.display().to_string());
-        if fs::create_dir_all(&dir).is_err() {
-            continue;
-        }
-        let probe = dir.join(".write-probe");
-        if fs::write(&probe, b"probe").is_ok() {
-            let _ = fs::remove_file(&probe);
-            return Ok(dir);
+    for base in bases {
+        match create_private_stage_dir(&base, prefix) {
+            Ok(dir) => {
+                let probe = dir.join(".write-probe");
+                if fs::write(&probe, b"probe").is_ok() {
+                    let _ = fs::remove_file(&probe);
+                    return Ok(dir);
+                }
+                tried.push(dir.display().to_string());
+            }
+            Err(_) => continue,
         }
     }
     Err(AppError::Io(format!(
@@ -333,7 +388,7 @@ fn parse_evernote_resources(
                 .unwrap_or_else(|| hash.clone());
 
             let file_path = temp_dir.join(format!("{hash}_{index}"));
-            fs::write(&file_path, &bytes)
+            write_stage_bytes(&file_path, &bytes)
                 .map_err(|error| AppError::Io(format!("{}: {}", file_path.display(), error)))?;
 
             Ok(ImportResourcePayload {
@@ -584,11 +639,31 @@ fn parse_apple_note_block(block: &str) -> Result<ImportNotePayload, AppError> {
 #[specta::specta]
 pub(crate) async fn import_evernote(
     app: AppHandle,
+    state: State<'_, AppState>,
     enex_path: String,
     notebook_name: Option<String>,
 ) -> Result<(), AppError> {
+    // SC-2-10: the .enex read must respect the same path gate as every other
+    // fs command, or the error path leaks an existence/permission oracle for
+    // arbitrary paths.
+    {
+        let state_inner = state.inner();
+        crate::shared::assert_path_access(
+            &app,
+            state_inner,
+            Path::new(&enex_path),
+            "evernote import",
+        )?;
+    }
     let app_handle = app.clone();
     std::thread::spawn(move || {
+        // Error payloads carry the file name only: the full granted path must
+        // not be echoed back into the renderer (SC-2-11 round-1 fix).
+        let display_name = Path::new(&enex_path)
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("Evernote import")
+            .to_string();
         let temp_dir = match resolve_import_stage_dir(&app_handle, "beaver_import") {
             Ok(dir) => dir,
             Err(error) => {
@@ -599,12 +674,8 @@ pub(crate) async fn import_evernote(
                         source: "evernote",
                         imported: 0,
                         errors: vec![ImportErrorPayload {
-                            title: Path::new(&enex_path)
-                                .file_name()
-                                .and_then(|value| value.to_str())
-                                .unwrap_or("Evernote import")
-                                .to_string(),
-                            reason: format!("{}: {}", enex_path, error),
+                            title: display_name.clone(),
+                            reason: format!("{display_name}: {error}"),
                         }],
                     },
                 );
@@ -623,12 +694,8 @@ pub(crate) async fn import_evernote(
                         source: "evernote",
                         imported: 0,
                         errors: vec![ImportErrorPayload {
-                            title: Path::new(&enex_path)
-                                .file_name()
-                                .and_then(|value| value.to_str())
-                                .unwrap_or("Evernote import")
-                                .to_string(),
-                            reason: format!("{}: {}", enex_path, error),
+                            title: display_name.clone(),
+                            reason: format!("{display_name}: {error}"),
                         }],
                     },
                 );
@@ -755,16 +822,9 @@ pub(crate) async fn import_apple_notes(app: AppHandle) -> Result<(), AppError> {
     std::thread::spawn(move || {
         let stage_dir = match app_handle.path().temp_dir() {
             Ok(dir) => {
-                let dir = dir.join(format!(
-                    "beaver_apple_import_{}",
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis()
-                ));
                 // Best-effort sweep of previous runs; the current dir is kept
                 // because the frontend reads staged files after import-complete.
-                if let Ok(entries) = fs::read_dir(dir.parent().unwrap_or(Path::new("/tmp"))) {
+                if let Ok(entries) = fs::read_dir(&dir) {
                     for entry in entries.flatten() {
                         if entry
                             .file_name()
@@ -775,8 +835,11 @@ pub(crate) async fn import_apple_notes(app: AppHandle) -> Result<(), AppError> {
                         }
                     }
                 }
-                match fs::create_dir_all(&dir) {
-                    Ok(()) => dir,
+                // SC-2-06: unpredictable owner-only staging dir; Notes.app
+                // writes cannot use O_EXCL, so the private random name is the
+                // mitigation against pre-placement.
+                match create_private_stage_dir(&dir, "beaver_apple_import") {
+                    Ok(stage) => stage,
                     Err(error) => {
                         emit_apple_complete(&app_handle, 0, vec![ImportErrorPayload {
                             title: "Apple Notes".into(),
@@ -1077,6 +1140,72 @@ mod tests {
         assert!(content.contains("cid:cid1"));
         assert!(content.contains("<a href=\"https://example.com/x\">preview</a>"));
         assert!(content.contains("[Attachment not transferred: gone.pdf]"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// SC-2-06: staging must never write through a pre-placed symlink —
+    /// `create_new` (O_EXCL) refuses any existing entry, including a link.
+    #[test]
+    #[cfg(unix)]
+    fn stage_write_refuses_preplaced_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let dir = std::env::temp_dir().join(format!(
+            "beaver_stage_guard_test_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let victim = dir.join("victim.txt");
+        fs::write(&victim, b"original").unwrap();
+        let link = dir.join("aa_0");
+        symlink(&victim, &link).unwrap();
+
+        let err = write_stage_bytes(&link, b"attacker-bytes")
+            .expect_err("O_EXCL write must refuse an existing symlink");
+        let link_name = link.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(
+            err.to_string().contains(&link_name),
+            "unexpected error: {err}"
+        );
+        assert_eq!(fs::read(&victim).unwrap(), b"original", "target must be untouched");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// SC-2-06: stage dirs are unpredictable and owner-only; a collision
+    /// retries with a fresh name instead of adopting an existing directory.
+    #[test]
+    #[cfg(unix)]
+    fn stage_dirs_are_random_and_private() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = std::env::temp_dir().join(format!(
+            "beaver_stage_dir_test_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let first = create_private_stage_dir(&dir, "beaver_import").unwrap();
+        let second = create_private_stage_dir(&dir, "beaver_import").unwrap();
+        assert_ne!(first, second, "names must be unpredictable per run");
+        let suffix = first
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .rsplit('_')
+            .next()
+            .unwrap()
+            .to_string();
+        assert_eq!(suffix.len(), 16, "random suffix must be 8 bytes hex");
+        assert!(
+            suffix.bytes().all(|b| b.is_ascii_hexdigit()),
+            "suffix must be hex, got {suffix}"
+        );
+        let mode = fs::metadata(&first).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700, "stage dir must be owner-only");
 
         let _ = fs::remove_dir_all(&dir);
     }

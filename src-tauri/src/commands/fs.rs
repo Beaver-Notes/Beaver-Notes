@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fs,
     io::Write,
-    net::IpAddr,
+    net::{IpAddr, ToSocketAddrs},
     path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
 };
@@ -509,17 +509,47 @@ pub(crate) async fn fs_download_url(
         return Err(AppError::Other("Only https:// URLs are allowed".into()));
     }
     let host = parsed.host_str().ok_or_else(|| AppError::Other("URL missing host".into()))?;
+    let port = parsed.port_or_known_default().unwrap_or(443);
     if host.eq_ignore_ascii_case("localhost")
         || host.eq_ignore_ascii_case("metadata.google.internal")
         || host.eq_ignore_ascii_case("kubernetes.default.svc")
     {
         return Err(AppError::Other("Blocked host".into()));
     }
-    if let Ok(ip) = host.parse::<IpAddr>() {
-        if is_private_ip(&ip) {
+
+    let mut builder = reqwest::Client::builder()
+        .use_rustls_tls()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30));
+
+    if let Ok(literal) = host.parse::<IpAddr>() {
+        if is_private_ip(&literal) {
             return Err(AppError::Other("Blocked private IP".into()));
         }
+    } else {
+        // SC-2-09: checking only literal IPs misses DNS rebinding to
+        // private/link-local targets. Resolve here, validate every answer,
+        // and pin the addresses so reqwest cannot re-resolve to a private IP.
+        let host_owned = host.to_string();
+        let resolved = tokio::task::spawn_blocking(move || {
+            (host_owned, port).to_socket_addrs().map(|addrs| addrs.collect::<Vec<_>>())
+        })
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .map_err(|e| AppError::Other(format!("DNS resolution failed: {e}")))?;
+        if resolved.is_empty() {
+            return Err(AppError::Other("DNS resolution returned no addresses".into()));
+        }
+        for addr in &resolved {
+            if is_private_ip(&addr.ip()) {
+                return Err(AppError::Other("Blocked private IP".into()));
+            }
+        }
+        for addr in resolved {
+            builder = builder.resolve(host, addr);
+        }
     }
+
     if parsed.username() != "" || parsed.password().is_some() {
         return Err(AppError::Other("URL must not contain credentials".into()));
     }
@@ -528,10 +558,7 @@ pub(crate) async fn fs_download_url(
         fs::create_dir_all(parent)?;
     }
 
-    let client = reqwest::Client::builder()
-        .use_rustls_tls()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(std::time::Duration::from_secs(30))
+    let client = builder
         .build()
         .map_err(|e| AppError::Other(format!("Failed to create HTTP client: {e}")))?;
 
@@ -542,10 +569,13 @@ pub(crate) async fn fs_download_url(
         .map_err(|e| AppError::Other(format!("Download request failed: {e}")))?;
 
     if !resp.status().is_success() {
-        return Err(AppError::Other(format!(
-            "Download failed with status {}",
-            resp.status()
-        )));
+        // SC-2-09: the status code is a blind oracle against internal https
+        // endpoints; log it Rust-side and return a generic error to the
+        // renderer.
+        crate::rs_log!("[fs] download_url status {} for {}", resp.status(), host);
+        return Err(AppError::Other(
+            "Download failed: the request was refused by the remote host".into(),
+        ));
     }
 
     const MAX_DOWNLOAD_BYTES: u64 = 50 * 1024 * 1024;
@@ -581,6 +611,61 @@ fn is_private_ip(ip: &IpAddr) -> bool {
                 || v4.is_unspecified()
                 || v4.octets()[0] == 0
         }
-        IpAddr::V6(v6) => v6.is_loopback() || v6.is_unspecified() || v6.is_multicast(),
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || v6.is_multicast()
+                // fc00::/7 unique-local: std has no stable is_unique_local,
+                // so match the prefix directly. fe80::/10 link-local completes
+                // the arm to the V4 list's coverage (round-1 fix).
+                || (v6.octets()[0] & 0xfe) == 0xfc
+                || v6.is_unicast_link_local()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// SC-2-09: private/loopback/link-local/unique-local addresses must be
+    /// rejected whether they arrive as literals or as resolved hostnames.
+    #[test]
+    fn blocks_private_and_local_addresses_in_both_families() {
+        for literal in [
+            "10.0.0.1",
+            "192.168.1.4",
+            "172.16.0.9",
+            "127.0.0.1",
+            "169.254.169.254",
+            "0.0.0.0",
+            "255.255.255.255",
+            "224.0.0.1",
+        ] {
+            assert!(
+                is_private_ip(&literal.parse().unwrap()),
+                "v4 {literal} must be blocked"
+            );
+        }
+        for literal in [
+            "::1",
+            "::",
+            "fc00::1",
+            "fd12:3456:789a::1",
+            "fe80::1",
+            "ff02::1",
+        ] {
+            assert!(
+                is_private_ip(&literal.parse().unwrap()),
+                "v6 {literal} must be blocked"
+            );
+        }
+        // Public addresses must stay reachable.
+        for literal in ["8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"] {
+            assert!(
+                !is_private_ip(&literal.parse().unwrap()),
+                "public {literal} must not be blocked"
+            );
+        }
     }
 }

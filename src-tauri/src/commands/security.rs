@@ -1271,6 +1271,10 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     let path_buf = PathBuf::from(path.clone());
     let state_inner = state.inner();
 
+    // SC-2-03: an unscoped read of any magic-prefixed file is an unscoped
+    // read+write primitive; confine it to the app's own asset store.
+    assert_asset_store_path(&app, state_inner, &path_buf, "asset decrypt")?;
+
     if let Some(cached) = get_cached_decrypted_asset(state_inner, &path) {
         let metadata = fs::metadata(&path_buf)?;
         let cache_path = crate::shared::decrypted_cache_path(
@@ -1309,13 +1313,18 @@ pub(crate) async fn encryption_decrypt_asset_stream(
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn encryption_encrypt_asset_stream(
-    _app: AppHandle,
+    app: AppHandle,
     state: State<'_, AppState>,
     path: String,
 ) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("security.encryption_encrypt_asset_stream");
     let path_buf = PathBuf::from(path.clone());
     let state_inner = state.inner();
+
+    // SC-2-03: in-place encryption overwrites the input with ciphertext under
+    // the app key — on an arbitrary path that is unrecoverable file
+    // destruction. Confine it to the app's own asset store.
+    assert_asset_store_path(&app, state_inner, &path_buf, "asset encrypt")?;
 
     let key = current_app_key(state_inner)?.ok_or(AppError::EncryptionLocked)?;
     let temp_path = path_buf.with_extension("enc.tmp");

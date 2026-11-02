@@ -345,10 +345,20 @@ fn read_legacy_preferences_blocking(dir: String) -> Result<serde_json::Value, Ap
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn migration_read_legacy_preferences(
+    app: AppHandle,
+    state: State<'_, AppState>,
     dir: String,
 ) -> Result<serde_json::Value, AppError> {
     #[cfg(desktop)]
     {
+        // SC-2-10: only read preferences from dialog/boot-granted dirs, like
+        // migration_read_legacy_data.
+        assert_path_access(
+            &app,
+            state.inner(),
+            std::path::Path::new(&dir),
+            "migration read legacy preferences",
+        )?;
         // Directory scan + per-log parsing is I/O heavy; keep off the event loop.
         tokio::task::spawn_blocking(move || read_legacy_preferences_blocking(dir))
             .await
@@ -357,7 +367,7 @@ pub(crate) async fn migration_read_legacy_preferences(
 
     #[cfg(not(desktop))]
     {
-        let _ = dir;
+        let _ = (app, state, dir);
         Ok(serde_json::Value::Object(serde_json::Map::new()))
     }
 }
