@@ -88,6 +88,61 @@ function isWorkspaceIndexedNote(noteId) {
   }
 }
 
+// SC-1-04: note-key envelopes are unauthenticated, so any collaborator can
+// wrap a self-chosen key to this device and silently become a reader of
+// everything sealed afterwards. Before a recovered key is adopted, prove it
+// decrypts the note's durable content: v6 commit snapshots are sealed with the
+// per-note key (AAD = noteId), so a wrong key fails AES-GCM authentication.
+// Signature matches the note-key `verify(candidateHex, noteId)` contract so it
+// can be passed as the verifier directly. Returns true (proven genuine),
+// false (proven wrong — adoption must be refused), null (nothing probative:
+// no v6 commit yet, or the history is unreachable; adoption then keeps the
+// pre-verification behavior rather than bricking the note).
+export async function verifyRecoveredNoteKey(candidateHex, noteId) {
+  if (typeof candidateHex !== 'string' || !candidateHex) return null;
+  try {
+    const [{ listCommits, fetchCommitEnvelope }, { importCollabKey, decryptUpdate }, { base64ToBuf }] =
+      await Promise.all([
+        import('@/lib/api/history'),
+        import('@/utils/crypto/collab'),
+        import('@/utils/crypto/codec'),
+      ]);
+    const commits = await listCommits(noteId);
+    let probativeRows = 0;
+    for (const c of (commits || []).slice(0, 3)) {
+      if (!c?.hash) continue;
+      let env = null;
+      try {
+        env = await fetchCommitEnvelope(c.hash, noteId);
+      } catch {
+        // Row unreachable (transient): skip it, try the next one.
+        continue;
+      }
+      // v5 items-key envelopes say nothing about a per-note key.
+      if (env?.v !== 6 || !env?.data) continue;
+      probativeRows += 1;
+      const key = await importCollabKey(candidateHex);
+      try {
+        // The proof itself is wrapped so a GCM failure (wrong key) can never
+        // fall into the outer catch and be mistaken for "nothing to verify
+        // against" — that would adopt a proven-forged key.
+        await decryptUpdate(key, base64ToBuf(env.data), env.noteId || noteId);
+        return true;
+      } catch {
+        // Wrong for this row (or sealed under a previous key generation):
+        // keep trying the remaining rows before concluding.
+      }
+    }
+    // A real v6 row was tried and no row proved the key: proven wrong.
+    return probativeRows > 0 ? false : null;
+  } catch (err) {
+    // Strictly for an unreachable history layer (listCommits failed, modules
+    // unavailable) — never for a crypto proof failure.
+    logger.debug?.('[notes] note-key verification unavailable:', err?.message || err);
+    return null;
+  }
+}
+
 export function useNoteSharing() {
   const accountStore = useAccountStore();
   const collaboratorStore = useCollaboratorStore();
@@ -368,7 +423,13 @@ export function useNoteSharing() {
     };
 
     const raw = await getKey();
-    const noteKeyHex = await recoverNoteKeyFromEnvelopes(raw?.wrappedKeys, identity, noteId);
+    const noteKeyHex = await recoverNoteKeyFromEnvelopes(
+      raw?.wrappedKeys,
+      identity,
+      noteId,
+      console,
+      verifyRecoveredNoteKey,
+    );
     if (noteKeyHex) {
       key.value = noteKeyHex;
       await rememberAndProvision(noteId, noteKeyHex);
@@ -592,7 +653,13 @@ export function useNoteSharing() {
       attempts += 1;
       try {
         const raw = await getKey();
-        const recovered = await recoverNoteKeyFromEnvelopes(raw?.wrappedKeys, identity, noteId);
+        const recovered = await recoverNoteKeyFromEnvelopes(
+          raw?.wrappedKeys,
+          identity,
+          noteId,
+          console,
+          verifyRecoveredNoteKey,
+        );
         if (recovered) return recovered;
         // The server answered: the attempt worked, so the pressure is gone.
         rateLimited = 0;
@@ -624,7 +691,17 @@ export function useNoteSharing() {
   // every device the server reports `hasEnvelope: false` right away, otherwise
   // the invitee stays read-only until the key-holder reopens the note.
 async function wrapForNewCollaborators(noteId) {
-    let held = getCachedNoteKey(noteId) || key.value;
+    let held = getCachedNoteKey(noteId);
+    if (!held && key.value) {
+      // SC-1-08: a legacy server-held plaintext key is the last resort as a
+      // wrap source. It proves the note's key already transited the server, so
+      // propagating it keeps those notes outside the E2E model — flagged until
+      // a migration cutover (owner rotate → fresh envelope fan-out) retires it.
+      logger.warn(
+        `[notes] legacy server-held note key used as wrap source for ${noteId}; envelope migration pending`,
+      );
+      held = key.value;
+    }
     if (!held && isWorkspaceIndexedNote(noteId)) {
       const wsKeyHex = getActiveWsKey();
       if (wsKeyHex) held = wsKeyHex;

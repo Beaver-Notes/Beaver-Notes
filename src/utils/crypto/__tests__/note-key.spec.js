@@ -8,6 +8,7 @@ import {
   buildNoteKeyPayload,
   parseNoteKeyPayload,
   getPreviousNoteKeys,
+  getCachedNoteKey,
   clearUnwrappedKeyCache,
 } from '@/utils/crypto/note-key';
 
@@ -88,6 +89,100 @@ describe('note-key keyring after a collaborator-removal rotation (L8)', () => {
     expect(parseNoteKeyPayload('ab'.repeat(32))).toEqual({ current: 'ab'.repeat(32), previous: [] });
     expect(parseNoteKeyPayload('not-a-key')).toBeNull();
     expect(parseNoteKeyPayload('')).toBeNull();
+  });
+});
+
+describe('SC-1-04: recovered keys are verified against durable content before adoption', () => {
+  it('rejects an envelope whose key fails verification even though it unwraps', async () => {
+    const device = await makeKeypair();
+    const forgedKey = 'ee'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, forgedKey);
+
+    clearUnwrappedKeyCache('note-evil');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-evil',
+      console,
+      async () => false, // verify: does not decrypt the note's durable rows
+    );
+
+    expect(recovered).toBeNull();
+    expect(getCachedNoteKey('note-evil')).toBeNull();
+  });
+
+  it('adopts an envelope whose key verifies against the note content', async () => {
+    const device = await makeKeypair();
+    const goodKey = 'cd'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, goodKey);
+    const verify = vi.fn(async (keyHex) => keyHex === goodKey);
+
+    clearUnwrappedKeyCache('note-ok');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-ok',
+      console,
+      verify,
+    );
+
+    expect(recovered).toBe(goodKey);
+    expect(getCachedNoteKey('note-ok')).toBe(goodKey);
+    // verify receives the candidate key plus the note id for context.
+    expect(verify).toHaveBeenCalledWith(goodKey, 'note-ok');
+  });
+
+  it('skips a failed candidate and adopts a later verifying envelope', async () => {
+    const device = await makeKeypair();
+    const forged = 'ee'.repeat(32);
+    const real = 'cd'.repeat(32);
+    const envelopes = [
+      { deviceId: 'd1', wrappedKey: await wrapNoteKeyForRecipient(device.pkHex, forged) },
+      { deviceId: 'd1', wrappedKey: await wrapNoteKeyForRecipient(device.pkHex, real) },
+    ];
+
+    clearUnwrappedKeyCache('note-two');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      envelopes,
+      { privateKeyHex: device.skHex },
+      'note-two',
+      console,
+      async (keyHex) => keyHex === real,
+    );
+
+    expect(recovered).toBe(real);
+  });
+
+  it('keeps the pre-verification behavior when nothing can verify (no commits yet)', async () => {
+    const device = await makeKeypair();
+    const keyHex = 'ab'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, keyHex);
+
+    clearUnwrappedKeyCache('note-fresh');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-fresh',
+      console,
+      async () => null, // nothing probative to verify against
+    );
+
+    expect(recovered).toBe(keyHex);
+  });
+
+  it('adopts without a verifier (backwards compatible call shape)', async () => {
+    const device = await makeKeypair();
+    const keyHex = 'ab'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, keyHex);
+
+    clearUnwrappedKeyCache('note-plain');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-plain',
+    );
+
+    expect(recovered).toBe(keyHex);
   });
 });
 

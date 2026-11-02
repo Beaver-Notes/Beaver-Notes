@@ -98,6 +98,14 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted, computed, watch } from 'vue';
 import { formatMediaTime } from '@/utils/mediaTime.js';
+import { isAllowedContentMediaSrc } from '@/utils/note/contentSecurity.js';
+
+// Render-sink gate (SC-4-02 round 2): live-Yjs attrs bypass parseHTML
+// getAttrs, so unsafe srcs are refused here and never reach the DOM.
+// Empty src (pending optimistic insert) passes through untouched.
+function sanitizeRenderSrc(src) {
+  return src && isAllowedContentMediaSrc(src) ? src : '';
+}
 
 export default {
   components: {
@@ -117,7 +125,7 @@ export default {
     onMounted(() => {
       audioPlayer.value.volume = 1;
       audioPlayer.value.playbackRate = playbackRate.value;
-      audioSrc.value = props.node.attrs.src;
+      audioSrc.value = sanitizeRenderSrc(props.node.attrs.src);
     });
 
     // Background-saved assets swap src after insert; follow the attr so the
@@ -125,7 +133,7 @@ export default {
     watch(
       () => props.node.attrs.src,
       (src) => {
-        audioSrc.value = src;
+        audioSrc.value = sanitizeRenderSrc(src);
       },
     );
 

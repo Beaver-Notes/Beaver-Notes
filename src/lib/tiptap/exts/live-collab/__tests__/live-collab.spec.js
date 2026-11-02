@@ -12,6 +12,7 @@ import LiveCollab, {
   LIVE_COLLAB_COALESCE_MS,
   LIVE_COLLAB_NEUTRAL_COLOR,
   isRemoteLiveOrigin,
+  resolveLiveAuthor,
 } from '../index.js';
 import {
   applyRemote,
@@ -353,5 +354,42 @@ describe('merge banner separation', () => {
 
     review.dismissMergeBanner();
     off();
+  });
+});
+
+describe('resolveLiveAuthor color clamping (SC-4-03)', () => {
+  const awarenessWith = (color) => ({
+    getStates: () =>
+      new Map([[7, { user: { id: 'peer-1', name: 'Alice', color } }]]),
+  });
+  const HEX = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+  it('keeps hex colors from remote awareness', () => {
+    expect(resolveLiveAuthor([7], awarenessWith('#10B981')).color).toBe(
+      '#10B981'
+    );
+  });
+
+  it.each([
+    'red;background:url(https://evil/px)',
+    'javascript:alert(1)',
+    'position:fixed;top:0;left:0;z-index:9999',
+    'hsl(0,100%,50%)',
+    'rgb(1,2,3)',
+    '',
+    null,
+    undefined,
+  ])('clamps unsafe remote color %j to a hex fallback', (color) => {
+    const { color: safe } = resolveLiveAuthor([7], awarenessWith(color));
+    expect(safe).toMatch(HEX);
+  });
+
+  it('falls back to the neutral color for non-hex input when no id exists', () => {
+    const awareness = {
+      getStates: () => new Map([[7, { user: { name: 'X', color: 'red;x' } }]]),
+    };
+    expect(resolveLiveAuthor([7], awareness).color).toBe(
+      LIVE_COLLAB_NEUTRAL_COLOR
+    );
   });
 });

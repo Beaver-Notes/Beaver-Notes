@@ -1,5 +1,8 @@
-const IMAGE_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:', 'data:', 'resource://'];
+const IMAGE_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:', 'data:image/', 'resource://'];
 const MEDIA_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:'];
+// File-attachment blocks legitimately carry inline data: payloads of any mime
+// type (share-import embeds PDFs/office files as data: URLs — importFile.ts).
+const FILE_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:', 'data:', 'resource://'];
 
 function normalizeSourceValue(value) {
   return String(value || '').trim();
@@ -61,6 +64,72 @@ export function sanitizeMediaSource(value, options = {}) {
   }
 
   return '';
+}
+
+export function sanitizeFileSource(value, options = {}) {
+  const source = normalizeSourceValue(value);
+  if (!source) return '';
+
+  if (startsWithAny(source, FILE_SOURCE_PREFIXES) || isHttpsUrl(source)) {
+    return source;
+  }
+
+  if (options.allowRelative && isRelativeSource(source)) {
+    return source;
+  }
+
+  return '';
+}
+
+/**
+ * Single shared gate for image/video srcs reaching stored note content
+ * (SC-4-02/SC-4-04). Fresh markdown imports and the JSON/Yjs content path
+ * both funnel through here (directly or via sanitizeNoteContent callers).
+ *
+ * Allowed: first-party asset schemes (assets://, file-assets:// — served by
+ * the Rust asset protocol), ephemeral blob: URLs, remote https: images (an
+ * explicit product feature — markdown import keeps remote srcs), and inline
+ * data: payloads restricted to image/* and video/*.
+ * Refused: file:, http: (cleartext + tracking), javascript:/vbscript:,
+ * protocol-relative URLs, relative paths, and every other data: mime
+ * (notably data:text/html). Blocked srcs must be dropped with a console
+ * warn, never rendered.
+ */
+export function isAllowedContentMediaSrc(value) {
+  const source = normalizeSourceValue(value);
+  if (!source || /[\s\0-\x1f\x7f]/.test(source)) return false;
+  const lower = source.toLowerCase();
+  return (
+    lower.startsWith('assets://') ||
+    lower.startsWith('file-assets://') ||
+    lower.startsWith('blob:') ||
+    lower.startsWith('https://') ||
+    lower.startsWith('data:image/') ||
+    lower.startsWith('data:video/')
+  );
+}
+
+/**
+ * Scheme gate for window.open targets (SC-4-08). Only schemes safe to hand
+ * to the OS/webview opener pass; note:// is routed internally by the callers
+ * and must never reach window.open.
+ */
+export function isSafeOpenUrl(value) {
+  try {
+    const protocol = new URL(String(value || '')).protocol;
+    return protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Internal note-target gate (SC-4-02 linkNote). Every in-app producer emits
+ * `note://<id>` exclusively, so classification and rendering only ever honor
+ * that shape — anything else (javascript:, file:, http:) is refused.
+ */
+export function isNoteHref(value) {
+  return typeof value === 'string' && value.startsWith('note://');
 }
 
 export function buildIframeFallbackText(src = '') {

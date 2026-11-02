@@ -95,8 +95,17 @@ export async function unwrapNoteKey(privateKeyHex, envelopeStr) {
 }
 
 /** Injected API fns keep this pure and testable. Returns key hex or null, never rotates on ambiguity. */
-/** Try each envelope with the local private key; cache the first valid unwrap. */
-export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _log = console) {
+/**
+ * Try each envelope with the local private key; cache the first valid unwrap.
+ *
+ * SC-1-04: envelopes are unauthenticated, so a collaborator can wrap a
+ * self-chosen key to this device. `verify(candidateHex, noteId)` (optional,
+ * injected) must prove a candidate against the note's durable content before
+ * it is adopted: returning `false` rejects the envelope; `true` adopts;
+ * `null`/`undefined` means "nothing to verify against" and keeps the
+ * pre-verification behavior (e.g. a note with no commits yet).
+ */
+export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _log = console, verify = null) {
   for (const env of envelopes || []) {
     const wrappedKey = env?.wrappedKey ?? env;
     if (!wrappedKey) continue;
@@ -104,6 +113,21 @@ export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _
       const k = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
       const parsed = parseNoteKeyPayload(k);
       if (parsed) {
+        if (typeof verify === 'function') {
+          let ok;
+          try {
+            ok = await verify(parsed.current, noteId);
+          } catch {
+            ok = false;
+          }
+          if (ok === false) {
+            _log.warn?.(
+              '[note-key] recovered key failed verification against durable content, rejecting envelope:',
+              noteId,
+            );
+            continue;
+          }
+        }
         if (noteId) rememberNoteKeyring(noteId, parsed.current, parsed.previous);
         return parsed.current;
       }

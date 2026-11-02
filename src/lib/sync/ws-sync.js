@@ -319,6 +319,53 @@ function getAuthToken() {
   return useAccountStore().token || ''
 }
 
+// SC-1-07: a ws:// relay for a non-loopback http:// server sends the ws
+// ticket, notifications and room metadata in the clear, and hands a same-LAN
+// attacker the SC-1-01 injection path without touching the relay host.
+// Realtime is refused there (durable sync is unaffected); loopback stays
+// allowed because the stock dev stacks are http://localhost by design.
+// Exported for tests (same reason as ignoreTextFrames).
+export function plaintextRelayAllowed(wsUrl) {
+  try {
+    const u = new URL(wsUrl)
+    if (u.protocol !== 'ws:') return true
+    return isLoopbackHost(u.hostname)
+  } catch {
+    // Unparsable input is never a verified loopback: refuse (fail closed).
+    // Production URLs from getWebSocketUrl() always parse, so this only ever
+    // refuses a malformed override, and durable sync is unaffected anyway.
+    return false
+  }
+}
+
+// Exact loopback match. `host.startsWith('127.')` would also match names like
+// `127.0.0.1.evil.com` (ISSUE-2), so a host passes only when it IS localhost,
+// an IPv6 loopback literal, or a full 4-octet IPv4 quad with first octet 127
+// (each octet 0-255, decimal, no signs/hex/whitespace). The URL parser
+// canonicalizes short IPv4 forms before this runs (ws://127.1 → 127.0.0.1);
+// anything non-numeric here is a DNS name, never a loopback address.
+function isLoopbackHost(host) {
+  if (host === 'localhost' || host === '::1' || host === '[::1]') return true
+  const parts = host.split('.')
+  if (parts.length !== 4) return false
+  const octets = parts.map((p) => (p !== '' && String(Number(p)) === p ? Number(p) : -1))
+  return octets[0] === 127 && octets.every((n) => n >= 0 && n <= 255)
+}
+
+function refusePlaintextRelay(wsUrl) {
+  console.warn(
+    `[ws-sync] refusing plaintext relay ${wsUrl}: the server URL is http:// on a non-loopback host. ` +
+      'Set an https:// server URL in Settings → Account to enable realtime collaboration.',
+  )
+  try {
+    useAccountStore().setError(
+      'Realtime collaboration is disabled: your server URL uses http://. Switch it to https:// in Settings → Account to enable realtime.',
+    )
+  } catch {
+    // No store in this context: the console warning stands.
+  }
+}
+
 // One server base for WS URL derivation and the ws-ticket fetch, so custom-server
 // users talk to the same host over REST and WS. Store setting first, env fallback.
 function getServerBase() {
@@ -582,6 +629,10 @@ export function useWsSync() {
     }
     const join = (async () => {
       const wsUrl = getWebSocketUrl()
+      if (!plaintextRelayAllowed(wsUrl)) {
+        refusePlaintextRelay(wsUrl)
+        return
+      }
       const params = await getWsParams(workspaceId, noteId)
       if (leaveWhilePending.has(roomName)) {
         leaveWhilePending.delete(roomName)
@@ -701,6 +752,10 @@ export function useWsSync() {
         return
       }
       const wsUrl = getWebSocketUrl()
+      if (!plaintextRelayAllowed(wsUrl)) {
+        refusePlaintextRelay(wsUrl)
+        return
+      }
       const params = await getWsParams(workspaceId)
       if (leaveWhilePending.has(roomName)) {
         leaveWhilePending.delete(roomName)

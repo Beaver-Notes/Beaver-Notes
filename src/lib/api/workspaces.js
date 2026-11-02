@@ -6,6 +6,14 @@ import { bytesToHex } from '@/utils/crypto/hex';
 import { wrapNoteKeyForRecipient, recoverNoteKeyFromEnvelopes } from '@/utils/crypto/note-key';
 import { encryptName, decryptName } from '@/utils/crypto/comment-crypto';
 import { encryptJSON, decryptJSON } from '@/utils/sync/crypto';
+import {
+  isEncryptionAvailable,
+  encryptString,
+  decryptString,
+  storeSecureBlob,
+  fetchSecureBlob,
+  clearSecureBlob,
+} from '@/lib/native/security';
 import { settingsMirrorKey } from '@/lib/settings';
 
 // AAD domain binding vault-wrapped workspace key envelopes to their purpose,
@@ -21,40 +29,170 @@ const workspaceKeyCache = new Map();
 // Mirror of the cache in the per-instance settings namespace, so a restart
 // still has the key instead of having to re-unwrap it from the server.
 // One blob, not one key per workspace: sign-out clears it in a single call.
-const WORKSPACE_KEYS_MIRROR = 'workspace-keys';
+//
+// SC-1-02: the mirror is a credential (it is the E2E root for every workspace
+// note), so it is persisted the same way as session tokens — safeStorage-
+// encrypted (OS keyring) in a secure blob plus an encrypted localStorage
+// mirror, never in plaintext. The pre-fix plaintext mirror under
+// `workspace-keys` is migrated once on the first read and then deleted.
+const WORKSPACE_KEYS_MIRROR = 'workspace-keys-v2';
+const WORKSPACE_KEYS_LEGACY_MIRROR = 'workspace-keys';
+const WORKSPACE_KEYS_BLOB = 'workspaceKeysSecure';
 const WORKSPACE_KEY_HEX = /^[0-9a-f]{64}$/;
 
-function readPersistedWorkspaceKeys() {
+function safeStorageAvailable() {
+  return isEncryptionAvailable().catch(() => false);
+}
+
+function toBase64(input) {
+  if (typeof btoa === 'function') {
+    try {
+      return btoa(unescape(encodeURIComponent(input)));
+    } catch {
+      return input;
+    }
+  }
+  return input;
+}
+
+function fromBase64(base64) {
+  if (!base64) return '';
+  if (typeof atob !== 'function') return base64;
   try {
-    const raw = localStorage.getItem(settingsMirrorKey(WORKSPACE_KEYS_MIRROR));
+    return decodeURIComponent(escape(atob(base64)));
+  } catch {
+    return base64;
+  }
+}
+
+function sanitizePersistedKeys(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const keys = {};
+  for (const [id, hex] of Object.entries(parsed)) {
+    if (typeof id === 'string' && typeof hex === 'string' && WORKSPACE_KEY_HEX.test(hex)) {
+      keys[id] = hex;
+    }
+  }
+  return keys;
+}
+
+// Pre-fix plaintext mirror: legacy plaintext keys are read once, seeded into
+// the cache, persisted securely, and then deleted.
+function readLegacyPlaintextKeys() {
+  try {
+    const raw = localStorage.getItem(settingsMirrorKey(WORKSPACE_KEYS_LEGACY_MIRROR));
     const parsed = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    return sanitizePersistedKeys(parsed);
   } catch {
     return {};
   }
 }
 
+function seedCache(keys) {
+  for (const [id, hex] of Object.entries(keys)) workspaceKeyCache.set(id, hex);
+}
+
+// Producing the safeStorage cipher is async, so it can race a clear (account
+// switch / sign-out). The write is separated from the production and dropped
+// when `clearGeneration` moved meanwhile: a late write must never re-persist
+// the previous account's keys.
+async function buildWorkspaceKeysCipher() {
+  if (!(await safeStorageAvailable())) return null;
+  if (workspaceKeyCache.size === 0) return null;
+  return encryptString(toBase64(JSON.stringify(Object.fromEntries(workspaceKeyCache))));
+}
+
+function writeWorkspaceKeysCipher(cipher, generation) {
+  // Never fall back to a plaintext write.
+  if (generation !== clearGeneration) return;
+  try {
+    localStorage.setItem(settingsMirrorKey(WORKSPACE_KEYS_MIRROR), cipher);
+  } catch {
+    // Mirror is best-effort; the in-memory cache still serves this session.
+  }
+  if (generation !== clearGeneration) return;
+  storeSecureBlob(WORKSPACE_KEYS_BLOB, cipher).catch(() => {});
+}
+
+// Persists are serialized so the LAST snapshot (always the fullest) wins on
+// disk, and a queued persist is dropped once a clear happened — before the
+// async work AND again between producing the cipher and each write.
+let persistChain = Promise.resolve();
+let clearGeneration = 0;
+
+function queuePersistWorkspaceKeys() {
+  const generation = clearGeneration;
+  persistChain = persistChain
+    .then(async () => {
+      if (generation !== clearGeneration) return;
+      const cipher = await buildWorkspaceKeysCipher();
+      writeWorkspaceKeysCipher(cipher, generation);
+    })
+    .catch(() => {});
+}
+
+let hydratePromise = null;
+
+// Cold start: read the legacy plaintext mirror (migrate + delete), then the
+// encrypted blob / mirror, and seed the in-memory cache. Idempotent; the first
+// caller's promise is shared so concurrent recovery paths do not race.
+export function hydrateWorkspaceKeys() {
+  if (!hydratePromise) {
+    hydratePromise = (async () => {
+      const legacy = readLegacyPlaintextKeys();
+      if (Object.keys(legacy).length) {
+        seedCache(legacy);
+        // Generation-guarded: a clear racing the hydrate must not re-persist
+        // the previous account's keys. Deleting the plaintext immediately is
+        // always safe — it shortens the plaintext's life on disk.
+        queuePersistWorkspaceKeys();
+        try {
+          localStorage.removeItem(settingsMirrorKey(WORKSPACE_KEYS_LEGACY_MIRROR));
+        } catch {
+          // Nothing left behind if the key was never written.
+        }
+        return;
+      }
+      if (!(await safeStorageAvailable())) return;
+      let cipher = null;
+      try {
+        cipher = await fetchSecureBlob(WORKSPACE_KEYS_BLOB);
+      } catch {
+        cipher = null;
+      }
+      if (!cipher) {
+        try {
+          cipher = localStorage.getItem(settingsMirrorKey(WORKSPACE_KEYS_MIRROR));
+        } catch {
+          cipher = null;
+        }
+      }
+      if (!cipher) return;
+      try {
+        const plain = fromBase64(await decryptString(cipher));
+        seedCache(sanitizePersistedKeys(JSON.parse(plain)));
+      } catch {
+        // Undecryptable mirror (locked keyring, corrupt row): the network
+        // recovery path re-fetches the key instead of failing the app.
+      }
+    })().catch(() => {});
+  }
+  return hydratePromise;
+}
+
 export function getCachedWorkspaceKey(workspaceId) {
-  const cached = workspaceKeyCache.get(workspaceId);
-  if (cached) return cached;
-  // Cold start: nothing in the heap yet, so read the mirror. Anything that is
-  // not a well-formed key counts as absent rather than an error.
-  const persisted = readPersistedWorkspaceKeys()[workspaceId];
-  if (typeof persisted !== 'string' || !WORKSPACE_KEY_HEX.test(persisted)) return null;
-  workspaceKeyCache.set(workspaceId, persisted);
-  return persisted;
+  // In-memory cache only: the persisted mirror is decrypted asynchronously
+  // (OS keyring IPC), so it cannot be read on this sync path. Recovery paths
+  // await hydrateWorkspaceKeys() before falling back to the network.
+  return workspaceKeyCache.get(workspaceId) ?? null;
 }
 
 export function setCachedWorkspaceKey(workspaceId, workspaceKeyHex) {
   if (!workspaceId || typeof workspaceKeyHex !== 'string' || !workspaceKeyHex) return;
   workspaceKeyCache.set(workspaceId, workspaceKeyHex);
-  try {
-    const keys = readPersistedWorkspaceKeys();
-    keys[workspaceId] = workspaceKeyHex;
-    localStorage.setItem(settingsMirrorKey(WORKSPACE_KEYS_MIRROR), JSON.stringify(keys));
-  } catch {
-    // Mirror is best-effort; the in-memory cache still serves this session.
-  }
+  // Fire-and-forget: callers are sync contexts. A failed persist keeps this
+  // session working from memory and re-wraps from the server next start.
+  queuePersistWorkspaceKeys();
 }
 
 /**
@@ -63,11 +201,22 @@ export function setCachedWorkspaceKey(workspaceId, workspaceKeyHex) {
  */
 export function clearWorkspaceKeyCache() {
   workspaceKeyCache.clear();
+  clearGeneration += 1;
   try {
     localStorage.removeItem(settingsMirrorKey(WORKSPACE_KEYS_MIRROR));
+    localStorage.removeItem(settingsMirrorKey(WORKSPACE_KEYS_LEGACY_MIRROR));
   } catch {
     // Nothing to clear if the mirror was never written.
   }
+  // The blob wipe rides the same chain as persists: everything queued before
+  // this either completed (and is wiped now) or was generation-dropped, so a
+  // late persist write can never resurrect the previous account's keys.
+  persistChain = persistChain
+    .then(() => clearSecureBlob(WORKSPACE_KEYS_BLOB))
+    .catch(() => {
+      // Best-effort: the Rust-side blob is dropped on lock as well.
+    });
+  hydratePromise = null;
 }
 
 /** Wrap workspace key under session AEK so members recovering passphrase re-derive locally. Returns base64 envelope. */
@@ -339,6 +488,11 @@ export async function recoverWorkspaceKeyHex(workspaceId, identity, { baseUrl, s
   const cached = getCachedWorkspaceKey(workspaceId);
   if (cached) return cached;
   if (!identity?.privateKeyHex) return null;
+  // Cold start: decrypt the persisted mirror into the cache before falling
+  // back to a network round-trip for the record.
+  await hydrateWorkspaceKeys();
+  const hydrated = getCachedWorkspaceKey(workspaceId);
+  if (hydrated) return hydrated;
   let ws;
   try {
     ws = await getWorkspaceKeyRecord(workspaceId, { baseUrl, signal });

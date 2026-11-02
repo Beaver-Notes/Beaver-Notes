@@ -1,5 +1,6 @@
 import VideoComponent from './VideoComponent.vue';
 import { createFileBlock } from '../create-file-block';
+import { sanitizeMediaSource } from '@/utils/note/contentSecurity.js';
 
 const Video = createFileBlock({
   name: 'Video',
@@ -14,7 +15,12 @@ export default Video.extend({
       ...this.parent(),
       {
         tag: 'video',
-        getAttrs: (el) => ({ src: el.getAttribute('src') }),
+        getAttrs: (el) => {
+          const raw = el.getAttribute('src') || '';
+          const src = sanitizeMediaSource(raw);
+          if (raw && !src) return false;
+          return { src };
+        },
       },
     ];
   },

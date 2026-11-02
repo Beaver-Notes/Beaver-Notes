@@ -215,3 +215,135 @@ describe('encrypted relay websocket awareness path', () => {
     expect(warnSpy).toHaveBeenCalled();
   });
 });
+
+describe('SC-1-01: inbound plaintext binary frames are dropped', () => {
+  it('drops a plaintext y-sync frame instead of feeding y-websocket', async () => {
+    const key = await importCollabKey(KEY_HEX);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    installFakeWebSocket();
+
+    const WS = createEncryptedWebSocket(ROOM, () => key);
+    const ws = new WS('ws://test');
+    const received = [];
+    ws.onmessage = (event) => received.push(event.data);
+
+    // 0x00 || payload: exactly what a relay/MITM would send to inject an
+    // unencrypted Yjs update into the doc.
+    ws._beaverReceive({ data: new Uint8Array([SYNC, 1, 4, 24]).buffer });
+    ws._beaverReceive({ data: new Uint8Array([AWARENESS, 9]).buffer });
+    await ws._beaverRecvChain;
+
+    expect(received).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it('still delivers text frames (notifications, sender declarations)', async () => {
+    const key = await importCollabKey(KEY_HEX);
+    installFakeWebSocket();
+
+    const WS = createEncryptedWebSocket(ROOM, () => key);
+    const ws = new WS('ws://test');
+    const received = [];
+    ws.onmessage = (event) => received.push(event.data);
+
+    ws._beaverReceive({ data: JSON.stringify({ type: 'user-notification', kind: 'comment' }) });
+    await ws._beaverRecvChain;
+
+    expect(received).toHaveLength(1);
+    expect(JSON.parse(received[0]).type).toBe('user-notification');
+  });
+
+  it('drops inbound binary frames over the 2 MiB relay cap before decrypting', async () => {
+    const key = await importCollabKey(KEY_HEX);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    installFakeWebSocket();
+
+    const WS = createEncryptedWebSocket(ROOM, () => key);
+    const ws = new WS('ws://test');
+    let delivered = 0;
+    ws.onmessage = () => { delivered += 1; };
+
+    const oversized = new Uint8Array(2 * 1024 * 1024 + 1);
+    oversized[0] = 0xe7;
+    oversized[1] = 0x11;
+    ws._beaverReceive({ data: oversized.buffer });
+    await ws._beaverRecvChain;
+
+    expect(delivered).toBe(0);
+    expect(warnSpy).toHaveBeenCalled();
+  });
+});
+
+describe('SC-1-03: relay-declared read-only senders cannot push sync frames', () => {
+  function senderFrame(over) {
+    return { data: JSON.stringify({ type: 'sender', ...over }) };
+  }
+
+  it('drops a sync frame whose sender the relay declared read-only', async () => {
+    const key = await importCollabKey(KEY_HEX);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    installFakeWebSocket();
+
+    const WS = createEncryptedWebSocket(ROOM, () => key);
+    const ws = new WS('ws://test');
+    const received = [];
+    // y-websocket ignores text frames (ignoreTextFrames); count binary only.
+    ws.onmessage = (event) => {
+      if (typeof event.data === 'string') return;
+      received.push(new Uint8Array(event.data));
+    };
+
+    ws._beaverReceive(senderFrame({ userId: 'viewer-1', readOnly: true }));
+    ws._beaverReceive({ data: (await encryptFrame(key, new Uint8Array([SYNC, 7]), ROOM)).buffer });
+    await ws._beaverRecvChain;
+
+    expect(received).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it('still delivers a viewer\u2019s awareness frames (presence is not content)', async () => {
+    const key = await importCollabKey(KEY_HEX);
+    installFakeWebSocket();
+
+    const WS = createEncryptedWebSocket(ROOM, () => key);
+    const ws = new WS('ws://test');
+    const received = [];
+    ws.onmessage = (event) => {
+      if (typeof event.data === 'string') return;
+      received.push(new Uint8Array(event.data));
+    };
+
+    ws._beaverReceive(senderFrame({ userId: 'viewer-1', readOnly: true }));
+    ws._beaverReceive({ data: (await encryptFrame(key, new Uint8Array([AWARENESS, 3]), ROOM)).buffer });
+    await ws._beaverRecvChain;
+
+    expect(received).toHaveLength(1);
+    expect(Array.from(received[0])).toEqual([AWARENESS, 3]);
+  });
+
+  it('accepts frames from declared editors and undeclared senders (Redis fan-out)', async () => {
+    const key = await importCollabKey(KEY_HEX);
+    installFakeWebSocket();
+
+    const WS = createEncryptedWebSocket(ROOM, () => key);
+    const ws = new WS('ws://test');
+    const received = [];
+    ws.onmessage = (event) => {
+      if (typeof event.data === 'string') return;
+      received.push(new Uint8Array(event.data));
+    };
+
+    // Declared editor.
+    ws._beaverReceive(senderFrame({ userId: 'editor-1', readOnly: false }));
+    ws._beaverReceive({ data: (await encryptFrame(key, new Uint8Array([SYNC, 1]), ROOM)).buffer });
+    await ws._beaverRecvChain;
+    // Undeclared: multi-instance relays replicate frames without a sender
+    // declaration; failing closed there would black-hole real sync traffic.
+    ws._beaverReceive({ data: (await encryptFrame(key, new Uint8Array([SYNC, 2]), ROOM)).buffer });
+    await ws._beaverRecvChain;
+
+    expect(received).toHaveLength(2);
+    expect(Array.from(received[0])).toEqual([SYNC, 1]);
+    expect(Array.from(received[1])).toEqual([SYNC, 2]);
+  });
+});

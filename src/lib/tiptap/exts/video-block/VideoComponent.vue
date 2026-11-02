@@ -155,6 +155,14 @@ import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted, computed, watch } from 'vue';
 import { formatMediaTime } from '@/utils/mediaTime.js';
 import { youtubeEmbedId } from '@/lib/share/extractContent';
+import { isAllowedContentMediaSrc } from '@/utils/note/contentSecurity.js';
+
+// Render-sink gate (SC-4-02 round 2): live-Yjs attrs bypass parseHTML
+// getAttrs, so unsafe srcs are refused here and never reach the DOM.
+// Empty src (pending optimistic insert) passes through untouched.
+function sanitizeRenderSrc(src) {
+  return src && isAllowedContentMediaSrc(src) ? src : '';
+}
 
 export default {
   components: {
@@ -165,7 +173,7 @@ export default {
     const fileName = ref(props.node.attrs.fileName || '');
     const videoSrc = ref('');
     const youtubeEmbedSrc = computed(() => {
-      const id = youtubeEmbedId(videoSrc.value || props.node.attrs.src || '');
+      const id = youtubeEmbedId(videoSrc.value || '');
       return id ? `https://www.youtube-nocookie.com/embed/${id}` : '';
     });
     const videoPlayer = ref(null);
@@ -209,7 +217,7 @@ export default {
         videoPlayer.value.volume = 1;
         videoPlayer.value.playbackRate = playbackRate.value;
       }
-      videoSrc.value = props.node.attrs.src;
+      videoSrc.value = sanitizeRenderSrc(props.node.attrs.src);
       syncVideoLayout();
     });
 
@@ -223,7 +231,7 @@ export default {
     watch(
       () => props.node.attrs.src,
       (src) => {
-        videoSrc.value = src;
+        videoSrc.value = sanitizeRenderSrc(src);
       },
     );
 

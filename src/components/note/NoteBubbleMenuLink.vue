@@ -105,6 +105,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useRoute, useRouter } from 'vue-router';
 import { TextSelection } from 'prosemirror-state';
+import { isNoteHref, isSafeOpenUrl } from '@/utils/note/contentSecurity.js';
 
 export default {
   props: {
@@ -134,7 +135,7 @@ export default {
     const inputRef = ref(null);
 
     function isNoteUrl(href) {
-      return typeof href === 'string' && href.startsWith('note://');
+      return isNoteHref(href);
     }
 
     function positionCursorOnLink() {
@@ -394,7 +395,11 @@ export default {
       }
 
       if (attrs.href) {
-        window.open(attrs.href, '_blank', 'noopener,noreferrer');
+        // Raw mark attrs (possibly Yjs/JSON-imported): re-validate the scheme
+        // before handing the URL to the opener (SC-4-08).
+        if (isSafeOpenUrl(attrs.href)) {
+          window.open(attrs.href, '_blank', 'noopener,noreferrer');
+        }
       }
     }
 

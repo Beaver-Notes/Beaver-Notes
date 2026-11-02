@@ -43,7 +43,7 @@ import {
 } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
-import { sanitizeNoteContent } from '@/utils/note/contentSecurity.js';
+import { isSafeOpenUrl, sanitizeNoteContent } from '@/utils/note/contentSecurity.js';
 import { useRouter } from 'vue-router';
 import {
   extensions,
@@ -400,6 +400,9 @@ export default {
           return true;
         }
 
+        // Note-controlled URL: only web/mailto schemes may reach the opener
+        // (SC-4-08); anything else is swallowed.
+        if (!isSafeOpenUrl(href)) return true;
         window.open(href, '_blank', 'noopener');
         return true;
       }

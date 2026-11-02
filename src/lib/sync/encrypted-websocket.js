@@ -11,9 +11,13 @@
 //
 // Layout of an encrypted frame:
 //   MAGIC(2) || IV(12) || AES-256-GCM(frame)
-// MAGIC marks the frame as encrypted so plaintext control frames (from an
-// older client or the relay itself) can be passed through untouched. Text
-// frames stay in the clear: they carry JSON notifications, no note content.
+// MAGIC marks the frame as encrypted. Inbound binary frames WITHOUT the prefix
+// are dropped, not passed through: the relay itself refuses them (ws-relay
+// `warnUnknownFrame`), so a plaintext binary frame on this socket can only be
+// a downgrade attempt by the relay's operator or a ws:// MITM — accepting it
+// would let them inject Yjs updates and forge presence into an E2E room. Text
+// frames stay in the clear: they carry JSON notifications and the relay's
+// per-frame sender declaration, no note content.
 
 import { encryptUpdate, decryptUpdate } from '@/utils/crypto/collab.js';
 
@@ -21,6 +25,14 @@ const MAGIC = [0xe7, 0x11];
 const SYNC_MESSAGE = 0;
 const AWARENESS_MESSAGE = 1;
 const OPEN = 1;
+
+// Aligned with the relay's 2 MiB maxPayload (Beaver-Sync ws-relay.js
+// WS_RELAY_MAX_PAYLOAD_BYTES). The relay terminates oversized frames itself,
+// but a ws:// MITM bypasses it: cap before decrypt so an inbound flood cannot
+// grow unbounded through crypto.subtle.decrypt + Y.applyUpdate.
+const MAX_RELAY_FRAME_BYTES = 2 * 1024 * 1024;
+// Rate-limit drop warnings so a flood cannot flood the log either.
+const WARN_INTERVAL_MS = 60_000;
 
 export function isEncryptedFrame(bytes) {
   return bytes.length > MAGIC.length && bytes[0] === MAGIC[0] && bytes[1] === MAGIC[1];
@@ -70,6 +82,12 @@ export function createEncryptedWebSocket(roomName, getKey) {
       // holding frames. Bounded by the 5s key wait, then failed closed.
       this._beaverQueuedFrames = null;
       this._beaverKeyWait = null;
+      // The relay declares each relayed frame's sender ({ type: 'sender',
+      // readOnly }) right before the binary frame. `null` = undeclared (old
+      // relay or Redis-replicated fan-out): no gate, fail open.
+      this._beaverSenderReadOnly = null;
+      this._beaverLastWarn = 0;
+      this._beaverDropped = 0;
       this.addEventListener('message', (event) => this._beaverReceive(event));
     }
 
@@ -179,29 +197,79 @@ export function createEncryptedWebSocket(roomName, getKey) {
       return null;
     }
 
+    // One warning per minute per socket: a flood of dropped frames must not
+    // become a log flood.
+    _beaverWarnRateLimited(message) {
+      this._beaverDropped += 1;
+      const now = Date.now();
+      if (now - this._beaverLastWarn < WARN_INTERVAL_MS) return;
+      this._beaverLastWarn = now;
+      console.warn(`[ws-sync] ${message} (${this._beaverDropped} dropped in ${roomName})`);
+    }
+
+    // Track the relay's sender declaration so a declared read-only sender's
+    // sync frames can be refused below (SC-1-03). The declaration precedes
+    // exactly one binary frame on the same ordered socket.
+    _beaverTrackSender(event) {
+      if (typeof event.data !== 'string') return;
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg && msg.type === 'sender') {
+          this._beaverSenderReadOnly = msg.readOnly === true;
+        }
+      } catch {
+        // Not JSON (user notification, noise): nothing to track.
+      }
+    }
+
     _beaverReceive(event) {
       const handler = this._beaverOnMessage;
       this._beaverRecvChain = this._beaverRecvChain
         .then(async () => {
           if (typeof handler !== 'function') return;
+          this._beaverTrackSender(event);
           const bytes = toBytes(event.data);
           if (!bytes) {
+            // Text frame: JSON notifications and sender declarations, no note
+            // content. Forwarded untouched.
             handler.call(this, event);
             return;
           }
-          let payload = bytes;
-          if (isEncryptedFrame(bytes)) {
-            const key = getKey();
-            if (!key) {
-              console.warn('[ws-sync] dropping inbound frame, no room key:', roomName);
-              return;
-            }
-            try {
-              payload = await decryptFrame(key, bytes, roomName);
-            } catch (err) {
-              console.warn('[ws-sync] failed to decrypt frame:', err?.message || err);
-              return;
-            }
+          if (bytes.byteLength > MAX_RELAY_FRAME_BYTES) {
+            this._beaverWarnRateLimited('dropping oversized relay frame (over the relay 2 MiB cap)');
+            return;
+          }
+          if (!isEncryptedFrame(bytes)) {
+            // Fail closed: current clients encrypt every binary frame, and the
+            // relay refuses plaintext ones too, so a frame arriving without
+            // MAGIC is a downgrade attempt (SC-1-01).
+            this._beaverWarnRateLimited('dropping non-encrypted binary frame');
+            return;
+          }
+          const key = getKey();
+          if (!key) {
+            console.warn('[ws-sync] dropping inbound frame, no room key:', roomName);
+            return;
+          }
+          let payload;
+          try {
+            payload = await decryptFrame(key, bytes, roomName);
+          } catch (err) {
+            console.warn('[ws-sync] failed to decrypt frame:', err?.message || err);
+            return;
+          }
+          // SC-1-03: a viewer holding a valid ticket can still emit sync
+          // frames; the relay knows their role from the ticket and says so.
+          // Awareness (presence) from a viewer stays allowed.
+          const senderReadOnly = this._beaverSenderReadOnly;
+          this._beaverSenderReadOnly = null;
+          if (
+            senderReadOnly === true &&
+            payload.length > 0 &&
+            payload[0] === SYNC_MESSAGE
+          ) {
+            this._beaverWarnRateLimited('dropping sync frame from a read-only participant');
+            return;
           }
           handler.call(this, { data: payload.buffer, type: 'message' });
         })

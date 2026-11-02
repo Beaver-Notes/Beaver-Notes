@@ -7,6 +7,17 @@ const PEER_COLORS = [
   '#EC4899', '#06B6D4', '#F97316', '#6366F1', '#14B8A6',
 ];
 
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+/**
+ * Colors from remote awareness states reach inline style attributes
+ * (live-collab highlights, collaboration cursors), so anything that is not a
+ * strict hex color is rejected (SC-4-03) and the fallback is used instead.
+ */
+export function safePeerColor(color, fallback = '') {
+  return HEX_COLOR_RE.test(String(color || '')) ? color : fallback;
+}
+
 export function getColorFromId(id) {
   if (!id) return PEER_COLORS[0];
   let hash = 0;

@@ -42,7 +42,7 @@ describe('version-preview block-aware decorations', () => {
     const editor = makeEditor([VersionPreview]);
     editor.commands.setContent('<p>Hello</p><ul><li>new item</li></ul>');
 
-    const snapshotHtml = '<p>Hello</p><p><img src="x.png" alt="pic"></p>';
+    const snapshotHtml = '<p>Hello</p><p><img src="assets://n1/x.png" alt="pic"></p>';
     editor.commands.setVersionPreview(snapshotHtml, { label: 'v1' });
 
     const dom = editor.view.dom;
@@ -52,7 +52,7 @@ describe('version-preview block-aware decorations', () => {
     expect(ghosts).toHaveLength(1);
     expect(ghosts[0].getAttribute('contenteditable')).toBe('false');
     const img = ghosts[0].querySelector('img');
-    expect(img?.getAttribute('src')).toBe('x.png');
+    expect(img?.getAttribute('src')).toBe('assets://n1/x.png');
     expect(img?.getAttribute('alt')).toBe('pic');
 
     // (b) the added list renders as a node-decoration block pill

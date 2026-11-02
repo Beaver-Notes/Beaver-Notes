@@ -67,6 +67,14 @@ export function unregisterActiveDoc(noteId) {
   activeDocs.delete(noteId);
 }
 
+// SC-1-05: the buffer holds decrypted note content, so it must not outlive
+// the account. Sign-out/teardown clears it; in-flight registration replays
+// are torn down with the docs they belong to.
+export function clearPendingRemote() {
+  pendingRemote.clear();
+  missingDocLogged.clear();
+}
+
 // Notified after a remote update actually changed an active doc. Used by the
 // note page to surface the "merged changes — review" banner. Listeners are
 // intentionally not called for idempotent replays (Yjs only emits `update`

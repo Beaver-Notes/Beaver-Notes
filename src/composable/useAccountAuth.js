@@ -132,6 +132,15 @@ async function teardownLocalAccountState() {
     console.warn('[auth] note store teardown failed:', err);
   }
 
+  // Same for the decrypted remote-update buffer (SC-1-05): pulled Yjs updates
+  // sit in module memory until a doc with the same id registers.
+  try {
+    const { clearPendingRemote } = await import('@/lib/yjs/shared.js');
+    clearPendingRemote();
+  } catch (err) {
+    console.warn('[auth] pending remote teardown failed:', err);
+  }
+
   // Drop the collaboration state that carries decrypted text and emails.
   try {
     const [{ useCommentStore }, { useCollaboratorStore }, { useWorkspaceStore }] =

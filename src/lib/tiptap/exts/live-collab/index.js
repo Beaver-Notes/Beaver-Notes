@@ -3,7 +3,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { ySyncPluginKey } from '@tiptap/y-tiptap';
 import * as Y from 'yjs';
-import { getColorFromId } from '@/composable/usePresence';
+import { getColorFromId, safePeerColor } from '@/composable/usePresence';
 import { computeVersionChanges } from '../version-preview/index.js';
 
 export const liveCollabKey = new PluginKey('liveCollab');
@@ -97,7 +97,11 @@ export function resolveLiveAuthor(clientIds, awareness) {
       return {
         id: user.id || null,
         name: user.name || LIVE_COLLAB_FALLBACK_NAME,
-        color: user.color || getColorFromId(user.id) || LIVE_COLLAB_NEUTRAL_COLOR,
+        // Remote-supplied: clamped to a strict hex format before it can reach
+        // the decoration style attribute (SC-4-03). No id to hash → neutral.
+        color:
+          safePeerColor(user.color) ||
+          (user.id ? getColorFromId(user.id) : LIVE_COLLAB_NEUTRAL_COLOR),
       };
     }
   }
@@ -116,7 +120,10 @@ export function resolveLocalAuthor(awareness) {
   return {
     id: user.id || null,
     name: user.name || 'You',
-    color: user.color || getColorFromId(user.id) || LIVE_COLLAB_NEUTRAL_COLOR,
+    color:
+      safePeerColor(user.color) ||
+      getColorFromId(user.id) ||
+      LIVE_COLLAB_NEUTRAL_COLOR,
   };
 }
 

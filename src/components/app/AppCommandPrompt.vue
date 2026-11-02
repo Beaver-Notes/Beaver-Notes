@@ -477,10 +477,10 @@ const openSelectedInNewTab = () => {
   if (!item) return;
   if (item.type === 'note' && item.id) {
     const resolved = router.resolve(`/note/${item.id}`);
-    window.open(resolved.href, '_blank');
+    window.open(resolved.href, '_blank', 'noopener,noreferrer');
   } else if (item.type === 'folder') {
     const resolved = router.resolve(`/folder/${item.id}`);
-    window.open(resolved.href, '_blank');
+    window.open(resolved.href, '_blank', 'noopener,noreferrer');
   }
   clear();
 };

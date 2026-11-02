@@ -1,6 +1,10 @@
 import { Node, mergeAttributes, nodeInputRule } from '@tiptap/core';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import { saveFile } from '@/utils/assets/storage.js';
+import {
+  sanitizeFileSource,
+  sanitizeMediaSource,
+} from '@/utils/note/contentSecurity.js';
 
 const inputRegex = /!\[(.+|:?)]\((\S+)(?:(?:\s+)["'](\S+)["'])?\)/;
 
@@ -60,6 +64,10 @@ export function createFileBlock({
   extraAttrs = [],
   buildAttrs,
 }) {
+  // Schema-level src gate (SC-4-02): fileEmbed may carry inline data: URLs of
+  // any mime (share-import embeds), media blocks may not.
+  const sanitizeSource =
+    name === 'fileEmbed' ? sanitizeFileSource : sanitizeMediaSource;
   const baseAttrs = { src: { default: null }, fileName: { default: null } };
   for (const key of extraAttrs) {
     if (!(key in baseAttrs)) {
@@ -92,23 +100,29 @@ export function createFileBlock({
       return [
         {
           tag: 'span[data-file-name]',
-          getAttrs: (el) => ({
-            src: el.getAttribute('data-src'),
-            fileName: el.getAttribute('data-file-name'),
-            width: (() => {
-              const raw =
-                el.getAttribute('data-width') ?? el.getAttribute('width');
-              const w = parseInt(raw, 10);
-              return Number.isFinite(w) ? w : null;
-            })(),
-            layout: (() => {
-              const raw =
-                el.getAttribute('data-layout') ?? el.getAttribute('layout');
-              return ['block', 'wrap-left', 'wrap-right'].includes(raw)
-                ? raw
-                : null;
-            })(),
-          }),
+          getAttrs: (el) => {
+            const rawSrc = el.getAttribute('data-src') || '';
+            const src = sanitizeSource(rawSrc);
+            // Keep pending inserts (empty src), drop unsafe schemes entirely.
+            if (rawSrc && !src) return false;
+            return {
+              src,
+              fileName: el.getAttribute('data-file-name'),
+              width: (() => {
+                const raw =
+                  el.getAttribute('data-width') ?? el.getAttribute('width');
+                const w = parseInt(raw, 10);
+                return Number.isFinite(w) ? w : null;
+              })(),
+              layout: (() => {
+                const raw =
+                  el.getAttribute('data-layout') ?? el.getAttribute('layout');
+                return ['block', 'wrap-left', 'wrap-right'].includes(raw)
+                  ? raw
+                  : null;
+              })(),
+            };
+          },
         },
       ];
     },

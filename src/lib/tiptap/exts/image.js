@@ -3,6 +3,10 @@ import { Plugin, PluginKey } from 'prosemirror-state';
 import { useStore } from '@/store';
 import copyImage from '@/utils/assets/storage.js';
 import { writeImageFile } from '@/utils/assets/storage.js';
+import {
+  isAllowedContentMediaSrc,
+  sanitizeImageSource,
+} from '@/utils/note/contentSecurity.js';
 import mime from 'mime';
 
 const HANDLE_SIDES = ['left', 'right'];
@@ -65,6 +69,17 @@ function applyImageAttributes(nodeAttrs, imgElement) {
       imgElement.removeAttribute(key);
       return;
     }
+
+    if (key === 'src') {
+      // Render-sink gate (SC-4-02 round 2): live-Yjs attrs bypass parseHTML
+      // getAttrs, so unsafe schemes are refused here and never reach the DOM.
+      // Empty src (pending optimistic insert) still renders as before.
+      if (value && !isAllowedContentMediaSrc(value)) {
+        imgElement.removeAttribute('src');
+        return;
+      }
+    }
+
 
     if (key === 'width') {
       imgElement.setAttribute('width', String(value));
@@ -535,11 +550,19 @@ export default Image.extend({
     return [
       {
         tag: 'img[src]',
-        getAttrs: (el) => ({
-          src: el.getAttribute('src'),
-          alt: el.getAttribute('alt') || el.getAttribute('title') || 'image',
-          title: el.getAttribute('title'),
-        }),
+        getAttrs: (el) => {
+          // Schema-level src gate (SC-4-02): unsafe schemes never become image
+          // nodes. Empty src is kept (matches pre-guard behavior for pending
+          // optimistic inserts); only non-empty unsafe values are dropped.
+          const raw = el.getAttribute('src') || '';
+          const src = sanitizeImageSource(raw);
+          if (raw && !src) return false;
+          return {
+            src,
+            alt: el.getAttribute('alt') || el.getAttribute('title') || 'image',
+            title: el.getAttribute('title'),
+          };
+        },
       },
     ];
   },

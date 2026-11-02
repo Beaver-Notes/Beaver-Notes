@@ -54,6 +54,24 @@ export async function listCommits(noteId) {
   }));
 }
 
+// The commit payload exactly as sealed, parsed but NOT decrypted. SC-1-04
+// needs this to test a *candidate* key against a durable row without going
+// through resolveCommitKey (which would adopt the key being verified).
+export async function fetchCommitEnvelope(commitHash, noteId = '') {
+  const client = getClient();
+  const response = await client.get(
+    `/commits/${encodeURIComponent(commitHash)}`,
+    noteId ? { headers: { 'X-Note-Id': noteId } } : undefined
+  );
+  const payload = response?.data || response;
+  if (typeof payload !== 'string') return payload ?? null;
+  try {
+    return JSON.parse(payload);
+  } catch {
+    return null;
+  }
+}
+
 export async function getCommitSnapshot(commitHash, noteId = '') {
   const client = getClient();
   const response = await client.get(

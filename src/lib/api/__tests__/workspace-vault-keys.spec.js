@@ -46,10 +46,25 @@ async function rustDecrypt(env, aad) {
 }
 
 vi.mock('@/utils/crypto/encryption.js', () => ({ isEncryptionEnabled: () => true }));
+// SC-1-02: stateful safeStorage mock so tests can assert which SLOT received
+// the workspace-key cipher (same approach as account-storage.spec.js). The
+// fns are vi.fn so race tests can block them mid-flight (ISSUE-3).
+const { wsBlobs } = vi.hoisted(() => ({ wsBlobs: new Map() }));
+
 vi.mock('@/lib/native/security.js', () => ({
   syncEncryptPayload: (meta, data, aad) => rustEncrypt(meta, data, aad),
   syncDecryptPayload: (enc, aad) => rustDecrypt(enc, aad),
   syncKeyReady: () => Promise.resolve(true),
+  isEncryptionAvailable: vi.fn(async () => true),
+  encryptString: vi.fn(async (s) => `cipher:${s}`),
+  decryptString: vi.fn(async (s) => s.replace(/^cipher:/, '')),
+  storeSecureBlob: vi.fn(async (key, blob) => {
+    wsBlobs.set(key, blob);
+  }),
+  fetchSecureBlob: vi.fn(async (key) => wsBlobs.get(key) ?? null),
+  clearSecureBlob: vi.fn(async (key) => {
+    wsBlobs.delete(key);
+  }),
 }));
 
 const accountMock = {
@@ -95,6 +110,9 @@ const {
   unwrapWorkspaceKeysFromVault,
   createWorkspace,
   getCachedWorkspaceKey,
+  setCachedWorkspaceKey,
+  clearWorkspaceKeyCache,
+  hydrateWorkspaceKeys,
 } = await import('../workspaces.js');
 const { syncEncryptPayload } = await import('@/lib/native/security.js');
 const { decryptJSON } = await import('@/utils/sync/crypto.js');
@@ -240,5 +258,105 @@ describe('vault-wrapped workspace keys', () => {
     expect(getCachedWorkspaceKey('ws-bad')).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+});
+
+// SC-1-02: the workspace key is the E2E root for every note in the workspace,
+// so the mirror must ride safeStorage like every other credential — never
+// plaintext localStorage.
+describe('SC-1-02: workspace keys persist through safeStorage, not plaintext', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    wsBlobs.clear();
+    clearWorkspaceKeyCache();
+  });
+
+  test('setCachedWorkspaceKey stores a cipher in the secure blob and the encrypted mirror', async () => {
+    setCachedWorkspaceKey('ws-sec', HEX);
+
+    await vi.waitFor(() => {
+      expect(wsBlobs.get('workspaceKeysSecure')).toBeTruthy();
+    });
+    const cipher = wsBlobs.get('workspaceKeysSecure');
+    expect(cipher).toMatch(/^cipher:/);
+    expect(localStorage.getItem('workspace-keys-v2')).toBe(cipher);
+    // No plaintext copy anywhere on disk: the pre-fix mirror key is gone and
+    // the v2 mirror holds only the safeStorage cipher.
+    expect(localStorage.getItem('workspace-keys')).toBeNull();
+    expect(localStorage.getItem('workspace-keys-v2')).not.toContain(HEX);
+  });
+
+  test('hydrateWorkspaceKeys re-seeds the cache from the secure blob on cold start', async () => {
+    setCachedWorkspaceKey('ws-cold', HEX);
+    await vi.waitFor(() => {
+      expect(wsBlobs.get('workspaceKeysSecure')).toBeTruthy();
+    });
+    const cipher = wsBlobs.get('workspaceKeysSecure');
+
+    clearWorkspaceKeyCache();
+    expect(getCachedWorkspaceKey('ws-cold')).toBeNull();
+    // Let the chained blob wipe land, then re-seed it as a persisted install
+    // would have it and hydrate.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    wsBlobs.set('workspaceKeysSecure', cipher);
+    await hydrateWorkspaceKeys();
+
+    expect(getCachedWorkspaceKey('ws-cold')).toBe(HEX);
+  });
+
+  test('the pre-fix plaintext mirror is migrated to safeStorage and deleted', async () => {
+    // A pre-fix install left the raw hex JSON in localStorage.
+    localStorage.setItem('workspace-keys', JSON.stringify({ 'ws-legacy': HEX }));
+
+    await hydrateWorkspaceKeys();
+
+    expect(getCachedWorkspaceKey('ws-legacy')).toBe(HEX);
+    await vi.waitFor(() => {
+      expect(wsBlobs.get('workspaceKeysSecure')).toMatch(/^cipher:/);
+    });
+    expect(localStorage.getItem('workspace-keys')).toBeNull();
+    expect(localStorage.getItem('workspace-keys-v2')).toMatch(/^cipher:/);
+  });
+
+  test('clearWorkspaceKeyCache wipes the secure blob and both mirrors', async () => {
+    setCachedWorkspaceKey('ws-wipe', HEX);
+    await vi.waitFor(() => {
+      expect(wsBlobs.get('workspaceKeysSecure')).toBeTruthy();
+    });
+
+    clearWorkspaceKeyCache();
+
+    expect(getCachedWorkspaceKey('ws-wipe')).toBeNull();
+    expect(localStorage.getItem('workspace-keys-v2')).toBeNull();
+    expect(localStorage.getItem('workspace-keys')).toBeNull();
+    // The blob wipe rides the persist chain (ISSUE-3), so it lands a tick later.
+    await vi.waitFor(() => {
+      expect(wsBlobs.get('workspaceKeysSecure')).toBeUndefined();
+    });
+  });
+
+  // ISSUE-3: the cipher is produced asynchronously; a clear (account switch /
+  // sign-out) landing while it is in flight must drop the write, or the
+  // previous account's keys would be re-persisted after sign-out.
+  test('a clear landing mid-persist drops the write (no resurrection)', async () => {
+    const security = await import('@/lib/native/security.js');
+    let releaseCipher;
+    security.encryptString.mockImplementationOnce(
+      () => new Promise((resolve) => { releaseCipher = resolve; })
+    );
+
+    setCachedWorkspaceKey('ws-race', HEX);
+    // The queued persist is now blocked inside encryptString.
+    await vi.waitFor(() => expect(releaseCipher).toBeDefined());
+
+    clearWorkspaceKeyCache(); // generation bumps while the cipher is in flight
+    releaseCipher(`cipher:${HEX}`); // persist resumes — it must be dropped
+
+    // Let the chain settle: the dropped task, then the chained blob wipe.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(localStorage.getItem('workspace-keys-v2')).toBeNull();
+    expect(wsBlobs.get('workspaceKeysSecure')).toBeUndefined();
+    expect(getCachedWorkspaceKey('ws-race')).toBeNull();
   });
 });
