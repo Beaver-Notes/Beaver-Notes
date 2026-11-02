@@ -60,7 +60,7 @@
     "@wdio/mocha-framework": "^9.30.0",
     "@wdio/spec-reporter": "^9.29.1",
     "autoprefixer": "^10.3.1",
-    "happy-dom": "^20.10.6",
+    "happy-dom": "^21.0.4",
     "knip": "^6.34.0",
     "lint-staged": "^17.5.0",
     "oxlint": "^1.73.0",
