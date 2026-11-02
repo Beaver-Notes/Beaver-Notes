@@ -8,6 +8,34 @@ import {
 
 const inputRegex = /!\[(.+|:?)]\((\S+)(?:(?:\s+)["'](\S+)["'])?\)/;
 
+const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv', 'mkv', 'avi']);
+const AUDIO_EXTS = new Set([
+  'mp3', 'm4a', 'wav', 'ogg', 'oga', 'flac', 'aac', 'opus', 'weba',
+]);
+const MEDIA_EXTS = new Set([...VIDEO_EXTS, ...AUDIO_EXTS]);
+
+function fileExtension(fileName) {
+  const m = /\.([a-z0-9]+)$/i.exec(String(fileName || ''));
+  return m ? m[1].toLowerCase() : '';
+}
+
+/**
+ * Legacy span[data-file-name] HTML carries no data-block-name, so the three
+ * factory types race for the same parse rule and fileEmbed won (a pasted
+ * .mp4/.mp3 became a file embed). Media types now claim only their own
+ * extensions; fileEmbed takes the rest. In-app copies declare
+ * data-block-name and are exact either way.
+ * shortcut: a media file attached as a *file* embed parses as Video/Audio on
+ * legacy HTML only — upgrade to a content-hash discriminator if that shows up.
+ */
+function claimsLegacySpan(nodeName, fileName) {
+  const ext = fileExtension(fileName);
+  if (nodeName === 'fileEmbed') return !MEDIA_EXTS.has(ext);
+  if (nodeName === 'Video') return VIDEO_EXTS.has(ext);
+  if (nodeName === 'Audio') return AUDIO_EXTS.has(ext);
+  return true;
+}
+
 /**
  * Swap the src of a file-like block node (audio/video/file) after its asset
  * finishes saving in the background. Matches by temp src (+ fileName when
@@ -101,13 +129,17 @@ export function createFileBlock({
         {
           tag: 'span[data-file-name]',
           getAttrs: (el) => {
+            const declared = el.getAttribute('data-block-name');
+            if (declared && declared !== name) return false;
             const rawSrc = el.getAttribute('data-src') || '';
             const src = sanitizeSource(rawSrc);
             // Keep pending inserts (empty src), drop unsafe schemes entirely.
             if (rawSrc && !src) return false;
+            const fileName = el.getAttribute('data-file-name');
+            if (!declared && !claimsLegacySpan(name, fileName)) return false;
             return {
               src,
-              fileName: el.getAttribute('data-file-name'),
+              fileName,
               width: (() => {
                 const raw =
                   el.getAttribute('data-width') ?? el.getAttribute('width');
@@ -140,6 +172,9 @@ export function createFileBlock({
         if (value == null) continue;
         attrs[renames[key] || key] = value;
       }
+      // Declaring the node type makes clipboard round-trips exact instead of
+      // racing the shared span[data-file-name] rule (see claimsLegacySpan).
+      attrs['data-block-name'] = name;
       return ['span', mergeAttributes(attrs)];
     },
     addNodeView() {

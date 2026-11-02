@@ -5,6 +5,7 @@ import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import Image from '../image';
 import Video from '../video-block';
+import Audio from '../audio-block';
 import FileEmbed from '../file-block';
 
 // Schema-only test: generateJSON runs the parse rules without an editor
@@ -16,9 +17,10 @@ vi.mock('@/utils/assets/storage.js', async (importOriginal) => {
   return { ...actual, default: noop, writeImageFile: noop, saveFile: noop };
 });
 vi.mock('../video-block/VideoComponent.vue', () => ({ default: {} }));
+vi.mock('../audio-block/AudioComponent.vue', () => ({ default: {} }));
 vi.mock('../file-block/FileEmbedComponent.vue', () => ({ default: {} }));
 
-const exts = [Document, Paragraph, Text, Image, Video, FileEmbed];
+const exts = [Document, Paragraph, Text, Image, Video, Audio, FileEmbed];
 
 function nodesOfType(json, type) {
   const found = [];
@@ -75,19 +77,47 @@ describe('schema-level media src gate (SC-4-02)', () => {
         '<span data-file-name="ok.pdf" data-src="assets://n1/ok.pdf"></span>',
       exts
     );
-    // Video and fileEmbed share one span[data-file-name] clipboard signature,
-    // so a legit payload may be attributed to either node type (pre-existing
-    // theft, Video registers first — follow-up logged in the SDD ledger).
-    // What must hold forever: unsafe schemes never survive in ANY block type,
-    // and legit payloads (incl. pending empty-src inserts) are preserved.
-    const srcs = [
-      ...nodesOfType(json, 'fileEmbed'),
-      ...nodesOfType(json, 'Video'),
-    ].map((n) => n.attrs.src);
-    expect(srcs).not.toContain('file:///etc/passwd');
-    expect(srcs).toContain('');
-    expect(srcs).toContain('data:application/pdf;base64,AAA=');
-    expect(srcs).toContain('assets://n1/ok.pdf');
+    const embeds = nodesOfType(json, 'fileEmbed');
+    expect(embeds.map((n) => n.attrs.src)).toEqual([
+      '',
+      'data:application/pdf;base64,AAA=',
+      'assets://n1/ok.pdf',
+    ]);
+    expect(JSON.stringify(json)).not.toContain('file:///etc/passwd');
+  });
+
+  it('attributes legacy spans to their own block type by extension', () => {
+    // No data-block-name (old HTML / pre-fix copies): fileEmbed used to steal
+    // every span regardless of type, so a pasted video became a file embed.
+    const json = generateJSON(
+      '<span data-file-name="clip.mp4" data-src="assets://n1/clip.mp4"></span>' +
+        '<span data-file-name="song.mp3" data-src="assets://n1/song.mp3"></span>' +
+        '<span data-file-name="ok.pdf" data-src="assets://n1/ok.pdf"></span>',
+      exts
+    );
+    expect(nodesOfType(json, 'Video').map((n) => n.attrs.fileName)).toEqual([
+      'clip.mp4',
+    ]);
+    expect(nodesOfType(json, 'Audio').map((n) => n.attrs.fileName)).toEqual([
+      'song.mp3',
+    ]);
+    expect(nodesOfType(json, 'fileEmbed').map((n) => n.attrs.fileName)).toEqual(
+      ['ok.pdf']
+    );
+  });
+
+  it('declared data-block-name wins over the extension heuristic', () => {
+    const json = generateJSON(
+      '<span data-block-name="Video" data-file-name="odd.pdf" data-src="assets://n1/odd.pdf"></span>' +
+        '<span data-block-name="fileEmbed" data-file-name="movie.mp4" data-src="assets://n1/movie.mp4"></span>',
+      exts
+    );
+    expect(nodesOfType(json, 'Video').map((n) => n.attrs.fileName)).toEqual([
+      'odd.pdf',
+    ]);
+    expect(nodesOfType(json, 'fileEmbed').map((n) => n.attrs.fileName)).toEqual(
+      ['movie.mp4']
+    );
   });
 
   it('drops Video data: payloads (media must not carry inline data)', () => {
