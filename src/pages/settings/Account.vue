@@ -1,166 +1,276 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="mb-14 w-full max-w-xl space-y-6">
-    <section v-if="accounts.length && !addingAccount" class="space-y-2">
-      <h2 class="acct-heading">
-        {{ translations.account?.accounts || 'Accounts' }}
-      </h2>
-
-      <ui-card padding="p-0">
-        <div
-          v-for="(acct, index) in accounts"
-          :key="acct.id"
-          class="acct-row flex items-center gap-3"
-          :class="{ 'acct-divided': index > 0 }"
-        >
-          <button
-            class="flex min-w-0 flex-1 items-center gap-3 text-left"
-            :data-testid="
-              acct.id === activeAccountId
-                ? 'account-manager-active'
-                : 'account-manager-option'
-            "
-            @click="selectAccount(acct.id)"
-          >
-            <ui-user-avatar
-              :name="accountLabel(acct)"
-              :size="40"
-              :class="acct.id === activeAccountId ? 'ring-2 ring-primary' : ''"
-            />
-            <span class="min-w-0 flex-1">
-              <span
-                class="block truncate text-sm"
-                :class="
-                  acct.id === activeAccountId
-                    ? 'font-medium text-primary'
-                    : 'text-neutral-700 dark:text-neutral-300'
-                "
-              >
-                {{ accountLabel(acct) }}
-              </span>
-              <span class="acct-desc block truncate">
-                {{ planLabel(accountPlan(acct)) }} · {{ acct.serverUrl }}
-              </span>
-            </span>
-            <v-remixicon
-              v-if="acct.id === activeAccountId"
-              name="riCheckLine"
-              size="16"
-              class="shrink-0 text-primary"
-            />
-          </button>
-
-          <button
-            class="shrink-0 text-xs font-medium text-neutral-500 transition-colors hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400"
-            @click="promptSignOutAccount(acct)"
-          >
-            {{ translations.account?.signOut || 'Sign out' }}
-          </button>
-        </div>
-
-        <div class="acct-row acct-divided">
-          <button
-            class="flex items-center gap-2 text-sm font-medium text-primary"
-            @click="addAccount"
-          >
-            <v-remixicon name="riAddLine" size="16" />
-            {{ translations.account?.addAccount || 'Add account' }}
-          </button>
-        </div>
-      </ui-card>
-    </section>
-
-    <section v-if="accountStore.isAnonymous || addingAccount" class="space-y-2">
-      <h2 class="acct-heading">
-        {{ translations.account?.title || 'Beaver Account' }}
-      </h2>
-
-      <ui-card padding="p-0">
-        <!-- Intro -->
-        <div class="acct-row flex items-start gap-4">
-          <ui-beaver-character class="w-14 shrink-0" />
-          <div class="min-w-0 flex-1">
-            <p class="acct-title">
-              {{
-                translations.account?.signInHeading ||
-                'Sign in to sync across devices.'
-              }}
+  <div class="general mb-14 w-full max-w-xl space-y-6">
+    <!-- Account Switcher -->
+    <settings-group
+      v-if="!addingAccount && (accounts.length || !accountStore.isAnonymous)"
+      :title="translations.account?.accounts || 'Accounts'"
+    >
+      <!-- Current account -->
+      <div
+        v-if="!accountStore.isAnonymous"
+        data-testid="account-manager-active"
+        class="flex flex-wrap items-center gap-3 px-4 py-3.5"
+      >
+        <ui-user-avatar :name="displayName" :size="40" class="shrink-0" />
+        <div class="min-w-[10rem] flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <p
+              class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ displayName }}
             </p>
-            <p class="acct-desc">
+            <span
+              v-if="accountStore.profile?.emailVerified === true"
+              class="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300"
+            >
+              {{ translations.account?.verified || 'Verified' }}
+            </span>
+          </div>
+          <p
+            class="mt-0.5 truncate text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+          >
+            <template v-if="accountStore.profile?.username">
+              @{{ accountStore.profile.username }}
+            </template>
+            <template v-else-if="accountStore.profile?.email">
+              {{ accountStore.profile.email }}
+            </template>
+            <template v-if="accountStore.profile?.createdAt">
+              ·
+              {{ translations.account?.memberSince || 'Member since' }}
               {{
-                translations.account?.signInBody ||
-                'A Beaver Account is optional. Without one, your notes stay on this device only.'
+                new Date(accountStore.profile.createdAt).toLocaleDateString()
               }}
+            </template>
+          </p>
+        </div>
+        <div class="flex shrink-0 gap-2">
+          <ui-button variant="secondary" @click="startEditUsername">
+            {{ translations.account?.edit || 'Edit' }}
+          </ui-button>
+          <ui-button @click="handleSignOut">
+            {{ translations.account?.signOut || 'Sign out' }}
+          </ui-button>
+        </div>
+      </div>
+
+      <!-- Sync status -->
+      <template v-if="!accountStore.isAnonymous && accountStore.seedStatus">
+        <div
+          v-if="accountStore.seedStatus === 'seeding'"
+          class="beaver-sync-ready space-y-3 px-4 py-3.5"
+        >
+          <div class="flex items-center gap-3">
+            <ui-spinner size="18" />
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ seedPhaseLabel }}
             </p>
           </div>
+          <div
+            class="flex justify-between text-xs tabular-nums text-neutral-600 dark:text-neutral-400"
+          >
+            <span>{{ seedPhaseLabel }}</span>
+            <span>
+              {{ accountStore.seedProgress.uploaded }} /
+              {{ accountStore.seedProgress.total }}
+            </span>
+          </div>
+          <ui-progress-bar :value="seedProgressPercent" />
         </div>
 
-        <!-- Passkey -->
-        <div v-if="passkeysAvailable" class="flex flex-col gap-2 px-4 pb-4">
-          <ui-input
-            v-model="passkeyEmail"
-            type="email"
-            prepend-icon="riMailLine"
-            class="w-full"
-            :placeholder="
-              translations.account?.emailPlaceholder || 'Email (optional)'
-            "
-            :aria-label="
-              translations.account?.emailPlaceholder || 'Email (optional)'
-            "
+        <div
+          v-else-if="accountStore.seedStatus === 'done'"
+          class="beaver-sync-ready flex items-center gap-2.5 bg-green-50 px-4 py-3 dark:bg-green-950/30"
+        >
+          <v-remixicon
+            name="riCloudLine"
+            size="18"
+            class="text-green-600 dark:text-green-400"
           />
-          <div class="flex gap-2">
+          <p class="text-sm font-medium text-green-800 dark:text-green-200">
+            {{ tr.cloudSyncReady || 'Cloud sync ready' }}
+          </p>
+        </div>
+
+        <div
+          v-else-if="accountStore.seedStatus === 'error'"
+          class="beaver-sync-ready space-y-2 px-4 py-3.5"
+        >
+          <ui-status-text tone="error" size="sm" icon="riErrorWarningLine">
+            {{
+              accountStore.seedError ||
+              tr.syncSetupFailed ||
+              'Sync setup failed'
+            }}
+          </ui-status-text>
+          <div class="flex flex-wrap gap-2">
             <ui-button
-              class="flex-1"
-              :loading="accountStore.busy"
-              :disabled="accountStore.busy"
-              @click="handleSignInWithPasskey"
+              size="sm"
+              :loading="seedRetrying"
+              :disabled="seedRetrying"
+              @click="retrySeed"
             >
-              <v-remixicon name="riFingerprintLine" class="mr-1" />
+              {{ tr.retrySyncSetup || 'Retry' }}
+            </ui-button>
+            <ui-button size="sm" @click="copyLogPath">
+              {{
+                logCopied
+                  ? tr.logPathCopied || 'Log path copied'
+                  : tr.copyLogPath || 'Copy log path'
+              }}
+            </ui-button>
+          </div>
+        </div>
+      </template>
+
+      <!-- Other accounts on this device -->
+      <div
+        v-for="acct in visibleAccounts"
+        :key="acct.id"
+        class="flex items-center gap-3 px-4 py-3.5"
+      >
+        <button
+          class="focus-visible:outline-none focus-visible:ring-2 ring-secondary flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
+          :data-testid="
+            acct.id === activeAccountId
+              ? 'account-manager-active'
+              : 'account-manager-option'
+          "
+          @click="selectAccount(acct.id)"
+        >
+          <ui-user-avatar
+            :name="accountLabel(acct)"
+            :size="40"
+            :class="acct.id === activeAccountId ? 'ring-2 ring-primary' : ''"
+          />
+          <span class="min-w-0 flex-1">
+            <span
+              class="block truncate text-sm"
+              :class="
+                acct.id === activeAccountId
+                  ? 'font-medium text-primary'
+                  : 'text-neutral-700 dark:text-neutral-300'
+              "
+            >
+              {{ accountLabel(acct) }}
+            </span>
+            <span
+              class="mt-0.5 block truncate text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              {{ planLabel(accountPlan(acct)) }} · {{ acct.serverUrl }}
+            </span>
+          </span>
+          <v-remixicon
+            v-if="acct.id === activeAccountId"
+            name="riCheckLine"
+            size="16"
+            class="shrink-0 text-primary"
+          />
+        </button>
+
+        <button
+          class="focus-visible:outline-none focus-visible:ring-2 ring-secondary shrink-0 rounded-md px-2 py-1 text-xs font-medium text-neutral-500 transition-colors hover:text-red-500 dark:text-neutral-400 dark:hover:text-red-400"
+          @click="promptSignOutAccount(acct)"
+        >
+          {{ translations.account?.signOut || 'Sign out' }}
+        </button>
+      </div>
+
+      <!-- Add account -->
+      <div v-if="accounts.length" class="px-4 py-3.5">
+        <button
+          class="focus-visible:outline-none focus-visible:ring-2 ring-secondary flex items-center gap-2 rounded-lg text-sm font-medium text-primary"
+          @click="addAccount"
+        >
+          <v-remixicon name="riAddLine" size="16" />
+          {{ translations.account?.addAccount || 'Add account' }}
+        </button>
+      </div>
+    </settings-group>
+
+    <!-- ───────────── Anonymous / adding account ───────────── -->
+    <section v-if="accountStore.isAnonymous || addingAccount">
+      <ui-card padding="p-0">
+        <div class="px-6 pb-6 pt-5">
+          <!-- Back -->
+          <button
+            v-if="authView !== 'welcome'"
+            type="button"
+            class="focus-visible:outline-none focus-visible:ring-2 ring-secondary -ml-1 mb-2 flex items-center gap-1 rounded text-xs font-medium text-neutral-500 hover:text-primary dark:text-neutral-400"
+            @click="goBack"
+          >
+            <v-remixicon name="riArrowLeftSLine" size="16" />
+            {{ translations.account?.back || 'Back' }}
+          </button>
+          <div v-else class="h-5" />
+
+          <!-- Header -->
+          <div class="flex flex-col items-center text-center">
+            <ui-beaver-character
+              :class="authView === 'welcome' ? 'w-20' : 'w-12'"
+            />
+            <h3
+              class="mt-3 text-base font-semibold text-neutral-900 dark:text-neutral-100"
+            >
+              {{ authTitle }}
+            </h3>
+            <p
+              class="mt-1 max-w-xs text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              {{ authSubtitle }}
+            </p>
+          </div>
+
+          <!-- Welcome -->
+          <div v-if="authView === 'welcome'" class="mt-6 flex flex-col gap-2">
+            <ui-button
+              variant="primary"
+              class="w-full"
+              @click="openView('signin')"
+            >
               {{ translations.account?.signIn || 'Sign in' }}
             </ui-button>
-            <ui-button
-              class="flex-1"
-              variant="primary"
-              :loading="accountStore.busy"
-              :disabled="accountStore.busy"
-              @click="handleSignUpWithPasskey"
-            >
+            <ui-button class="w-full" @click="openView('create')">
               {{ translations.account?.createAccount || 'Create account' }}
             </ui-button>
+            <button
+              v-if="addingAccount"
+              type="button"
+              class="focus-visible:outline-none focus-visible:ring-2 ring-secondary mt-2 self-center rounded text-xs font-medium text-neutral-500 hover:text-primary dark:text-neutral-400"
+              @click="cancelAddAccount"
+            >
+              {{ translations.account?.cancel || 'Cancel' }}
+            </button>
           </div>
-        </div>
 
-        <!-- Password sign-in -->
-        <div class="acct-divided px-4 py-3">
-          <button
-            type="button"
-            class="acct-toggle"
-            :aria-expanded="showPasswordAuth"
-            @click="showPasswordAuth = !showPasswordAuth"
+          <!-- Sign in -->
+          <div
+            v-else-if="authView === 'signin'"
+            class="mt-6 flex flex-col gap-2"
           >
-            <span>{{
-              translations.account?.withPassword || 'Or sign in with password'
-            }}</span>
-            <v-remixicon
-              name="riArrowDownSLine"
-              size="18"
-              class="transition-transform"
-              :class="{ 'rotate-180': showPasswordAuth }"
-            />
-          </button>
-          <ui-expand-collapse
-            :open="showPasswordAuth"
-            max-open="max-h-[40rem]"
-            :inert="showPasswordAuth ? null : true"
-          >
-            <div class="flex flex-col gap-2 p-1 pt-3">
+            <template v-if="method === 'passkey'">
+              <ui-button
+                variant="primary"
+                class="w-full"
+                :loading="accountStore.busy"
+                :disabled="accountStore.busy"
+                @click="handleSignInWithPasskey"
+              >
+                <v-remixicon name="riFingerprintLine" class="mr-1" />
+                {{ tr.signInWithPasskey || 'Continue with passkey' }}
+              </ui-button>
+            </template>
+            <template v-else>
               <ui-input
                 v-model="signInEmail"
                 type="email"
                 prepend-icon="riMailLine"
                 class="w-full"
                 :placeholder="translations.account?.emailPlaceholder || 'Email'"
+                :aria-label="translations.account?.emailPlaceholder || 'Email'"
               />
               <ui-input
                 v-model="signInPassword"
@@ -170,182 +280,640 @@
                 :placeholder="
                   translations.account?.passwordPlaceholder || 'Password'
                 "
+                :aria-label="
+                  translations.account?.passwordPlaceholder || 'Password'
+                "
                 @keyup.enter="handleSignInWithPassword"
               />
-              <div class="flex gap-2">
-                <ui-button
-                  class="flex-1"
-                  :loading="accountStore.busy"
-                  :disabled="accountStore.busy"
-                  @click="handleSignInWithPassword"
-                >
-                  {{ translations.account?.signInWithPassword || 'Sign in' }}
-                </ui-button>
-                <ui-button
-                  class="flex-1"
-                  variant="primary"
-                  :loading="accountStore.busy"
-                  :disabled="accountStore.busy"
-                  @click="handleSignUpWithPassword"
-                >
-                  {{ translations.account?.createAccount || 'Create account' }}
-                </ui-button>
-              </div>
-
+              <ui-button
+                variant="primary"
+                class="w-full"
+                :loading="accountStore.busy"
+                :disabled="accountStore.busy"
+                @click="handleSignInWithPassword"
+              >
+                {{ translations.account?.signInWithPassword || 'Sign in' }}
+              </ui-button>
               <button
-                class="mt-1 self-start text-xs text-primary hover:underline"
                 type="button"
-                @click="showForgot = !showForgot"
+                class="focus-visible:outline-none focus-visible:ring-2 ring-secondary self-center rounded text-xs text-neutral-500 hover:text-primary dark:text-neutral-400"
+                @click="openForgot"
               >
                 {{ tr.forgotPassword || 'Forgot password?' }}
               </button>
-              <ui-card v-if="showForgot" padding="p-3" radius="rounded-xl">
-                <div class="flex flex-col gap-2">
-                  <ui-input
-                    v-model="forgotEmail"
-                    type="email"
-                    :placeholder="tr.emailPlaceholder || 'Email for reset link'"
-                    :aria-label="tr.emailPlaceholder || 'Email for reset link'"
-                    class="w-full"
-                  />
-                  <ui-button
-                    variant="secondary"
-                    :loading="forgotBusy"
-                    :aria-label="tr.sendResetLink || 'Send reset link'"
-                    @click="handleForgot"
-                  >
-                    {{ tr.sendResetLink || 'Send reset link' }}
-                  </ui-button>
-                  <p
-                    v-if="forgotMessage"
-                    class="text-xs"
-                    :class="forgotSent ? 'text-green-600' : 'text-amber-600'"
-                  >
-                    {{ forgotMessage }}
-                  </p>
-                  <p class="text-xs text-neutral-500">
-                    {{
-                      tr.inboxHint ||
-                      'If an account exists for that email, you will receive a password reset link. Check your inbox (and spam folder).'
-                    }}
-                  </p>
-                </div>
-              </ui-card>
-            </div>
-          </ui-expand-collapse>
-        </div>
+            </template>
+          </div>
 
-        <div v-if="accountStore.error" class="acct-divided px-4 py-3">
-          <p class="text-sm text-red-500" role="alert">
+          <!-- Create account -->
+          <div
+            v-else-if="authView === 'create'"
+            class="mt-6 flex flex-col gap-2"
+          >
+            <template v-if="method === 'passkey'">
+              <ui-input
+                v-model="passkeyEmail"
+                type="email"
+                prepend-icon="riMailLine"
+                class="w-full"
+                :placeholder="
+                  translations.account?.emailPlaceholder || 'Email (optional)'
+                "
+                :aria-label="
+                  translations.account?.emailPlaceholder || 'Email (optional)'
+                "
+              />
+              <ui-button
+                variant="primary"
+                class="w-full"
+                :loading="accountStore.busy"
+                :disabled="accountStore.busy"
+                @click="handleSignUpWithPasskey"
+              >
+                <v-remixicon name="riFingerprintLine" class="mr-1" />
+                {{ tr.createWithPasskey || 'Create with passkey' }}
+              </ui-button>
+            </template>
+            <template v-else>
+              <ui-input
+                v-model="signInEmail"
+                type="email"
+                prepend-icon="riMailLine"
+                class="w-full"
+                :placeholder="translations.account?.emailPlaceholder || 'Email'"
+                :aria-label="translations.account?.emailPlaceholder || 'Email'"
+              />
+              <ui-input
+                v-model="signInPassword"
+                :password="true"
+                prepend-icon="riLockPasswordLine"
+                class="w-full"
+                :placeholder="
+                  translations.account?.passwordPlaceholder || 'Password'
+                "
+                :aria-label="
+                  translations.account?.passwordPlaceholder || 'Password'
+                "
+                @keyup.enter="handleSignUpWithPassword"
+              />
+              <ui-button
+                variant="primary"
+                class="w-full"
+                :loading="accountStore.busy"
+                :disabled="accountStore.busy"
+                @click="handleSignUpWithPassword"
+              >
+                {{ translations.account?.createAccount || 'Create account' }}
+              </ui-button>
+            </template>
+          </div>
+
+          <!-- Forgot password -->
+          <div
+            v-else-if="authView === 'forgot'"
+            class="mt-6 flex flex-col gap-2"
+          >
+            <ui-input
+              v-model="forgotEmail"
+              type="email"
+              prepend-icon="riMailLine"
+              class="w-full"
+              :placeholder="tr.emailPlaceholder || 'Email'"
+              :aria-label="tr.emailPlaceholder || 'Email'"
+              @keyup.enter="handleForgot"
+            />
+            <ui-button
+              variant="primary"
+              class="w-full"
+              :loading="forgotBusy"
+              @click="handleForgot"
+            >
+              {{ tr.sendResetLink || 'Send reset link' }}
+            </ui-button>
+            <ui-status-text
+              v-if="forgotMessage"
+              size="xs"
+              :tone="forgotSent ? 'success' : 'warning'"
+              role="status"
+            >
+              {{ forgotMessage }}
+            </ui-status-text>
+          </div>
+
+          <!-- Method switch (sign in / create only) -->
+          <button
+            v-if="
+              passkeysAvailable &&
+              (authView === 'signin' || authView === 'create')
+            "
+            type="button"
+            class="focus-visible:outline-none focus-visible:ring-2 ring-secondary mt-4 block w-full rounded text-center text-xs font-medium text-primary hover:underline"
+            @click="method = method === 'passkey' ? 'password' : 'passkey'"
+          >
+            {{
+              method === 'passkey'
+                ? tr.usePassword || 'Use a password instead'
+                : tr.usePasskey || 'Use a passkey instead'
+            }}
+          </button>
+
+          <ui-status-text
+            v-if="accountStore.error"
+            tone="error"
+            role="alert"
+            class="mt-4"
+          >
             {{ accountStore.error }}
-          </p>
-        </div>
-
-        <div v-if="addingAccount" class="acct-divided px-4 py-3">
-          <ui-button @click="cancelAddAccount">
-            {{ translations.account?.cancel || 'Cancel' }}
-          </ui-button>
+          </ui-status-text>
         </div>
       </ui-card>
     </section>
 
     <!-- ───────────── Signed in ───────────── -->
-    <section v-else class="space-y-2">
-      <h2 class="acct-heading">
-        {{ translations.account?.title || 'Beaver Account' }}
-      </h2>
-
-      <div
-        v-if="showVaultImportPrompt"
-        class="bg-primary/5 border-primary rounded-xl p-4"
+    <section v-else class="space-y-7">
+      <!-- Alerts -->
+      <section
+        v-if="
+          (storageNearLimit && !storageWarningDismissed) ||
+          showVaultImportPrompt ||
+          (accountStore.profile?.emailVerified === false &&
+            !emailBannerDismissed)
+        "
+        class="space-y-3"
       >
-        <div class="flex items-center space-x-2">
-          <div>
-            <v-remixicon name="riShieldKeyholeLine" class="h-full" />
-          </div>
-          <div>
-            <p class="acct-title">
-              {{ translations.account?.vaultDetected || 'Vault detected' }}
-            </p>
-            <p class="acct-desc">
-              {{
-                translations.account?.vaultDetectedBody ||
-                'A vault was found in your sync source. Import it to unlock your notes.'
-              }}
-            </p>
-          </div>
+        <!-- Storage almost full — kept first in DOM: the billing test clicks
+             the first banner's primary action and expects reason 'storage'. -->
+        <div
+          v-if="storageNearLimit && !storageWarningDismissed"
+          data-testid="storage-quota-warning"
+        >
+          <settings-alert
+            tone="warning"
+            icon="riErrorWarningLine"
+            :content="
+              tr.storageWarning ||
+              'You are close to your storage limit. Upgrade for more space.'
+            "
+            :primary-text="tr.upgrade || 'Upgrade'"
+            :secondary-text="translations.dialog?.close || 'Dismiss'"
+            @button-1="openPaywall('storage')"
+            @button-2="storageWarningDismissed = true"
+          />
         </div>
-        <div class="flex flex-row mobile:flex-col gap-2 mt-2">
-          <ui-button @click="importVaultDialog" class="w-full" variant="primary"
-            >Import</ui-button
-          >
-          <ui-button @click="showVaultImportPrompt" class="w-full"
-            >Close</ui-button
-          >
-        </div>
-      </div>
 
-      <ui-card padding="p-0">
+        <!-- Vault detected -->
+        <div v-if="showVaultImportPrompt">
+          <settings-alert
+            icon="riShieldKeyholeLine"
+            :content="
+              translations.account?.vaultDetectedBody ||
+              'A vault was found in your sync source. Import it to unlock your notes.'
+            "
+            :primary-text="translations.account?.importVault || 'Import'"
+            :secondary-text="translations.account?.later || 'Later'"
+            @button-1="importVaultDialog"
+            @button-2="showVaultImportPrompt = false"
+          />
+        </div>
+
         <!-- Email verification -->
         <div
-          v-if="accountStore.profile?.emailVerified === false"
-          class="acct-row flex items-center justify-between gap-3"
+          v-if="
+            accountStore.profile?.emailVerified === false &&
+            !emailBannerDismissed
+          "
         >
-          <div class="min-w-0 flex-1">
-            <p class="acct-title">
-              {{ tr.emailVerification || 'Email verification' }}
-            </p>
-            <p class="acct-desc">
-              {{
-                tr.verifyToInvite ||
-                'Verify your email to invite collaborators.'
-              }}
-            </p>
-          </div>
-          <ui-button
-            variant="secondary"
-            :loading="emailVerifySending"
-            :disabled="emailVerifySending || emailVerifyCooldown > 0"
-            :aria-label="
+          <settings-alert
+            icon="riMailLine"
+            :content="
+              tr.verifyToInvite || 'Verify your email to invite collaborators.'
+            "
+            :primary-text="
               emailVerifyCooldown > 0
-                ? fmt('resendWithCooldown', { seconds: emailVerifyCooldown }) ||
-                  `Resend (${emailVerifyCooldown}s)`
+                ? tr.resendWithCooldown
+                  ? fmt('resendWithCooldown', { seconds: emailVerifyCooldown })
+                  : `Resend (${emailVerifyCooldown}s)`
                 : tr.verifyEmail || 'Verify email'
             "
-            @click="handleRequestEmailVerification"
+            :secondary-text="translations.dialog?.close || 'Dismiss'"
+            @button-1="handleRequestEmailVerification"
+            @button-2="emailBannerDismissed = true"
+          />
+        </div>
+      </section>
+
+      <!-- Plan & storage -->
+      <section>
+        <settings-group :title="translations.account?.plan || 'Plan & storage'">
+          <settings-row
+            control-id="account-plan"
+            :label="translations.account?.currentPlan || 'Current plan'"
+            :description="planDescription"
           >
-            {{
-              emailVerifyCooldown > 0
-                ? fmt('resendWithCooldown', { seconds: emailVerifyCooldown }) ||
-                  `Resend (${emailVerifyCooldown}s)`
-                : tr.verifyEmail || 'Verify email'
-            }}
-          </ui-button>
+            <ui-button
+              v-if="!accountStore.isPaidPlan"
+              variant="primary"
+              data-testid="upgrade-choose-plan"
+              @click="openPaywall('settings')"
+            >
+              {{ tr.choosePlan || 'Choose a plan' }}
+            </ui-button>
+            <ui-button
+              v-else
+              :loading="billingBusy"
+              :disabled="billingBusy"
+              :aria-label="tr.manageBilling || 'Manage billing'"
+              @click="handleManageBilling"
+            >
+              <v-remixicon name="riExternalLinkLine" class="mr-1" />
+              {{
+                tr.manageBilling ||
+                translations.account?.managePlan ||
+                'Manage billing'
+              }}
+            </ui-button>
+          </settings-row>
+
+          <settings-row
+            v-if="
+              accountStore.subscription?.storage &&
+              accountStore.plan !== PLAN_NAMES.ENTERPRISE
+            "
+            :label="translations.account?.storage || 'Storage'"
+            control-class="w-36 sm:w-48"
+          >
+            <div class="w-full">
+              <p
+                class="mb-1.5 text-right text-xs tabular-nums text-neutral-500 dark:text-neutral-400"
+              >
+                <span
+                  class="font-semibold text-neutral-800 dark:text-neutral-200"
+                >
+                  {{
+                    (
+                      accountStore.subscription.storage.usedBytes / 1073741824
+                    ).toFixed(1)
+                  }}
+                </span>
+                /
+                {{
+                  (
+                    accountStore.subscription.storage.quotaBytes / 1073741824
+                  ).toFixed(0)
+                }}
+                GB
+              </p>
+              <ui-progress-bar
+                :value="storageUsedPercent"
+                :tone="storageNearLimit ? 'warning' : 'primary'"
+              />
+            </div>
+          </settings-row>
+        </settings-group>
+
+        <!-- Billing feedback -->
+        <div v-if="billingMessage" class="mt-3 px-1">
+          <ui-status-text
+            :tone="billingSuccess ? 'success' : 'warning'"
+            size="xs"
+          >
+            {{ billingMessage }}
+          </ui-status-text>
         </div>
 
-        <!-- Username -->
-        <div class="acct-row acct-divided">
+        <p
+          v-if="accountStore.isPaidPlan"
+          class="mt-3 px-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+        >
+          {{
+            tr.manageBillingDescription ||
+            'Manage payment method, invoices, or cancel.'
+          }}
+        </p>
+        <p
+          v-else
+          class="mt-3 px-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+        >
+          {{ upgradeDescription }}
+        </p>
+
+        <!-- Cloud sync CTA -->
+        <div class="beaver-sync-ready mt-3">
           <div
-            v-if="!editingUsername"
-            class="flex items-center justify-between gap-3"
+            v-if="!accountStore.isPaidPlan"
+            class="flex flex-col gap-3 rounded-xl border border-dashed border-neutral-300 px-5 py-4 dark:border-neutral-700"
           >
-            <div class="min-w-0">
-              <p class="acct-title">
-                {{ translations.account?.username || 'Username' }}
-              </p>
-              <p class="acct-desc truncate">
+            <div>
+              <p
+                class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+              >
                 {{
-                  accountStore.profile?.username ||
-                  accountStore.profile?.email ||
-                  'Not set'
+                  translations.account?.cloudSyncCtaHeading ||
+                  `Cloud sync is part of ${planLabel(PLAN_NAMES.STARTER)}.`
+                }}
+              </p>
+              <p
+                class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+              >
+                {{
+                  translations.account?.cloudSyncCtaBody ||
+                  `Upgrade to ${planLabel(PLAN_NAMES.STARTER)} or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.`
                 }}
               </p>
             </div>
-            <ui-button variant="secondary" @click="startEditUsername">
-              {{ translations.settings?.change || 'Change' }}
+            <div>
+              <ui-button
+                size="sm"
+                variant="primary"
+                data-testid="cloud-sync-upgrade"
+                @click="openPaywall('sync')"
+              >
+                {{ tr.upgrade || 'Upgrade' }}
+              </ui-button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Security -->
+      <settings-group :title="translations.account?.security || 'Security'">
+        <settings-row
+          control-id="account-change-password"
+          :label="tr.changePassword || 'Change password'"
+          :description="
+            tr.changePasswordDescription ||
+            'Verifies current password, rotates, revokes other sessions.'
+          "
+        >
+          <ui-button variant="secondary" @click="passwordModalOpen = true">
+            {{ tr.changePassword || 'Change' }}
+          </ui-button>
+        </settings-row>
+
+        <settings-row
+          control-id="account-recovery-code"
+          :label="tr.recoveryCode || 'Account recovery code'"
+          :description="
+            tr.recoveryCodeDescription ||
+            'Restores account sign-in if you lose your passkeys. Regenerating invalidates the old code. It does not unlock your notes.'
+          "
+        >
+          <ui-button
+            variant="secondary"
+            :aria-label="
+              recoveryCode
+                ? tr.regenerate || 'Regenerate'
+                : tr.generate || 'Generate'
+            "
+            @click="recoveryModalOpen = true"
+          >
+            {{
+              recoveryCode
+                ? tr.regenerate || 'Regenerate'
+                : tr.generate || 'Generate'
+            }}
+          </ui-button>
+        </settings-row>
+
+        <settings-row
+          :label="
+            translations.account?.signOutEverywhereTitle ||
+            'Sign out everywhere'
+          "
+          :description="
+            translations.account?.signOutEverywhereBody ||
+            'Revoke all other devices. This device stays signed in.'
+          "
+        >
+          <ui-button variant="danger" @click="handleSignOutEverywhere">
+            {{ translations.account?.signOutEverywhere || 'Sign out' }}
+          </ui-button>
+        </settings-row>
+      </settings-group>
+
+      <!-- Devices -->
+      <section>
+        <div class="mb-2.5 flex items-center justify-between gap-3 px-1">
+          <h2 class="section-label !mb-0">
+            {{ translations.account?.devices || 'Your devices' }}
+          </h2>
+          <button
+            class="focus-visible:outline-none focus-visible:ring-2 ring-secondary rounded text-xs font-semibold text-primary hover:underline"
+            @click="refreshDevices"
+          >
+            {{ translations.settings?.syncNow || 'Refresh' }}
+          </button>
+        </div>
+
+        <settings-group>
+          <div
+            v-if="loadingSessions && !unifiedDevices.length"
+            class="flex justify-center px-4 py-6"
+          >
+            <ui-spinner size="20" color="text-neutral-400" />
+          </div>
+          <p
+            v-else-if="!unifiedDevices.length"
+            class="px-4 py-3.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+          >
+            {{ translations.account?.noSessions || 'No active devices' }}
+          </p>
+          <div
+            v-for="entry in unifiedDevices"
+            :key="entry.key"
+            class="flex items-center gap-3 px-4 py-3.5"
+          >
+            <span
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800"
+              aria-hidden="true"
+            >
+              <v-remixicon
+                :name="platformIcon(entry.platform)"
+                size="18"
+                class="text-neutral-500 dark:text-neutral-400"
+              />
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <p
+                  class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                >
+                  {{ entry.name }}
+                </p>
+                <span
+                  v-if="entry.id && entry.id === thisDeviceId"
+                  class="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                >
+                  {{ translations.account?.thisDevice || 'This device' }}
+                </span>
+              </div>
+              <p
+                class="truncate text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+                :title="entry.id || ''"
+              >
+                {{ platformLabel(entry.platform) }}
+                <template v-if="entry.lastSeen"
+                  >· {{ fmtLastSeen(entry.lastSeen) }}</template
+                >
+              </p>
+            </div>
+            <ui-button
+              icon
+              variant="danger"
+              :aria-label="
+                translations.account?.revokeDevice || 'Revoke device'
+              "
+              @click="revokeUnified(entry)"
+            >
+              <v-remixicon name="riDeleteBin6Line" />
             </ui-button>
           </div>
-          <div v-else class="flex flex-col gap-2">
+        </settings-group>
+      </section>
+
+      <!-- Privacy -->
+      <settings-group :title="translations.account?.privacy || 'Privacy'">
+        <settings-row
+          control-id="account-export"
+          :label="translations.account?.exportData || 'Export account data'"
+          :description="
+            translations.account?.exportDataBody ||
+            'Download a copy of your account information.'
+          "
+        >
+          <ui-button variant="secondary" @click="exportAccountData">
+            <v-remixicon name="riDownloadLine" class="mr-1" />
+            {{ translations.account?.export || 'Export' }}
+          </ui-button>
+        </settings-row>
+      </settings-group>
+
+      <!-- Advanced (collapsed) -->
+      <section class="beaver-sync-ready">
+        <ui-disclosure v-model="showAdvanced" max-open="max-h-80">
+          <template #title>
+            <span
+              class="px-1 text-sm font-semibold text-neutral-600 dark:text-neutral-300"
+            >
+              {{ translations.account?.advanced || 'Advanced' }}
+            </span>
+          </template>
+          <div class="pt-2">
+            <settings-group>
+              <settings-row v-if="!showServerUrlEditor" label="Sync server">
+                <template #description>
+                  <span
+                    class="block truncate font-mono text-sm text-neutral-800 dark:text-neutral-200"
+                  >
+                    {{ accountStore.serverUrl }}
+                  </span>
+                  <span
+                    class="mt-1.5 block text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+                  >
+                    {{
+                      translations.account?.serverHint ||
+                      'Change this to point at a self-hosted Beaver Sync instance.'
+                    }}
+                  </span>
+                </template>
+                <ui-button @click="showServerUrlEditor = true">
+                  {{ translations.settings?.change || 'Change' }}
+                </ui-button>
+              </settings-row>
+
+              <div v-else class="flex flex-col gap-2 px-4 py-3.5">
+                <ui-input
+                  v-model="draftServerUrl"
+                  class="w-full"
+                  prepend-icon="riServerLine"
+                  :placeholder="defaultServerUrl"
+                />
+                <div class="flex flex-wrap justify-end gap-2">
+                  <ui-button @click="showServerUrlEditor = false">
+                    {{ translations.dialog?.cancel || 'Cancel' }}
+                  </ui-button>
+                  <ui-button variant="secondary" @click="resetServerUrl">
+                    {{ translations.account?.useDefault || 'Use default' }}
+                  </ui-button>
+                  <ui-button
+                    variant="primary"
+                    :loading="accountStore.busy"
+                    @click="saveServerUrl"
+                  >
+                    {{ translations.settings?.enable || 'Save' }}
+                  </ui-button>
+                </div>
+              </div>
+            </settings-group>
+          </div>
+        </ui-disclosure>
+      </section>
+
+      <!-- Danger zone -->
+      <settings-group
+        danger
+        :title="translations.account?.deleteAccount || 'Delete Beaver Account'"
+      >
+        <div class="px-4 py-3.5">
+          <p
+            class="text-xs leading-relaxed text-red-800/70 dark:text-red-200/70"
+          >
+            {{
+              translations.account?.deleteAccountBody ||
+              'Permanently delete your Beaver Account and all data on the server. Local notes stay on this device.'
+            }}
+          </p>
+
+          <div v-if="!deletingAccount" class="mt-3 flex justify-end">
+            <ui-button variant="danger" @click="openDeleteAccount">
+              <v-remixicon name="riDeleteBin6Line" class="mr-1" />
+              {{ translations.account?.deleteAccount || 'Delete account' }}
+            </ui-button>
+          </div>
+          <div v-else class="mt-3 flex flex-col gap-2">
+            <ui-input
+              v-model="deletePassword"
+              :password="true"
+              prepend-icon="riLockPasswordLine"
+              class="w-full"
+              :placeholder="
+                translations.account?.confirmPasswordPlaceholder || 'Password'
+              "
+              @keyup.enter="confirmDeleteAccount"
+            />
+            <div class="flex justify-end gap-2">
+              <ui-button @click="cancelDeleteAccount">
+                {{ translations.dialog?.cancel || 'Cancel' }}
+              </ui-button>
+              <ui-button
+                variant="danger"
+                :loading="accountStore.busy"
+                :disabled="accountStore.busy"
+                @click="confirmDeleteAccount"
+              >
+                {{
+                  translations.account?.deleteAccountConfirm || 'Delete forever'
+                }}
+              </ui-button>
+            </div>
+          </div>
+        </div>
+      </settings-group>
+
+      <!-- Edit username dialog -->
+      <ui-modal
+        v-model="editingUsername"
+        content-class="max-w-md"
+        icon="riUserLine"
+        :title="translations.account?.editUsername || 'Edit username'"
+      >
+        <template v-if="editingUsername">
+          <div class="flex flex-col gap-2">
+            <p class="text-sm text-neutral-500 dark:text-neutral-400">
+              {{
+                translations.account?.usernameHint ||
+                'Shown on your profile and used to sign in.'
+              }}
+            </p>
             <ui-input
               v-model="draftUsername"
               class="w-full"
@@ -366,706 +934,123 @@
               </ui-button>
             </div>
           </div>
-        </div>
+        </template>
+      </ui-modal>
 
-        <!-- Member since -->
-        <div
-          v-if="accountStore.profile?.createdAt"
-          class="acct-row acct-divided"
-        >
-          <p class="acct-title">
-            {{ translations.account?.memberSince || 'Member since' }}
-          </p>
-          <p class="acct-desc">
-            {{ new Date(accountStore.profile.createdAt).toLocaleDateString() }}
-          </p>
-        </div>
-
-        <!-- Sync status -->
-        <div class="beaver-sync-ready">
-          <div
-            v-if="accountStore.seedStatus === 'seeding'"
-            class="acct-row acct-divided space-y-3"
-          >
-            <div class="flex items-center gap-3">
-              <ui-spinner size="18" />
-              <p class="acct-title">{{ seedPhaseLabel }}</p>
-            </div>
-            <div class="space-y-2">
-              <div
-                class="flex justify-between text-xs text-neutral-600 dark:text-neutral-400"
-              >
-                <span>{{ seedPhaseLabel }}</span>
-                <span
-                  >{{ accountStore.seedProgress.uploaded }} /
-                  {{ accountStore.seedProgress.total }}</span
-                >
-              </div>
-              <div
-                class="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700"
-                role="progressbar"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                :aria-valuenow="seedProgressPercent"
-              >
-                <div
-                  class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
-                  :style="{ width: seedProgressPercent + '%' }"
-                ></div>
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-else-if="accountStore.seedStatus === 'done'"
-            class="acct-row acct-divided flex items-center gap-2"
-          >
-            <v-remixicon
-              name="riCheckLine"
-              class="text-green-600 dark:text-green-400"
-              size="18"
-            />
-            <p class="text-sm font-medium text-green-700 dark:text-green-300">
-              {{ tr.cloudSyncReady || 'Cloud sync ready' }}
-            </p>
-          </div>
-
-          <div
-            v-else-if="accountStore.seedStatus === 'error'"
-            class="acct-row acct-divided space-y-2"
-          >
-            <div class="flex items-center gap-2">
-              <v-remixicon
-                name="riErrorWarningLine"
-                class="shrink-0 text-red-600 dark:text-red-400"
-                size="18"
-              />
-              <p class="text-sm font-medium text-red-700 dark:text-red-300">
-                {{
-                  accountStore.seedError ||
-                  tr.syncSetupFailed ||
-                  'Sync setup failed'
-                }}
-              </p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <ui-button
-                size="sm"
-                :loading="seedRetrying"
-                :disabled="seedRetrying"
-                @click="retrySeed"
-              >
-                {{ tr.retrySyncSetup || 'Retry' }}
-              </ui-button>
-              <ui-button size="sm" @click="copyLogPath">
-                {{
-                  logCopied
-                    ? tr.logPathCopied || 'Log path copied'
-                    : tr.copyLogPath || 'Copy log path'
-                }}
-              </ui-button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Plan -->
-        <div class="acct-row acct-divided flex items-center gap-3">
-          <div class="min-w-0 flex-1">
-            <p class="acct-title">
-              {{ translations.account?.plan || 'Plan' }}
-            </p>
-            <p class="acct-desc">
-              {{
-                planLabel(accountStore.plan) ||
-                translations.account?.noPlan ||
-                'No plan'
-              }}
-            </p>
-            <p v-if="planLimitsText(accountStore.planLimits)" class="acct-desc">
-              {{ planLimitsText(accountStore.planLimits) }}
-            </p>
-            <p v-if="accountStore.isPaidPlan" class="acct-desc">
-              {{
-                tr.manageBillingDescription ||
-                'Manage payment method, invoices, or cancel.'
-              }}
-            </p>
-          </div>
-          <ui-button
-            v-if="accountStore.isPaidPlan"
-            :loading="billingBusy"
-            :disabled="billingBusy"
-            :aria-label="tr.manageBilling || 'Manage billing'"
-            @click="handleManageBilling"
-          >
-            <v-remixicon name="riExternalLinkLine" class="mr-1" />
-            {{
-              tr.manageBilling ||
-              translations.account?.managePlan ||
-              'Manage billing'
-            }}
-          </ui-button>
-          <span v-else class="text-xs text-neutral-400">{{
-            tr.free || 'Free'
-          }}</span>
-        </div>
-
-        <!-- Billing feedback -->
-        <div v-if="billingMessage" class="acct-divided px-4 py-2">
-          <p
-            class="text-xs"
-            :class="billingSuccess ? 'text-green-600' : 'text-amber-600'"
-          >
-            {{ billingMessage }}
-          </p>
-        </div>
-
-        <!-- Upgrade: plan choosing lives in the shared PaywallDialog -->
-        <div
-          v-if="
-            !accountStore.isPaidPlan || accountStore.plan === PLAN_NAMES.STARTER
-          "
-          class="acct-row acct-divided"
-        >
-          <p class="acct-title">{{ tr.upgrade || 'Upgrade' }}</p>
-          <p class="acct-desc">{{ upgradeDescription }}</p>
-          <div class="mt-3">
-            <ui-button
-              size="sm"
-              variant="primary"
-              data-testid="upgrade-choose-plan"
-              @click="openPaywall('settings')"
-            >
-              {{ tr.choosePlan || 'Choose a plan' }}
-            </ui-button>
-          </div>
-        </div>
-
-        <!-- Storage -->
-        <div
-          v-if="
-            accountStore.subscription?.storage &&
-            accountStore.plan !== PLAN_NAMES.ENTERPRISE
-          "
-          class="acct-row acct-divided"
-        >
-          <div class="flex items-center justify-between">
-            <p class="acct-title">
-              {{ translations.account?.storage || 'Storage' }}
-            </p>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">
-              {{
-                (
-                  accountStore.subscription.storage.usedBytes / 1073741824
-                ).toFixed(1)
-              }}
-              /
-              {{
-                (
-                  accountStore.subscription.storage.quotaBytes / 1073741824
-                ).toFixed(0)
-              }}
-              GB
-            </p>
-          </div>
-          <div
-            class="mt-2 h-1.5 overflow-hidden rounded-full bg-primary/20"
-            role="progressbar"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            :aria-valuenow="Math.round(Math.min(100, storageUsedPercent))"
-          >
-            <div
-              class="h-full rounded-full bg-primary transition-all duration-200"
-              :class="{ '!bg-amber-500': storageNearLimit }"
-              :style="{ width: `${Math.min(100, storageUsedPercent)}%` }"
-            />
-          </div>
-          <div
-            v-if="storageNearLimit && !storageWarningDismissed"
-            data-testid="storage-quota-warning"
-            class="mt-3 space-y-2"
-          >
-            <p class="text-xs text-amber-800 dark:text-amber-200">
-              {{
-                tr.storageWarning ||
-                'You are close to your storage limit. Upgrade for more space.'
-              }}
-            </p>
-            <ui-banner
-              icon="riErrorWarningLine"
-              :content="tr.storageWarning || 'Storage almost full'"
-              :primary-text="tr.upgrade || 'Upgrade'"
-              :secondary-text="translations.dialog?.close || 'Dismiss'"
-              @button-1="openPaywall('storage')"
-              @button-2="storageWarningDismissed = true"
-            />
-          </div>
-        </div>
-
-        <!-- Cloud sync CTA -->
-        <div class="beaver-sync-ready">
-          <div v-if="!accountStore.isPaidPlan" class="acct-row acct-divided">
-            <p class="acct-title">
-              {{
-                translations.account?.cloudSyncCtaHeading ||
-                `Cloud sync is part of ${planLabel(PLAN_NAMES.STARTER)}.`
-              }}
-            </p>
-            <p class="acct-desc">
-              {{
-                translations.account?.cloudSyncCtaBody ||
-                `Upgrade to ${planLabel(PLAN_NAMES.STARTER)} or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.`
-              }}
-            </p>
-            <div class="mt-3">
-              <ui-button
-                size="sm"
-                variant="primary"
-                data-testid="cloud-sync-upgrade"
-                @click="openPaywall('sync')"
-              >
-                {{ tr.upgrade || 'Upgrade' }}
-              </ui-button>
-            </div>
-          </div>
-        </div>
-      </ui-card>
-    </section>
-
-    <!-- ───────────── Security ───────────── -->
-    <section v-if="accountStore.isAuthenticated" class="space-y-2">
-      <h2 class="acct-heading">
-        {{ translations.account?.security || 'Security' }}
-      </h2>
-
-      <div class="space-y-4">
-        <!-- Devices -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <p class="acct-heading">
-              {{ translations.account?.devices || 'Your devices' }}
-            </p>
-            <ui-button variant="secondary" size="sm" @click="loadSessions">
-              <v-remixicon name="riRefreshLine" size="14" class="mr-1" />
-              {{ translations.settings?.syncNow || 'Refresh' }}
-            </ui-button>
-          </div>
-          <ui-card padding="p-0">
-            <ui-list class="space-y-0.5 p-1.5">
-              <div
-                v-if="loadingSessions && !unifiedDevices.length"
-                class="flex justify-center py-6"
-              >
-                <ui-spinner size="20" color="text-neutral-400" />
-              </div>
-              <p v-else-if="!unifiedDevices.length" class="acct-desc px-2 py-2">
-                {{ translations.account?.noSessions || 'No active devices' }}
-              </p>
-              <ui-list-item
-                v-for="entry in unifiedDevices"
-                :key="entry.key"
-                class="gap-3"
-              >
-                <div
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800"
-                >
-                  <v-remixicon :name="platformIcon(entry.platform)" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="acct-title truncate">{{ entry.name }}</p>
-                  <p class="acct-desc truncate" :title="entry.id || ''">
-                    {{ platformLabel(entry.platform) }}
-                    <template v-if="entry.lastSeen">
-                      · {{ fmtLastSeen(entry.lastSeen) }}
-                    </template>
-                  </p>
-                </div>
-                <ui-button
-                  icon
-                  variant="danger"
-                  size="sm"
-                  :aria-label="
-                    translations.account?.revokeDevice || 'Revoke device'
-                  "
-                  @click="revokeUnified(entry)"
-                >
-                  <v-remixicon name="riDeleteBin6Line" />
-                </ui-button>
-              </ui-list-item>
-            </ui-list>
-          </ui-card>
-        </div>
-
-        <!-- Sign out everywhere / password / recovery -->
-        <ui-card padding="p-0">
-          <div class="acct-row flex items-center gap-3">
-            <div class="min-w-0 flex-1">
-              <p class="acct-title">
-                {{
-                  translations.account?.signOutEverywhereTitle ||
-                  'Sign out everywhere'
-                }}
-              </p>
-              <p class="acct-desc">
-                {{
-                  translations.account?.signOutEverywhereBody ||
-                  'Revoke all other devices. This device stays signed in.'
-                }}
-              </p>
-            </div>
-            <ui-button variant="danger" @click="handleSignOutEverywhere">
-              {{
-                translations.account?.signOutEverywhere || 'Sign out everywhere'
-              }}
-            </ui-button>
-          </div>
-
-          <!-- Change password (in a dialog) -->
-          <div
-            class="acct-row acct-divided flex items-center justify-between gap-3"
-          >
-            <div class="min-w-0 flex-1">
-              <p class="acct-title">
-                {{ tr.changePassword || 'Change password' }}
-              </p>
-              <p class="acct-desc">
-                {{
-                  tr.changePasswordDescription ||
-                  'Verifies current password, rotates, revokes other sessions.'
-                }}
-              </p>
-            </div>
-            <ui-button
-              variant="secondary"
-              class="shrink-0"
-              @click="passwordModalOpen = true"
-            >
-              {{ tr.changePassword || 'Change password' }}
-            </ui-button>
-          </div>
-          <ui-modal v-model="passwordModalOpen" content-class="max-w-md">
-            <!-- House dialog look (same as Dialog.vue confirm dialogs) -->
-            <div class="flex flex-col items-start text-left gap-3 mb-4">
-              <div class="flex-shrink-0">
-                <div
-                  class="w-12 h-12 rounded-xl flex items-center justify-center bg-neutral-100 dark:bg-neutral-700"
-                >
-                  <v-remixicon
-                    name="riLockPasswordLine"
-                    size="24"
-                    class="text-neutral-600 dark:text-neutral-300"
-                  />
-                </div>
-              </div>
-              <h3 class="font-semibold text-lg tracking-tight leading-snug">
-                {{ tr.changePassword || 'Change password' }}
-              </h3>
-            </div>
-            <div class="flex flex-col gap-2">
-              <ui-input
-                v-model="changeCurrent"
-                :password="true"
-                prepend-icon="riLockPasswordLine"
-                :placeholder="
-                  tr.currentPasswordPlaceholder || 'Current password'
-                "
-                :aria-label="
-                  tr.currentPasswordPlaceholder || 'Current password'
-                "
-                class="w-full"
-              />
-              <ui-input
-                v-model="changeNew"
-                :password="true"
-                prepend-icon="riLockPasswordLine"
-                :placeholder="
-                  tr.newPasswordPlaceholder || 'New password (min 12 chars)'
-                "
-                :aria-label="
-                  tr.newPasswordPlaceholder || 'New password (min 12 chars)'
-                "
-                class="w-full"
-              />
-              <ui-input
-                v-model="changeConfirm"
-                :password="true"
-                prepend-icon="riLockPasswordLine"
-                :placeholder="
-                  tr.confirmPasswordPlaceholder || 'Confirm new password'
-                "
-                :aria-label="
-                  tr.confirmPasswordPlaceholder || 'Confirm new password'
-                "
-                class="w-full"
-              />
-              <p
-                v-if="changeMessage"
-                class="text-xs"
-                :class="changeSuccess ? 'text-green-600' : 'text-red-500'"
-                role="status"
-              >
-                {{ changeMessage }}
-              </p>
-              <ui-button
-                variant="primary"
-                class="mt-1 w-full"
-                :loading="changeBusy"
-                :aria-label="tr.changePassword || 'Change password'"
-                @click="handleChangePassword"
-              >
-                {{ tr.changePassword || 'Change password' }}
-              </ui-button>
-            </div>
-          </ui-modal>
-
-          <!-- Recovery code (in a dialog) -->
-          <div
-            class="acct-row acct-divided flex items-center justify-between gap-3"
-          >
-            <div class="min-w-0 flex-1">
-              <p class="acct-title">
-                {{ tr.recoveryCode || 'Account recovery code' }}
-              </p>
-              <p class="acct-desc">
-                {{
-                  tr.recoveryCodeDescription ||
-                  'Restores account sign-in if you lose your passkeys. Regenerating invalidates the old code. It does not unlock your notes.'
-                }}
-              </p>
-            </div>
-            <ui-button
-              variant="secondary"
-              class="shrink-0"
-              :aria-label="
-                recoveryCode
-                  ? tr.regenerate || 'Regenerate'
-                  : tr.generate || 'Generate'
-              "
-              @click="recoveryModalOpen = true"
-            >
-              {{
-                recoveryCode
-                  ? tr.regenerate || 'Regenerate'
-                  : tr.generate || 'Generate'
-              }}
-            </ui-button>
-          </div>
-          <ui-modal v-model="recoveryModalOpen" content-class="max-w-md">
-            <div class="flex flex-col items-start text-left gap-3 mb-4">
-              <div class="flex-shrink-0">
-                <div
-                  class="w-12 h-12 rounded-xl flex items-center justify-center bg-neutral-100 dark:bg-neutral-700"
-                >
-                  <v-remixicon
-                    name="riKey2Line"
-                    size="24"
-                    class="text-neutral-600 dark:text-neutral-300"
-                  />
-                </div>
-              </div>
-              <h3 class="font-semibold text-lg tracking-tight leading-snug">
-                {{ tr.recoveryCode || 'Account recovery code' }}
-              </h3>
-            </div>
-            <div class="space-y-3">
-              <p class="acct-desc whitespace-pre-line">
-                {{ whatUnlocks }}
-              </p>
-              <ui-button
-                variant="primary"
-                class="w-full"
-                :loading="recoveryBusy"
-                :aria-label="
-                  recoveryCode
-                    ? tr.regenerate || 'Regenerate'
-                    : tr.generate || 'Generate'
-                "
-                @click="handleGenerateRecoveryCode"
-              >
-                {{
-                  recoveryCode
-                    ? tr.regenerate || 'Regenerate'
-                    : tr.generate || 'Generate'
-                }}
-              </ui-button>
-              <ui-card
-                v-if="recoveryCode"
-                bg="bg-amber-50 dark:bg-amber-900/20"
-                radius="rounded-xl"
-                padding="px-3 py-2"
-                class="border-amber-200 dark:border-amber-800"
-              >
-                <p
-                  class="break-all font-mono text-xs text-amber-900 dark:text-amber-100"
-                >
-                  {{ recoveryCode }}
-                </p>
-                <p class="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                  {{
-                    tr.recoveryCodeHint ||
-                    'Copy now: this code will not be shown again. Store it securely.'
-                  }}
-                </p>
-              </ui-card>
-            </div>
-          </ui-modal>
-        </ui-card>
-      </div>
-    </section>
-
-    <!-- ───────────── Privacy ───────────── -->
-    <section v-if="accountStore.isAuthenticated" class="space-y-2">
-      <h2 class="acct-heading">
-        {{ translations.account?.privacy || 'Privacy' }}
-      </h2>
-      <ui-card padding="p-0">
-        <div class="acct-row flex items-center justify-between gap-3">
-          <div class="min-w-0">
-            <p class="acct-title">
-              {{ translations.account?.exportData || 'Export account data' }}
-            </p>
-            <p class="acct-desc">
-              {{
-                translations.account?.exportDataBody ||
-                'Download a copy of your account information.'
-              }}
-            </p>
-          </div>
-          <ui-button variant="secondary" @click="exportAccountData">
-            <v-remixicon name="riDownloadLine" class="mr-1" />
-            {{ translations.account?.export || 'Export' }}
-          </ui-button>
-        </div>
-      </ui-card>
-    </section>
-
-    <!-- ───────────── Advanced (collapsible) ───────────── -->
-    <section class="beaver-sync-ready space-y-2">
-      <button
-        type="button"
-        class="acct-toggle"
-        :aria-expanded="showAdvanced"
-        @click="showAdvanced = !showAdvanced"
+      <!-- Change password dialog -->
+      <ui-modal
+        v-model="passwordModalOpen"
+        content-class="max-w-md"
+        icon="riLockPasswordLine"
+        :title="tr.changePassword || 'Change password'"
       >
-        <span class="acct-heading !px-0">{{
-          translations.account?.advanced || 'Advanced'
-        }}</span>
-        <v-remixicon
-          name="riArrowDownSLine"
-          size="18"
-          class="transition-transform"
-          :class="{ 'rotate-180': showAdvanced }"
-        />
-      </button>
-      <ui-expand-collapse
-        :open="showAdvanced"
-        max-open="max-h-80"
-        :inert="showAdvanced ? null : true"
-      >
-        <div class="p-1">
-          <ui-card padding="p-0">
-            <div
-              v-if="!showServerUrlEditor"
-              class="acct-row flex items-center gap-3"
-            >
-              <div class="min-w-0 flex-1">
-                <p class="acct-title truncate font-mono">
-                  {{ accountStore.serverUrl }}
-                </p>
-                <p class="acct-desc">
-                  {{
-                    translations.account?.serverHint ||
-                    'Change this to point at a self-hosted Beaver Sync instance.'
-                  }}
-                </p>
-              </div>
-              <ui-button @click="showServerUrlEditor = true">
-                {{ translations.settings?.change || 'Change' }}
-              </ui-button>
-            </div>
-            <div v-else class="acct-row flex flex-col gap-2">
-              <ui-input
-                v-model="draftServerUrl"
-                class="w-full"
-                prepend-icon="riServerLine"
-                :placeholder="defaultServerUrl"
-              />
-              <div class="flex flex-wrap justify-end gap-2">
-                <ui-button @click="showServerUrlEditor = false">{{
-                  translations.dialog?.cancel || 'Cancel'
-                }}</ui-button>
-                <ui-button variant="secondary" @click="resetServerUrl">{{
-                  translations.account?.useDefault || 'Use default'
-                }}</ui-button>
-                <ui-button
-                  variant="primary"
-                  :loading="accountStore.busy"
-                  @click="saveServerUrl"
-                  >{{ translations.settings?.enable || 'Save' }}</ui-button
-                >
-              </div>
-            </div>
-          </ui-card>
-        </div>
-      </ui-expand-collapse>
-    </section>
-
-    <!-- ───────────── Danger zone ───────────── -->
-    <section v-if="accountStore.isAuthenticated" class="space-y-2">
-      <h2 class="acct-heading !text-red-500 dark:!text-red-400">
-        {{ translations.account?.dangerZone || 'Danger zone' }}
-      </h2>
-      <ui-card
-        bg="bg-red-50/80 dark:bg-red-950/30"
-        padding="px-4 py-3.5"
-        class="flex flex-col gap-3 border-red-200 dark:border-red-900/70"
-      >
-        <div class="space-y-0.5">
-          <p class="text-sm font-medium text-red-900 dark:text-red-100">
-            {{ translations.account?.deleteAccount || 'Delete Beaver Account' }}
-          </p>
-          <p class="text-xs leading-relaxed text-red-700 dark:text-red-300">
-            {{
-              translations.account?.deleteAccountBody ||
-              'Permanently delete your Beaver Account and all data on the server. Local notes stay on this device.'
-            }}
-          </p>
-        </div>
-        <div v-if="!deletingAccount" class="self-end">
-          <ui-button variant="danger" @click="openDeleteAccount">
-            <v-remixicon name="riDeleteBin6Line" class="mr-1" />
-            {{ translations.account?.deleteAccount || 'Delete account' }}
-          </ui-button>
-        </div>
-        <div v-else class="flex flex-col gap-2">
+        <p class="mb-4 text-sm text-neutral-500 dark:text-neutral-400">
+          Use at least 12 characters. Other sessions will be signed out.
+        </p>
+        <div class="flex flex-col gap-2">
           <ui-input
-            v-model="deletePassword"
+            v-model="changeCurrent"
             :password="true"
             prepend-icon="riLockPasswordLine"
+            :placeholder="tr.currentPasswordPlaceholder || 'Current password'"
+            :aria-label="tr.currentPasswordPlaceholder || 'Current password'"
             class="w-full"
-            :placeholder="
-              translations.account?.confirmPasswordPlaceholder || 'Password'
-            "
-            @keyup.enter="confirmDeleteAccount"
           />
-          <div class="flex justify-end gap-2">
-            <ui-button @click="cancelDeleteAccount">{{
-              translations.dialog?.cancel || 'Cancel'
-            }}</ui-button>
-            <ui-button
-              variant="danger"
-              :loading="accountStore.busy"
-              :disabled="accountStore.busy"
-              @click="confirmDeleteAccount"
-            >
-              {{
-                translations.account?.deleteAccountConfirm || 'Delete forever'
-              }}
-            </ui-button>
-          </div>
+          <ui-input
+            v-model="changeNew"
+            :password="true"
+            prepend-icon="riLockPasswordLine"
+            :placeholder="
+              tr.newPasswordPlaceholder || 'New password (min 12 chars)'
+            "
+            :aria-label="
+              tr.newPasswordPlaceholder || 'New password (min 12 chars)'
+            "
+            class="w-full"
+          />
+          <ui-input
+            v-model="changeConfirm"
+            :password="true"
+            prepend-icon="riLockPasswordLine"
+            :placeholder="
+              tr.confirmPasswordPlaceholder || 'Confirm new password'
+            "
+            :aria-label="
+              tr.confirmPasswordPlaceholder || 'Confirm new password'
+            "
+            class="w-full"
+          />
+          <ui-status-text
+            v-if="changeMessage"
+            size="xs"
+            :tone="changeSuccess ? 'success' : 'error'"
+            role="status"
+          >
+            {{ changeMessage }}
+          </ui-status-text>
+          <ui-button
+            variant="primary"
+            class="mt-1 w-full"
+            :loading="changeBusy"
+            :aria-label="tr.changePassword || 'Change password'"
+            @click="handleChangePassword"
+          >
+            {{ tr.changePassword || 'Change password' }}
+          </ui-button>
         </div>
-      </ui-card>
+      </ui-modal>
+
+      <!-- Recovery code dialog -->
+      <ui-modal
+        v-model="recoveryModalOpen"
+        content-class="max-w-md"
+        icon="riKey2Line"
+        :title="tr.recoveryCode || 'Account recovery code'"
+      >
+        <div class="space-y-3">
+          <p
+            class="whitespace-pre-line text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+          >
+            {{ whatUnlocks }}
+          </p>
+          <ui-button
+            variant="primary"
+            class="w-full"
+            :loading="recoveryBusy"
+            :aria-label="
+              recoveryCode
+                ? tr.regenerate || 'Regenerate'
+                : tr.generate || 'Generate'
+            "
+            @click="handleGenerateRecoveryCode"
+          >
+            {{
+              recoveryCode
+                ? tr.regenerate || 'Regenerate'
+                : tr.generate || 'Generate'
+            }}
+          </ui-button>
+          <ui-card
+            v-if="recoveryCode"
+            bg="bg-amber-50 dark:bg-amber-900/20"
+            radius="rounded-xl"
+            padding="px-3 py-2"
+            class="border-amber-200 dark:border-amber-800"
+          >
+            <p
+              class="break-all font-mono text-xs text-amber-900 dark:text-amber-100"
+            >
+              {{ recoveryCode }}
+            </p>
+            <p class="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              {{
+                tr.recoveryCodeHint ||
+                'Copy now: this code will not be shown again. Store it securely.'
+              }}
+            </p>
+          </ui-card>
+        </div>
+      </ui-modal>
     </section>
   </div>
 </template>
@@ -1084,16 +1069,22 @@ import {
   generateRecoveryCode as apiGenerateRecoveryCode,
   requestEmailVerification as apiRequestEmailVerification,
   changePassword as apiChangePassword,
+  getAccount,
 } from '@/lib/api/account';
 import { createPortalSession } from '@/lib/api/billing';
 import { canUsePasskeys } from '@/lib/api/auth';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { localNoteCount } from '@/utils/notes/local-note-count.js';
 import { deviceDisplayName, devicePlatform } from '@/utils/device/device-label';
+import { getSyncDeviceId } from '@/utils/sync/sync-repository';
 import { whatUnlocksWhat } from '@/utils/i18n/secrets.js';
 import { usePaywall } from '@/composable/usePaywall';
+import SettingsGroup from '@/components/settings/SettingsGroup.vue';
+import SettingsRow from '@/components/settings/SettingsRow.vue';
+import SettingsAlert from '@/components/settings/SettingsAlert.vue';
 
 export default {
+  components: { SettingsGroup, SettingsRow, SettingsAlert },
   setup() {
     const router = useRouter();
     const route = useRoute();
@@ -1111,10 +1102,6 @@ export default {
     }
     const accountStore = useAccountStore();
     const account = useSettingsAccount({ dialog, translations });
-
-    // One list for "your devices": registered devices plus active sessions,
-    // de-duplicated by device id. The raw id is only a tooltip; the visible
-    // label is always human (platform + last seen).
     const unifiedDevices = computed(() => {
       const rows = [];
       const seen = new Set();
@@ -1171,6 +1158,16 @@ export default {
       else account.handleRevokeDevice(entry.raw);
     }
 
+    // Refresh covers both halves of unifiedDevices: auth sessions and the
+    // server's device records.
+    async function refreshDevices() {
+      await account.loadSessions();
+      try {
+        const data = await getAccount({ baseUrl: accountStore.serverUrl });
+        if (data) accountStore.setDevices(data.devices || []);
+      } catch {}
+    }
+
     // Return to a join/invite link after signing in (e.g. the join page sends
     // signed-out users here with `returnTo`).
     watch(
@@ -1215,10 +1212,10 @@ export default {
     const showVaultImportPrompt = ref(false);
     const showAdvanced = ref(false);
     const storageWarningDismissed = ref(false);
+    const emailBannerDismissed = ref(false);
     const displayName = computed(
       () => accountStore.profile?.username || accountStore.profile?.email || '',
     );
-    const showForgot = ref(false);
     const forgotEmail = ref('');
     const forgotBusy = ref(false);
     const forgotMessage = ref('');
@@ -1634,6 +1631,41 @@ export default {
 
     const accounts = computed(() => listAccounts());
     const activeAccountId = computed(() => getActiveAccountId());
+    // The current account already has its own row above, so the switcher
+    // lists only the others — while signed out there is no profile row, so
+    // every indexed account stays reachable.
+    const visibleAccounts = computed(() =>
+      accountStore.isAnonymous
+        ? accounts.value
+        : accounts.value.filter((acct) => acct.id !== activeAccountId.value),
+    );
+
+    // "This device" badge on the devices list (async — resolved in onMounted).
+    const thisDeviceId = ref(null);
+    onMounted(() => {
+      getSyncDeviceId()
+        .then((id) => {
+          thisDeviceId.value = id;
+        })
+        .catch(() => {});
+      // The device list is never pushed to the store, so pull it on open —
+      // otherwise it stays empty until someone hits Refresh.
+      if (accountStore.isAuthenticated) {
+        getAccount({ baseUrl: accountStore.serverUrl })
+          .then((data) => {
+            if (data) accountStore.setDevices(data.devices || []);
+          })
+          .catch(() => {});
+      }
+    });
+
+    // Plan row description: the plan label plus whatever limits the server sent.
+    const planDescription = computed(() => {
+      const limits = planLimitsText(accountStore.planLimits);
+      return limits
+        ? `${planLabel(accountStore.plan)} · ${limits}`
+        : planLabel(accountStore.plan);
+    });
 
     // Read the account record, not the store, so each row is right for its own
     // account rather than for whichever one happens to be active.
@@ -1672,7 +1704,62 @@ export default {
       router.push({ path: '/settings/account' });
     }
 
+    const authView = ref('welcome'); // welcome | signin | create | forgot
+    const method = ref(passkeysAvailable.value ? 'passkey' : 'password');
+
+    const authTitle = computed(() => {
+      const a = translations.value?.account || {};
+      switch (authView.value) {
+        case 'signin':
+          return a.signIn || 'Welcome back';
+        case 'create':
+          return a.createAccount || 'Create your account';
+        case 'forgot':
+          return a.forgotPassword || 'Reset password';
+        default:
+          return a.signInHeading || 'Sign in to sync';
+      }
+    });
+    const authSubtitle = computed(() => {
+      const a = translations.value?.account || {};
+      switch (authView.value) {
+        case 'signin':
+          return method.value === 'passkey'
+            ? 'Use the passkey saved on this device.'
+            : 'Enter your email and password.';
+        case 'create':
+          return method.value === 'passkey'
+            ? 'No password needed. Email is optional.'
+            : 'Choose an email and a strong password.';
+        case 'forgot':
+          return "We'll email you a reset link.";
+        default:
+          return (
+            a.signInBody ||
+            'Optional. Without an account, your notes stay on this device.'
+          );
+      }
+    });
+
+    function openView(view) {
+      authView.value = view;
+    }
+    function openForgot() {
+      forgotEmail.value = signInEmail.value || forgotEmail.value;
+      authView.value = 'forgot';
+    }
+    function goBack() {
+      authView.value = authView.value === 'forgot' ? 'signin' : 'welcome';
+    }
+
     return {
+      authView,
+      method,
+      authTitle,
+      authSubtitle,
+      openView,
+      openForgot,
+      goBack,
       translations,
       tr,
       whatUnlocks,
@@ -1680,11 +1767,14 @@ export default {
       PLAN_NAMES,
       planLabel,
       planLimitsText,
+      planDescription,
       accountStore,
       passkeysAvailable,
       addingAccount,
       accounts,
       activeAccountId,
+      visibleAccounts,
+      thisDeviceId,
       accountLabel,
       accountInitial,
       accountPlan,
@@ -1699,10 +1789,10 @@ export default {
       recoveryModalOpen,
       showAdvanced,
       storageWarningDismissed,
+      emailBannerDismissed,
       displayName,
       goToSecurity,
       importVaultDialog,
-      showForgot,
       forgotEmail,
       forgotBusy,
       forgotMessage,
@@ -1734,6 +1824,7 @@ export default {
       platformLabel,
       fmtLastSeen,
       revokeUnified,
+      refreshDevices,
       handleManageBilling,
       handleBillingReturn,
       isMobile,
@@ -1748,22 +1839,7 @@ export default {
 </script>
 
 <style scoped>
-.acct-heading {
-  @apply px-1 text-sm font-semibold text-neutral-600 dark:text-neutral-300;
-}
-.acct-title {
-  @apply text-sm font-medium text-neutral-800 dark:text-neutral-200;
-}
-.acct-desc {
-  @apply mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400;
-}
-.acct-row {
-  @apply px-4 py-3.5;
-}
-.acct-divided {
-  @apply border-t border-neutral-200 dark:border-neutral-700;
-}
-.acct-toggle {
-  @apply flex w-full cursor-pointer select-none items-center justify-between gap-2 rounded-lg text-left text-xs font-semibold tracking-wide text-neutral-500 transition-colors hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 ring-secondary dark:text-neutral-400 dark:hover:text-neutral-200;
+.section-label {
+  @apply mb-2.5 px-1 text-sm font-semibold text-neutral-600 dark:text-neutral-300;
 }
 </style>

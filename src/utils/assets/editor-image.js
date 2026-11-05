@@ -27,13 +27,12 @@ export function useEditorImage(editor) {
       if (canceled || filePaths.length === 0) {
         throw new Error('No image selected');
       } else {
-        copyImage(filePaths[0], route.params.id).then(({ fileName }) => {
-          const imgPath = `assets://${route.params.id}/${fileName}`;
+        const { fileName } = await copyImage(filePaths[0], route.params.id);
+        const imgPath = `assets://${route.params.id}/${fileName}`;
 
-          if (applyImg) setImage(imgPath);
+        if (applyImg) setImage(imgPath);
 
-          return imgPath;
-        });
+        return imgPath;
       }
     }
   }

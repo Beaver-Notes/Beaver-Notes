@@ -57,3 +57,7 @@ export async function registerLocalWorkspace({
 export async function switchLocalWorkspace(workspaceId) {
   return backend.invoke('workspace:switch', workspaceId);
 }
+
+export async function renameLocalWorkspace(workspaceId, name) {
+  return backend.invoke('workspace:rename', { id: workspaceId, name });
+}

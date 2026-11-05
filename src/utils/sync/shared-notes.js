@@ -124,9 +124,13 @@ export async function applySharedNoteAccess(rows, { selfId = null } = {}) {
     stamp(noteId, undefined);
   }
 
-  await Promise.all(changed.map(([noteId, workspaceId]) => {
-    noteStore.persistMeta(noteId);
-    return registerSharedNoteLocation(noteId, workspaceId);
-  }));
+  await Promise.all(
+    changed.map(([noteId, workspaceId]) =>
+      Promise.all([
+        noteStore.persistMeta(noteId),
+        registerSharedNoteLocation(noteId, workspaceId),
+      ]),
+    ),
+  );
   return changed.length;
 }

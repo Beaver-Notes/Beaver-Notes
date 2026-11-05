@@ -343,7 +343,11 @@ export default {
         name: 'image',
         description: 'imageDescription',
         action: (chain) => {
-          editorImage.select(true);
+          editorImage.select(true).catch((err) => {
+            // User cancelling the dialog is normal — stay silent for it.
+            if (err?.message !== 'No image selected')
+              console.warn('[editor-image] select failed:', err?.message || err);
+          });
           return chain;
         },
       },

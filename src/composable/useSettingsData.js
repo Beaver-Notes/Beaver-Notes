@@ -680,11 +680,15 @@ export function useSettingsData({
   }
 
   const toggleAdvancedSettings = () => {
-    void setSetting('advancedSettings', advancedSettings.value);
+    void setSetting('advancedSettings', advancedSettings.value).catch((err) =>
+      logger.warn('[settings] write failed:', err?.message || err),
+    );
   };
 
   const toggleSpellcheck = () => {
-    void setSetting('spellcheckEnabled', spellcheckEnabled.value);
+    void setSetting('spellcheckEnabled', spellcheckEnabled.value).catch((err) =>
+      logger.warn('[settings] write failed:', err?.message || err),
+    );
     applySpellcheckAttribute();
   };
 
@@ -708,28 +712,36 @@ export function useSettingsData({
     void Promise.all([
       i18n.setLanguage(languageCode),
       setSetting('directionPreference', dir),
-    ]);
+    ]).catch((err) =>
+      logger.warn('[settings] language write failed:', err?.message || err),
+    );
   };
 
   const saveTodayDateFormat = () => {
     if (todayDateFormat.value.trim() === '') {
       todayDateFormat.value = 'DD-MM-YYYY';
     }
-    void setSetting('todayDateFormat', todayDateFormat.value);
+    void setSetting('todayDateFormat', todayDateFormat.value).catch((err) =>
+      logger.warn('[settings] write failed:', err?.message || err),
+    );
   };
 
   const saveTimeFormat = () => {
     if (timeFormat.value.trim() === '') {
       timeFormat.value = 'HH:mm';
     }
-    void setSetting('timeFormat', timeFormat.value);
+    void setSetting('timeFormat', timeFormat.value).catch((err) =>
+      logger.warn('[settings] write failed:', err?.message || err),
+    );
   };
 
   onMounted(() => {
     void (async () => {
       defaultPath.value = await getSyncPath();
       state.syncPath = defaultPath.value;
-    })();
+    })().catch((err) =>
+      logger.warn('[settings] sync path read failed:', err?.message || err),
+    );
   });
 
   onMounted(() => {

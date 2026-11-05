@@ -162,5 +162,16 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<true/>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.beavernotes.beaver-notes</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>beaver-notes</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -91,8 +91,14 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   // learns the ids from this map. Register the key again on every projection:
   // on a fresh device the workspace key arrives before the note list, so the
   // one-shot registration at init sees no ids and their rows stay unreadable.
-  const wsId = useWorkspaceStore().activeId;
-  void registerWsKeyForNotes([...yNotes.keys()], wsId ? getCachedWorkspaceKey(wsId) : null);
+  try {
+    const wsId = useWorkspaceStore().activeId;
+    void registerWsKeyForNotes([...yNotes.keys()], wsId ? getCachedWorkspaceKey(wsId) : null);
+  } catch (err) {
+    // Sync prefix (store/key lookup): a throw here is an uncaught timer error
+    // when the projection runs from a debounce, not a catchable rejection.
+    console.warn('[meta-yjs] ws key registration skipped:', err?.message || err);
+  }
 
   // A meta-doc pull used to force a full-list sweep (every note re-merged,
   // re-indexed, re-rendered) several times a minute on big shared workspaces.

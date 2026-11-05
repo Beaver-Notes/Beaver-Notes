@@ -513,16 +513,18 @@ export function useAppShell(onboardingCompleted = true) {
   const getTopLevelRouteKey = (viewRoute) =>
     viewRoute?.fullPath || viewRoute?.path || route.fullPath;
 
-  const setZoom = (newZoomLevel) => {
-    state.zoomLevel = setStoredZoomLevel(newZoomLevel, {
-      syncDocument: true,
-    });
+  // Await the write: state.zoomLevel must only ever hold the formatted string
+  // setStoredZoomLevel resolves to (a stored Promise parses to NaN on the next
+  // zoom step and would persist "NaN"). Rejections surface at the non-Vue
+  // call sites below, which attach their own catch.
+  const setZoom = async (newZoomLevel) => {
+    state.zoomLevel = await setStoredZoomLevel(newZoomLevel);
   };
 
   const updateZoomBy = (delta) => {
     const currentZoomLevel = parseFloat(state.zoomLevel);
     const nextZoomLevel = Math.min(Math.max(currentZoomLevel + delta, 0.5), 3);
-    setZoom(nextZoomLevel);
+    return setZoom(nextZoomLevel);
   };
 
   const hasExistingWorkspaceData = async () => {
@@ -582,7 +584,12 @@ export function useAppShell(onboardingCompleted = true) {
     retrieved.value = true;
 
     await hydrateSettingsStore();
-    setSetting('spellcheckEnabled', getSettingSync('spellcheckEnabled'));
+    void setSetting(
+      'spellcheckEnabled',
+      getSettingSync('spellcheckEnabled'),
+    ).catch((err) =>
+      logger.warn('[app] settings write failed:', err?.message || err),
+    );
     performance.mark('init:settings');
 
     const [hasData, onboardingCompleted] = await Promise.all([
@@ -593,7 +600,9 @@ export function useAppShell(onboardingCompleted = true) {
     if (!hasData && !onboardingCompleted) {
       // Start the sync scheduler before onboarding so post-onboarding sync
       // has a live scheduler; with no sync target the cycles are no-ops.
-      initAppSync();
+      void initAppSync().catch((err) =>
+        logger.warn('[sync] init failed:', err?.message || err),
+      );
       performance.mark('init:done');
       logStartupTiming();
       if (route.name !== ONBOARDING_ROUTE_NAME) {
@@ -775,12 +784,17 @@ export function useAppShell(onboardingCompleted = true) {
         }
 
         // Join meta room now activeId known (was null at loadWorkspaceDoc).
-        const { getWsSync, retryParkedNoteJoins } = await import('@/lib/sync/ws-sync');
+        const { getWsSync, retryParkedNoteJoins, fireAndLog } = await import(
+          '@/lib/sync/ws-sync'
+        );
         const { ensureMetaRoomKey } = await import('@/lib/yjs/workspace-doc');
         const wsId = useWorkspaceStore().activeId;
         if (wsId) {
           await ensureMetaRoomKey(wsId).catch(() => {});
-          getWsSync().joinMetaRoom(wsId);
+          fireAndLog(
+            getWsSync().joinMetaRoom(wsId),
+            `meta room join for workspace ${wsId} (app init)`,
+          );
           // A note page that mounted before this hydrate parked its room join
           // because the workspace id was still null. Now that activeId is known,
           // replay those joins, or the room stays unjoined for the whole session:
@@ -791,7 +805,9 @@ export function useAppShell(onboardingCompleted = true) {
     } catch (err) {
       console.warn('[app] pre-sync auth/workspace hydrate failed:', err);
     }
-    initAppSync();
+    void initAppSync().catch((err) =>
+      logger.warn('[sync] init failed:', err?.message || err),
+    );
     // Tapping a notification must land on the note it announced.
     initNotificationClicks();
     disposeWorkspaceInitListeners();
@@ -896,22 +912,36 @@ export function useAppShell(onboardingCompleted = true) {
 
     if (isWindowsOrLinux) {
       Mousetrap.bind(['ctrl+=', 'ctrl+plus'], () => {
-        updateZoomBy(0.1);
+        void updateZoomBy(0.1).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        );
       });
 
       Mousetrap.bind('ctrl+-', () => {
-        updateZoomBy(-0.1);
+        void updateZoomBy(-0.1).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        );
       });
 
       Mousetrap.bind('ctrl+0', () => {
-        setZoom(1.0);
+        void setZoom(1.0).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        );
       });
     }
 
     unlistenFns.push(
       backend.listen('menu-new-note', () => emitter.emit('new-note')),
-      backend.listen('menu-zoom-in', () => updateZoomBy(0.1)),
-      backend.listen('menu-zoom-out', () => updateZoomBy(-0.1)),
+      backend.listen('menu-zoom-in', () =>
+        void updateZoomBy(0.1).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        ),
+      ),
+      backend.listen('menu-zoom-out', () =>
+        void updateZoomBy(-0.1).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        ),
+      ),
       backend.listen('update-banner', (_, bannerData) => {
         updateBanner.content = bannerData.content;
         updateBanner.primaryText = bannerData.primaryText;

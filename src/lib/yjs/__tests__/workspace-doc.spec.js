@@ -40,6 +40,7 @@ vi.mock('@/lib/sync/ws-sync', () => ({
   getWsSync: () => ({ leaveNoteRoom: vi.fn() }),
   setRoomKey: vi.fn(),
   buildMetaRoomName: vi.fn(),
+  fireAndLog: vi.fn(),
 }));
 vi.mock('@/store/workspace', () => ({ useWorkspaceStore: () => ({ activeId: 'ws' }) }));
 vi.mock('@/lib/api/workspaces', () => ({

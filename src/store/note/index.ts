@@ -298,7 +298,9 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
 
     // Skip Spotlight reindex when nothing changed
     if (coldStart || indexChanged) {
-      reindexAllNotes(this.data);
+      reindexAllNotes(this.data).catch((err) =>
+        console.warn('[spotlight] reindex failed:', err?.message || err)
+      );
     }
     return this.data;
   } catch (error) {
@@ -384,7 +386,9 @@ export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<v
 
   buildSearchIndex(this.data);
   rebuildLinkIndexFromAll(this.data);
-  reindexAllNotes(this.data);
+  reindexAllNotes(this.data).catch((err) =>
+    console.warn('[spotlight] reindex failed:', err?.message || err)
+  );
 
   // Persist indexes for next startup
   const signatures: Record<string, number> = {};

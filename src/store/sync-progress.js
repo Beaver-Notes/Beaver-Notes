@@ -230,9 +230,17 @@ export const useSyncProgressStore = defineStore('syncProgress', {
       });
 
       this._unlisten = () => {
-        unlistenStatus.then((fn) => fn());
-        unlistenError.then((fn) => fn());
-        unlistenProgress.then((fn) => fn());
+        // allSettled so one bad registration/unlisten can neither reject the
+        // derived promise nor skip the others' teardown.
+        void Promise.allSettled([
+          unlistenStatus,
+          unlistenError,
+          unlistenProgress,
+        ])
+          .then((results) => results.forEach((result) => result.value?.()))
+          .catch((err) =>
+            console.warn('[sync] unlisten failed:', err?.message || err),
+          );
       };
     },
 

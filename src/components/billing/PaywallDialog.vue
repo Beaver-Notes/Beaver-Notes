@@ -1,5 +1,6 @@
 <template>
   <ui-modal v-model="show" :content-class="contentClass">
+    <!-- Banner: headline, subtext and mascot -->
     <template #header>
       <div
         class="flex items-center justify-between gap-4 rounded-2xl bg-primary/10 px-5 py-4 dark:bg-primary/20"
@@ -16,7 +17,7 @@
         </div>
         <ui-beaver-character
           :state="characterState"
-          class="pointer-events-none w-32 shrink-0 md:w-20"
+          class="pointer-events-none w-20 shrink-0 md:w-24"
         />
       </div>
     </template>
@@ -35,7 +36,7 @@
       {{ visibleNotice }}
     </p>
 
-    <!-- Inline sign-in step: step 1 of 2, never a dead-end -->
+    <!-- Step 1: inline sign-in, never a dead end -->
     <div v-if="view === 'signing'" class="flex flex-col gap-3">
       <ui-input
         v-model="email"
@@ -60,7 +61,7 @@
       </ui-button>
       <button
         type="button"
-        class="self-center text-sm text-neutral-500 hover:text-neutral-700 hover:underline dark:text-neutral-400 dark:hover:text-neutral-200"
+        class="self-center rounded text-sm text-neutral-500 hover:text-neutral-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-neutral-400 dark:hover:text-neutral-200"
         @click="show = false"
       >
         {{ tr.maybeLater || 'Maybe later' }}
@@ -91,11 +92,12 @@
       class="flex flex-col items-center gap-3 py-6 text-center"
     >
       <p class="text-sm text-red-500">{{ loadError }}</p>
-      <ui-button variant="primary" @click="loadPlans">{{
-        tr.retry || 'Try again'
-      }}</ui-button>
+      <ui-button variant="primary" @click="loadPlans">
+        {{ tr.retry || 'Try again' }}
+      </ui-button>
     </div>
 
+    <!-- Success -->
     <div
       v-else-if="view === 'success'"
       class="flex flex-col items-center gap-3 py-2 text-center"
@@ -110,7 +112,7 @@
 
     <!-- Plans -->
     <div v-else>
-      <!-- What you get. Wide: tiles with the triggering feature outlined.
+      <!-- What you get. Wide: tiles, with the triggering feature outlined.
            Phone: an icon list. -->
       <div v-if="wide" class="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <div
@@ -120,7 +122,7 @@
           :class="
             reason === f.key
               ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-400 dark:bg-amber-400/10'
-              : 'border'
+              : 'border-neutral-200 dark:border-neutral-700'
           "
         >
           <v-remixicon :name="f.icon" class="h-5 w-5 text-primary" />
@@ -149,8 +151,8 @@
           <span class="text-sm text-neutral-900 dark:text-neutral-50">
             <b class="font-semibold">{{ f.title }}</b>
             <span class="text-neutral-500 dark:text-neutral-400">
-              {{ f.body }}</span
-            >
+              {{ f.body }}
+            </span>
           </span>
         </li>
       </ul>
@@ -172,6 +174,7 @@
       </div>
 
       <template v-else>
+        <!-- Billing interval -->
         <div class="mb-4 flex flex-wrap items-center gap-3">
           <div
             class="inline-flex rounded-full bg-neutral-100 p-1 text-sm dark:bg-neutral-800"
@@ -203,9 +206,7 @@
           </span>
         </div>
 
-        <!-- Wide viewport: compact card grid (three with Team on desktop
-             checkout, two store-billing cards on tablets/foldables).
-             Cards only select; the CTA below buys. -->
+        <!-- Wide viewport: card grid. Cards only select; the CTA buys. -->
         <div
           v-if="wide"
           role="radiogroup"
@@ -223,7 +224,7 @@
             :class="
               selected === plan
                 ? 'border-primary bg-primary/5 ring-1 ring-primary dark:bg-primary/10'
-                : ' hover:border-neutral-400 dark:'
+                : 'border-neutral-200 hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-500'
             "
             @click="selected = plan"
             @keydown.enter.prevent="selected = plan"
@@ -246,9 +247,6 @@
             >
               {{ planPriceLine(plan) }}
             </p>
-            <p v-if="!isMobile" class="text-xs text-neutral-500">
-              {{ tr.vatNote || 'VAT calculated at checkout' }}
-            </p>
             <p v-if="plan === 'team'" class="text-xs text-neutral-500">
               {{ tr.perSeat || 'per seat / month' }}
             </p>
@@ -259,67 +257,77 @@
             </p>
           </div>
         </div>
+        <p
+          v-if="wide && !isMobile"
+          class="mt-3 text-xs text-neutral-500 dark:text-neutral-400"
+        >
+          {{ tr.vatNote || 'VAT calculated at checkout' }}
+        </p>
 
         <!-- Phone sheet: rows; the selected row expands to show features -->
         <div
-          v-else
+          v-if="!wide"
           role="radiogroup"
           :aria-label="tr.plansLabel || 'Plans'"
           class="flex flex-col gap-2.5"
         >
-          <template v-for="plan in mobilePlans" :key="plan">
-            <ui-card
-              :padding="'p-0'"
-              hover
-              class="transition-colors"
-              :class="
-                selected === plan ? 'border-primary ring-1 ring-primary' : ''
-              "
+          <ui-card
+            v-for="plan in mobilePlans"
+            :key="plan"
+            :padding="'p-0'"
+            hover
+            class="transition-colors"
+            :class="
+              selected === plan ? 'border-primary ring-1 ring-primary' : ''
+            "
+          >
+            <button
+              type="button"
+              role="radio"
+              :aria-checked="selected === plan"
+              class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+              @click="selected = plan"
             >
-              <button
-                type="button"
-                role="radio"
-                :aria-checked="selected === plan"
-                class="flex w-full items-center justify-between gap-3 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
-                @click="selected = plan"
-              >
-                <span class="text-left">
+              <span>
+                <span
+                  class="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-50"
+                >
+                  {{ planLabel(plan) }}
                   <span
-                    class="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-50"
+                    v-if="isCurrentPlan(plan)"
+                    class="rounded-full border border-neutral-300 px-2 text-[11px] font-normal text-neutral-600 dark:border-neutral-600 dark:text-neutral-300"
                   >
-                    {{ planLabel(plan) }}
-                  </span>
-                  <span
-                    class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400"
-                  >
-                    {{ mobilePriceText(plan) }}
-                  </span>
-                  <span
-                    v-if="selected !== plan"
-                    class="mt-0.5 block text-xs text-neutral-400"
-                  >
-                    {{ planFeatures(plan) }}
+                    {{ tr.currentBadge || 'Current' }}
                   </span>
                 </span>
-                <v-remixicon
-                  name="riRadioButtonLine"
-                  class="h-5 w-5 shrink-0"
-                  :class="
-                    selected === plan ? 'text-primary' : 'text-neutral-400'
-                  "
-                />
-              </button>
-              <expand-transition>
-                <div v-if="selected === plan" class="px-4 pb-4 pt-3 dark:">
-                  <p
-                    class="text-xs leading-relaxed text-neutral-600 dark:text-neutral-300"
-                  >
-                    {{ planFeatures(plan) }}
-                  </p>
-                </div>
-              </expand-transition>
-            </ui-card>
-          </template>
+                <span
+                  class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400"
+                >
+                  {{ mobilePriceText(plan) }}
+                </span>
+                <span
+                  v-if="selected !== plan"
+                  class="mt-0.5 block text-xs text-neutral-400"
+                >
+                  {{ planFeatures(plan) }}
+                </span>
+              </span>
+              <v-remixicon
+                name="riRadioButtonLine"
+                class="h-5 w-5 shrink-0"
+                :class="selected === plan ? 'text-primary' : 'text-neutral-400'"
+              />
+            </button>
+            <expand-transition>
+              <div v-if="selected === plan" class="px-4 pb-4">
+                <p
+                  class="text-xs leading-relaxed text-neutral-600 dark:text-neutral-300"
+                >
+                  {{ planFeatures(plan) }}
+                </p>
+              </div>
+            </expand-transition>
+          </ui-card>
         </div>
       </template>
 
@@ -335,6 +343,7 @@
       </p>
     </div>
 
+    <!-- Footer: actions, hint, trust line, links -->
     <template #actions>
       <div class="flex w-full flex-col gap-2">
         <template v-if="view === 'plans' && !loading && !loadError">
@@ -348,20 +357,20 @@
           </ui-button>
           <div
             v-else
-            class="flex gap-1"
+            class="flex gap-2"
             :class="isMobile ? 'flex-col-reverse' : 'items-center gap-3'"
           >
             <ui-button
               type="button"
               variant="default"
-              :class="isMobile ? 'w-full' : 'w-full'"
+              class="w-full"
               @click="show = false"
             >
               {{ tr.maybeLater || 'Maybe later' }}
             </ui-button>
             <ui-button
               variant="primary"
-              :class="isMobile ? 'w-full' : 'w-full'"
+              class="w-full"
               :loading="busy"
               :disabled="busy || !selected || isCurrentPlan(selected)"
               @click="selectPlan(selected)"
@@ -445,7 +454,7 @@ const WEBSITE_URL = 'https://www.beavernotes.com';
 const TERMS_URL = `${WEBSITE_URL}/terms`;
 const PRIVACY_URL = `${WEBSITE_URL}/privacy`;
 
-// Left of the pipe are the plan ids; ordering is the display order.
+// Ordering is the display order.
 const DESKTOP_PLANS = [PLAN_NAMES.STARTER, PLAN_NAMES.PRO, PLAN_NAMES.TEAM];
 const MOBILE_PLANS = [PLAN_NAMES.STARTER, PLAN_NAMES.PRO];
 
@@ -642,7 +651,6 @@ export default {
     // mobile explains where to get it instead of showing plans.
     const teamOnlyNote = computed(() => isMobile && reason.value === 'collab');
 
-    const desktopPlans = DESKTOP_PLANS;
     const mobilePlans = MOBILE_PLANS;
 
     function isCurrentPlan(plan) {
@@ -693,6 +701,8 @@ export default {
     });
 
     const ctaLabel = computed(() => {
+      if (isCurrentPlan(selected.value))
+        return tr.value.currentPlan || 'Current plan';
       if (isMobile) {
         const price = mobilePriceText(selected.value);
         return price
@@ -901,13 +911,6 @@ export default {
       }
     });
 
-    const start = () => {
-      emitter.on('show-paywall', openHandler);
-    };
-    const stop = () => {
-      emitter.off('show-paywall', openHandler);
-    };
-
     return {
       WEBSITE_URL,
       TERMS_URL,
@@ -946,6 +949,8 @@ export default {
       mobilePriceText,
       savePercent,
       visibleNotice,
+      noticeIsError,
+      reason,
       loadPlans,
       submitSignIn,
       selectPlan,

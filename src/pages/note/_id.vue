@@ -1094,6 +1094,8 @@ export default {
     const handleBeforeUnload = () => {
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
         keepUpdatedAt: true,
+      })?.catch((err) => {
+        console.error('[note] final persist failed:', err);
       });
     };
     let removeGlobalShortcuts = () => {};
@@ -1179,9 +1181,15 @@ export default {
     });
 
     removeCloseHandler = addCloseHandler(async () => {
-      await persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
-        keepUpdatedAt: true,
-      });
+      // bindCloseHandlers only wraps fn() in a synchronous try/catch, so an
+      // async persist rejection escapes it: catch here instead.
+      try {
+        await persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
+          keepUpdatedAt: true,
+        });
+      } catch (err) {
+        console.error('[note] final persist failed:', err);
+      }
     });
 
     const focusEditor = () => {

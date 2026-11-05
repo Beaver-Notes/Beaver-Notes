@@ -1131,7 +1131,9 @@ export default {
       try {
         if (value) {
           await enableIndexing(true);
-          reindexAllNotes(noteStore.data, true);
+          reindexAllNotes(noteStore.data, true).catch((err) =>
+            console.warn('[spotlight] reindex failed:', err?.message || err)
+          );
         } else {
           await enableIndexing(false);
         }

@@ -315,6 +315,7 @@ import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 import { getActiveAccountId, listAccounts } from '@/lib/accounts-index';
 import {
   listArchivedWorkspaces,
+  renameLocalWorkspace,
   restoreLocalWorkspace,
 } from '@/lib/native/workspaces';
 import { signOutAccount, switchAccount } from '@/composable/useAccountAuth';
@@ -498,17 +499,25 @@ export default {
       } else {
         const wsId = formDialogWorkspace.value?.id;
         if (wsId) {
-          const cloud = await import('@/composable/useCloudWorkspaces');
-          await cloud
-            .useCloudWorkspaces()
-            .updateWorkspaceDecoration(wsId, { emoji, color });
-          if (name !== formDialogWorkspace.value.name) {
-            await workspaceStore.rename(wsId, name);
-          } else {
+          if (formDialogWorkspace.value.local) {
+            // Local workspaces live in the Rust registry, which has no
+            // emoji/color fields — only the rename persists.
+            await renameLocalWorkspace(wsId, name.trim());
             const ws = workspaceStore.workspaces.find((w) => w.id === wsId);
-            if (ws) {
-              ws.emoji = emoji;
-              ws.color = color;
+            if (ws) ws.name = name.trim();
+          } else {
+            const cloud = await import('@/composable/useCloudWorkspaces');
+            await cloud
+              .useCloudWorkspaces()
+              .updateWorkspaceDecoration(wsId, { emoji, color });
+            if (name !== formDialogWorkspace.value.name) {
+              await workspaceStore.rename(wsId, name);
+            } else {
+              const ws = workspaceStore.workspaces.find((w) => w.id === wsId);
+              if (ws) {
+                ws.emoji = emoji;
+                ws.color = color;
+              }
             }
           }
         }

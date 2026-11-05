@@ -816,6 +816,13 @@ async function wrapForNewCollaborators(noteId) {
     linkLoading.value = true;
     try {
       inviteLinks.value = await apiListLinks(noteId, { baseUrl: activeBaseUrl() });
+    } catch (err) {
+      // Mirrors fetchJoinRequests: a failure must not reject into the
+      // onMounted call site, and stale links are worse than none.
+      if (err?.status !== 403) {
+        console.warn('[useNoteSharing] fetchLinks failed:', err?.message || err);
+      }
+      inviteLinks.value = [];
     } finally {
       linkLoading.value = false;
     }

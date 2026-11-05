@@ -44,7 +44,8 @@ vi.mock('@/utils/note/search.js', () => ({
 
 vi.mock('@/utils/platform/spotlightSync.js', () => ({
   indexNoteForSpotlight: vi.fn(),
-  reindexAllNotes: vi.fn(),
+  // The real function is async; callers attach .catch to its result.
+  reindexAllNotes: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@/store/note-counts.js', () => ({

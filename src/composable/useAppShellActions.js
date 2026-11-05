@@ -58,12 +58,15 @@ export function useAppShellActions({ includeSettingsNav = false } = {}) {
   }
 
   async function addNote() {
-    const folderId =
-      currentFolderId.value && (await folderStore.exists(currentFolderId.value))
-        ? currentFolderId.value
-        : null;
+    try {
+      const folderId =
+        currentFolderId.value && (await folderStore.exists(currentFolderId.value))
+          ? currentFolderId.value
+          : null;
 
-    noteStore.add({ folderId }).then(({ id }) => {
+      // Awaited: add() rethrows on failure, and the navigation/key
+      // provisioning below must only run for a note that actually exists.
+      const { id } = await noteStore.add({ folderId });
       // The key must exist before anyone can be invited, or the invitee never
       // becomes a key holder. Fire-and-forget: creation must not block on it.
       void useNoteSharing()
@@ -77,7 +80,11 @@ export function useAppShellActions({ includeSettingsNav = false } = {}) {
           router.push(target);
         }
       }
-    });
+    } catch (err) {
+      // No Vue boundary on the mitt/native-menu path: a silent catch here
+      // would be a "new note" click that does nothing with no trace.
+      logger.error('[app-shell] add note failed:', err?.message || err);
+    }
   }
 
   async function addFolder() {

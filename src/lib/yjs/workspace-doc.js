@@ -7,7 +7,7 @@ import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import { registerActiveDoc } from './shared.js';
 import { getDeviceId, objToYMap, toUint8Array } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc, META_DOC_ID, onWorkspaceDocCreate } from './meta-doc.js';
-import { getWsSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/ws-sync';
+import { getWsSync, setRoomKey, buildMetaRoomName, fireAndLog } from '@/lib/sync/ws-sync';
 import { useWorkspaceStore } from '@/store/workspace';
 import { getCachedWorkspaceKey, recoverWorkspaceKeyHex } from '@/lib/api/workspaces';
 import { logger } from '@/utils/logger';
@@ -239,7 +239,7 @@ export async function loadWorkspaceDoc() {
         err?.message || err,
       );
     });
-    wsSync.joinMetaRoom(wsId);
+    fireAndLog(wsSync.joinMetaRoom(wsId), `meta room join for workspace ${wsId} (doc load)`);
   }
 
   return doc;
@@ -328,7 +328,13 @@ export function observeWorkspace(callback, debounceMs = 150) {
       pendingChangedNoteIds = new Set();
       // O7 Fix A: notes appearing after the initial join (created locally or
       // synced from a teammate) must also seal under the workspace key.
-      void registerWsKeyForNotes([...changed], getCachedWorkspaceKey(useWorkspaceStore().activeId));
+      try {
+        void registerWsKeyForNotes([...changed], getCachedWorkspaceKey(useWorkspaceStore().activeId));
+      } catch (err) {
+        // Sync prefix (store/key lookup) runs inside the timer: a throw here
+        // would be an uncaught timer error and skip the projection below.
+        console.warn('[meta-yjs] ws key registration skipped:', err?.message || err);
+      }
       const flags = metaFlags;
       metaFlags = { folders: false, labels: false, labelColors: false };
       callback(changed, flags);

@@ -377,6 +377,26 @@
         </template>
       </section>
     </template>
+
+    <!-- Dev-only data switch (break-ui). `isDevData` is `import.meta.env.DEV`,
+         so this control never renders in a production build. -->
+    <div
+      v-if="isDevData"
+      class="fixed bottom-4 left-1/2 z-[60] flex -translate-x-1/2 gap-1 rounded-full border border-neutral-300 bg-neutral-100 p-1 shadow-sm [font-family:system-ui] text-xs dark:border-neutral-700 dark:bg-neutral-800"
+      role="group"
+      aria-label="Demo data"
+    >
+      <button
+        v-for="m in devModes"
+        :key="m"
+        type="button"
+        class="rounded-full px-2.5 py-1"
+        :class="devDataMode === m
+          ? 'bg-white text-neutral-900 shadow dark:bg-neutral-950 dark:text-neutral-100'
+          : 'text-neutral-600 dark:text-neutral-300'"
+        @click="setDevData(m)"
+      >{{ m }}</button>
+    </div>
   </div>
 </template>
 
@@ -515,7 +535,235 @@ export default {
       });
     }
 
+    // Dev-only data switch (break-ui). The segmented control, every fixture
+    // value and its wiring live inside this `import.meta.env.DEV` block: Vite
+    // replaces the flag with `false` and strips all of it from production
+    // builds, leaving only the inert stubs below. Fixture values enter through
+    // the same refs the API loaders write (admin.*, plan, flags, sso), so the
+    // template never knows the difference.
+    const isDevData = import.meta.env.DEV;
+    const devModes = ['Demo', 'Worst case', 'Empty', 'One', '1,000 rows'];
+    const devDataMode = ref(null); // active fixture label; null = live API data
+    let applyDevFixture = () => {};
+    let setDevData = () => {};
+    if (import.meta.env.DEV) {
+      const DEV_PARAM = {
+        Demo: 'demo',
+        'Worst case': 'worst',
+        Empty: 'empty',
+        One: 'one',
+        '1,000 rows': 'huge',
+      };
+      const DEV_LABEL = Object.fromEntries(
+        Object.entries(DEV_PARAM).map(([label, param]) => [param, label]),
+      );
+
+      function devReadLabel() {
+        const query = window.location.hash.split('?')[1] || '';
+        return DEV_LABEL[new URLSearchParams(query).get('data')] || null;
+      }
+
+      function devWriteLabel(label) {
+        const base = window.location.hash.split('?')[0];
+        window.location.hash = label ? `${base}?data=${DEV_PARAM[label]}` : base;
+      }
+
+      const devUuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+      const devAnonId = '9f8e7d6c-5b4a-4c3d-8e2f-1a0b9c8d7e6f';
+      // Longest a device/session label can be: the server slices the
+      // x-device-label request header to 128 chars, and the header is
+      // free-form client data (Beaver-Sync src/middleware/auth.js:52).
+      const devLongLabel =
+        'Samsung Galaxy S25 Ultra SM-S938B — Diensthandy Aleksandra Wiśniewska-Kowalczyk, München HQ';
+      const devNow = Date.now();
+      const devIso = (msAgo) => new Date(devNow - msAgo).toISOString();
+
+      // Plan figures come straight from Beaver-Sync src/lib/plans.js: team is
+      // 100GB + 25GB×seats (125GB at the default seat), enterprise quota is
+      // literally Number.MAX_SAFE_INTEGER and historyDays is null ("—").
+      const devPlanKind = {
+        plan: 'team',
+        flags: { dashboard: true, audit: true },
+        quotaBytes: 125 * 1024 ** 3,
+        historyDays: 365,
+      };
+      const devPlanWorst = {
+        plan: 'enterprise',
+        flags: { dashboard: true, audit: true },
+        quotaBytes: Number.MAX_SAFE_INTEGER,
+        historyDays: null,
+      };
+
+      const devMember = (n, username, role, deviceCount, extra = {}) => ({
+        userId: devUuid(n),
+        username,
+        role,
+        deviceCount,
+        lastSeen: null,
+        createdAt: devIso(8e8),
+        ...extra,
+      });
+
+      const devDemoRows = (ownerId) => ({
+        members: [
+          { userId: ownerId, username: 'jamie', role: 'owner', deviceCount: 1, lastSeen: null, createdAt: devIso(9e8) },
+          devMember(3, 'alice', 'admin', 2, { lastSeen: devIso(6e5) }),
+          devMember(4, 'bob-the-builder', 'editor', 5, { lastSeen: devIso(36e5) }),
+        ],
+        requests: [
+          { type: 'workspace', id: 'req-1', workspaceId: 'ws-1', accountId: devUuid(1), username: 'ines', role: 'viewer', createdAt: devIso(36e5) },
+          { type: 'note', id: 'req-2', noteId: 'note-1', accountId: devUuid(2), username: 'carl', role: 'editor', createdAt: devIso(72e5) },
+        ],
+        devices: [
+          { userId: devUuid(3), deviceId: 'dev-a', label: 'Safari on macOS', lastSeen: devIso(6e5), createdAt: devIso(8e8) },
+          { userId: devUuid(4), deviceId: 'dev-b', label: 'Chrome on Windows', lastSeen: devIso(36e5), createdAt: devIso(7e8) },
+        ],
+        sessions: [
+          { userId: devUuid(3), idHash: 'hash-a', deviceLabel: 'Safari on macOS', deviceId: 'dev-a', ipSubnet: '192.168.1.0/24', lastSeenAt: devIso(6e5), revoked: false, createdAt: devIso(8e8) },
+          { userId: devUuid(4), idHash: 'hash-b', deviceLabel: 'Chrome on Windows', deviceId: 'dev-b', ipSubnet: '10.0.0.0/8', lastSeenAt: devIso(36e5), revoked: false, createdAt: devIso(7e8) },
+        ],
+        logs: [
+          { id: 'log-1', createdAt: devIso(9e5), action: 'member_added' },
+          { id: 'log-2', createdAt: devIso(18e5), action: 'login' },
+          { id: 'log-3', createdAt: devIso(27e5), action: 'note_edited' },
+        ],
+        configs: [
+          { id: 'sso-1', protocol: 'saml', slug: 'acme', allowedEmailDomains: 'example.com' },
+        ],
+      });
+
+      // One worst-case dataset, failures spread across rows: long hyphenated
+      // username (schema max 32, /^[a-zA-Z0-9_-]{3,32}$/ — account.js:20),
+      // null username falling back to a bare UUID, the 3-char minimum name,
+      // every deviceCount from 0 up, and label/session worst cases below.
+      const devWorstRows = (ownerId) => ({
+        members: [
+          { userId: ownerId, username: 'a-wisniewska-kowalczyk', role: 'owner', deviceCount: 1, lastSeen: null, createdAt: devIso(9e8) },
+          devMember(2, null, 'admin', 47, { userId: devAnonId }),
+          devMember(3, 'jay', 'viewer', 0),
+          devMember(4, 'bartholomew-fitzgerald', 'editor', 12),
+          devMember(5, 'sean-obrien-osulleabhain', 'editor', 3),
+          devMember(6, 'wang-xiuying', 'viewer', 1),
+          devMember(7, 'dana', 'admin', 2),
+          devMember(8, 'northwind-onboarding-lead', 'editor', 9),
+        ],
+        requests: [
+          { type: 'workspace', id: 'req-1', workspaceId: 'ws-1', accountId: devUuid(1), username: 'a-wisniewska-kowalczyk', role: 'admin', createdAt: devIso(36e5) },
+          { type: 'note', id: 'req-2', noteId: 'note-1', accountId: devAnonId, username: null, role: 'editor', createdAt: devIso(72e5) },
+          { type: 'workspace', id: 'req-3', workspaceId: 'ws-1', accountId: devUuid(9), username: 'jay', role: 'viewer', createdAt: devIso(108e5) },
+        ],
+        devices: [
+          { userId: devUuid(4), deviceId: 'dev-c', label: 'Dell U2723QE — Docking-Station Berlin HQ, Etage 3, Platz 17', lastSeen: devIso(1728e5), createdAt: devIso(8e8) },
+          { userId: devUuid(2), deviceId: 'dev-d', label: devLongLabel, lastSeen: null, createdAt: devIso(7e8) },
+        ],
+        sessions: [
+          { userId: devUuid(2), idHash: 'hash-x', deviceLabel: devLongLabel, deviceId: 'dev-d', ipSubnet: '2001:db8:85a3:0:0:8a2e:370:7334', lastSeenAt: devIso(45e3), revoked: false, createdAt: devIso(8e8) },
+          { userId: devUuid(3), idHash: 'hash-y', deviceLabel: 'J', deviceId: null, ipSubnet: null, lastSeenAt: null, revoked: false, createdAt: devIso(7e8) },
+          { userId: devUuid(5), idHash: 'hash-z', deviceLabel: 'Safari on macOS', deviceId: 'dev-e', ipSubnet: '192.168.1.0/24', lastSeenAt: devIso(7776e5), revoked: false, createdAt: devIso(6e8) },
+        ],
+        logs: [
+          { id: 'log-1', createdAt: devIso(6e4), action: 'account_vault_key_params_published' },
+          { id: 'log-2', createdAt: devIso(12e4), action: 'workspace_key_provisioned' },
+          { id: 'log-3', createdAt: devIso(18e4), action: 'yjs_push_batch' },
+          { id: 'log-4', createdAt: devIso(24e4), action: 'verification_email_requested' },
+          { id: 'log-5', createdAt: devIso(3e5), action: 'member_removed' },
+          { id: 'log-6', createdAt: devIso(36e4), action: 'password_reset_complete' },
+          { id: 'log-7', createdAt: devIso(42e4), action: 'note_preclaim_purged' },
+          { id: 'log-8', createdAt: devIso(48e4), action: 'kem_keypair_updated' },
+        ],
+        // slug: /^[a-z0-9-]+$/ with no max length (sso-admin.js:131);
+        // allowedEmailDomains is an unbounded comma-separated string.
+        configs: [
+          {
+            id: 'sso-1',
+            protocol: 'saml',
+            slug: 'northwind-industries-holdings-sso',
+            idpEntityId: 'https://idp.northwind-industries-holdings.example.com/metadata/enterprise/saml/v2',
+            allowedEmailDomains:
+              'northwind-industries-holdings.example.com, sub.department.region.example.co.uk, internal.northwind-industries-holdings.example.com',
+          },
+        ],
+      });
+
+      // 1,284 members: no seat cap is armed until billing provisions seats
+      // (Beaver-Sync organizations.js:495-501) and the admin members endpoint
+      // is unpaginated (admin.js:65), so this is a reachable upper bound.
+      const devHugeMembers = (ownerId) => {
+        const roles = ['admin', 'editor', 'viewer'];
+        const rows = [{
+          userId: ownerId,
+          username: 'a-wisniewska-kowalczyk',
+          role: 'owner',
+          deviceCount: 1,
+          lastSeen: null,
+          createdAt: devIso(9e8),
+        }];
+        for (let i = 1; i < 1284; i += 1) {
+          rows.push(devMember(
+            i + 10,
+            i % 100 === 7 ? `a-wisniewska-kowalczyk-${i}` : `member-${String(i).padStart(4, '0')}`,
+            roles[i % 3],
+            i % 7,
+            { lastSeen: i % 5 === 0 ? null : devIso(i * 6e4) },
+          ));
+        }
+        return rows;
+      };
+
+      function devFixture(label, ownerId, thisDeviceId) {
+        const isWorst = label === 'Worst case' || label === '1,000 rows';
+        const plan = isWorst ? devPlanWorst : devPlanKind;
+        const demo = devDemoRows(ownerId);
+        const worst = devWorstRows(ownerId);
+        let rows;
+        if (label === 'Empty') {
+          rows = { members: [], requests: [], devices: [], sessions: [], logs: [], configs: [] };
+        } else if (label === 'One') {
+          rows = Object.fromEntries(
+            Object.entries(demo).map(([key, list]) => [key, list.slice(0, 1)]),
+          );
+        } else if (label === '1,000 rows') {
+          rows = { ...worst, members: devHugeMembers(ownerId) };
+        } else if (label === 'Worst case') {
+          rows = worst;
+        } else {
+          rows = demo;
+        }
+        const sessions = rows.sessions.map((s, i) =>
+          (i === 0 && thisDeviceId ? { ...s, deviceId: thisDeviceId } : s),
+        );
+        return { ...plan, ...rows, sessions };
+      }
+
+      applyDevFixture = () => {
+        const label = devDataMode.value;
+        if (!label) return;
+        const fx = devFixture(label, currentUserId.value || devUuid(1), thisDeviceId.value);
+        admin.members.value = fx.members;
+        admin.devices.value = fx.devices;
+        admin.sessions.value = fx.sessions;
+        admin.auditLogs.value = fx.logs;
+        admin.joinRequests.value = fx.requests;
+        sso.configs = fx.configs;
+        plan.value = fx.plan;
+        flags.value = fx.flags;
+        quotaBytes.value = fx.quotaBytes;
+        historyDays.value = fx.historyDays;
+        plansLoaded.value = true;
+        admin.error.value = '';
+      };
+
+      setDevData = (label) => {
+        devDataMode.value = label;
+        devWriteLabel(label);
+        applyDevFixture();
+      };
+
+      devDataMode.value = devReadLabel();
+    }
+
     async function loadSsoConfigs() {
+      if (devDataMode.value) { applyDevFixture(); return; }
       if (!workspaceId.value) return;
       sso.loading = true;
       try {
@@ -645,6 +893,7 @@ export default {
     }
 
     async function loadPlans() {
+      if (devDataMode.value) { applyDevFixture(); return; }
       try {
         const plans = await getPlans({ baseUrl: accountStore.serverUrl });
         plan.value = plans?.plan || 'free';
@@ -801,6 +1050,7 @@ export default {
     }
 
     async function refreshAdmin() {
+      if (devDataMode.value) { applyDevFixture(); return; }
       if (!workspaceId.value) return;
       await Promise.allSettled([
         admin.loadMembers(),
@@ -820,6 +1070,9 @@ export default {
       try {
         thisDeviceId.value = await getSyncDeviceId();
       } catch { /* badge only — absence hides it */ }
+      // Re-apply so the fixture's first session can carry the real device id
+      // and the "This device" badge has something to match against.
+      if (devDataMode.value) applyDevFixture();
     });
 
     watch(workspaceId, () => {
@@ -878,6 +1131,10 @@ export default {
       handleRevoke,
       handleLoadDevices,
       handleLoadAudit,
+      isDevData,
+      devModes,
+      devDataMode,
+      setDevData,
       // Return the reactive directly: a plain object of nested computed refs
       // would not unwrap in the template (render gets the ref object itself,
       // so `sso.configs.length` is undefined and the v-for crashes the page).

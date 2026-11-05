@@ -8,40 +8,21 @@
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <template #header>
-      <div
-        v-if="pickerOpen"
-        class="grid grid-cols-[auto_1fr_auto] items-center gap-2"
-      >
+      <div class="flex items-center gap-2">
         <button
+          v-if="pickerOpen"
           type="button"
-          class="motion-press flex h-9 w-9 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          class="motion-press flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
           :aria-label="backLabel"
           @click="closePicker(true)"
         >
           <v-remixicon name="riArrowLeftLine" size="20" />
         </button>
-        <h3 class="text-center font-semibold text-lg tracking-tight">
-          {{ chooseIconLabel }}
+        <h3
+          class="min-w-0 truncate text-lg font-semibold tracking-tight leading-snug"
+        >
+          {{ pickerOpen ? chooseIconLabel : title }}
         </h3>
-        <button
-          type="button"
-          class="motion-press flex h-9 w-9 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-          :aria-label="closeLabel"
-          @click="onCancel"
-        >
-          <v-remixicon name="riCloseLine" size="20" />
-        </button>
-      </div>
-      <div v-else class="relative flex items-center justify-center">
-        <h3 class="font-semibold text-lg tracking-tight">{{ title }}</h3>
-        <button
-          type="button"
-          class="motion-press absolute right-0 flex h-9 w-9 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-          :aria-label="closeLabel"
-          @click="onCancel"
-        >
-          <v-remixicon name="riCloseLine" size="20" />
-        </button>
       </div>
     </template>
 
@@ -55,7 +36,7 @@
         @click="openPicker"
       >
         <!-- Same construction as HomeFolderCard: tab + stacked sheets + gradient body. -->
-        <span v-if="kind === 'folder'" class="relative block w-40 aspect-6/5">
+        <span v-if="kind === 'folder'" class="relative block w-40 [aspect-ratio:6/5]">
           <span
             class="absolute top-[10%] left-0 z-0 h-[20%] w-[40%] rounded-tl-xl rounded-tr-md transition-colors"
             :style="{
@@ -115,7 +96,11 @@
           >{{ draftIcon }}</span
         >
         <span
-          class="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white ring-2 ring-white dark:bg-white dark:text-neutral-900 dark:ring-neutral-900"
+          class="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full text-inherit"
+          :style="{
+            backgroundColor: draftColor,
+            filter: 'saturate(0.8)',
+          }"
           aria-hidden="true"
         >
           <v-remixicon name="riPencilLine" size="12" />
@@ -126,7 +111,7 @@
         ref="nameInputRef"
         v-model="draftName"
         :placeholder="namePlaceholder"
-        class="customize-name w-full"
+        class="w-full"
         @keydown.enter="onPrimary"
       />
 
@@ -224,7 +209,7 @@
       class="flex flex-col items-center gap-3 px-1 py-1"
     >
       <div class="pointer-events-none scale-[0.7] -my-4" aria-hidden="true">
-        <span v-if="kind === 'folder'" class="relative block w-40 aspect-6/5">
+        <span v-if="kind === 'folder'" class="relative block w-40 [aspect-ratio:6/5]">
           <span
             class="absolute top-[10%] left-0 z-0 h-[20%] w-[40%] rounded-tl-xl rounded-tr-md"
             :style="{
@@ -306,23 +291,21 @@
     </div>
 
     <template #actions>
-      <div class="flex w-full gap-3">
-        <ui-button
-          class="mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3 flex-1"
-          @click="onCancelAction"
-        >
-          {{ cancelLabel }}
-        </ui-button>
-        <ui-button
-          class="mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3 flex-1"
-          color="bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
-          :loading="saving"
-          :disabled="primaryDisabled"
-          @click="onPrimary"
-        >
-          {{ pickerOpen ? useIconLabel : primaryLabel }}
-        </ui-button>
-      </div>
+      <ui-button
+        class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+        @click="onCancelAction"
+      >
+        {{ cancelLabel }}
+      </ui-button>
+      <ui-button
+        class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+        variant="primary"
+        :loading="saving"
+        :disabled="primaryDisabled"
+        @click="onPrimary"
+      >
+        {{ pickerOpen ? useIconLabel : primaryLabel }}
+      </ui-button>
     </template>
   </ui-modal>
 </template>
@@ -392,9 +375,6 @@ export default {
     const cancelLabel = computed(
       () => translations.value.dialog?.cancel || 'Cancel',
     );
-    const closeLabel = computed(
-      () => translations.value.dialog?.close || 'Close',
-    );
     const backLabel = computed(() => translations.value.dialog?.back || 'Back');
     const customColorLabel = computed(
       () => group.value.customColor || 'Custom color',
@@ -418,9 +398,7 @@ export default {
     const workspaceTileStyle = computed(() => {
       const color = draftColor.value || CUSTOMIZE_DEFAULT_COLOR;
       return {
-        backgroundColor: /^#[0-9a-fA-F]{6}$/.test(color)
-          ? `${color}21`
-          : color,
+        backgroundColor: /^#[0-9a-fA-F]{6}$/.test(color) ? `${color}21` : color,
         boxShadow: `inset 0 0 0 2px ${color}`,
       };
     });
@@ -562,9 +540,7 @@ export default {
         document.addEventListener('keyup', onEscapeCapture, true);
         // Focus the picker's search box; the dataset loads underneath.
         nextTick(() =>
-          rootQuery.value
-            ?.querySelector('.note-search-input input')
-            ?.focus?.(),
+          rootQuery.value?.querySelector('.note-search-input input')?.focus?.(),
         );
       } else {
         detachEscape();
@@ -587,7 +563,6 @@ export default {
       useIconLabel,
       useDefaultLabel,
       cancelLabel,
-      closeLabel,
       backLabel,
       customColorLabel,
       colorLabel,
@@ -614,24 +589,8 @@ export default {
 <style scoped>
 .emoji-glyph {
   font-family:
-    'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
-    'Twemoji', sans-serif;
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Twemoji',
+    sans-serif;
 }
 
-/* The name is the only input: borderless, centered, title-sized. */
-.customize-name :deep(label > div) {
-  background-color: transparent;
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-.customize-name :deep(label > div:focus-within) {
-  box-shadow: none;
-}
-.customize-name :deep(input) {
-  text-align: center;
-  font-size: 1.25rem;
-  line-height: 1.75rem;
-  font-weight: 600;
-}
 </style>

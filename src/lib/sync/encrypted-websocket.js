@@ -138,19 +138,27 @@ export function createEncryptedWebSocket(roomName, getKey) {
     // (off-chain) for it; on success flush the queue, on timeout fail closed.
     _beaverStartKeyWait() {
       if (this._beaverKeyWait) return;
-      this._beaverKeyWait = this._beaverWaitForKey().then((key) => {
-        this._beaverKeyWait = null;
-        if (!key) {
-          const dropped = this._beaverQueuedFrames || [];
-          this._beaverQueuedFrames = null;
-          console.error(
-            `[ws-sync] dropping ${dropped.length} frame(s), no room key after 5s:`,
-            roomName,
-          );
-          return;
-        }
-        this._beaverFlushQueued(key);
-      });
+      const keyWait = this._beaverWaitForKey()
+        .then((key) => {
+          this._beaverKeyWait = null;
+          if (!key) {
+            const dropped = this._beaverQueuedFrames || [];
+            this._beaverQueuedFrames = null;
+            console.error(
+              `[ws-sync] dropping ${dropped.length} frame(s), no room key after 5s:`,
+              roomName,
+            );
+            return;
+          }
+          this._beaverFlushQueued(key);
+        })
+        .catch((err) => {
+          // A rejection would leave the latch set (the early return above
+          // would then block every future key wait): clear it and report.
+          if (this._beaverKeyWait === keyWait) this._beaverKeyWait = null;
+          this._beaverReportSendError(err);
+        });
+      this._beaverKeyWait = keyWait;
     }
 
     // Flush behind everything already in the chain so ordering holds: frames

@@ -89,7 +89,7 @@
 
             <div
               v-if="$slots.actions"
-              class="flex gap-3 mobile:flex-col-reverse tablet:flex-col-reverse pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700"
+              class="flex gap-3 mobile:flex-col-reverse tablet:flex-col-reverse pt-4 mt-4"
             >
               <slot name="actions"></slot>
             </div>

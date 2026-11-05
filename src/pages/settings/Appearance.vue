@@ -434,14 +434,19 @@ export default {
       selectedFont: getSettingSync('selectedFont'),
       selectedCodeFont: getSettingSync('selectedCodeFont'),
     });
-    if (rawAccent === 'light') void setSetting('colorScheme', 'amber');
+    if (rawAccent === 'light')
+      void setSetting('colorScheme', 'amber').catch((err) =>
+        console.warn('[settings] write failed:', err?.message || err),
+      );
 
     const isMacOS = computed(() => isMacOSRuntime());
 
     const ClearFontChecked = computed({
       get: () => getSettingSync('selectedDarkText') === '#CCCCCC',
       set: (value) => {
-        void setSetting('selectedDarkText', value ? '#CCCCCC' : 'white');
+        void setSetting('selectedDarkText', value ? '#CCCCCC' : 'white').catch(
+          (err) => console.warn('[settings] write failed:', err?.message || err),
+        );
         document.documentElement.style.setProperty(
           '--selected-dark-text',
           value ? '#CCCCCC' : 'white',
@@ -480,20 +485,26 @@ export default {
       });
       root.classList.add(color);
       state.accentColor = color;
-      void setSetting('colorScheme', color);
+      void setSetting('colorScheme', color).catch((err) =>
+        console.warn('[settings] write failed:', err?.message || err),
+      );
     };
 
     const visibilityMenubar = computed({
       get: () => getSettingSync('visibilityMenubar'),
       set: (val) => {
-        void setSetting('visibilityMenubar', val);
+        void setSetting('visibilityMenubar', val).catch((err) =>
+          console.warn('[settings] write failed:', err?.message || err),
+        );
       },
     });
 
     const reducedMotion = computed({
       get: () => getSettingSync('reducedMotion'),
       set: (val) => {
-        void setSetting('reducedMotion', val);
+        void setSetting('reducedMotion', val).catch((err) =>
+          console.warn('[settings] write failed:', err?.message || err),
+        );
       },
     });
 
@@ -555,12 +566,16 @@ export default {
     const toggleDirectionPreference = () => {
       state.directionPreference =
         state.directionPreference === 'rtl' ? 'ltr' : 'rtl';
-      void setSetting('directionPreference', state.directionPreference);
+      void setSetting('directionPreference', state.directionPreference).catch(
+        (err) => console.warn('[settings] write failed:', err?.message || err),
+      );
       document.documentElement.dir = state.directionPreference;
     };
 
     const updateFont = () => {
-      void setSetting('selectedFont', state.selectedFont);
+      void setSetting('selectedFont', state.selectedFont).catch((err) =>
+        console.warn('[settings] write failed:', err?.message || err),
+      );
       document.documentElement.style.setProperty(
         '--selected-font',
         state.selectedFont,
@@ -568,15 +583,21 @@ export default {
     };
 
     const updateCodeFont = () => {
-      void setSetting('selectedCodeFont', state.selectedCodeFont);
+      void setSetting('selectedCodeFont', state.selectedCodeFont).catch((err) =>
+        console.warn('[settings] write failed:', err?.message || err),
+      );
       document.documentElement.style.setProperty(
         '--selected-font-code',
         state.selectedCodeFont,
       );
     };
 
-    const setZoom = (newZoomLevel) => {
-      state.zoomLevel = setStoredZoomLevel(newZoomLevel, { reload: true });
+    const setZoom = async (newZoomLevel) => {
+      try {
+        state.zoomLevel = await setStoredZoomLevel(newZoomLevel);
+      } catch (err) {
+        console.warn('[settings] zoom write failed:', err?.message || err);
+      }
     };
     const isDesktopRuntime = backend.isDesktopRuntime();
     const isMobileRuntime = backend.isMobileRuntime();

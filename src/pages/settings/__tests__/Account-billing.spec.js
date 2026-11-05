@@ -127,7 +127,7 @@ describe('Account paywall CTA (mounted)', () => {
           'ui-button': { template: '<button data-testid="primary-cta"><slot /></button>' },
           'ui-modal': { template: '<div><slot /></div>' },
           'ui-card': { template: '<div><slot /></div>' },
-          'ui-banner': {
+          'SettingsAlert': {
             template:
               '<div><slot /><button data-testid="banner-primary" @click="$emit(\'button-1\')" /></div>',
           },

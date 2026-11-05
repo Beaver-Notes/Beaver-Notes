@@ -663,9 +663,12 @@ export function useCloudWorkspaces() {
   async function repairMetaRoomJoin(workspaceId, workspaceKeyHex) {
     if (!workspaceId || !workspaceKeyHex) return;
     try {
-      const { setRoomKey, buildMetaRoomName, getWsSync } = await import('@/lib/sync/ws-sync');
+      const { setRoomKey, buildMetaRoomName, getWsSync, fireAndLog } = await import('@/lib/sync/ws-sync');
       await setRoomKey(buildMetaRoomName(workspaceId), workspaceKeyHex);
-      getWsSync().joinMetaRoom(workspaceId);
+      fireAndLog(
+        getWsSync().joinMetaRoom(workspaceId),
+        `meta room join repair for workspace ${workspaceId}`,
+      );
     } catch (err) {
       console.warn(`[useCloudWorkspaces] meta room repair failed for ${workspaceId}:`, err?.message || err);
     }

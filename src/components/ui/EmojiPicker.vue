@@ -13,7 +13,7 @@
 
     <div
       v-if="!searchQuery"
-      class="flex flex-wrap gap-1 mb-3 justify-center"
+      class="flex gap-1 mb-3 justify-center"
     >
         <button
           v-for="category in emojiCategories"
@@ -75,7 +75,7 @@
 
       <template v-else>
         <div
-          class="grid gap-1 max-h-52 overflow-y-auto overflow-x-hidden relative"
+          class="grid gap-1 max-h-52 overflow-y-auto relative"
           :style="[gridStyle, fullGridHeight]"
           :class="{
             'pb-12': activeSkinToneBase && skinToneMap[activeSkinToneBase],
@@ -212,13 +212,9 @@ const emojiCategories = [
 export default {
   name: 'EmojiPicker',
   props: {
-    /** Currently selected emoji character (highlighted in the grid). */
     current: { type: String, default: '' },
-    /** Emojis per row (emoji-mart `perLine`). */
     columns: { type: Number, default: 8 },
-    /** Max recent picks to remember (emoji-mart `maxFrequentRows` equivalent). */
     maxRecents: { type: Number, default: 24 },
-    /** localStorage key for recent picks, shared across dialogs. */
     recentKey: { type: String, default: 'beaver-recent-emojis' },
   },
   emits: ['select'],
@@ -236,7 +232,6 @@ export default {
       gridTemplateColumns: `repeat(${props.columns}, minmax(0, 1fr))`,
     }));
 
-    // Keep ~5 rows visible regardless of `columns` (was hardcoded to 8).
     const fullGridHeight = computed(() => ({
       maxHeight: `calc((100cqw - 1.75rem) / ${props.columns} * 5 + 1rem)`,
     }));
@@ -283,7 +278,7 @@ export default {
       try {
         localStorage.setItem(props.recentKey, JSON.stringify(next));
       } catch {
-        // Private mode: recents just don't persist.
+        // Recents just don't persist.
       }
     }
 
@@ -292,7 +287,7 @@ export default {
       try {
         localStorage.removeItem(props.recentKey);
       } catch {
-        // Private mode: nothing persisted anyway.
+        // Nothing persisted.
       }
     }
 

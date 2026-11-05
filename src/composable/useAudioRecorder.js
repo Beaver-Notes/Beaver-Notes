@@ -216,6 +216,9 @@ function cleanup() {
       }
       return null;
     })
+    .catch((err) => {
+      console.warn('Recorder cleanup status check failed.', err);
+    })
     .finally(() => {
       resetState();
       // Drop the quit-time handler with the recording it serves; start()

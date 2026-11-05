@@ -214,7 +214,9 @@ function setTheme(name, isSystem = false) {
     applyResolvedTheme(currentTheme.value === 'dark');
   }
 
-  void setSetting('theme', currentTheme.value);
+  void setSetting('theme', currentTheme.value).catch((err) =>
+    console.warn('[theme] write failed:', err?.message || err),
+  );
 }
 
 function loadTheme() {

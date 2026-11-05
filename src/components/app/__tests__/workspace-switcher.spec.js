@@ -14,6 +14,8 @@ const { blobs, ctl } = vi.hoisted(() => ({
     signOutAccount: vi.fn(async () => ({ switched: true })),
     listArchived: vi.fn(async () => []),
     restoreLocal: vi.fn(async () => {}),
+    renameLocal: vi.fn(async () => {}),
+    storeRename: vi.fn(async () => {}),
   },
 }));
 
@@ -37,6 +39,7 @@ vi.mock('@/lib/dialog', () => ({
 vi.mock('@/lib/native/workspaces', () => ({
   listArchivedWorkspaces: ctl.listArchived,
   restoreLocalWorkspace: ctl.restoreLocal,
+  renameLocalWorkspace: ctl.renameLocal,
 }));
 
 vi.mock('vue-router', () => ({
@@ -62,7 +65,7 @@ vi.mock('@/store/workspace', () => ({
     loading: false,
     retrieve: vi.fn(async () => {}),
     create: vi.fn(),
-    rename: vi.fn(),
+    rename: ctl.storeRename,
   }),
 }));
 
@@ -201,6 +204,18 @@ describe('WorkspaceSwitcher accounts', () => {
     await flushPromises();
 
     expect(ctl.restoreLocal).toHaveBeenCalledWith('default');
+  });
+
+  it('renames a local workspace without touching the cloud', async () => {
+    const wrapper = mountSwitcher();
+    await flushPromises();
+
+    wrapper.vm.formDialogMode = 'edit';
+    wrapper.vm.formDialogWorkspace = { id: 'ws-local', name: 'Old', local: true };
+    await wrapper.vm.handleFormConfirm({ name: 'New', emoji: '📁', color: null });
+
+    expect(ctl.renameLocal).toHaveBeenCalledWith('ws-local', 'New');
+    expect(ctl.storeRename).not.toHaveBeenCalled();
   });
 
   it('asks before signing an account out', async () => {

@@ -59,6 +59,15 @@ function rebroadcastLocalAwareness(awareness, roomName, label) {
 // provisioned after the first attempt self-heals instead of staying off.
 const pendingKeyJoins = new Map()
 
+// Fire-and-log sink for every floating room join: join functions are async
+// with try/finally and no catch, so a rejection must be logged at the call
+// site instead of floating as an unhandled rejection with no trace.
+export function fireAndLog(promise, label) {
+  Promise.resolve(promise).catch((err) =>
+    console.warn(`[ws-sync] ${label} failed: ${err?.message || err}`),
+  )
+}
+
 // Key for a note join parked because no workspace id resolved yet: the room name
 // needs that id, so the pending entry can't live under it until the id lands.
 function parkedNoteJoinKey(noteId) {
@@ -502,27 +511,35 @@ export function useWsSync() {
     reconnectTimers.set(
       roomName,
       setTimeout(async () => {
-        const cur = activeProviders.get(roomName)
-        if (cur) {
-          detachNotificationListener(cur)
-          // y-websocket retries on its own timer with the ticket already
-          // redeemed server-side, so every reconnect also burned one 401. Stop
-          // that internal retry; a fresh ticket below reopens the socket.
-          cur.shouldConnect = false
-          const refreshed = await refreshProviderParams(roomName, cur)
-          if (refreshed) {
-            cur.shouldConnect = true
-            cur.connect()
-            return
-          }
-          // No ticket to retry with: rebuild the room from scratch.
-          cur.destroy()
-          activeProviders.delete(roomName)
-        }
         try {
-          await rejoin()
-        } catch {
-          // rejoin failure schedules its own retry via the status handler
+          const cur = activeProviders.get(roomName)
+          if (cur) {
+            detachNotificationListener(cur)
+            // y-websocket retries on its own timer with the ticket already
+            // redeemed server-side, so every reconnect also burned one 401. Stop
+            // that internal retry; a fresh ticket below reopens the socket.
+            cur.shouldConnect = false
+            const refreshed = await refreshProviderParams(roomName, cur)
+            if (refreshed) {
+              cur.shouldConnect = true
+              cur.connect()
+              return
+            }
+            // No ticket to retry with: rebuild the room from scratch.
+            cur.destroy()
+            activeProviders.delete(roomName)
+          }
+          try {
+            await rejoin()
+          } catch {
+            // rejoin failure schedules its own retry via the status handler
+          }
+        } catch (err) {
+          // Anything outside the inner catch (token/params refresh, provider
+          // rebuild) would escape the timer as an uncaught error.
+          console.warn(
+            `[ws-sync] rejoin timer for ${roomName} failed: ${err?.message || err}`,
+          )
         }
       }, Math.min(1000 * attempts, 15000)),
     )
@@ -831,12 +848,17 @@ export function useWsSync() {
     const workspaceId = getActiveWorkspaceId()
     if (workspaceId) {
       const metaRoom = buildMetaRoomName(workspaceId)
-      if (!activeProviders.has(metaRoom) && !pendingRooms.has(metaRoom)) joinMetaRoom(workspaceId)
+      if (!activeProviders.has(metaRoom) && !pendingRooms.has(metaRoom)) {
+        fireAndLog(joinMetaRoom(workspaceId), `meta room join on repair of ${metaRoom}`)
+      }
     }
     for (const [roomName, args] of Array.from(noteRoomArgs.entries())) {
       if (activeProviders.has(roomName) || pendingRooms.has(roomName)) continue
       try {
-        Promise.resolve(joinNoteRoom(args.noteId, args.doc, args.awareness)).catch(() => {})
+        fireAndLog(
+          joinNoteRoom(args.noteId, args.doc, args.awareness),
+          `re-join of ${roomName} on repair`,
+        )
       } catch {
         /* Realtime is an accelerator: a failed repair costs only live updates. */
       }
@@ -876,7 +898,7 @@ export function useWsSync() {
     if (workspaceId) {
       const metaRoom = buildMetaRoomName(workspaceId)
       if (!activeProviders.has(metaRoom) && !pendingRooms.has(metaRoom)) {
-        joinMetaRoom(workspaceId)
+        fireAndLog(joinMetaRoom(workspaceId), `meta room join on start of ${metaRoom}`)
       }
     }
     // Note rooms too: nothing else re-joins them once their provider is gone,
@@ -917,7 +939,7 @@ export function useWsSync() {
     metaRoomAwareness.value = null
 
     if (isAuthenticated()) {
-      joinMetaRoom(workspaceId)
+      fireAndLog(joinMetaRoom(workspaceId), `meta room join on workspace switch to ${workspaceId}`)
     }
   }
 
@@ -925,7 +947,7 @@ export function useWsSync() {
     for (const [roomName] of activeProviders) {
       if (roomName.endsWith(`:note:${noteId}`)) return
     }
-    joinNoteRoom(noteId, doc)
+    fireAndLog(joinNoteRoom(noteId, doc), `note room join on switch to note ${noteId}`)
   }
 
   // Fail-closed role resolution: a note with known sharing context that does
