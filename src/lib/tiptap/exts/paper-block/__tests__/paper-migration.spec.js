@@ -137,4 +137,13 @@ describe('PaperStrokesMigration', () => {
     expect(html).not.toContain('data-lines=');
     editor.destroy();
   });
+
+  it('scans once per load — post-load legacy nodes stay untouched', () => {
+    const editor = makeEditor({ type: 'doc', content: [{ type: 'paragraph' }] });
+    touch(editor); // first docChanged transaction closes the gate
+    editor.commands.insertContentAt(0, { type: 'paper', attrs: { linesV2: V2_LINES } });
+    const node = paperNode(editor);
+    expect(node.attrs.strokes).toEqual([]);
+    editor.destroy();
+  });
 });

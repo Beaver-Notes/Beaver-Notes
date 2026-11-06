@@ -13,6 +13,7 @@ function parsePdfAttrs(el) {
     src: src || null,
     fileName: el.getAttribute('data-file-name'),
     markup: parseStrokes(el.getAttribute('data-markup') || '[]'),
+    height: Number(el.getAttribute('data-height')) || 200,
   };
 }
 
@@ -44,6 +45,14 @@ export default Node.create({
       },
       src: { default: null },
       fileName: { default: null },
+      height: {
+        default: 200,
+        parseHTML: (el) => {
+          const n = Number(el.getAttribute('data-height'));
+          return Number.isFinite(n) && n > 0 ? n : 200;
+        },
+        renderHTML: (attrs) => (attrs.height ? { 'data-height': attrs.height } : {}),
+      },
     };
   },
 

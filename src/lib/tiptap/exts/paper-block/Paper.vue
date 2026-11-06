@@ -62,6 +62,7 @@ import {
   TOOL_DEFAULTS,
   parseStrokes,
   serializeStrokes,
+  scaleStrokes,
 } from './ink/stroke-model.js';
 
 const PRESETS_KEY = 'beaver-paper-presets';
@@ -193,7 +194,13 @@ export default {
     }
     function onHeightChange(px) {
       const h = Math.max(60, Math.round(px));
-      if (h !== props.node.attrs.height) props.updateAttributes({ height: h });
+      const old = props.node.attrs.height || 210;
+      if (h === old) return;
+      // Resize scales the drawing (Apple-style), anchored at the top edge.
+      props.updateAttributes({
+        height: h,
+        strokes: scaleStrokes(parseStrokes(props.node.attrs.strokes), h / old),
+      });
     }
     function setTool(t) {
       tool.value = t;

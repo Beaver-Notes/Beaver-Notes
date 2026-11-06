@@ -7,7 +7,7 @@
 
     <div v-else class="pdf-frame">
       <!-- Header rail -->
-      <div class="pdf-header">
+      <div class="pdf-header" @click="selectBlock">
         <span class="pdf-label">
           <v-remixicon name="riFilePdfLine" class="w-4 h-4" />
           {{ t('pdfBlock.title', 'PDF') }}
@@ -20,12 +20,20 @@
         >
           {{ t('pdfBlock.showThumbnails', 'Show Thumbnails') }}
         </button>
+        <button
+          class="pdf-convert-back"
+          type="button"
+          :title="t('pdfBlock.convertBack', 'Convert to attachment')"
+          @click="convertBack"
+        >
+          <v-remixicon name="riArrowGoBackLine" class="w-4 h-4" />
+        </button>
       </div>
 
       <!-- Thumbnail filmstrip -->
       <div v-show="showThumbs" class="pdf-filmstrip" role="listbox">
         <button
-          v-for="entry in railLayout_"
+          v-for="entry in thumbLayout_"
           :key="entry.page"
           type="button"
           class="pdf-thumb"
@@ -46,12 +54,12 @@
       <div
         ref="railRef"
         class="pdf-rail"
-        :style="{ height: `${RAIL_HEIGHT}px` }"
+        :style="{ height: `${railHeight}px` }"
       >
         <template v-if="ready">
           <div
             class="pdf-rail-pages"
-            :style="{ width: `${railWidth}px`, height: `${RAIL_HEIGHT}px` }"
+            :style="{ width: `${railWidth}px`, height: `${railHeight}px` }"
           >
             <canvas
               v-for="entry in railLayout_"
@@ -69,21 +77,39 @@
             class="pdf-rail-surface"
             :strokes="railStrokes"
             :focused="true"
-            :chrome="false"
+            :chrome="selected"
             :tool="railTool"
             :tool-settings="toolSettings"
-            :height="RAIL_HEIGHT"
+            :height="railHeight"
             paper-type="transparent"
             media
             :node-key="surfaceKey"
             @commit="onRailCommit"
-            @height-change="noop"
+            @height-change="onRailHeight"
           />
         </template>
         <div v-if="loading" class="pdf-loading" aria-live="polite">
           <v-remixicon name="riLoader4Line" class="w-5 h-5 animate-spin" />
         </div>
       </div>
+      <PaperToolbar
+        v-if="selected && ready"
+        class="pdf-rail-toolbar"
+        :tools="railTools"
+        :tool="tool"
+        :paper-types="[]"
+        :current-tool-color="currentToolColor"
+        :current-tool-size="currentToolSize"
+        :active-presets="[]"
+        :can-undo="canUndo"
+        :can-redo="canRedo"
+        @tool="tool = $event"
+        @color="setColor"
+        @color-input="setColor"
+        @size="setSize"
+        @undo="editor.commands.undo()"
+        @redo="editor.commands.redo()"
+      />
     </div>
 
     <MarkupEditor
@@ -103,6 +129,8 @@
         @redo="editor.commands.redo()"
         @tool="(value) => (tool = value)"
         @color="onEditorColor"
+        @color-input="onEditorColor"
+        @size="setSize"
       />
   </NodeViewWrapper>
 </template>
@@ -119,6 +147,7 @@ import {
 } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import PaperSurface from '../paper-block/PaperSurface.vue';
+import PaperToolbar from '../paper-block/PaperToolbar.vue';
 import InkPreview from '../paper-block/InkPreview.vue';
 import MarkupEditor from './MarkupEditor.vue';
 import { openPdf } from './pdfSource.js';
@@ -130,7 +159,7 @@ import {
   railStrokeToStored,
   strokesToRail,
 } from './pdfMarkup.js';
-import { DRAW_TOOLS, RAIL_HEIGHT } from './constants.js';
+import { DRAW_TOOLS, RAIL_HEIGHT, THUMB_HEIGHT } from './constants.js';
 import { parseStrokes, TOOL_DEFAULTS } from '../paper-block/ink/stroke-model';
 import { useTranslations } from '@/composable/useTranslations';
 
@@ -163,9 +192,10 @@ const toolSettings = ref(
 
 const markup = computed(() => parseStrokes(props.node.attrs.markup));
 
+const railHeight = computed(() => Number(props.node.attrs.height) || RAIL_HEIGHT);
 const pageDims = shallowRef([]);
 const railLayout_ = computed(() =>
-  railLayout(pageDims.value, RAIL_HEIGHT, RAIL_PAGE_GAP),
+  railLayout(pageDims.value, railHeight.value, RAIL_PAGE_GAP),
 );
 const railWidth = computed(() => {
   const entries = railLayout_.value;
@@ -179,15 +209,39 @@ const railStrokes = computed(() =>
 const railTool = computed(() =>
   DRAW_TOOLS.includes(tool.value) ? tool.value : null,
 );
+const currentSettings = computed(
+  () => toolSettings.value[tool.value] ?? TOOL_DEFAULTS.pen,
+);
+const currentToolColor = computed(() => currentSettings.value.color);
+const currentToolSize = computed(() => currentSettings.value.size);
+const railTools = computed(() => {
+  const labels = translations.value.paperBlock ?? {};
+  const swatch = (id, label) => ({
+    id,
+    label,
+    hasSwatch: true,
+    _color: toolSettings.value[id]?.color ?? TOOL_DEFAULTS[id].color,
+  });
+  return [
+    swatch('pen', labels.pen || 'Pen'),
+    swatch('pencil', labels.pencil || 'Pencil'),
+    swatch('fountain', labels.fountainPen || 'Fountain pen'),
+    swatch('marker', labels.highlighter || 'Highlighter'),
+  ];
+});
 
 const thumbStrokes = (page) => {
-  const entry = railLayout_.value[page];
+  const entry = thumbLayout_.value[page];
   if (!entry) return [];
   return strokesToRail(
     markup.value.filter((s) => (s.page ?? 0) === page),
     [entry],
   );
 };
+
+const thumbLayout_ = computed(() =>
+  railLayout(pageDims.value, THUMB_HEIGHT, RAIL_PAGE_GAP),
+);
 
 const thumbCanvases = new Map();
 const railCanvases = new Map();
@@ -223,7 +277,7 @@ async function renderPages() {
       );
     } catch {}
   }
-  for (const entry of railLayout_.value) {
+  for (const entry of thumbLayout_.value) {
     const canvas = thumbCanvases.get(entry.page);
     if (!canvas || token !== renderToken) return;
     sizeCanvas(canvas, entry.width, entry.height);
@@ -293,7 +347,41 @@ function onEditorColor(color) {
   };
 }
 
-const noop = () => {};
+function setColor(color) {
+  onEditorColor(color);
+}
+
+function setSize(size) {
+  toolSettings.value[tool.value] = {
+    ...toolSettings.value[tool.value],
+    size,
+  };
+}
+
+function onRailHeight(px) {
+  props.updateAttributes({ height: Math.max(60, Math.round(px)) });
+}
+
+function convertBack() {
+  const view = props.editor?.view;
+  const pos = props.getPos?.();
+  if (!view || typeof pos !== 'number') return;
+  try {
+    const next = view.state.schema.nodes.fileEmbed.create({
+      src: props.node.attrs.src ?? '',
+      fileName: props.node.attrs.fileName ?? null,
+      markup: markup.value,
+    });
+    view.dispatch(view.state.tr.replaceWith(pos, pos + (props.node.nodeSize ?? 0), next));
+  } catch (error) {
+    console.warn('pdf-block: convert back failed', error);
+  }
+}
+
+function selectBlock() {
+  const pos = props.getPos?.();
+  if (typeof pos === 'number') props.editor.commands.setNodeSelection(pos);
+}
 
 watch(
   () => props.node.attrs.src,
@@ -301,6 +389,12 @@ watch(
     if (props.node.attrs.src) load();
   },
 );
+
+// Height changes re-layout the rail; page canvases must re-render at the new
+// scale or they stretch stale bitmaps (unreadable after resize).
+watch(railHeight, () => {
+  if (ready.value) renderPages();
+});
 
 onMounted(load);
 onBeforeUnmount(() => {
@@ -341,6 +435,12 @@ onBeforeUnmount(() => {
 }
 .pdf-rail-surface {
   @apply absolute inset-0;
+}
+.pdf-rail-toolbar {
+  @apply mt-1;
+}
+.pdf-convert-back {
+  @apply text-xs px-1.5 py-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800;
 }
 .pdf-loading {
   @apply absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-black/40;

@@ -33,25 +33,17 @@ export function getCoalescedEvents(e) {
 }
 
 /**
- * Pressure: native `event.pressure` when the platform reports a real value for
- * pen/mouse; otherwise a speed-based fallback for finger input — slow movement
- * presses harder (`0.5 + 0.5·e^(−10·speed)`), clamped to [0.5, 1].
- * `last` is `{ x, y, t }` from the previous sample (client coords, ms).
+ * Pressure: native `event.pressure` for pen/stylus only; every other pointer
+ * gets a constant 0.5 so strokes render at uniform width. `last` is accepted
+ * for signature compatibility but unused since the speed fallback was dropped.
  */
 export function samplePressure(e, last) {
   const native = e.pressure;
-  if (native > 0 && (e.pointerType === 'pen' || e.pointerType === 'mouse')) {
+  if (e.pointerType === 'pen' && native > 0) {
     return native;
   }
-  let speed = 0;
-  if (last) {
-    const dx = e.clientX - last.x;
-    const dy = e.clientY - last.y;
-    const dt = Math.max(1, (e.timeStamp ?? 0) - last.t);
-    speed = Math.hypot(dx, dy) / dt;
-  }
-  const p = 0.5 + 0.5 * Math.exp(-10 * speed);
-  return Math.min(1, Math.max(0.5, p));
+  void last;
+  return 0.5;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { Node, mergeAttributes, nodeInputRule } from '@tiptap/core';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import { saveFile } from '@/utils/assets/storage.js';
+import { parseStrokes, serializeStrokes } from './paper-block/ink/stroke-model';
 import {
   sanitizeFileSource,
   sanitizeMediaSource,
@@ -97,7 +98,19 @@ export function createFileBlock({
   // any mime (share-import embeds), media blocks may not.
   const sanitizeSource =
     name === 'fileEmbed' ? sanitizeFileSource : sanitizeMediaSource;
-  const baseAttrs = { src: { default: null }, fileName: { default: null } };
+  const baseAttrs = {
+    src: { default: null },
+    fileName: { default: null },
+    // carried, not rendered: survives fileEmbed ⇄ pdfBlock conversion
+    markup: {
+      default: [],
+      parseHTML: (el) => parseStrokes(el.getAttribute('data-markup') || '[]'),
+      renderHTML: (attrs) =>
+        Array.isArray(attrs.markup) && attrs.markup.length
+          ? { 'data-markup': serializeStrokes(attrs.markup) }
+          : {},
+    },
+  };
   for (const key of extraAttrs) {
     if (!(key in baseAttrs)) {
       baseAttrs[key] = { default: null };
@@ -154,6 +167,7 @@ export function createFileBlock({
                   ? raw
                   : null;
               })(),
+              markup: parseStrokes(el.getAttribute('data-markup') || '[]'),
             };
           },
         },
@@ -171,6 +185,12 @@ export function createFileBlock({
       const attrs = {};
       for (const [key, value] of Object.entries(HTMLAttributes)) {
         if (value == null) continue;
+        if (key === 'markup') {
+          if (Array.isArray(value) && value.length) {
+            attrs['data-markup'] = serializeStrokes(value);
+          }
+          continue;
+        }
         attrs[renames[key] || key] = value;
       }
       // Declaring the node type makes clipboard round-trips exact instead of

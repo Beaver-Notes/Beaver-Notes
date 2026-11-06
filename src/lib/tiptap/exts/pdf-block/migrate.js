@@ -13,7 +13,7 @@ export function buildPdfBlockAttrs(embedAttrs) {
   return {
     src: String(embedAttrs?.src || ''),
     fileName: embedAttrs?.fileName || null,
-    markup: [],
+    markup: Array.isArray(embedAttrs?.markup) ? embedAttrs.markup : [],
   };
 }
 
@@ -75,22 +75,32 @@ export const PdfEmbedMigration = Extension.create({
   name: 'pdfEmbedMigration',
 
   addProseMirrorPlugins() {
+    const key = new PluginKey(MIGRATION_MARK);
     return [
       new Plugin({
-        key: new PluginKey(MIGRATION_MARK),
-        appendTransaction(transactions, _oldState, newState) {
+        key,
+        state: {
+          init: () => false,
+          // The gate closes after the first scan: legacy pdfEmbeds exist only
+          // in old notes, so rescanning every keystroke is pure cost.
+          apply(tr, value) {
+            return value || tr.getMeta(MIGRATION_MARK) != null;
+          },
+        },
+        appendTransaction(transactions, oldState, newState) {
           if (!transactions.some((tr) => tr.docChanged)) return null;
+          if (key.getState(oldState)) return null;
           if (transactions.some((tr) => tr.getMeta(MIGRATION_MARK))) {
             return null;
           }
 
           const doc = migrateFileEmbedPdfs(newState.doc);
-          if (doc === newState.doc) return null;
-
           const tr = newState.tr;
-          tr.replaceWith(0, newState.doc.content.size, doc.content);
           tr.setMeta(MIGRATION_MARK, true);
-          tr.setMeta('addToHistory', false);
+          if (doc !== newState.doc) {
+            tr.replaceWith(0, newState.doc.content.size, doc.content);
+            tr.setMeta('addToHistory', false);
+          }
           return tr;
         },
       }),

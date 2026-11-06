@@ -60,22 +60,32 @@ export const PaperStrokesMigration = Extension.create({
   name: 'paperStrokesMigration',
 
   addProseMirrorPlugins() {
+    const key = new PluginKey(MIGRATION_MARK);
     return [
       new Plugin({
-        key: new PluginKey(MIGRATION_MARK),
-        appendTransaction(transactions, _oldState, newState) {
+        key,
+        state: {
+          init: () => false,
+          // The gate closes after the first scan: legacy attrs exist only in
+          // old notes, so rescanning every keystroke/stroke-commit is pure cost.
+          apply(tr, value) {
+            return value || tr.getMeta(MIGRATION_MARK) != null;
+          },
+        },
+        appendTransaction(transactions, oldState, newState) {
           if (!transactions.some((tr) => tr.docChanged)) return null;
+          if (key.getState(oldState)) return null;
           if (transactions.some((tr) => tr.getMeta(MIGRATION_MARK))) {
             return null;
           }
 
           const { doc, changed } = migratePaperStrokes(newState.doc);
-          if (!changed) return null;
-
           const tr = newState.tr;
-          tr.replaceWith(0, newState.doc.content.size, doc.content);
           tr.setMeta(MIGRATION_MARK, true);
-          tr.setMeta('addToHistory', false);
+          if (changed) {
+            tr.replaceWith(0, newState.doc.content.size, doc.content);
+            tr.setMeta('addToHistory', false);
+          }
           return tr;
         },
       }),

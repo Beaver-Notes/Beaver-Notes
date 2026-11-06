@@ -43,23 +43,14 @@ describe('samplePressure', () => {
     expect(samplePressure(pen())).toBe(0.83);
   });
 
-  it('falls back to the speed curve forWebKit finger (pressure 0)', () => {
+  it('keeps constant 0.5 for finger/touch (no speed emulation)', () => {
     const last = { x: 0, y: 0, t: 0 };
-    const slow = samplePressure(touch({ clientX: 1, clientY: 0 }), last);
-    const fast = samplePressure(touch({ clientX: 100, clientY: 0 }), last);
-    expect(slow).toBeGreaterThanOrEqual(0.5);
-    expect(slow).toBeLessThanOrEqual(1);
-    expect(slow).toBeGreaterThan(fast);
+    expect(samplePressure(touch({ clientX: 1, clientY: 0 }), last)).toBe(0.5);
+    expect(samplePressure(touch({ clientX: 100, clientY: 0 }), last)).toBe(0.5);
   });
 
-  it('is monotonic: slower movement always presses harder', () => {
-    const last = { x: 0, y: 0, t: 0 };
-    let prev = 0;
-    for (const dx of [0.5, 0.1, 0.02, 0]) {
-      const p = samplePressure(touch({ clientX: dx, clientY: 0 }), last);
-      expect(p).toBeGreaterThan(prev);
-      prev = p;
-    }
+  it('keeps constant 0.5 for mouse', () => {
+    expect(samplePressure({ pointerType: 'mouse', pressure: 0 })).toBe(0.5);
   });
 });
 

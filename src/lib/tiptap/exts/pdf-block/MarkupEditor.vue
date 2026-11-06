@@ -8,6 +8,9 @@
         <span class="markup-page-label">
           {{ activePage + 1 }} / {{ pages.length }}
         </span>
+        <button class="markup-done" type="button" @click="$emit('close')">
+          {{ t('pdfBlock.done', 'Done') }}
+        </button>
       </header>
 
       <div
@@ -50,55 +53,26 @@
         </div>
       </div>
 
-      <!-- Floating bottom toolbar pill -->
-      <div class="markup-toolbar">
-        <button
-          class="markup-tool"
-          type="button"
-          :disabled="!canUndo"
-          @click="$emit('undo')"
-        >
-          <v-remixicon name="riArrowGoBackLine" class="w-5 h-5" />
-        </button>
-        <button
-          class="markup-tool"
-          type="button"
-          :disabled="!canRedo"
-          @click="$emit('redo')"
-        >
-          <v-remixicon name="riArrowGoForwardLine" class="w-5 h-5" />
-        </button>
-        <span class="markup-sep" />
-        <button
-          v-for="name in TOOLS"
-          :key="name"
-          type="button"
-          class="markup-tool"
-          :class="{ 'is-active': tool === name }"
-          @click="$emit('tool', name)"
-        >
-          <v-remixicon :name="TOOL_ICONS[name]" class="w-5 h-5" />
-        </button>
-        <span class="markup-sep" />
-        <button
-          v-for="swatch in SWATCHES"
-          :key="swatch"
-          type="button"
-          class="markup-swatch"
-          :style="{ background: swatch }"
-          :aria-label="swatch"
-          @click="$emit('color', swatch)"
-        />
-        <button
-          class="markup-tool"
-          type="button"
-          :disabled="true"
-          :title="t('pdfBlock.add', 'Add')"
-          @click="() => {}"
-        >
-          <v-remixicon name="riAddLine" class="w-5 h-5" />
-        </button>
-      </div>
+      <!-- Shared drawing toolbar -->
+      <PaperToolbar
+        class="markup-toolbar-bar"
+        :tools="tools"
+        :tool="tool"
+        :paper-types="[]"
+        :current-tool-color="currentToolColor"
+        :current-tool-size="currentToolSize"
+        :active-presets="[]"
+        :can-undo="canUndo"
+        :can-redo="canRedo"
+        @tool="(value) => $emit('tool', value)"
+        @color="(value) => $emit('color', value)"
+        @color-input="(value) => $emit('color', value)"
+        @size="(value) => $emit('size', value)"
+        @save-preset="() => {}"
+        @bg="() => {}"
+        @undo="$emit('undo')"
+        @redo="$emit('redo')"
+      />
     </div>
   </Teleport>
 </template>
@@ -106,19 +80,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import PaperSurface from '../paper-block/PaperSurface.vue';
+import PaperToolbar from '../paper-block/PaperToolbar.vue';
 import { offsetStrokes } from './pdfMarkup.js';
+import { TOOL_DEFAULTS } from '../paper-block/ink/stroke-model';
 import { useTranslations } from '@/composable/useTranslations';
-
-const TOOLS = ['pen', 'pencil', 'fountain', 'marker', 'eraser', 'lasso'];
-const TOOL_ICONS = {
-  pen: 'riBallPenLine',
-  pencil: 'riPencilLine',
-  fountain: 'riQuillPenLine',
-  marker: 'riMarkerLine',
-  eraser: 'riEraserLine',
-  lasso: 'riLassoLine',
-};
-const SWATCHES = ['#1a1a1a', '#4a4a4a', '#1a2744', '#fbbf24'];
 
 const props = defineProps({
   pages: { type: Array, default: () => [] }, // [{width, height}] pdf points
@@ -138,6 +103,7 @@ const emit = defineEmits([
   'redo',
   'tool',
   'color',
+  'size',
 ]);
 
 const { translations } = useTranslations();
@@ -147,6 +113,29 @@ const t = (key, fallback) => {
     translations.value?.[key.slice(0, dot)]?.[key.slice(dot + 1)] ?? fallback
   );
 };
+
+const tools = computed(() => {
+  const labels = translations.value.paperBlock ?? {};
+  const swatch = (id, label) => ({
+    id,
+    label,
+    hasSwatch: true,
+    _color: props.toolSettings?.[id]?.color ?? TOOL_DEFAULTS[id].color,
+  });
+  return [
+    swatch('pen', labels.pen || 'Pen'),
+    swatch('pencil', labels.pencil || 'Pencil'),
+    swatch('fountain', labels.fountainPen || 'Fountain pen'),
+    swatch('marker', labels.highlighter || 'Highlighter'),
+    { id: 'eraser', label: labels.eraser || 'Eraser', hasSwatch: false, _color: null },
+    { id: 'lasso', label: labels.lassoSelect || 'Lasso select', hasSwatch: false, _color: null },
+  ];
+});
+const currentSettings = computed(
+  () => props.toolSettings?.[props.tool] ?? TOOL_DEFAULTS.pen,
+);
+const currentToolColor = computed(() => currentSettings.value.color);
+const currentToolSize = computed(() => currentSettings.value.size);
 
 const scrollerRef = ref(null);
 const pageCanvases = new Map();
@@ -243,23 +232,34 @@ onBeforeUnmount(() => {});
 </script>
 
 <style scoped>
+/* app tokens: --color-bg/--color-text flip with the app theme, dark-mode free */
 .markup-editor {
-  @apply fixed inset-0 z-50 bg-neutral-900 text-white flex flex-col;
+  @apply fixed inset-0 z-50 flex flex-col;
+  background: var(--color-bg, #fff);
+  color: var(--color-text, #1a1a1a);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .markup-header {
-  @apply flex items-center justify-between px-4 py-2;
+  @apply flex items-center justify-between px-4 py-2 gap-2;
 }
 .markup-close {
-  @apply p-1 rounded-md hover:bg-white/10;
+  @apply p-1 rounded-md hover:bg-neutral-500/10;
 }
 .markup-page-label {
   @apply text-sm opacity-70;
+}
+.markup-done {
+  @apply px-3 py-1 rounded-full text-sm font-medium;
+  background: var(--color-text, #1a1a1a);
+  color: var(--color-bg, #fff);
 }
 .markup-pages {
   @apply flex-1 flex overflow-x-auto snap-x snap-mandatory;
 }
 .markup-page {
-  @apply relative shrink-0 snap-center bg-neutral-800;
+  @apply relative shrink-0 snap-center;
+  background: var(--color-text, #1a1a1a);
 }
 .markup-page-canvas {
   @apply absolute top-0 bg-white;
@@ -267,19 +267,7 @@ onBeforeUnmount(() => {});
 .markup-overlay {
   @apply absolute inset-0;
 }
-.markup-toolbar {
-  @apply flex items-center gap-1 px-3 py-2 m-3 self-center rounded-full bg-neutral-800/95 shadow-lg;
-}
-.markup-tool {
-  @apply p-2 rounded-full hover:bg-white/10 disabled:opacity-30;
-}
-.markup-tool.is-active {
-  @apply bg-white/15;
-}
-.markup-swatch {
-  @apply w-5 h-5 rounded-full border border-white/20;
-}
-.markup-sep {
-  @apply w-px h-6 bg-white/15 mx-1;
+.markup-toolbar-bar {
+  @apply mt-auto self-center mb-3;
 }
 </style>

@@ -6,6 +6,7 @@ import {
   parseStrokes,
   serializeStrokes,
   strokeBounds,
+  scaleStrokes,
 } from '../stroke-model.js';
 
 const v3Stroke = {
@@ -16,8 +17,7 @@ const v3Stroke = {
   opacity: 1,
   points: [
     [10, 20, 0.5],
-    [30, 40, 0.8],
-  ],
+    [30, 40, 0.8],  ],
 };
 
 describe('v3 stroke model', () => {
@@ -115,5 +115,16 @@ describe('v3 stroke model', () => {
     expect(TOOL_DEFAULTS.fountain).toEqual({ color: '#1a2744', size: 5 });
     expect(TOOL_DEFAULTS.marker).toEqual({ color: '#fbbf24', size: 16, opacity: 0.35 });
     expect(TOOL_DEFAULTS.eraser).toEqual({ size: 20 });
+  });
+
+  it('scales stroke geometry uniformly for resize', () => {
+    const [scaled] = scaleStrokes([v3Stroke], 2);
+    expect(scaled.points).toEqual([
+      [20, 40, 0.5],
+      [60, 80, 0.8],
+    ]);
+    expect(scaled.tool).toBe(v3Stroke.tool);
+    expect(scaled.shape).toBe(v3Stroke.shape);
+    expect(scaleStrokes(null, 2)).toEqual([]);
   });
 });

@@ -5,7 +5,7 @@ import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import fileEmbed from '../../file-block';
 import pdfBlock from '../index';
-import { migrateFileEmbedPdfs, PdfEmbedMigration } from '../migrate';
+import { migrateFileEmbedPdfs, PdfEmbedMigration, buildPdfBlockAttrs } from '../migrate';
 
 // pdf.js is never opened here; the migration path only manipulates nodes.
 vi.mock('../pdfSource.js', () => ({
@@ -177,5 +177,42 @@ describe('PdfEmbedMigration plugin', () => {
     editor.commands.insertContent(' more');
     expect(editor.state.doc.textContent).toContain('more');
     expect(nodesIn(editor, 'pdfBlock')).toHaveLength(0);
+  });
+  it('scans once per load — post-load pdf fileEmbeds stay untouched', () => {
+    const editor = makeEditor();
+    editor.commands.insertContentAt(0, { type: 'paragraph' }); // closes the gate
+    editor.commands.insertContentAt(0, {
+      type: 'fileEmbed',
+      attrs: { src: 'assets://n/doc.pdf', fileName: 'doc.pdf' },
+    });
+    expect(nodesIn(editor, 'pdfBlock')).toHaveLength(0);
+    expect(nodesIn(editor, 'fileEmbed')).toHaveLength(1);
+  });
+});
+
+describe('markup carry-through', () => {
+  it('buildPdfBlockAttrs carries the embed markup through', () => {
+    const markup = [{ id: 's1', tool: 'pen', color: '#000', size: 4, opacity: 1, points: [[0, 0, 0.5]] }];
+    expect(buildPdfBlockAttrs({ src: 'assets://n1/a.pdf', fileName: 'a.pdf', markup })).toEqual({
+      src: 'assets://n1/a.pdf',
+      fileName: 'a.pdf',
+      markup,
+    });
+    expect(buildPdfBlockAttrs({ src: 'assets://n1/a.pdf' }).markup).toEqual([]);
+  });
+
+  it('fileEmbed carries markup through an HTML round-trip', () => {
+    const editor = makeEditor(false);
+    const markup = [{ id: 's2', tool: 'pen', color: '#000', size: 4, opacity: 1, points: [[1, 2, 0.5]] }];
+    editor.commands.setContent({
+      type: 'doc',
+      content: [{ type: 'fileEmbed', attrs: { src: 'assets://n1/a.pdf', fileName: 'a.pdf', markup } }],
+    });
+    const html = editor.getHTML();
+    expect(html).toContain('data-markup');
+    editor.commands.setContent(html);
+    const embed = nodesIn(editor, 'fileEmbed')[0];
+    expect(embed.attrs.markup).toHaveLength(1);
+    expect(embed.attrs.markup[0].id).toBe('s2');
   });
 });

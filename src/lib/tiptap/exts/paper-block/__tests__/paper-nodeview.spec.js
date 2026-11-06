@@ -205,9 +205,22 @@ describe('Paper node view', () => {
     expect(editor.commands.undo).toHaveBeenCalledTimes(1);
   });
 
-  it('height-change writes the height attr', async () => {
-    const { wrapper, updateAttributes } = mountPaper();
-    wrapper.findComponent({ name: "PaperSurfaceStub" }).vm.$emit('height-change', 300);
-    expect(updateAttributes).toHaveBeenCalledWith({ height: 300 });
+  it('height-change rescales strokes to the new height', async () => {
+    const { wrapper, updateAttributes } = mountPaper({
+      attrs: {
+        height: 210,
+        paperType: 'transparent',
+        strokes: [
+          { id: 's1', tool: 'pen', color: '#000000', size: 4, opacity: 1, points: [[10, 20, 0.5]] },
+        ],
+      },
+    });
+    wrapper.findComponent({ name: "PaperSurfaceStub" }).vm.$emit('height-change', 420);
+    expect(updateAttributes).toHaveBeenCalledWith({
+      height: 420,
+      strokes: [
+        { id: 's1', tool: 'pen', color: '#000000', size: 4, opacity: 1, points: [[20, 40, 0.5]] },
+      ],
+    });
   });
 });
