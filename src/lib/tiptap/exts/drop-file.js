@@ -52,7 +52,9 @@ async function processDropFiles(view, editor, event, files, id) {
         ? 'Audio'
         : mimeType.startsWith('video/')
           ? 'Video'
-          : 'fileEmbed';
+          : mimeType === 'application/pdf'
+            ? 'pdfBlock'
+            : 'fileEmbed';
 
       const coordinates = view.posAtCoords({
         left: event.clientX,
@@ -64,9 +66,12 @@ async function processDropFiles(view, editor, event, files, id) {
           ? (tempSrc) => editor.commands.setAudio(tempSrc, fileName)
           : !coordinates && typeName === 'Video'
             ? (tempSrc) => editor.commands.setVideo(tempSrc, fileName)
-            : !coordinates
-              ? (tempSrc) => editor.commands.setFileEmbed(tempSrc, fileName)
-              : (tempSrc) => {
+            : !coordinates && typeName === 'pdfBlock'
+              ? (tempSrc) =>
+                  editor.commands.insertPdfBlock({ src: tempSrc, fileName })
+              : !coordinates
+                ? (tempSrc) => editor.commands.setFileEmbed(tempSrc, fileName)
+                : (tempSrc) => {
                   const attrs = { src: tempSrc, fileName };
                   const node = view.state.schema.nodes[typeName].create(attrs);
                   view.dispatch(view.state.tr.insert(coordinates.pos, node));

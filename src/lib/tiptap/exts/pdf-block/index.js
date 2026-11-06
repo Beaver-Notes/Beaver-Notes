@@ -1,6 +1,20 @@
 import { Node, mergeAttributes, VueNodeViewRenderer } from '@tiptap/vue-3';
 import Component from './PdfBlockComponent.vue';
 import { parseStrokes } from '../paper-block/ink/stroke-model';
+import { sanitizeFileSource } from '@/utils/note/contentSecurity.js';
+import { isPdfEmbed } from './migrate';
+
+function parsePdfAttrs(el) {
+  const rawSrc = el.getAttribute('data-src') || '';
+  const src = sanitizeFileSource(rawSrc);
+  // Keep pending inserts (empty src), drop unsafe schemes entirely.
+  if (rawSrc && !src) return false;
+  return {
+    src: src || null,
+    fileName: el.getAttribute('data-file-name'),
+    markup: parseStrokes(el.getAttribute('data-markup') || '[]'),
+  };
+}
 
 export default Node.create({
   name: 'pdfBlock',
@@ -29,18 +43,38 @@ export default Node.create({
         }),
       },
       src: { default: null },
+      fileName: { default: null },
     };
   },
 
   parseHTML() {
-    return [{ tag: 'div[data-type="pdf-block"]' }];
+    return [
+      {
+        tag: 'div[data-type="pdf-block"]',
+        getAttrs: (el) => parsePdfAttrs(el),
+      },
+      {
+        // Legacy fileEmbed spans carrying PDFs (pre-pdf-block exports).
+        tag: 'span[data-file-name]',
+        getAttrs: (el) => {
+          if (!isPdfEmbed({ attrs: { fileName: el.getAttribute('data-file-name'), src: el.getAttribute('data-src') } })) {
+            return false;
+          }
+          return parsePdfAttrs(el);
+        },
+      },
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return [
-      'div',
-      mergeAttributes(HTMLAttributes, { 'data-type': 'pdf-block' }),
-    ];
+    const attrs = {};
+    for (const [key, value] of Object.entries(HTMLAttributes)) {
+      if (value == null) continue;
+      const name =
+        key === 'src' ? 'data-src' : key === 'fileName' ? 'data-file-name' : key;
+      attrs[name] = value;
+    }
+    return ['div', mergeAttributes(attrs, { 'data-type': 'pdf-block' })];
   },
 
   addNodeView() {

@@ -164,7 +164,8 @@ function renderHtmlInlineNode(node, ctx) {
         number
       )}</a></sup>`;
     }
-    case 'fileEmbed': {
+    case 'fileEmbed':
+    case 'pdfBlock': {
       const href = escapeHtml(
         resolveAssetOutputPath(node?.attrs?.src, ctx.noteId)
       );
@@ -330,6 +331,16 @@ function renderHtmlBlock(node, ctx) {
         .join('')}</ol>`;
     case 'footnote':
       return renderHtmlFootnote(node, ctx);
+    case 'fileEmbed':
+    case 'pdfBlock': {
+      const href = escapeHtml(
+        resolveAssetOutputPath(node?.attrs?.src, ctx.noteId)
+      );
+      const label = escapeHtml(
+        node?.attrs?.fileName || path.basename(href) || 'Attachment'
+      );
+      return `<a href="${href}" download>${label}</a>`;
+    }
     default:
       if (getNodeChildren(node).length > 0) {
         return getNodeChildren(node)
@@ -525,6 +536,9 @@ export function sanitizeClone(clone) {
     '.ProseMirror-gapcursor',
     '.paper-inline-toolbar',
     '.paper-draw-hint',
+    '.surface-hint',
+    '.surface-toolbar',
+    '.paper-toolbar',
     '.search-result-current',
     '.collapse-indicator',
   ];
@@ -627,14 +641,75 @@ export function sanitizeClone(clone) {
       return;
     }
 
-    if (el.classList.contains('paper-node')) {
-      const svg = el.querySelector('svg');
-      if (svg) {
-        const div = document.createElement('div');
-        div.className = 'paper-node';
-        div.style.cssText = 'width:100%;padding:0.5rem 0;';
-        div.appendChild(svg.cloneNode(true));
-        el.replaceWith(div);
+    const paper = el.classList.contains('paper-node')
+      ? el
+      : el.querySelector('.paper-node');
+    if (paper) {
+      const logic = paper.querySelector('.paper-surface canvas:not(.live)');
+      if (logic) {
+        const img = document.createElement('img');
+        img.className = 'paper-node';
+        img.style.cssText = 'width:100%;height:auto;';
+        img.src = logic.toDataURL('image/png');
+        el.replaceWith(img);
+      } else {
+        // Legacy v2 markup rendered as inline SVG.
+        const svg = paper.querySelector('svg');
+        if (svg) {
+          const div = document.createElement('div');
+          div.className = 'paper-node';
+          div.style.cssText = 'width:100%;padding:0.5rem 0;';
+          div.appendChild(svg.cloneNode(true));
+          el.replaceWith(div);
+        }
+      }
+      return;
+    }
+
+    const pdfBlock = el.hasAttribute('data-pdf-block')
+      ? el
+      : el.querySelector('[data-pdf-block]');
+    if (pdfBlock) {
+      const pages = Array.from(pdfBlock.querySelectorAll('.pdf-rail-page'));
+      const ink = pdfBlock.querySelector('.pdf-rail-surface');
+      if (pages.length) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'pdf-block';
+        wrapper.style.cssText = 'width:100%;padding:0.5rem 0;';
+        const gap =
+          pages.length > 1 && ink
+            ? (ink.width - pages.length * pages[0].width) / (pages.length - 1)
+            : 0;
+        pages.forEach((page, i) => {
+          const snap = document.createElement('canvas');
+          snap.width = page.width;
+          snap.height = page.height;
+          const img = document.createElement('img');
+          const ctx = snap.getContext && snap.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(page, 0, 0);
+            if (ink) {
+              ctx.drawImage(
+                ink,
+                i * (page.width + gap),
+                0,
+                page.width,
+                ink.height,
+                0,
+                0,
+                page.width,
+                page.height
+              );
+            }
+            img.src = snap.toDataURL('image/png');
+          } else {
+            // No 2d context (test env): export the page bitmap alone.
+            img.src = page.toDataURL('image/png');
+          }
+          img.style.cssText = 'width:100%;height:auto;display:block;';
+          wrapper.appendChild(img);
+        });
+        el.replaceWith(wrapper);
       }
       return;
     }

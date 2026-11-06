@@ -29,6 +29,7 @@ function getMediaTypes() {
     Audio: { label: cl('audio', 'Audio'), tone: 'audio' },
     Video: { label: cl('video', 'Video'), tone: 'video' },
     fileEmbed: { label: cl('attachment', 'Attachment'), tone: 'file' },
+    pdfBlock: { label: cl('pdf', 'PDF'), tone: 'file' },
     mermaidBlock: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
     mermaidDiagram: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
     mathBlock: { label: cl('math', 'Math'), tone: 'math' },
@@ -334,7 +335,7 @@ function visitNode(node, preview, state) {
         const fallbackText =
           node.attrs?.content || node.attrs?.title || node.attrs?.name || '';
         const media = { ...MT[node.type] };
-        if (node.type === 'fileEmbed' && fileName) {
+        if ((node.type === 'fileEmbed' || node.type === 'pdfBlock') && fileName) {
           media.label = kindFor(fileName);
           media.icon = iconFor(fileName);
         } else if (

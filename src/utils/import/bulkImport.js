@@ -203,11 +203,12 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
         );
       }
 
+      const fileName = node.textContent?.trim() || path.basename(href);
       return {
-        type: 'fileEmbed',
+        type: fileName.toLowerCase().endsWith('.pdf') ? 'pdfBlock' : 'fileEmbed',
         attrs: {
           src: resolveRelativeFileValue(href, noteId, resources),
-          fileName: node.textContent?.trim() || path.basename(href),
+          fileName,
         },
       };
     }
@@ -824,7 +825,12 @@ export async function importGoogleKeep(
         content.content.push(
           attachment.isImage
             ? { type: 'image', attrs: { src, alt: '' } }
-            : { type: 'fileEmbed', attrs: { src, fileName: attachment.fileName } }
+            : {
+                type: attachment.fileName.toLowerCase().endsWith('.pdf')
+                  ? 'pdfBlock'
+                  : 'fileEmbed',
+                attrs: { src, fileName: attachment.fileName },
+              }
         );
       }
 

@@ -71,17 +71,19 @@ describe('schema-level media src gate (SC-4-02)', () => {
 
   it('keeps pending fileEmbeds (empty src) and inline data: payloads', () => {
     const json = generateJSON(
-      '<span data-file-name="pending.pdf" data-src=""></span>' +
-        '<span data-file-name="b.pdf" data-src="data:application/pdf;base64,AAA="></span>' +
-        '<span data-file-name="evil.pdf" data-src="file:///etc/passwd"></span>' +
-        '<span data-file-name="ok.pdf" data-src="assets://n1/ok.pdf"></span>',
+      // .zip fixtures: PDFs moved to pdfBlock (separate spec); fileEmbed's
+      // "inline data: of any mime" gate is still exercised via application/zip.
+      '<span data-file-name="pending.zip" data-src=""></span>' +
+        '<span data-file-name="b.zip" data-src="data:application/zip;base64,AAA="></span>' +
+        '<span data-file-name="evil.zip" data-src="file:///etc/passwd"></span>' +
+        '<span data-file-name="ok.zip" data-src="assets://n1/ok.zip"></span>',
       exts
     );
     const embeds = nodesOfType(json, 'fileEmbed');
     expect(embeds.map((n) => n.attrs.src)).toEqual([
       '',
-      'data:application/pdf;base64,AAA=',
-      'assets://n1/ok.pdf',
+      'data:application/zip;base64,AAA=',
+      'assets://n1/ok.zip',
     ]);
     expect(JSON.stringify(json)).not.toContain('file:///etc/passwd');
   });
@@ -92,7 +94,7 @@ describe('schema-level media src gate (SC-4-02)', () => {
     const json = generateJSON(
       '<span data-file-name="clip.mp4" data-src="assets://n1/clip.mp4"></span>' +
         '<span data-file-name="song.mp3" data-src="assets://n1/song.mp3"></span>' +
-        '<span data-file-name="ok.pdf" data-src="assets://n1/ok.pdf"></span>',
+        '<span data-file-name="ok.zip" data-src="assets://n1/ok.zip"></span>',
       exts
     );
     expect(nodesOfType(json, 'Video').map((n) => n.attrs.fileName)).toEqual([
@@ -102,7 +104,7 @@ describe('schema-level media src gate (SC-4-02)', () => {
       'song.mp3',
     ]);
     expect(nodesOfType(json, 'fileEmbed').map((n) => n.attrs.fileName)).toEqual(
-      ['ok.pdf']
+      ['ok.zip']
     );
   });
 

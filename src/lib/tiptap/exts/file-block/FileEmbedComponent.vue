@@ -46,6 +46,14 @@
         </div>
         <div v-else class="flex items-center gap-2">
           <button
+            v-if="isPdfFile"
+            class="bg-input p-1 px-3 rounded-lg outline-none"
+            title="Convert to PDF markup"
+            @click="convertToPdfBlock"
+          >
+            <v-remixicon name="riFilePdfLine" class="w-6 h-6" />
+          </button>
+          <button
             class="bg-input p-1 px-3 rounded-lg outline-none"
             @click="downloadFile"
           >
@@ -65,7 +73,7 @@
 
 <script>
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { backend } from '@/lib/tauri-bridge';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { openFileExternal, getAppDirectory } from '@/lib/native/app';
@@ -83,6 +91,7 @@ import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { useTranslations } from '@/composable/useTranslations';
 
 import { kindFor, iconFor } from '@/utils/fileKind.js';
+import { isPdfFileName, buildPdfBlockAttrs } from '../pdf-block/migrate.js';
 
 function formatSize(bytes) {
   if (!Number.isFinite(bytes)) return '';
@@ -189,6 +198,29 @@ export default {
       });
     }
 
+    const isPdfFile = computed(() => {
+      const src = String(props.node.attrs.src || '');
+      return (
+        isPdfFileName(props.node.attrs.fileName || '') ||
+        src.startsWith('data:application/pdf')
+      );
+    });
+
+    function convertToPdfBlock() {
+      const view = props.editor?.view;
+      if (!view) return;
+      try {
+        const pos = props.getPos();
+        const node = props.node;
+        const pdfNode = node.type.schema.nodes.pdfBlock.create(
+          buildPdfBlockAttrs(node.attrs),
+        );
+        view.dispatch(view.state.tr.replaceWith(pos, pos + node.nodeSize, pdfNode));
+      } catch (error) {
+        console.error('[FileEmbed] Failed to convert to pdf block:', error);
+      }
+    }
+
     let unlistenFileUpdated = null;
     onMounted(() => {
       checkFileExists();
@@ -250,6 +282,8 @@ export default {
       translations,
       openDocument,
       downloadFile,
+      isPdfFile,
+      convertToPdfBlock,
     };
   },
 };

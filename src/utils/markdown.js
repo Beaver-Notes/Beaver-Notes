@@ -446,7 +446,8 @@ function renderMarkdownInlineNode(node, ctx) {
     }
     case 'footnoteReference':
       return `[^${getFootnoteNumber(node.attrs, ctx)}]`;
-    case 'fileEmbed': {
+    case 'fileEmbed':
+    case 'pdfBlock': {
       const href = resolveAssetOutputPath(node?.attrs?.src, ctx.noteId);
       return `[${
         node?.attrs?.fileName || path.basename(href) || 'Attachment'
@@ -654,6 +655,13 @@ function renderMarkdownBlock(node, ctx) {
         node?.attrs?.src,
         ctx.noteId
       )})\n\n`;
+    case 'fileEmbed':
+    case 'pdfBlock': {
+      const href = resolveAssetOutputPath(node?.attrs?.src, ctx.noteId);
+      return `[${
+        node?.attrs?.fileName || path.basename(href) || 'Attachment'
+      }](${href})\n\n`;
+    }
     default:
       if (ctx.inList && getNodeChildren(node).length > 0)
         return getNodeChildren(node)

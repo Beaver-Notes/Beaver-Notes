@@ -588,7 +588,12 @@ export function useNoteMenu(props) {
 
   function insertFile() {
     const url = normalizePath(fileUrl.value);
-    props.editor.commands.setFileEmbed(url, url.substring(url.lastIndexOf('/') + 1));
+    const name = url.substring(url.lastIndexOf('/') + 1);
+    if (/\.pdf$/i.test(name)) {
+      props.editor.commands.insertPdfBlock({ src: url, fileName: name });
+    } else {
+      props.editor.commands.setFileEmbed(url, name);
+    }
     fileUrl.value = '';
   }
 
@@ -601,9 +606,13 @@ export function useNoteMenu(props) {
     const view = props.editor.view;
     for (const file of event.target.files) {
       const fileName = assetFileName(file);
+      const isPdf =
+        (file.type || mime.getType(file.name) || '') === 'application/pdf';
       insertFileBlockOptimistic(view, {
-        typeName: 'fileEmbed',
-        insert: (tempSrc) => props.editor.commands.setFileEmbed(tempSrc, fileName),
+        typeName: isPdf ? 'pdfBlock' : 'fileEmbed',
+        insert: isPdf
+          ? (tempSrc) => props.editor.commands.insertPdfBlock({ src: tempSrc, fileName })
+          : (tempSrc) => props.editor.commands.setFileEmbed(tempSrc, fileName),
         file,
         preview: file,
         noteId: props.id,

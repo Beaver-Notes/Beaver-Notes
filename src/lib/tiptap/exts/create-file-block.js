@@ -30,7 +30,8 @@ function fileExtension(fileName) {
  */
 function claimsLegacySpan(nodeName, fileName) {
   const ext = fileExtension(fileName);
-  if (nodeName === 'fileEmbed') return !MEDIA_EXTS.has(ext);
+  // PDFs are pdfBlock territory now; fileEmbed no longer accepts them.
+  if (nodeName === 'fileEmbed') return !MEDIA_EXTS.has(ext) && ext !== 'pdf';
   if (nodeName === 'Video') return VIDEO_EXTS.has(ext);
   if (nodeName === 'Audio') return AUDIO_EXTS.has(ext);
   return true;
