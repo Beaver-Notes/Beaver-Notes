@@ -35,6 +35,19 @@ export default Node.create({
       },
       height: { default: 210 },
       paperType: { default: 'transparent' },
+      // Legacy stroke payloads: read-only so Yjs-backed notes (which bypass
+      // parseHTML) surface their old attrs to PaperStrokesMigration. Never
+      // rendered; nulled out by the migration.
+      linesV2: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-lines-v2'),
+        renderHTML: () => ({}),
+      },
+      lines: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-lines'),
+        renderHTML: () => ({}),
+      },
     };
   },
 

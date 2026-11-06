@@ -12,6 +12,7 @@
   >
     <canvas ref="logicRef" class="ink-canvas"></canvas>
     <canvas ref="liveRef" class="ink-canvas live"></canvas>
+    <div v-if="isDev" ref="hudRef" class="surface-hud" aria-hidden="true"></div>
 
     <div v-if="!focused && !strokes.length" class="surface-hint">{{ hint }}</div>
 
@@ -76,7 +77,9 @@ export default {
   },
   emits: ['commit', 'update-strokes', 'focus-request', 'height-change'],
   setup(props, { emit }) {
+    const isDev = import.meta.env.DEV;
     const containerRef = ref(null);
+    const hudRef = ref(null);
     const logicRef = ref(null);
     const liveRef = ref(null);
 
@@ -116,8 +119,29 @@ export default {
     }
 
     function loop() {
-      renderer.flush();
+      if (import.meta.env.DEV) {
+        const t0 = performance.now();
+        renderer.flush();
+        hudSample(performance.now() - t0);
+      } else {
+        renderer.flush();
+      }
       rafId = requestAnimationFrame(loop);
+    }
+
+    // Dev-only frame-time HUD (tldraw-style): fps + p95 flush cost, no dep.
+    let hudTimes = [];
+    function hudSample(ms) {
+      hudTimes.push(ms);
+      if (hudTimes.length < 120) return;
+      const el = hudRef.value;
+      if (el) {
+        const sorted = [...hudTimes].sort((a, b) => a - b);
+        const fps = Math.round(1000 / (sorted.reduce((s, v) => s + v, 0) / sorted.length));
+        const p95 = sorted[Math.floor(sorted.length * 0.95)].toFixed(2);
+        el.textContent = `${fps}fps p95 ${p95}ms`;
+      }
+      hudTimes = [];
     }
 
     onMounted(() => {
@@ -383,6 +407,8 @@ export default {
 
     return {
       containerRef,
+      hudRef,
+      isDev,
       logicRef,
       liveRef,
       HANDLES,
@@ -426,6 +452,16 @@ export default {
   color: var(--text-tertiary, #9ca3af);
   font-size: 13px;
   pointer-events: none;
+}
+.surface-hud {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 10px;
+  font-family: monospace;
+  color: #10b981;
+  pointer-events: none;
+  z-index: 5;
 }
 .surface-handle {
   position: absolute;
