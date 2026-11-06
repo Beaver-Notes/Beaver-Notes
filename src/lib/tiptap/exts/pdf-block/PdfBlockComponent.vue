@@ -123,6 +123,7 @@ import InkPreview from '../paper-block/InkPreview.vue';
 import MarkupEditor from './MarkupEditor.vue';
 import { openPdf } from './pdfSource.js';
 import { decodeDataUrl } from './dataUrl.js';
+import { fetchAssetBytes } from './assetBytes.js';
 import {
   RAIL_PAGE_GAP,
   railLayout,
@@ -132,8 +133,6 @@ import {
 import { DRAW_TOOLS, RAIL_HEIGHT } from './constants.js';
 import { parseStrokes, TOOL_DEFAULTS } from '../paper-block/ink/stroke-model';
 import { useTranslations } from '@/composable/useTranslations';
-import { resolveAssetPath } from '@/lib/tauri/scoped-storage';
-import { readFileBinaryBytes } from '@/lib/native/fs';
 
 const props = defineProps({ ...nodeViewProps });
 const editor = computed(() => props.editor);
@@ -250,10 +249,7 @@ async function load() {
     if (inlineBytes) {
       pdf = await openPdf(inlineBytes);
     } else {
-      const path = await resolveAssetPath(src);
-      if (!path) throw new Error('unresolvable');
-      const bytes = await readFileBinaryBytes(path);
-      pdf = await openPdf(bytes);
+      pdf = await openPdf(await fetchAssetBytes(src));
     }
     pageDims.value = await pdf.pageDims;
     ready.value = true;
@@ -263,7 +259,7 @@ async function load() {
     pdfError.value = true;
     ready.value = false;
     loading.value = false;
-    console.warn('pdf-block: failed to load', error);
+    console.warn('pdf-block: failed to load', String(props.node.attrs.src || ''), error);
   }
 }
 

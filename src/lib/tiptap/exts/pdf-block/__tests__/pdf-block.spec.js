@@ -131,6 +131,43 @@ describe('pdf-block', () => {
     expect(wrapper.findAll('.pdf-rail-page')).toHaveLength(1);
   });
 
+  it('fetches asset bytes through the protocol and falls back to fs reads', async () => {
+    const { openPdf } = await import('../pdfSource.js');
+    const { resolveAssetPath } = await import('@/lib/tauri/scoped-storage');
+    const fakeBytes = new Uint8Array([9, 8, 7]);
+    const realFetch = globalThis.fetch;
+    let fetchInit = null;
+    globalThis.fetch = vi.fn(async (_url, init) => {
+      fetchInit = init;
+      return {
+        ok: true,
+        arrayBuffer: async () => fakeBytes.buffer,
+      };
+    });
+    try {
+      // protocol path: assets:// served decrypted by the Tauri custom protocol
+      mountBlock({ src: 'assets://n1/doc.pdf' });
+      await flushPromises();
+      expect(openPdf.mock.calls[0]?.[0]).toEqual(fakeBytes);
+      // range request bypasses the protocol handler's 16 MiB full-read cap
+      // (bootstrap.rs serve_asset truncates non-range bodies silently)
+      expect(fetchInit?.headers).toEqual({ Range: 'bytes=0-' });
+
+      // fallback: fetch failure → legacy raw read (current behavior)
+      openPdf.mockClear();
+      resolveAssetPath.mockClear();
+      globalThis.fetch = vi.fn(async () => {
+        throw new Error('blocked');
+      });
+      mountBlock({ src: 'assets://n1/doc.pdf' });
+      await flushPromises();
+      expect(resolveAssetPath).toHaveBeenCalledWith('assets://n1/doc.pdf');
+      expect(openPdf.mock.calls[0]?.[0]).toEqual(new Uint8Array([1, 2, 3]));
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
   it('splits rail commits into page-local stored strokes', async () => {
     const wrapper = mountBlock();
     await flushPromises();
