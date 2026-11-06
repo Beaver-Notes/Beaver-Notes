@@ -142,6 +142,7 @@
     "mlkem": "^2.7.0",
     "mousetrap": "^1.6.5",
     "nanoid": "^6",
+    "perfect-freehand": "^1.2.3",
     "pinia": "^3.0.4",
     "prosemirror-model": "^1.25.4",
     "prosemirror-state": "^1.4.3",

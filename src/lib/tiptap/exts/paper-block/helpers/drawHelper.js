@@ -6,35 +6,21 @@ import {
   getLineBounds,
 } from './freehand.js';
 
-// Pen-mode / palm-rejection.
+// Pen-mode / palm-rejection — moved to ink/pointer.js; re-exported here until
+// the legacy DrawMode node view is retired (paper rebuild, Task 7 cutover).
 
-export function isPen(e) {
-  return e.pointerType === 'pen';
-}
+export {
+  isPen,
+  isDeliberateInput,
+  isStylusEraser,
+  getCoalescedEvents,
+} from '../ink/pointer.js';
+import { isPalm as isPalmImpl } from '../ink/pointer.js';
 
-/** Palm rejection: touch input only. */
-export function isPalmTouch(e) {
-  if (e.pointerType === 'pen' || e.pointerType === 'mouse') return false;
-  return (e.width ?? 0) > 60 || (e.height ?? 0) > 60;
-}
+/** Legacy name for ink/pointer.isPalm. */
+export const isPalmTouch = isPalmImpl;
 
-/** Deliberate drawing input; when pen mode is active, pen only. */
-export function isDeliberateInput(e, isPenMode = false) {
-  if (isPalmTouch(e)) return false;
-  if (isPenMode && e.pointerType !== 'pen') return false;
-  return (
-    e.pointerType === 'pen' ||
-    e.pointerType === 'mouse' ||
-    e.pointerType === 'touch'
-  );
-}
-
-/** Stylus eraser button detection (button 5, hardware eraser on some pens). */
-export function isStylusEraser(e) {
-  return e.button === 5;
-}
-
-// Coordinate conversion
+// Coordinate conversion (SVG CTM; the canvas engine maps client coords directly)
 
 /** Accepts the SVG element directly or a Vue ref wrapping it. */
 export function getPointerCoordinates(event, svgElement) {
@@ -52,10 +38,11 @@ export function getPointerCoordinates(event, svgElement) {
   return [local.x, local.y];
 }
 
-/** Pressure sensitivity disabled: always returns 0.5 regardless of input. */
-export function normalisePressure(_e) {
-  return 0.5;
+/** Legacy shim: old build disabled pressure; new engine samples in ink/pointer.js. */
+export function normalisePressure(e) {
+  return e.pressure > 0 ? e.pressure : 0.5;
 }
+
 
 // Coalesced events helper
 

@@ -1,0 +1,246 @@
+/**
+ * renderer.js — double-buffered canvas ink renderer.
+ *
+ * Two stacked canvases: a committed layer (all finished strokes, repainted
+ * only inside a dirty rect) and a live layer (only the stroke in progress).
+ * Per-stroke bounds cull work; no spatial index — bounds early-out is enough
+ * at sketching stroke volumes (tldraw research, 2026-11).
+ *
+ * Drawing goes through explicit ctx path commands (no Path2D) so the same
+ * code runs in happy-dom's stub canvas for pure-logic tests.
+ */
+
+import { strokeBounds } from './stroke-model.js';
+import { strokeOutline } from './smoother.js';
+
+export function boundsIntersect(a, b) {
+  if (!a || !b) return false;
+  return a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY;
+}
+
+export function computeDirtyRect(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY),
+  };
+}
+
+/**
+ * Port of pointerHelper.splitStrokeByEraser: point-radius hit marking with
+ * one-point neighbor expansion, segments shorter than 2 points dropped,
+ * surviving segments get `${id}_s${n}` ids. Pure.
+ */
+export function splitStrokeByEraser(stroke, x, y, radius) {
+  const pts = stroke.points;
+  if (!pts || pts.length === 0) return [stroke];
+
+  const effectiveR = radius + (stroke.size ?? 4) / 2;
+  const r2 = effectiveR * effectiveR;
+
+  const hit = new Uint8Array(pts.length);
+  for (let i = 0; i < pts.length; i++) {
+    const dx = pts[i][0] - x;
+    const dy = pts[i][1] - y;
+    if (dx * dx + dy * dy <= r2) hit[i] = 1;
+  }
+  if (!hit.some(Boolean)) return [stroke];
+
+  // expand from a snapshot: mutating in place cascades one hit point
+  // across the whole stroke
+  const expanded = Uint8Array.from(hit);
+  for (let i = 1; i < pts.length - 1; i++) {
+    if (!expanded[i] && (hit[i - 1] || hit[i + 1])) expanded[i] = 1;
+  }
+
+  const result = [];
+  let segment = [];
+  for (let i = 0; i < pts.length; i++) {
+    if (!expanded[i]) {
+      segment.push(pts[i]);
+    } else if (segment.length) {
+      if (segment.length >= 2) {
+        result.push({
+          ...stroke,
+          id: `${stroke.id}_s${result.length}`,
+          points: segment,
+        });
+      }
+      segment = [];
+    }
+  }
+  if (segment.length >= 2) {
+    result.push({ ...stroke, id: `${stroke.id}_s${result.length}`, points: segment });
+  }
+  return result;
+}
+
+export class InkRenderer {
+  constructor() {
+    this.committed = [];
+    this.bounds = [];
+    this.liveId = null;
+    this.liveStroke = null;
+    this.dirty = null;
+    this.dpr = 1;
+    this.width = 0;
+    this.height = 0;
+    this.cacheIds = new Set();
+    this.cacheDirty = false;
+    this.logicEl = null;
+    this.liveEl = null;
+    this.logicCtx = null;
+    this.liveCtx = null;
+  }
+
+  attach(logicEl, liveEl, { dpr = 1, width = 0, height = 0 } = {}) {
+    this.logicEl = logicEl;
+    this.liveEl = liveEl;
+    this.logicCtx = logicEl?.getContext?.('2d') ?? null;
+    this.liveCtx = liveEl?.getContext?.('2d') ?? null;
+    this.resize(width, height, dpr);
+  }
+
+  setStrokes(strokes) {
+    this.committed = strokes;
+    this.bounds = strokes.map((s) => strokeBounds(s));
+    const ids = new Set(strokes.map((s) => s.id));
+    this.cacheDirty =
+      this.cacheDirty || ids.size !== this.cacheIds.size ||
+      strokes.some((s) => !this.cacheIds.has(s.id));
+    this.cacheIds = ids;
+    this.dirty = this._fullRect();
+  }
+
+  setDirty(rect) {
+    this.dirty = computeDirtyRect(this.dirty, rect);
+  }
+
+  paintStrokeLive(id, stroke) {
+    this.liveId = id;
+    this.liveStroke = stroke;
+    this._paintLive();
+  }
+
+  clearLive() {
+    this.liveId = null;
+    this.liveStroke = null;
+    this._paintLive();
+  }
+
+  commitStroke(stroke) {
+    this.committed.push(stroke);
+    this.bounds.push(strokeBounds(stroke));
+    this.cacheIds.add(stroke.id);
+    this.cacheDirty = true;
+    this.setDirty(strokeBounds(stroke));
+    this.clearLive();
+  }
+
+  eraseAt(x, y, radius) {
+    const next = [];
+    const removedIds = [];
+    let changed = false;
+    for (const stroke of this.committed) {
+      const parts = splitStrokeByEraser(stroke, x, y, radius);
+      if (parts.length === 1 && parts[0] === stroke) {
+        next.push(stroke);
+        continue;
+      }
+      changed = true;
+      if (parts.length === 0) removedIds.push(stroke.id);
+      else next.push(...parts);
+    }
+    if (changed) this.setStrokes(next);
+    return { splitStrokes: next, removedIds };
+  }
+
+  pick(x, y, radius) {
+    for (let i = this.committed.length - 1; i >= 0; i--) {
+      const stroke = this.committed[i];
+      const bnd = this.bounds[i];
+      const r = radius + (stroke.size ?? 4) / 2;
+      if (x < bnd.minX - r || x > bnd.maxX + r || y < bnd.minY - r || y > bnd.maxY + r)
+        continue;
+      const pts = stroke.points;
+      for (let i = 0; i < pts.length; i++) {
+        // segment distance, so sparse strokes (straight lines) stay pickable
+        const [ax, ay] = pts[i];
+        if (i === pts.length - 1) {
+          if (Math.hypot(ax - x, ay - y) <= r) return stroke;
+          continue;
+        }
+        const [bx, by] = pts[i + 1];
+        const abx = bx - ax;
+        const aby = by - ay;
+        const len2 = abx * abx + aby * aby;
+        const t = len2 ? Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby) / len2)) : 0;
+        const dx = ax + abx * t - x;
+        const dy = ay + aby * t - y;
+        if (dx * dx + dy * dy <= r * r) return stroke;
+      }
+    }
+    return null;
+  }
+
+  resize(width, height, dpr = this.dpr) {
+    this.width = width;
+    this.height = height;
+    this.dpr = dpr;
+    for (const el of [this.logicEl, this.liveEl]) {
+      if (!el) continue;
+      el.width = Math.round(width * dpr);
+      el.height = Math.round(height * dpr);
+      if (el.style) el.style.width = `${width}px`;
+      if (el.style) el.style.height = `${height}px`;
+    }
+    for (const ctx of [this.logicCtx, this.liveCtx]) {
+      if (ctx?.setTransform) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    this.dirty = this._fullRect();
+    this._paintLive();
+  }
+
+  /** Repaint pass — call from a rAF loop. Cheap when nothing is dirty. */
+  flush() {
+    const dirty = this.dirty;
+    if (this.logicCtx && (dirty || this.cacheDirty)) {
+      const rect = this.cacheDirty ? this._fullRect() : dirty;
+      this.logicCtx.clearRect(rect.minX, rect.minY, rect.maxX - rect.minX, rect.maxY - rect.minY);
+      for (let i = 0; i < this.committed.length; i++) {
+        if (!boundsIntersect(this.bounds[i], rect)) continue;
+        this._drawStroke(this.logicCtx, this.committed[i]);
+      }
+      this.cacheDirty = false;
+    }
+    this.dirty = null;
+  }
+
+  _paintLive() {
+    if (!this.liveCtx) return;
+    this.liveCtx.clearRect(0, 0, this.width, this.height);
+    if (this.liveStroke) this._drawStroke(this.liveCtx, this.liveStroke);
+  }
+
+  _fullRect() {
+    return { minX: 0, minY: 0, maxX: this.width, maxY: this.height };
+  }
+
+  _drawStroke(ctx, stroke) {
+    const outline = strokeOutline(stroke);
+    if (!outline.length) return;
+    ctx.globalAlpha = stroke.opacity ?? 1;
+    ctx.fillStyle = stroke.color;
+    ctx.beginPath();
+    ctx.moveTo(outline[0][0], outline[0][1]);
+    for (let i = 1; i < outline.length; i++) {
+      ctx.lineTo(outline[i][0], outline[i][1]);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
