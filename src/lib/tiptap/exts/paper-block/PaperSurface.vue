@@ -23,11 +23,7 @@
         :key="h"
         class="surface-handle"
         :data-handle="h"
-        @pointerdown.stop="onResizeStart($event)"
-      ></div>
-      <div
-        class="surface-resize-bar"
-        @pointerdown.stop="onResizeStart($event)"
+        @pointerdown.stop.prevent="onResizeStart($event)"
       ></div>
       <div class="surface-toolbar"><slot name="toolbar" /></div>
     </template>
@@ -56,7 +52,7 @@ import {
   clearScribbleSuppressed,
 } from '@/lib/native/scribble';
 
-const HANDLES = ['nw', 'ne', 'sw', 'se'];
+const HANDLES = ['top', 'bottom'];
 const AUTO_GROW_MARGIN = 20;
 const MIN_SURFACE_HEIGHT = 60;
 const DOUBLE_TAP_MS = 300;
@@ -177,7 +173,9 @@ export default {
         const source = `paper:${props.nodeKey}`;
         if (focused) setScribbleSuppressed(source, true);
         else clearScribbleSuppressed(source);
-      }
+      },
+      // media surfaces (pdf rail, markup pages, image overlay) mount focused:true
+      { immediate: true }
     );
 
     // A stroke begun by the stylus insert plugin continues into this fresh
@@ -217,6 +215,9 @@ export default {
     }
 
     function onPointerDown(e) {
+      // swallow text selection: the canvas is an inert surface, never a
+      // text-selection start point (tap still focuses via focus-request)
+      e.preventDefault?.();
       if (isPalm(e)) return;
       if (!props.tool) return; // surface disabled by the host (e.g. rail gating)
       capture(e);
@@ -373,17 +374,21 @@ export default {
     }
 
     function onResizeStart(e) {
+      const edge = e.currentTarget?.dataset?.handle === 'top' ? 'top' : 'bottom';
       resizeStart = {
         y: e.clientY,
         height: props.height,
-        target: e.currentTarget,
+        edge,
       };
       capture(e);
       const move = (ev) => {
         if (!resizeStart) return;
+        const delta = ev.clientY - resizeStart.y;
         const next = Math.max(
           MIN_SURFACE_HEIGHT,
-          resizeStart.height + (ev.clientY - resizeStart.y)
+          resizeStart.edge === 'top'
+            ? resizeStart.height - delta
+            : resizeStart.height + delta
         );
         emit('height-change', Math.round(next));
       };
@@ -428,6 +433,8 @@ export default {
   width: 100%;
   background: transparent;
   overflow: visible;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .paper-surface.focused .surface-border {
   position: absolute;
@@ -465,20 +472,6 @@ export default {
 }
 .surface-handle {
   position: absolute;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--paper-handle-bg, #fff);
-  border: 1.5px solid var(--paper-handle-border, #f59e0b);
-  touch-action: none;
-}
-.surface-handle[data-handle='nw'] { top: -7px; left: -7px; cursor: nwse-resize; }
-.surface-handle[data-handle='ne'] { top: -7px; right: -7px; cursor: nesw-resize; }
-.surface-handle[data-handle='sw'] { bottom: -7px; left: -7px; cursor: nesw-resize; }
-.surface-handle[data-handle='se'] { bottom: -7px; right: -7px; cursor: nwse-resize; }
-.surface-resize-bar {
-  position: absolute;
-  bottom: -10px;
   left: 50%;
   transform: translateX(-50%);
   width: 48px;
@@ -487,7 +480,10 @@ export default {
   background: var(--paper-handle-bg, #fff);
   border: 1.5px solid var(--paper-handle-border, #f59e0b);
   touch-action: none;
+  cursor: ns-resize;
 }
+.surface-handle[data-handle='top'] { top: -7px; }
+.surface-handle[data-handle='bottom'] { bottom: -7px; }
 .surface-toolbar {
   position: absolute;
   bottom: -56px;

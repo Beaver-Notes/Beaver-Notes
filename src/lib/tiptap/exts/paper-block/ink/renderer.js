@@ -109,7 +109,16 @@ export function splitStrokeByEraser(stroke, x, y, radius) {
 }
 
 export class InkRenderer {
-  constructor() {
+  constructor({ createCanvas } = {}) {
+    // injectable for tests (happy-dom's real canvases can't getContext)
+    this.createCanvas =
+      createCanvas ||
+      ((w, h) => {
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        return c;
+      });
     this.committed = [];
     this.bounds = [];
     this.liveId = null;
@@ -217,6 +226,12 @@ export class InkRenderer {
   }
 
   resize(width, height, dpr = this.dpr) {
+    const oldW = this.width;
+    const oldH = this.height;
+    const oldDpr = this.dpr;
+    // keep committed pixels across the resize (height drags fire per frame):
+    // blit the previous bitmap back instead of clearing + full repaint
+    const snap = this._snapshotLogic(oldW, oldH, oldDpr);
     this.width = width;
     this.height = height;
     this.dpr = dpr;
@@ -230,8 +245,31 @@ export class InkRenderer {
     for (const ctx of [this.logicCtx, this.liveCtx]) {
       if (ctx?.setTransform) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
-    this.dirty = this._fullRect();
+    if (snap) {
+      this.logicCtx.drawImage(snap, 0, 0, oldW, oldH);
+      this.dirty = null;
+    } else {
+      this.dirty = this._fullRect();
+    }
     this._paintLive();
+  }
+
+  _snapshotLogic(oldW, oldH, oldDpr) {
+    if (!this.logicEl || !this.logicCtx || !oldW || !oldH) return null;
+    let snap;
+    try {
+      snap = this.createCanvas(Math.round(oldW * oldDpr), Math.round(oldH * oldDpr));
+    } catch {
+      return null;
+    }
+    const ctx = snap.getContext && snap.getContext('2d');
+    if (!ctx) return null;
+    try {
+      ctx.drawImage(this.logicEl, 0, 0);
+    } catch {
+      return null;
+    }
+    return snap;
   }
 
   /** Repaint pass — call from a rAF loop. Cheap when nothing is dirty. */

@@ -45,16 +45,44 @@ describe('PaperSurface chrome', () => {
     expect(w.find('.surface-hint').exists()).toBe(true);
   });
 
-  it('focused: 4 handles, border, toolbar slot, hint gone', async () => {
+  it('focused: top + bottom handles only, border, toolbar slot, hint gone', async () => {
     const w = mount(PaperSurface, {
       props: { ...baseProps, focused: true },
       slots: { toolbar: '<div class="tb">tools</div>' },
     });
-    expect(w.findAll('.surface-handle')).toHaveLength(4);
+    const handles = w.findAll('.surface-handle');
+    expect(handles).toHaveLength(2);
+    expect(handles.map((h) => h.attributes('data-handle'))).toEqual(['top', 'bottom']);
+    expect(w.find('.surface-resize-bar').exists()).toBe(false);
     expect(w.find('.surface-border').exists()).toBe(true);
     expect(w.find('.surface-toolbar').exists()).toBe(true);
     expect(w.find('.tb').exists()).toBe(true);
     expect(w.find('.surface-hint').exists()).toBe(false);
+  });
+
+  it('top handle grows upward, bottom handle grows downward', async () => {
+    const w = mount(PaperSurface, { props: { ...baseProps, focused: true } });
+    const top = w.find('.surface-handle[data-handle="top"]');
+    await top.trigger('pointerdown', { clientY: 100, button: 0, pointerId: 1 });
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: 80 }));
+    await top.trigger('pointerup', { clientY: 80 });
+    const bottom = w.find('.surface-handle[data-handle="bottom"]');
+    await bottom.trigger('pointerdown', { clientY: 100, button: 0, pointerId: 2 });
+    window.dispatchEvent(new PointerEvent('pointermove', { clientY: 130 }));
+    await bottom.trigger('pointerup', { clientY: 130 });
+    const heights = w.emitted('height-change').map((c) => c[0]);
+    // happy-dom re-runs window listeners for composed events (T9 ruling), so
+    // each move may emit twice; assert the directions, not position
+    expect(heights).toContain(120);
+    expect(heights.at(-1)).toBe(130);
+  });
+
+  it('swallows text selection: canvas pointerdown preventDefaults', () => {
+    const w = mount(PaperSurface, { props: baseProps });
+    const ev = new Event('pointerdown', { bubbles: true, cancelable: true });
+    Object.defineProperty(ev, 'pointerType', { value: 'pen' });
+    w.find('.paper-surface').element.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
   });
 
   it('focused with strokes: no hint', () => {
@@ -94,6 +122,11 @@ describe('PaperSurface focus', () => {
     expect(setScribbleSuppressed).toHaveBeenCalledWith('paper:n1', true);
     await w.setProps({ focused: false });
     expect(clearScribbleSuppressed).toHaveBeenCalledWith('paper:n1');
+  });
+
+  it('suppresses scribble on mount for statically-focused media surfaces', () => {
+    mount(PaperSurface, { props: { ...baseProps, focused: true } });
+    expect(setScribbleSuppressed).toHaveBeenCalledWith('paper:n1', true);
   });
 });
 

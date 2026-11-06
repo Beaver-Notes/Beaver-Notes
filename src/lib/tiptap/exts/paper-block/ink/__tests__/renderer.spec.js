@@ -187,6 +187,9 @@ describe('renderer tracking', () => {
     setTransform() {
       this.ops.push('transform');
     }
+    drawImage() {
+      this.ops.push('drawImage');
+    }
     save() {}
     restore() {}
     fill() {
@@ -316,5 +319,23 @@ describe('renderer tracking', () => {
     logic.__ctx.ops.length = 0;
     r.flush();
     expect(logic.__ctx.ops.filter((o) => o === 'fill').length).toBe(1);
+  });
+
+  it('resize blits the previous bitmap instead of clearing (no flash)', () => {
+    const logic = fakeCanvas();
+    const live = fakeCanvas();
+    // injectable canvas factory: happy-dom canvases cannot getContext
+    const r = new InkRenderer({ createCanvas: () => fakeCanvas() });
+    r.attach(logic, live, { dpr: 1, width: 100, height: 100 });
+    r.setStrokes([hStroke('h')]);
+    r.flush();
+    logic.__ctx.ops.length = 0;
+    r.resize(100, 200, 1);
+    expect(logic.__ctx.ops).toContain('drawImage');
+    // content preserved -> no full repaint needed
+    expect(logic.__ctx.ops.filter((o) => o === 'fill').length).toBe(0);
+    logic.__ctx.ops.length = 0;
+    r.flush();
+    expect(logic.__ctx.ops.filter((o) => o === 'fill').length).toBe(0);
   });
 });
