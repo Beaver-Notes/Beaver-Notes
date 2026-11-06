@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, VueNodeViewRenderer } from '@tiptap/vue-3';
 import Component from './Paper.vue';
+import { parseStrokes } from './ink/stroke-model';
 
 export default Node.create({
   name: 'paper',
@@ -18,36 +19,22 @@ export default Node.create({
 
   addAttributes() {
     return {
-      // linesV2: canonical format - [x, y, pressure] triplets per stroke
-      linesV2: {
+      // strokes: canonical v3 - {id, tool, color, size, opacity, shape?, points:[[x,y,pressure]]}
+      strokes: {
         default: [],
-        parseHTML: (el) => {
-          try {
-            return JSON.parse(el.getAttribute('data-lines-v2') || '[]');
-          } catch {
-            return [];
-          }
-        },
+        parseHTML: (el) =>
+          parseStrokes(
+            el.getAttribute('data-lines-v3') ||
+              el.getAttribute('data-lines-v2') ||
+              el.getAttribute('data-lines') ||
+              '[]',
+          ),
         renderHTML: (attrs) => ({
-          'data-lines-v2': JSON.stringify(attrs.linesV2 ?? []),
+          'data-lines-v3': JSON.stringify(parseStrokes(attrs.strokes ?? [])),
         }),
       },
-      // lines: kept for backward compat HTML export / old note parsing
-      lines: {
-        default: [],
-        parseHTML: (el) => {
-          try {
-            return JSON.parse(el.getAttribute('data-lines') || '[]');
-          } catch {
-            return [];
-          }
-        },
-        renderHTML: (attrs) => ({
-          'data-lines': JSON.stringify(attrs.lines ?? []),
-        }),
-      },
-      height: { default: 400 },
-      paperType: { default: 'dotted' },
+      height: { default: 210 },
+      paperType: { default: 'transparent' },
     };
   },
 
@@ -76,7 +63,7 @@ export default Node.create({
         ({ commands }) => {
           return commands.insertContent({
             type: 'paper',
-            attrs: { lines: [], height: 800, paperType: 'dotted' },
+            attrs: { strokes: [], height: 210, paperType: 'transparent' },
           });
         },
     };

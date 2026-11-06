@@ -22,7 +22,6 @@ describe('strokeOutline', () => {
   });
 
   it('marker renders fatter than pen on identical points and size', () => {
-    const points = stroke().points;
     const marker = pathBounds({ points: strokeOutline(stroke({ tool: 'marker', size: 8 })) });
     const pen = pathBounds({ points: strokeOutline(stroke({ tool: 'pen', size: 8 })) });
     expect(marker.maxX - marker.minX).toBeGreaterThan(pen.maxX - pen.minX);

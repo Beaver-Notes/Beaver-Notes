@@ -12,7 +12,7 @@ const circlePts = (r = 50, noise = 0.08, sweep = 2 * Math.PI, cx = 100, cy = 100
 
 const boxPts = () => [
   [10, 10], [40, 11], [70, 10], [71, 40], [70, 70], [40, 69], [11, 70], [10, 40], [10, 10],
-].map(([x, y], i) => [x, y, 0.5]);
+].map(([x, y]) => [x, y, 0.5]);
 
 const linePts = () =>
   Array.from({ length: 30 }, (_, i) => [i * 5, 50 + 2 * Math.sin(i), 0.5]);

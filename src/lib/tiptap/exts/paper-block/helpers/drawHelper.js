@@ -44,15 +44,7 @@ export function normalisePressure(e) {
 }
 
 
-// Coalesced events helper
-
-/** High-Hz styluses fire sub-frame events; falls back to [e] where unsupported. */
-export function getCoalescedEvents(e) {
-  if (typeof e.getCoalescedEvents === 'function') {
-    return e.getCoalescedEvents();
-  }
-  return [e];
-}
+// Coalesced events helper — see ink/pointer.js (re-exported above).
 
 export { getRenderablePath, getRenderableStrokeProps, getLineBounds };
 

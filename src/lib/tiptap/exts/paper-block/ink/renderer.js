@@ -30,9 +30,9 @@ export function computeDirtyRect(a, b) {
 }
 
 /**
- * Port of pointerHelper.splitStrokeByEraser: point-radius hit marking with
- * one-point neighbor expansion, segments shorter than 2 points dropped,
- * surviving segments get `${id}_s${n}` ids. Pure.
+ * Object eraser: removes points inside the eraser radius and cuts segments
+ * that pass through it at the nearest point (interpolated, pressure carried).
+ * Surviving pieces keep point order and get `${id}_s${n}` ids. Pure.
  */
 export function splitStrokeByEraser(stroke, x, y, radius) {
   const pts = stroke.points;
@@ -41,40 +41,58 @@ export function splitStrokeByEraser(stroke, x, y, radius) {
   const effectiveR = radius + (stroke.size ?? 4) / 2;
   const r2 = effectiveR * effectiveR;
 
-  const hit = new Uint8Array(pts.length);
-  for (let i = 0; i < pts.length; i++) {
-    const dx = pts[i][0] - x;
-    const dy = pts[i][1] - y;
-    if (dx * dx + dy * dy <= r2) hit[i] = 1;
-  }
-  if (!hit.some(Boolean)) return [stroke];
-
-  // expand from a snapshot: mutating in place cascades one hit point
-  // across the whole stroke
-  const expanded = Uint8Array.from(hit);
-  for (let i = 1; i < pts.length - 1; i++) {
-    if (!expanded[i] && (hit[i - 1] || hit[i + 1])) expanded[i] = 1;
-  }
-
   const result = [];
   let segment = [];
-  for (let i = 0; i < pts.length; i++) {
-    if (!expanded[i]) {
-      segment.push(pts[i]);
-    } else if (segment.length) {
-      if (segment.length >= 2) {
-        result.push({
-          ...stroke,
-          id: `${stroke.id}_s${result.length}`,
-          points: segment,
-        });
-      }
-      segment = [];
+  let anyHit = false;
+  const flush = () => {
+    if (segment.length >= 2) {
+      result.push({ ...stroke, id: `${stroke.id}_s${result.length}`, points: segment });
+    }
+    segment = [];
+  };
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, ay, ap] = pts[i];
+    const dx = ax - x;
+    const dy = ay - y;
+    if (dx * dx + dy * dy <= r2) {
+      anyHit = true;
+      flush();
+      continue;
+    }
+    segment.push(pts[i]);
+
+    const [bx, by, bp] = pts[i + 1];
+    const abx = bx - ax;
+    const aby = by - ay;
+    const len2 = abx * abx + aby * aby;
+    const t = len2
+      ? Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby) / len2))
+      : 0;
+    const nx = ax + abx * t;
+    const ny = ay + aby * t;
+    const ndx = nx - x;
+    const ndy = ny - y;
+    if (t > 0 && t < 1 && ndx * ndx + ndy * ndy <= r2) {
+      anyHit = true;
+      segment.push([nx, ny, ap + (bp - ap) * t]);
+      flush();
+      segment.push([nx, ny, ap + (bp - ap) * t]);
     }
   }
-  if (segment.length >= 2) {
-    result.push({ ...stroke, id: `${stroke.id}_s${result.length}`, points: segment });
+
+  const last = pts[pts.length - 1];
+  const ldx = last[0] - x;
+  const ldy = last[1] - y;
+  if (ldx * ldx + ldy * ldy <= r2) {
+    anyHit = true;
+    flush();
+  } else {
+    segment.push(last);
   }
+  flush();
+
+  if (!anyHit) return [stroke];
   return result;
 }
 

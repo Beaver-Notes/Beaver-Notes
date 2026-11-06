@@ -95,8 +95,8 @@ describe('eraseAt', () => {
     const [left, right] = splitStrokes;
     expect(left.id).toBe('a_s0');
     expect(right.id).toBe('a_s1');
-    expect(left.points.map((p) => p[0])).toEqual([0, 10]);
-    expect(right.points.map((p) => p[0])).toEqual([50, 60]);
+    expect(left.points.map((p) => p[0])).toEqual([0, 10, 20]);
+    expect(right.points.map((p) => p[0])).toEqual([40, 50, 60]);
     // original untouched (immutability)
     expect(stroke.points.length).toBe(7);
   });
@@ -127,6 +127,19 @@ describe('eraseAt', () => {
     const { splitStrokes, removedIds } = r.eraseAt(500, 500, 10);
     expect(removedIds).toEqual([]);
     expect(splitStrokes[0].id).toBe('far');
+  });
+
+  it('cuts sparse strokes by segment proximity, not point hits only', () => {
+    // 2-point line (0,50)-(100,50); eraser over the middle of the segment
+    const stroke = hStroke('h');
+    const r = new InkRenderer();
+    r.setStrokes([stroke]);
+    const { splitStrokes, removedIds } = r.eraseAt(50, 53, 2);
+    expect(removedIds).toEqual([]);
+    expect(splitStrokes.length).toBe(2);
+    expect(splitStrokes.map((s) => s.id)).toEqual(['h_s0', 'h_s1']);
+    expect(splitStrokes[0].points.at(-1)[0]).toBeCloseTo(50, 5);
+    expect(splitStrokes[1].points[0][0]).toBeCloseTo(50, 5);
   });
 });
 

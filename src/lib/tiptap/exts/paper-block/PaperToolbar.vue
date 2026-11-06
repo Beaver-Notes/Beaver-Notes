@@ -4,7 +4,7 @@
     role="toolbar"
     aria-label="Drawing tools"
   >
-    <!-- Secondary row: history, stroke size, selection actions -->
+    <!-- Secondary row: history and stroke size -->
     <div
       class="flex items-center justify-center gap-1 px-3 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-t-xl border-b-0 -mb-px"
     >
@@ -49,44 +49,31 @@
           />
         </button>
       </template>
-
-      <template v-if="toolbarState.hasSelection">
-        <span class="divider-v mx-1.5 h-5" />
-        <button
-          type="button"
-          class="icon-btn icon-btn--danger"
-          title="Delete selection"
-          aria-label="Delete selection"
-          @pointerdown.stop.prevent="onDelete"
-          @keydown.enter.space.prevent="onDelete"
-          v-html="icons.trash"
-        />
-      </template>
     </div>
 
     <!-- Main pill -->
     <div
-      class="relative flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-white/95 dark:bg-neutral-900/95 backdrop-blur border border-neutral-200/80 dark:border-neutral-700/60 shadow-xl"
+      class="relative flex items-center justify-center gap-2 px-5 rounded-full bg-white/95 dark:bg-neutral-900/95 backdrop-blur border shadow-xl"
     >
       <div class="flex items-start gap-1 h-20 overflow-hidden px-1">
         <button
-          v-for="tool in tools"
-          :key="tool.id"
+          v-for="t in tools"
+          :key="t.id"
           type="button"
           class="tool-btn relative flex flex-col items-center justify-start w-12 h-24 bg-transparent transition-transform duration-200 ease-out text-neutral-400 dark:text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 touch-manipulation"
           :class="{
             '-translate-y-4 !text-neutral-900 dark:!text-white z-10':
-              toolbarState.tool === tool.id,
+              tool === t.id,
           }"
-          :title="tool.label"
-          :aria-label="tool.label"
-          :aria-pressed="toolbarState.tool === tool.id"
-          @pointerdown.stop.prevent="onTool(tool.id)"
-          @keydown.enter.space.prevent="onTool(tool.id)"
+          :title="t.label"
+          :aria-label="t.label"
+          :aria-pressed="tool === t.id"
+          @pointerdown.stop.prevent="onTool(t.id)"
+          @keydown.enter.space.prevent="onTool(t.id)"
         >
           <span
             class="paper-tool-icon flex items-start justify-center w-full transform translate-y-6"
-            v-html="toolIconSvg(tool)"
+            v-html="toolIconSvg(t)"
           />
         </button>
       </div>
@@ -98,7 +85,7 @@
           <div class="flex flex-wrap items-center justify-center w-[5.25rem]">
             <button
               v-for="(preset, i) in activePresets.slice(0, 5)"
-              :key="`${toolbarState.tool}-${i}`"
+              :key="`${tool}-${i}`"
               type="button"
               class="color-btn"
               :class="{ 'is-selected': isSameColor(preset, currentToolColor) }"
@@ -141,13 +128,13 @@
             class="paper-swatch"
             :class="[
               `paper-swatch--${bg}`,
-              toolbarState.background === bg
+              background === bg
                 ? '!border-primary ring-2 ring-primary/20 is-selected'
                 : '',
             ]"
             :title="`${bg[0].toUpperCase()}${bg.slice(1)} paper`"
             :aria-label="`${bg} paper`"
-            :aria-pressed="toolbarState.background === bg"
+            :aria-pressed="background === bg"
             @pointerdown.stop.prevent="onBg(bg)"
             @keydown.enter.space.prevent="onBg(bg)"
           />
@@ -187,6 +174,7 @@ function toolIconSvg(tool) {
     case 'fountain':
       raw = fountainSvgRaw;
       break;
+    case 'marker':
     case 'highlighter':
       raw = highlighterSvgRaw;
       break;
@@ -205,13 +193,12 @@ function toolIconSvg(tool) {
   return raw;
 }
 
-// Inline stroke icons (24x24, lucide-style) for the history/selection buttons.
+// Inline stroke icons (24x24, lucide-style) for the history buttons.
 const svg = (d) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const icons = {
   undo: svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
   redo: svg('<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>'),
-  trash: svg('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>'),
 };
 
 const isSameColor = (a, b) => a?.toLowerCase() === b?.toLowerCase();
@@ -219,43 +206,31 @@ const isSameColor = (a, b) => a?.toLowerCase() === b?.toLowerCase();
 export default {
   name: 'PaperToolbar',
   props: {
-    toolbarState: { type: Object, required: true },
     tools: { type: Array, required: true },
+    tool: { type: String, required: true },
     paperTypes: { type: Array, required: true },
+    background: { type: String, default: 'transparent' },
     currentToolColor: { type: String, default: '#1a1a1a' },
     currentToolSize: { type: Number, default: 4 },
     activePresets: { type: Array, default: () => [] },
+    canUndo: { type: Boolean, default: false },
+    canRedo: { type: Boolean, default: false },
   },
-  emits: [
-    'tool',
-    'color',
-    'color-input',
-    'save-preset',
-    'size',
-    'bg',
-    'image',
-    'undo',
-    'redo',
-    'delete',
-  ],
+  emits: ['tool', 'color', 'color-input', 'save-preset', 'size', 'bg', 'undo', 'redo'],
   setup(props, { emit }) {
     const sizePresets = computed(() => {
-      const t = props.toolbarState.tool;
-      if (t === 'highlighter') return [8, 12, 16, 24, 32];
+      const t = props.tool;
+      if (t === 'marker' || t === 'highlighter') return [8, 12, 16, 24, 32];
       if (t === 'eraser') return [12, 20, 32, 44, 60];
       if (t === 'pencil') return [1, 2, 3, 5, 8];
       return [2, 4, 6, 10, 16];
     });
 
     const showColors = computed(() => {
-      const t = props.toolbarState.tool;
-      return (
-        t === 'pen' || t === 'pencil' || t === 'fountain' || t === 'highlighter'
-      );
+      const t = props.tool;
+      return t === 'pen' || t === 'pencil' || t === 'fountain' || t === 'marker';
     });
-    const showSizes = computed(() => props.toolbarState.tool !== 'lasso');
-    const canUndo = computed(() => props.toolbarState.undoDepth > 0);
-    const canRedo = computed(() => props.toolbarState.redoDepth > 0);
+    const showSizes = computed(() => props.tool !== 'lasso');
 
     function dotSize(s) {
       const min = sizePresets.value[0],
@@ -281,21 +256,16 @@ export default {
       emit('bg', bg);
     }
     function onUndo() {
-      if (canUndo.value) emit('undo');
+      if (props.canUndo) emit('undo');
     }
     function onRedo() {
-      if (canRedo.value) emit('redo');
-    }
-    function onDelete() {
-      emit('delete');
+      if (props.canRedo) emit('redo');
     }
 
     return {
       sizePresets,
       showColors,
       showSizes,
-      canUndo,
-      canRedo,
       icons,
       isSameColor,
       dotSize,
@@ -308,7 +278,6 @@ export default {
       onBg,
       onUndo,
       onRedo,
-      onDelete,
     };
   },
 };
@@ -344,7 +313,7 @@ export default {
   border-radius: 12px;
 }
 
-/* ---- History / selection icon buttons ---- */
+/* ---- History icon buttons ---- */
 .icon-btn {
   display: flex;
   align-items: center;
@@ -362,12 +331,6 @@ export default {
 .icon-btn:disabled {
   opacity: 0.3;
   pointer-events: none;
-}
-.icon-btn--danger {
-  color: #dc2626;
-}
-.dark .icon-btn--danger {
-  color: #f87171;
 }
 @media (hover: hover) and (pointer: fine) {
   .icon-btn:hover {
@@ -448,6 +411,16 @@ export default {
   --ink: 255, 255, 255;
   border-color: #525252;
   background-color: #404040;
+}
+.paper-swatch--transparent {
+  background-image: linear-gradient(
+    135deg,
+    transparent 0 40%,
+    rgba(var(--ink), 0.35) 40% 45%,
+    transparent 45% 55%,
+    rgba(var(--ink), 0.35) 55% 60%,
+    transparent 60%
+  );
 }
 .paper-swatch--grid {
   background-size: 4px 4px;
