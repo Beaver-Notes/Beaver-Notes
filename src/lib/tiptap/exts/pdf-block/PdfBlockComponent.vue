@@ -122,6 +122,7 @@ import PaperSurface from '../paper-block/PaperSurface.vue';
 import InkPreview from '../paper-block/InkPreview.vue';
 import MarkupEditor from './MarkupEditor.vue';
 import { openPdf } from './pdfSource.js';
+import { decodeDataUrl } from './dataUrl.js';
 import {
   RAIL_PAGE_GAP,
   railLayout,
@@ -137,7 +138,13 @@ import { readFileBinaryBytes } from '@/lib/native/fs';
 const props = defineProps({ ...nodeViewProps });
 const editor = computed(() => props.editor);
 
-const { t } = useTranslations();
+const { translations } = useTranslations();
+const t = (key, fallback) => {
+  const dot = key.indexOf('.');
+  return (
+    translations.value?.[key.slice(0, dot)]?.[key.slice(dot + 1)] ?? fallback
+  );
+};
 const loading = ref(true);
 const pdfError = ref(false);
 const ready = ref(false);
@@ -239,10 +246,15 @@ async function load() {
   ready.value = false;
   try {
     const src = String(props.node.attrs.src || '');
-    const path = await resolveAssetPath(src);
-    if (!path) throw new Error('unresolvable');
-    const bytes = await readFileBinaryBytes(path);
-    pdf = await openPdf(bytes);
+    const inlineBytes = decodeDataUrl(src);
+    if (inlineBytes) {
+      pdf = await openPdf(inlineBytes);
+    } else {
+      const path = await resolveAssetPath(src);
+      if (!path) throw new Error('unresolvable');
+      const bytes = await readFileBinaryBytes(path);
+      pdf = await openPdf(bytes);
+    }
     pageDims.value = await pdf.pageDims;
     ready.value = true;
     loading.value = false;

@@ -95,8 +95,10 @@ describe('eraseAt', () => {
     const [left, right] = splitStrokes;
     expect(left.id).toBe('a_s0');
     expect(right.id).toBe('a_s1');
-    expect(left.points.map((p) => p[0])).toEqual([0, 10, 20]);
-    expect(right.points.map((p) => p[0])).toEqual([40, 50, 60]);
+    // eraser cuts AT the radius boundary, interpolating boundary points
+    // (effectiveR = 2 + 4/2 = 4 → boundaries at x=26 and x=34)
+    expect(left.points.map((p) => p[0])).toEqual([0, 10, 20, 26]);
+    expect(right.points.map((p) => p[0])).toEqual([34, 40, 50, 60]);
     // original untouched (immutability)
     expect(stroke.points.length).toBe(7);
   });
@@ -120,6 +122,35 @@ describe('eraseAt', () => {
     expect(removedIds).toEqual(['t']);
   });
 
+  it('keeps sparse strokes cut at a single interior point', () => {
+    const mk = (pts, id) => ({
+      id,
+      tool: 'pen',
+      color: '#000',
+      size: 0,
+      opacity: 1,
+      points: pts,
+    });
+    // size 0 → effectiveR = 2; middle point (10,0) is inside, ends are 10px away
+    const r1 = new InkRenderer();
+    r1.setStrokes([mk([[0, 0, 0.5], [10, 0, 0.5], [20, 0, 0.5]], 's1')]);
+    const one = r1.eraseAt(10, 0, 2);
+    expect(one.removedIds).toEqual([]);
+    expect(one.splitStrokes).toHaveLength(2);
+    expect(one.splitStrokes[0].points.map((p) => p[0])).toEqual([0, 8]);
+    expect(one.splitStrokes[1].points.map((p) => p[0])).toEqual([12, 20]);
+
+    // 4-point sparse line: erase only the second point
+    const r2 = new InkRenderer();
+    r2.setStrokes([
+      mk([[0, 0, 0.5], [10, 0, 0.5], [20, 0, 0.5], [40, 0, 0.5]], 's2'),
+    ]);
+    const two = r2.eraseAt(10, 0, 2);
+    expect(two.removedIds).toEqual([]);
+    expect(two.splitStrokes[0].points.map((p) => p[0])).toEqual([0, 8]);
+    expect(two.splitStrokes[1].points.map((p) => p[0])).toEqual([12, 20, 40]);
+  });
+
   it('leaves strokes outside the radius untouched', () => {
     const stroke = hStroke('far');
     const r = new InkRenderer();
@@ -138,8 +169,10 @@ describe('eraseAt', () => {
     expect(removedIds).toEqual([]);
     expect(splitStrokes.length).toBe(2);
     expect(splitStrokes.map((s) => s.id)).toEqual(['h_s0', 'h_s1']);
-    expect(splitStrokes[0].points.at(-1)[0]).toBeCloseTo(50, 5);
-    expect(splitStrokes[1].points[0][0]).toBeCloseTo(50, 5);
+    // true circle crossings: half-chord = sqrt(4² − 3²) = √7 around x=50
+    const halfChord = Math.sqrt(7);
+    expect(splitStrokes[0].points.at(-1)[0]).toBeCloseTo(50 - halfChord, 5);
+    expect(splitStrokes[1].points[0][0]).toBeCloseTo(50 + halfChord, 5);
   });
 });
 

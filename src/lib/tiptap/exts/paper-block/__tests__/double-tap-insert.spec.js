@@ -75,14 +75,18 @@ describe('paperInsert plugin', () => {
     expect(takePendingHandoff()).toBeNull();
   });
 
-  it('pen down over an existing paper node does not insert', () => {
+  it('pen down on a media node view does not insert even when coords resolve to blank space', () => {
+    // Production DOM: v3 Vue node views carry data-node-view-wrapper and the
+    // renderHTML data-type never reaches the live element.
     const editor = makeEditor('<div data-type="paper"></div><p>x</p>');
-    vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 1, inside: -1 });
-    const paperEl = editor.view.dom.querySelector('[data-type="paper"]');
+    vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 5, inside: -1 });
+    const mediaEl = editor.view.dom.querySelector('[data-type="paper"]');
+    mediaEl.removeAttribute('data-type');
+    mediaEl.setAttribute('data-node-view-wrapper', '');
 
-    paperEl.dispatchEvent(pointerEvent('pointerdown', { x: 100, y: 20, ts: 10, target: paperEl }));
+    mediaEl.dispatchEvent(pointerEvent('pointerdown', { x: 100, y: 20, ts: 9001, target: mediaEl }));
 
-    expect(countPapers(editor)).toBe(1);
+    expect(countPapers(editor)).toBe(1); // fixture paper only — no new insert
     expect(takePendingHandoff()).toBeNull();
   });
 

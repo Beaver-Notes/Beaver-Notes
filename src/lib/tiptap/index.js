@@ -61,6 +61,7 @@ import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
 import TextAlign from '@tiptap/extension-text-align';
 import Paper from './exts/paper-block';
+import PdfBlock from './exts/pdf-block';
 import { PaperInsert } from './exts/paper-block/double-tap-insert';
 import { PaperStrokesMigration } from './exts/paper-block/migrate';
 import { PdfEmbedMigration } from './exts/pdf-block/migrate';
@@ -165,6 +166,7 @@ function createBaseExtensions({ yjs = false, direction = null } = {}) {
     }),
     markdownEngine,
     Paper,
+    PdfBlock,
     PaperInsert,
     PaperStrokesMigration,
     PdfEmbedMigration,

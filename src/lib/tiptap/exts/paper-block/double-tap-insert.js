@@ -17,6 +17,8 @@ import { isPen, isPalm, isStylusEraser } from './ink/pointer.js';
 import { isPaperEditing } from './helpers/paperEditing.js';
 
 const MEDIA_SELECTOR =
+  '[data-node-view-wrapper],' + // Tiptap v3 Vue node views emit this, never data-type
+  'img,canvas,' + // DOM node views (image/pdf pages) have no wrapper marker
   '[data-type="image"],[data-type="Video"],[data-type="Audio"],' +
   '[data-type="fileEmbed"],[data-type="paper"],[data-type="pdfBlock"],' +
   '[data-type="mathBlock"],[data-type="mermaidDiagram"]';

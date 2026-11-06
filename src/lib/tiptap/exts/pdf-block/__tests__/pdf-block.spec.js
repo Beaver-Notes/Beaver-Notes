@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent } from 'vue';
+import { defineComponent, ref } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import { readFileSync } from 'node:fs';
 import PdfBlockComponent from '../PdfBlockComponent.vue';
@@ -59,7 +59,8 @@ vi.mock('@/lib/native/fs', () => ({
 }));
 
 vi.mock('@/composable/useTranslations', () => ({
-  useTranslations: () => ({ t: (key, fallback) => fallback ?? key }),
+  // real composable shape: returns { translations } only — no t() helper
+  useTranslations: () => ({ translations: ref({}) }),
 }));
 
 const RemixStub = defineComponent({
@@ -115,6 +116,19 @@ describe('pdf-block', () => {
     await wrapper.find('.pdf-thumbs-toggle').trigger('click');
     expect(wrapper.findAll('.pdf-thumb')).toHaveLength(1);
     expect(wrapper.find('.pdf-filmstrip').element.style.display).toBe('');
+  });
+
+  it('renders inline data: pdfs without touching the asset path', async () => {
+    const { openPdf } = await import('../pdfSource.js');
+    const { resolveAssetPath } = await import('@/lib/tauri/scoped-storage');
+    // b64([1,2,3]) = 'AQID'
+    const wrapper = mountBlock({
+      src: 'data:application/pdf;base64,AQID',
+    });
+    await flushPromises();
+    expect(openPdf.mock.calls[0]?.[0]).toEqual(new Uint8Array([1, 2, 3]));
+    expect(resolveAssetPath).not.toHaveBeenCalled();
+    expect(wrapper.findAll('.pdf-rail-page')).toHaveLength(1);
   });
 
   it('splits rail commits into page-local stored strokes', async () => {

@@ -570,7 +570,9 @@ export function sanitizeClone(clone) {
     cb.removeAttribute('onclick');
   });
 
-  clone.querySelectorAll('.node-view-wrapper').forEach((el) => {
+  clone
+    .querySelectorAll('[data-node-view-wrapper], .node-view-wrapper')
+    .forEach((el) => {
     const video = el.querySelector('video');
     if (video) {
       const simple = document.createElement('video');

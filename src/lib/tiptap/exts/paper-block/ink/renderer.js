@@ -41,6 +41,26 @@ export function splitStrokeByEraser(stroke, x, y, radius) {
   const effectiveR = radius + (stroke.size ?? 4) / 2;
   const r2 = effectiveR * effectiveR;
 
+  // Crossing of segment A→B with the eraser circle: root t of
+  // |A + t(B−A) − C|² = r². 'entry' = first (smaller) root, 'exit' = larger.
+  const boundary = (a, b, which) => {
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const fx = a[0] - x;
+    const fy = a[1] - y;
+    const qa = dx * dx + dy * dy;
+    const qb = 2 * (dx * fx + dy * fy);
+    const qc = fx * fx + fy * fy - r2;
+    const disc = qb * qb - 4 * qa * qc;
+    if (qa === 0 || disc < 0) return null;
+    const sq = Math.sqrt(disc);
+    const t = which === 'entry' ? (-qb - sq) / (2 * qa) : (-qb + sq) / (2 * qa);
+    if (t <= 0 || t >= 1) return null;
+    return [a[0] + dx * t, a[1] + dy * t, a[2] + (b[2] - a[2]) * t];
+  };
+
+  const inside = (p) => (p[0] - x) * (p[0] - x) + (p[1] - y) * (p[1] - y) <= r2;
+
   const result = [];
   let segment = [];
   let anyHit = false;
@@ -51,44 +71,36 @@ export function splitStrokeByEraser(stroke, x, y, radius) {
     segment = [];
   };
 
-  for (let i = 0; i < pts.length - 1; i++) {
-    const [ax, ay, ap] = pts[i];
-    const dx = ax - x;
-    const dy = ay - y;
-    if (dx * dx + dy * dy <= r2) {
-      anyHit = true;
-      flush();
+  for (let i = 0; i < pts.length; i++) {
+    if (!inside(pts[i])) {
+      segment.push(pts[i]);
+      // pass-through: both endpoints outside but the segment dips into the eraser
+      const next = pts[i + 1];
+      if (next && !inside(next)) {
+        const entry = boundary(pts[i], next, 'entry');
+        if (entry) {
+          anyHit = true;
+          segment.push(entry);
+          flush();
+          const exit = boundary(pts[i], next, 'exit');
+          if (exit) segment.push(exit);
+        }
+      }
       continue;
     }
-    segment.push(pts[i]);
-
-    const [bx, by, bp] = pts[i + 1];
-    const abx = bx - ax;
-    const aby = by - ay;
-    const len2 = abx * abx + aby * aby;
-    const t = len2
-      ? Math.max(0, Math.min(1, ((x - ax) * abx + (y - ay) * aby) / len2))
-      : 0;
-    const nx = ax + abx * t;
-    const ny = ay + aby * t;
-    const ndx = nx - x;
-    const ndy = ny - y;
-    if (t > 0 && t < 1 && ndx * ndx + ndy * ndy <= r2) {
-      anyHit = true;
-      segment.push([nx, ny, ap + (bp - ap) * t]);
-      flush();
-      segment.push([nx, ny, ap + (bp - ap) * t]);
-    }
-  }
-
-  const last = pts[pts.length - 1];
-  const ldx = last[0] - x;
-  const ldy = last[1] - y;
-  if (ldx * ldx + ldy * ldy <= r2) {
+    // point inside the eraser: cut at the radius boundary on both sides
     anyHit = true;
+    const prev = pts[i - 1];
+    if (prev && !inside(prev)) {
+      const entry = boundary(prev, pts[i], 'entry');
+      if (entry) segment.push(entry);
+    }
     flush();
-  } else {
-    segment.push(last);
+    const next = pts[i + 1];
+    if (next && !inside(next)) {
+      const exit = boundary(pts[i], next, 'exit');
+      if (exit) segment.push(exit);
+    }
   }
   flush();
 

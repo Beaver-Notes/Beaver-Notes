@@ -63,7 +63,8 @@ describe('fileEmbed → pdfBlock conversion', () => {
 describe('sanitizeClone media snapshots', () => {
   function mountPaperClone(canvasW = 300, canvasH = 150) {
     const div = document.createElement('div');
-    div.className = 'node-view-wrapper paper-node';
+    div.setAttribute('data-node-view-wrapper', '');
+    div.className = 'paper-node';
     const surface = document.createElement('div');
     surface.className = 'paper-surface';
     const logic = document.createElement('canvas');

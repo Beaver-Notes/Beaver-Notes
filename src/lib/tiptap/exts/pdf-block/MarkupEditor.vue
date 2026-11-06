@@ -140,7 +140,13 @@ const emit = defineEmits([
   'color',
 ]);
 
-const { t } = useTranslations();
+const { translations } = useTranslations();
+const t = (key, fallback) => {
+  const dot = key.indexOf('.');
+  return (
+    translations.value?.[key.slice(0, dot)]?.[key.slice(dot + 1)] ?? fallback
+  );
+};
 
 const scrollerRef = ref(null);
 const pageCanvases = new Map();
