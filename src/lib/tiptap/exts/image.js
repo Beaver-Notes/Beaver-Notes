@@ -8,6 +8,8 @@ import {
   sanitizeImageSource,
 } from '@/utils/note/contentSecurity.js';
 import mime from 'mime';
+import { parseStrokes, serializeStrokes } from './paper-block/ink/stroke-model.js';
+import { mountImageMarkup } from './paper-block/imageMarkup.js';
 
 const HANDLE_SIDES = ['left', 'right'];
 const IMAGE_LAYOUTS = new Set(['block', 'wrap-left', 'wrap-right']);
@@ -63,7 +65,7 @@ function resolveImageLayout(attrs = {}) {
 
 function applyImageAttributes(nodeAttrs, imgElement) {
   Object.entries(nodeAttrs).forEach(([key, value]) => {
-    if (['containerStyle', 'wrapperStyle', 'layout'].includes(key)) return;
+    if (['containerStyle', 'wrapperStyle', 'layout', 'markup'].includes(key)) return;
 
     if (value === undefined || value === null) {
       imgElement.removeAttribute(key);
@@ -118,8 +120,88 @@ export class ImageNodeView {
     this.handleDocumentTouchMove = this.handleDocumentTouchMove.bind(this);
     this.handleDocumentTouchEnd = this.handleDocumentTouchEnd.bind(this);
 
+    this.markupCtrl = null;
+    this.markupHost = null;
+    this.createAnnotateToggle();
+
     this.setupDOM();
     this.createResizeHandles();
+  }
+
+  createAnnotateToggle() {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'bn-image-annotate';
+    button.setAttribute('aria-label', 'Annotate');
+    button.title = 'Annotate';
+    button.textContent = '✎';
+    button.style.display = 'none';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleAnnotate();
+    });
+    this.annotateBtn = button;
+  }
+
+  toggleAnnotate() {
+    if (this.markupCtrl) {
+      this.exitAnnotate();
+      return;
+    }
+
+    this.markupHost = document.createElement('div');
+    this.markupHost.className = 'bn-image-markup-host';
+
+    const appHost = document.createElement('div');
+    appHost.className = 'bn-image-markup-app';
+    this.markupHost.appendChild(appHost);
+
+    const exit = document.createElement('button');
+    exit.type = 'button';
+    exit.className = 'bn-image-markup-exit';
+    exit.textContent = 'Done';
+    exit.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.exitAnnotate();
+    });
+    this.markupHost.appendChild(exit);
+
+    this.container.appendChild(this.markupHost);
+    this.markupCtrl = mountImageMarkup({
+      host: appHost,
+      strokes: this.node.attrs.markup || [],
+      nodeKey: `img-${Date.now().toString(36)}`,
+      height: this.container.clientHeight || 200,
+      onCommit: (next) => this.commitMarkup(next),
+      onUpdateStrokes: (next) => this.commitMarkup(next),
+    });
+  }
+
+  exitAnnotate() {
+    if (this.markupCtrl) {
+      this.markupCtrl.destroy();
+      this.markupCtrl = null;
+    }
+    if (this.markupHost) {
+      this.markupHost.remove();
+      this.markupHost = null;
+    }
+  }
+
+  commitMarkup(nextStrokes) {
+    if (typeof this.getPos !== 'function') return;
+    const pos = this.getPos();
+    if (typeof pos !== 'number') return;
+    const { view } = this.editor;
+    if (!view) return;
+    view.dispatch(
+      view.state.tr.setNodeMarkup(pos, null, {
+        ...this.node.attrs,
+        markup: nextStrokes,
+      }),
+    );
   }
 
   setupDOM() {
@@ -130,6 +212,7 @@ export class ImageNodeView {
     this.wrapper.dataset.layout = layout;
     this.container.removeAttribute('style');
     this.container.classList.toggle('has-explicit-width', Boolean(widthValue));
+    this.container.style.position = 'relative';
 
     applyImageAttributes(this.node.attrs, this.img);
 
@@ -138,6 +221,7 @@ export class ImageNodeView {
     }
 
     this.applyResizeLimits();
+    this.container.appendChild(this.annotateBtn);
   }
 
   getEditorWidth() {
@@ -345,6 +429,7 @@ export class ImageNodeView {
 
   selectNode() {
     this.wrapper.classList.add('is-selected');
+    this.annotateBtn.style.display = '';
   }
 
   deselectNode() {
@@ -352,6 +437,7 @@ export class ImageNodeView {
     this.wrapper.classList.remove('is-resizing');
     this.resizeState = null;
     this.removeDocumentListeners();
+    this.annotateBtn.style.display = 'none';
   }
 
   update(node) {
@@ -359,11 +445,15 @@ export class ImageNodeView {
 
     this.node = node;
     this.setupDOM();
+    if (this.markupCtrl) {
+      this.markupCtrl.setStrokes(node.attrs.markup || []);
+    }
 
     return true;
   }
 
   destroy() {
+    this.exitAnnotate();
     this.removeDocumentListeners();
   }
 }
@@ -529,6 +619,14 @@ export default Image.extend({
         default: null,
         rendered: false,
         parseHTML: (element) => element.getAttribute('wrapperstyle'),
+      },
+      markup: {
+        default: [],
+        parseHTML: (element) => parseStrokes(element.getAttribute('data-markup')),
+        renderHTML: (attrs) =>
+          attrs.markup?.length
+            ? { 'data-markup': serializeStrokes(attrs.markup) }
+            : {},
       },
     };
   },

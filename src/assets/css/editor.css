@@ -258,6 +258,36 @@ img.ProseMirror-selectednode {
     margin-bottom: 1em !important;
     text-align: center;
   }
+  .bn-image-annotate {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--color-bg, #fff);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+  }
+  .bn-image-markup-host {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+  .bn-image-markup-exit {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 3;
+    padding: 2px 10px;
+    border-radius: 8px;
+    background: var(--color-bg, #fff);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+  }
   .bn-image-node[data-layout='wrap-left'],
   .bn-image-node[data-layout='wrap-right'] {
     clear: none;
