@@ -48,6 +48,7 @@ import {
 import { collectPoints, isPalm, isStylusEraser } from './ink/pointer.js';
 import { strokeOutline } from './ink/smoother.js';
 import { recognizeShape, shouldSnapshot } from './ink/recognizer.js';
+import { takePendingHandoff } from './double-tap-insert.js';
 import { InkRenderer } from './ink/renderer.js';
 import {
   setScribbleSuppressed,
@@ -133,6 +134,7 @@ export default {
         onBeforeUnmount(() => ro.disconnect());
       }
       rafId = requestAnimationFrame(loop);
+      startHandoffStroke();
     });
 
     onBeforeUnmount(() => {
@@ -153,6 +155,31 @@ export default {
         else clearScribbleSuppressed(source);
       }
     );
+
+    // A stroke begun by the stylus insert plugin continues into this fresh
+    // surface. shortcut: y-bounds only (width unknown at mount in some hosts)
+    function startHandoffStroke() {
+      const handoff = takePendingHandoff();
+      if (!handoff || !props.tool) return;
+      const rect = logicRef.value?.getBoundingClientRect();
+      const left = rect?.left ?? 0;
+      const top = rect?.top ?? 0;
+      const localX = handoff.x - left;
+      const localY = handoff.y - top;
+      if (localX < 0 || localY < 0 || localY > props.height) return;
+      lastSample = { x: handoff.x, y: handoff.y, t: performance.now() };
+      moveEvents = [];
+      gesture = { kind: 'draw', tool: props.tool, points: [[localX, localY, 0.5]] };
+      paintLive();
+      const move = (e) => onPointerMove(e);
+      const up = (e) => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        onPointerUp(e);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    }
 
     function localPoint(e) {
       const rect = logicRef.value?.getBoundingClientRect();

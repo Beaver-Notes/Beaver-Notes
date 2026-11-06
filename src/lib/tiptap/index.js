@@ -61,6 +61,7 @@ import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
 import TextAlign from '@tiptap/extension-text-align';
 import Paper from './exts/paper-block';
+import { PaperInsert } from './exts/paper-block/double-tap-insert';
 import { dropFile } from './exts/drop-file';
 import YUndo from './exts/y-undo';
 import { getTranslations } from '@/utils/i18n/getTranslations';
@@ -162,6 +163,7 @@ function createBaseExtensions({ yjs = false, direction = null } = {}) {
     }),
     markdownEngine,
     Paper,
+    PaperInsert,
     Placeholder.configure({
       placeholder: translations.editor.tiptapPlaceholder,
     }),

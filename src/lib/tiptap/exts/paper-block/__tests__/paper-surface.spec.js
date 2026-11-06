@@ -8,6 +8,7 @@ vi.mock('@/lib/native/scribble', () => ({
 
 import { setScribbleSuppressed, clearScribbleSuppressed } from '@/lib/native/scribble';
 import PaperSurface from '../PaperSurface.vue';
+import { setPendingHandoff, takePendingHandoff } from '../double-tap-insert.js';
 
 const baseProps = {
   strokes: [],
@@ -138,5 +139,38 @@ describe('PaperSurface drawing', () => {
     expect(w.emitted('update-strokes')).toBeTruthy();
     const next = w.emitted('update-strokes').at(-1)[0];
     expect(next.some((s) => s.id.startsWith('a_'))).toBe(true);
+  });
+});
+
+describe('PaperSurface pencil handoff', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('starts a relayed stroke when inserted by the stylus plugin', async () => {
+    setPendingHandoff({ x: 20, y: 30 });
+    const w = mount(PaperSurface, { props: { ...baseProps, focused: false, tool: 'pen' } });
+
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 25, clientY: 35, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 28, clientY: 38, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointerup', { clientX: 30, clientY: 40, bubbles: true }));
+    await w.vm.$nextTick();
+
+    const commits = w.emitted('commit');
+    expect(commits?.length).toBe(1);
+    expect(commits[0][0].points.length).toBeGreaterThanOrEqual(3);
+    expect(takePendingHandoff()).toBeNull();
+  });
+
+  it('ignores a handoff outside its bounds', async () => {
+    setPendingHandoff({ x: 5000, y: 5000 });
+    const w = mount(PaperSurface, { props: { ...baseProps, focused: false, tool: 'pen' } });
+
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 5005, clientY: 5005, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointerup', { clientX: 5010, clientY: 5010, bubbles: true }));
+    await w.vm.$nextTick();
+
+    expect(w.emitted('commit')).toBeUndefined();
+    expect(takePendingHandoff()).toBeNull();
   });
 });
