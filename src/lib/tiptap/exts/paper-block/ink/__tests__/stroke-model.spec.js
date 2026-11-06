@@ -21,6 +21,11 @@ const v3Stroke = {
 };
 
 describe('v3 stroke model', () => {
+  it('preserves the page field for pdf markup strokes', () => {
+    const paged = { ...v3Stroke, page: 2 };
+    expect(parseStrokes(serializeStrokes([paged]))).toEqual([paged]);
+  });
+
   it('round-trips serialize → parse losslessly', () => {
     const json = serializeStrokes([v3Stroke]);
     expect(parseStrokes(json)).toEqual([v3Stroke]);

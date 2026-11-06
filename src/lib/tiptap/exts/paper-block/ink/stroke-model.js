@@ -28,6 +28,7 @@ function normalizeStroke(line, idx) {
     size: line.size ?? 4,
     opacity: line.opacity ?? (DEFAULT_OPACITY_BY_TOOL[tool] ?? 1),
     ...(line.shape ? { shape: line.shape } : {}),
+    ...(Number.isFinite(line.page) ? { page: line.page } : {}),
     points: (line.points ?? []).map((pt) =>
       pt.length >= 3 ? [pt[0], pt[1], pt[2]] : [pt[0], pt[1], 0.5],
     ),

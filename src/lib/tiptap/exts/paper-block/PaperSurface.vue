@@ -15,7 +15,7 @@
 
     <div v-if="!focused && !strokes.length" class="surface-hint">{{ hint }}</div>
 
-    <template v-if="focused">
+    <template v-if="focused && chrome">
       <div class="surface-border" aria-hidden="true"></div>
       <div
         v-for="h in HANDLES"
@@ -69,6 +69,7 @@ export default {
     height: { type: Number, default: 210 },
     paperType: { type: String, default: 'transparent' },
     media: { type: Boolean, default: false },
+    chrome: { type: Boolean, default: true },
     nodeKey: { type: String, default: '' },
     hint: { type: String, default: 'Start drawing' },
   },
@@ -166,6 +167,7 @@ export default {
 
     function onPointerDown(e) {
       if (isPalm(e)) return;
+      if (!props.tool) return; // surface disabled by the host (e.g. rail gating)
       capture(e);
 
       if (!props.focused) {

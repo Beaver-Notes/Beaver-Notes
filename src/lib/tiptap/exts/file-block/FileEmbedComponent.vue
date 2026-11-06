@@ -78,6 +78,7 @@ import {
   getFileIcon,
 } from '@/lib/native/fs';
 import { shareFileViaNative } from '@/lib/native/share';
+import { resolveAssetPath } from '@/lib/tauri/scoped-storage';
 import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { useTranslations } from '@/composable/useTranslations';
 
@@ -115,18 +116,7 @@ export default {
     }
 
     async function resolveFilePath(src) {
-      const normalized = normalizeSrc(src);
-      const match = normalized.match(
-        /^(?:assets|file-assets):\/\/([^/]+)\/(.+)$/,
-      );
-      if (!match) return null;
-      const [, noteId, rest] = match;
-      const appDir = await getAppDirectory();
-      let decoded = rest;
-      try {
-        decoded = decodeURIComponent(rest);
-      } catch {}
-      return `${appDir}/assets/${noteId}/${decoded}`;
+      return resolveAssetPath(src);
     }
 
     async function checkFileExists() {

@@ -235,6 +235,16 @@ async function readdirAt(target) {
   return invokeCommand('fs:readdir', target.resolvedPath);
 }
 
+export async function resolveAssetPath(value) {
+  const target = await describeFsTarget(value);
+  if (target?.kind !== 'local') return null;
+  return ASSET_SCHEME.test(String(value ?? '').split('?')[0])
+    ? target.resolvedPath
+    : null;
+}
+
+const ASSET_SCHEME = /^(?:assets|file-assets):\/\//;
+
 export function kickSyncDir(value) {
   describeFsTarget(value)
     .then((target) => {
