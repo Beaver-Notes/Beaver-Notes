@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, toRaw } from 'vue';
 import { nanoid } from 'nanoid';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
@@ -103,7 +103,10 @@ export function setSkipUndo(value: boolean): void {
   _skipUndo.value = value;
 }
 
-const contentSignature: Map<string, object> = new Map();
+// WeakRef keeps only object identity: a strong ref here pinned one stale full
+// document per note until sign-out. Primitive contents (legacy strings) use a
+// boxed wrapper so value comparison keeps working.
+const contentSignature: Map<string, WeakRef<object> | { primitive: unknown }> = new Map();
 
 /**
  * Drop the content signatures. They hold note plaintext, so they are torn down
@@ -111,9 +114,80 @@ const contentSignature: Map<string, object> = new Map();
  */
 export function clearNoteContentSignatures(): void {
   contentSignature.clear();
+  lastIndexState.clear();
 }
 
 const indexSignature: Map<string, string> = new Map();
+
+// Derived-data deferral. preview/searchText/link-index are derived views of
+// content: rebuilding them inside the 300ms persist loop costs three
+// full-document walks plus a MiniSearch re-tokenization on every typing
+// burst. The durable content write lives in the yjs flush, so derived data
+// lands on idle time instead — and is flushed synchronously on
+// pagehide/visibilitychange so app close never loses it.
+const DERIVED_DEFER_MS = 1500;
+const derivedPending = new Map<string, NoteStoreThis>();
+let derivedTimer: ReturnType<typeof setTimeout> | null = null;
+let derivedHooksInstalled = false;
+
+function derivedFlushOne(id: string): void {
+  // Read BEFORE deleting: deleting first left `store` undefined for every
+  // flush, so derived data (preview/searchText/link-index/saveNote/meta)
+  // silently never updated for notes over the threshold.
+  const store = derivedPending.get(id) ?? undefined;
+  derivedPending.delete(id);
+  const note = store?.data[id];
+  if (!store || !note || note.isLocked || isEncryptedContent(note.content)) return;
+  const rawContent = toRaw(note.content);
+  const { cardPreview, preview } = buildNotePreview({
+    content: rawContent,
+    preview: note.preview,
+    searchText: note.searchText,
+    hidden: false,
+  });
+  note.preview = preview;
+  note.cardPreview = cardPreview as CardPreview;
+  note.searchText = extractTextFromContent(rawContent) || note.searchText;
+  rebuildLinkIndexForNote(id, rawContent);
+  void saveNote(id, note);
+  syncNoteMeta(note);
+}
+
+function flushDerivedUpdates(): void {
+  if (derivedTimer) {
+    clearTimeout(derivedTimer);
+    derivedTimer = null;
+  }
+  for (const id of derivedPending.keys()) {
+    try {
+      derivedFlushOne(id);
+    } catch (err) {
+      console.error('[store] derived flush failed for', id, err);
+      derivedPending.delete(id);
+    }
+  }
+}
+
+function scheduleDerivedUpdate(id: string, store: NoteStoreThis): void {
+  derivedPending.set(id, store);
+  if (derivedTimer) return;
+  derivedTimer = setTimeout(flushDerivedUpdates, DERIVED_DEFER_MS);
+  if (!derivedHooksInstalled && typeof window !== 'undefined') {
+    derivedHooksInstalled = true;
+    const flushAll = () => flushDerivedUpdates();
+    window.addEventListener('pagehide', flushAll);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushAll();
+    });
+  }
+}
+
+// Last state pushed into MiniSearch per note id. `syncSearchIndex` records it
+// on every upsert (it never skips); the meta-doc projection loop consults it
+// to drop its redundant re-index — the projection re-fires for every typing
+// burst although searchText is not a meta field, so without this each burst
+// re-tokenized large notes ~150ms after saveNote had just done the same work.
+const lastIndexState: Map<string, string> = new Map();
 
 // Incremental folder counts avoid O(n) rebuild. Version counter busts Pinia getter cache.
 const folderCounts: Map<string | null, number> = new Map();
@@ -270,6 +344,7 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
         // Remove deleted notes from indexes
         for (const id of Object.keys(signatures)) {
           if (!this.data[id]) {
+            lastIndexState.delete(id);
             removeSearchEntry(id);
             removeNoteFromLinkIndex(id);
             delete signatures[id];
@@ -472,28 +547,22 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
   await ensureKeyReadyForWrite();
 
   const note = this.data[id];
-  const contentChanged = note.content !== contentSignature.get(id);
+  const sig = contentSignature.get(id);
+  const prevContent = sig instanceof WeakRef ? sig.deref() : sig?.primitive;
+  const contentChanged = note.content !== prevContent;
 
-  // Rebuild preview + searchText only when content actually changed
-  if (!note.isLocked && !isEncryptedContent(note.content)) {
-    if (contentChanged) {
-      const { cardPreview, preview } = buildNotePreview({
-        content: note.content,
-        preview: note.preview,
-        searchText: note.searchText,
-        hidden: false,
-      });
-      note.preview = preview;
-      note.cardPreview = cardPreview as CardPreview;
-      note.searchText = extractTextFromContent(note.content) || note.searchText;
-    }
+  // Derived data (preview/searchText/link-index/search/spotlight) is a view
+  // of content: rebuilding it inside the 300ms persist burst costs three
+  // full-document walks plus a MiniSearch re-tokenization on every burst —
+  // for every note size, not just huge ones. Route all content changes
+  // through the deferred flush (trailing 1.5s debounce, flushed on
+  // pagehide/visibilitychange). Title/label-only changes stay on the
+  // immediate path below.
+  if (contentChanged && !note.isLocked && !isEncryptedContent(note.content)) {
+    scheduleDerivedUpdate(id, this);
   }
 
-  if (contentChanged) {
-    await saveNote(id, note);
-    rebuildLinkIndexForNote(id, note.content);
-  } else {
-    // Content unchanged: reindex only if title/searchText/labels changed.
+  if (!contentChanged) {
     const indexKey = `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`;
     if (indexKey !== indexSignature.get(id)) {
       await saveNote(id, note);
@@ -508,8 +577,15 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
   syncNoteMeta(live);
 
   // Signatures stay keyed to what was actually written above, so an edit that raced
-  // this persist is still seen as dirty by the next one.
-  contentSignature.set(id, note.content);
+  // this persist is still seen as dirty by the next one. WeakRef: identity only —
+  // the proxy identity still matches because Vue returns the same proxy per target.
+  const sigContent = note.content;
+  contentSignature.set(
+    id,
+    sigContent && typeof sigContent === 'object'
+      ? new WeakRef(sigContent as object)
+      : ({ primitive: sigContent } as unknown as WeakRef<object>),
+  );
   indexSignature.set(id, `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`);
 
   scheduleSharedNotePush(id);
@@ -551,6 +627,7 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
       console.warn('[note] failed to delete Yjs updates for', id, error);
     });
 
+    lastIndexState.delete(id);
     removeSearchEntry(id);
 
     deleteNoteFromSpotlight(id);
@@ -706,9 +783,20 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
 
 
 /** Sync note into local search index after storage write. Uses precomputed searchText, no serialisation. Stale index degrades to no results. */
+function searchStateOf(note: NoteData): string {
+  return `${note.title || ''}\0${note.searchText || ''}\0${(note.labels || []).join('\u0001')}`;
+}
+
 export function syncSearchIndex(note: NoteData): void {
   if (!note?.id || note.isLocked || isEncryptedContent(note.content)) return;
+  lastIndexState.set(note.id, searchStateOf(note));
   upsertSearchEntry(note);
+}
+
+/** True when the MiniSearch entry for this note already matches its current title/searchText/labels. */
+export function isSearchIndexCurrent(note: NoteData): boolean {
+  if (!note?.id) return false;
+  return lastIndexState.get(note.id) === searchStateOf(note);
 }
 
 /**
