@@ -13,6 +13,12 @@ import { ySyncPluginKey } from '@tiptap/y-tiptap';
 const YUndo = Extension.create({
   name: 'yUndo',
 
+  // Exposed so the paste handler can stopCapturing() before a streamed
+  // paste, keeping the whole paste a single undo step.
+  addStorage() {
+    return { undoManager: null };
+  },
+
   // Before Collaboration (priority 1000): its addProseMirrorPlugins reads
   // yUndoOptions, so the override below has to be installed first.
   priority: 1001,
@@ -27,6 +33,7 @@ const YUndo = Extension.create({
     const undoManager = new Y.UndoManager(ydoc, {
       trackedOrigins: new Set([ySyncPluginKey]),
     });
+    this.storage.undoManager = undoManager;
 
     // extension.options is a recomputed getter, so a plain assignment would
     // be lost on the next read — wrap addOptions instead.
