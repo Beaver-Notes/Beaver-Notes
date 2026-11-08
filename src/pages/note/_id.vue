@@ -314,7 +314,7 @@ import {
 import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
-import { useNoteYjs } from '@/composable/useNoteYjs';
+import { useNoteYjs, flushAllNoteYjsPending } from '@/composable/useNoteYjs';
 import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
 import { useActivityLog } from '@/composable/useActivityLog';
@@ -1041,7 +1041,7 @@ export default {
     // Route watcher for persist-on-leave
     watch(
       () => route.params.id,
-      (noteId, oldNoteId) => {
+      async (noteId, oldNoteId) => {
         previewActive = false;
         // Flush on ANY leave (note-to-note AND note-to-home) so home never
         // renders a pre-edit preview while the debounced persist is pending.
@@ -1064,7 +1064,21 @@ export default {
 
         // Check the Pinia note store (source of truth) instead of the legacy
         // KV table which post-migration / synced notes never write to.
-        const currentNote = noteStore.getById(noteId);
+        // Boot race: notes hydrate from the workspace meta doc AFTER this
+        // watcher's immediate fire, and an instant redirect here bounced
+        // freshly booted users off their note. Wait (bounded) for either the
+        // note to appear or the store to prove hydration finished without it.
+        let currentNote = noteStore.getById(noteId);
+        if (!currentNote || !currentNote.id) {
+          const started = Date.now();
+          while (!currentNote) {
+            const waited = Date.now() - started;
+            const hydrated = Object.keys(noteStore.data).length > 0;
+            if ((hydrated && waited > 2000) || waited > 8000) break;
+            await new Promise((resolve) => setTimeout(resolve, 120));
+            currentNote = noteStore.getById(noteId);
+          }
+        }
         if (!currentNote || !currentNote.id) {
           router.push('/');
           return;
@@ -1092,6 +1106,11 @@ export default {
     );
 
     const handleBeforeUnload = () => {
+      // Yjs buffered deltas flush via the pagehide hook; a Tauri quit may not
+      // fire pagehide, so flush them on this path too (best-effort async).
+      void flushAllNoteYjsPending().catch((err) => {
+        console.error('[note] yjs flush on unload failed:', err);
+      });
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
         keepUpdatedAt: true,
       })?.catch((err) => {
@@ -1182,8 +1201,10 @@ export default {
 
     removeCloseHandler = addCloseHandler(async () => {
       // bindCloseHandlers only wraps fn() in a synchronous try/catch, so an
-      // async persist rejection escapes it: catch here instead.
+      // async persist rejection escapes it: catch here instead. Yjs buffered
+      // deltas flush too — a Tauri quit may not fire pagehide.
       try {
+        await flushAllNoteYjsPending();
         await persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
           keepUpdatedAt: true,
         });

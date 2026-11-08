@@ -128,6 +128,12 @@ export function useNotePersistence({
         keepUpdatedAt ? (existingNote.updatedAt ?? Date.now()) : undefined,
       ),
     );
+    // Route leave / quit: derived data (preview/searchText/link-index) is on
+    // a 1.5s trailing debounce after task-2 deferral — the home list, search
+    // and backlinks read it immediately, so flush it synchronously here.
+    // Only on this explicit path: the scheduled persist burst must keep its
+    // deferral.
+    noteStore.flushDerivedUpdates?.();
     const persistPromise = flushScheduledPersist(noteId);
 
     if (!wait) {

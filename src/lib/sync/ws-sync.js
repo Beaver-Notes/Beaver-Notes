@@ -5,7 +5,6 @@ import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useCollaboratorStore } from '@/store/collaborator'
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc'
-import { unregisterActiveDoc } from '@/lib/yjs/shared'
 import {
   importCollabKey,
   isValidCollabKey,
@@ -749,7 +748,11 @@ export function useWsSync() {
     }
     forgetDocRoom(roomName)
     noteRoomArgs.delete(roomName)
-    unregisterActiveDoc(noteId)
+    // Registration is owned by the note composable's own teardown, which
+    // already guards against unregistering a replaced doc. Clearing it here
+    // too let a room re-join cycle (abandoned joins on a broken server,
+    // workspace settle remounts) unregister the LIVE editor's doc
+    // mid-session, leaving an empty editor over intact data.
   }
 
   async function joinMetaRoom(workspaceId) {

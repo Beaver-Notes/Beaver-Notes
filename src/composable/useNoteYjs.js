@@ -4,9 +4,17 @@ import {
   appendUpdate,
   getUpdates,
   getSnapshot,
+  getStateVector,
   compactUpdates,
   compactNote,
 } from '@/lib/native/yjs.js';
+import {
+  loadChunksIntoDoc,
+  planOpenPath,
+  readManifest,
+  rebuildChunkIndex,
+} from '@/lib/yjs/chunk-store.js';
+import { shouldChunkDoc } from '@/lib/yjs/chunking.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import {
   getDeviceId,
@@ -70,26 +78,63 @@ async function seedFromTipJson(ydoc, contentJson, noteId) {
   });
 }
 
-// Load Yjs state: snapshot first (O(1)), fall back to replaying updates.
+// Load Yjs state: chunk fast path when the index is current, else snapshot
+// first (O(1)), else replay updates.
 async function loadStateIntoDoc(newDoc, noteId) {
   const t = speed('yjs_load_snapshot');
+  // Fast path: a current chunk index serves content from parallel per-chunk
+  // snapshot reads, skipping the multi-MB base snapshot decode. Any probe
+  // failure or missing slot falls through to the legacy path below, which is
+  // always correct (the base log remains the source of truth).
+  try {
+    const manifest = await readManifest(noteId);
+    if (manifest) {
+      const storedSv = await getStateVector(noteId);
+      if (planOpenPath({ manifest, storedStateVector: storedSv }) === 'chunks') {
+        const loaded = await loadChunksIntoDoc(noteId, manifest, newDoc);
+        // Serve from chunks only when content actually arrived: an index can
+        // be watermark-current yet describe an empty document (e.g. rebuilt
+        // after a wipe); returning here would also skip the caller's
+        // initialContent seed and permanently block content restoration.
+        if (loaded && newDoc.getXmlFragment('content').length > 0) {
+          const title = newDoc.getText('title');
+          if (title.length === 0 && manifest.title) {
+            // Origin 'load' keeps the mirror out of the persistence buffer —
+            // the authoritative title already lives in the base log.
+            newDoc.transact(() => title.insert(0, String(manifest.title)), 'load');
+          }
+          t?.end();
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[yjs] chunk fast path unavailable, using full load:', err?.message);
+  }
   let snapshotWasCorrupt = false;
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
       // Defensive decode: a corrupt/garbage snapshot (base64 string, JSON, or
       // half-decrypted blob from a bad cloud bootstrap) must be discarded here,
-      // not allowed to mutate newDoc. Validate in an isolated probe doc first.
+      // not allowed to mutate newDoc. decodeUpdate parses every record of the
+      // update binary and throws on malformed payloads — the same guarantee as
+      // the old apply-to-throwaway-doc probe, without a second full doc
+      // integration (~100-300ms per open on multi-MB notes).
       const bytes = toUint8Array(snapshot);
-      const probe = new Y.Doc();
       try {
-        Y.applyUpdate(probe, bytes);
-      } finally {
-        probe.destroy();
+        Y.decodeUpdate(bytes);
+      } catch (err) {
+        snapshotWasCorrupt = true;
+        console.error(`[yjs] Failed to decode snapshot for ${noteId}:`, err);
       }
-      Y.applyUpdate(newDoc, bytes);
-      t?.end();
-      return;
+      if (!snapshotWasCorrupt) {
+        Y.applyUpdate(newDoc, bytes);
+        t?.end();
+        return;
+      }
+      // Corrupt snapshot: fall through to the replay path, which repairs the
+      // cached copy below.
     }
   } catch (err) {
     // Snapshot decode failed: repair cached copy after replay.
@@ -174,6 +219,45 @@ export function useNoteYjs() {
   let lastCompactAt = Date.now();
   let updatesSinceCompact = 0;
 
+  // Chunk index rebuild (item 7): idle-refresh the derived chunk slots after
+  // persistence settles so the NEXT open of a huge note takes the fast path.
+  // Single-flight, note-switch aware, and skipped for small docs.
+  const CHUNK_REBUILD_IDLE_MS = 2500;
+  let rebuildTimer = null;
+  let rebuilding = false;
+
+  function scheduleChunkRebuild() {
+    if (rebuildTimer) clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(() => {
+      rebuildTimer = null;
+      const noteId = currentNoteId;
+      const docRef = currentDoc;
+      if (disposed || !noteId || !docRef) return;
+      void runChunkRebuild(noteId, docRef);
+    }, CHUNK_REBUILD_IDLE_MS);
+  }
+
+  async function runChunkRebuild(noteId, docRef) {
+    if (rebuilding) return;
+    rebuilding = true;
+    try {
+      if (!shouldChunkDoc(docRef)) return;
+      await new Promise((resolve) => setTimeout(resolve, 0)); // yield to the UI first
+      const previous = await readManifest(noteId);
+      if (previous) {
+        // Index already reflects the stored state (no edits since the last
+        // rebuild): redoing O(document) work would produce identical chunks.
+        const storedSv = await getStateVector(noteId);
+        if (planOpenPath({ manifest: previous, storedStateVector: storedSv }) === 'chunks') return;
+      }
+      await rebuildChunkIndex(noteId, docRef, { previousManifest: previous });
+    } catch (err) {
+      console.warn('[yjs] chunk index rebuild failed:', err?.message);
+    } finally {
+      rebuilding = false;
+    }
+  }
+
   function enqueueUpdate(noteId, update) {
     if (!noteId) return;
     let buffered = pendingByNote.get(noteId);
@@ -237,6 +321,10 @@ export function useNoteYjs() {
           console.warn('[yjs] periodic compact failed, retrying later:', err);
         }
       }
+      // Persistence settled for the open note: queue an idle chunk-index
+      // refresh so the next open skips the whole-doc decode (huge docs only;
+      // the rebuild gate checks size itself).
+      if (id === currentNoteId && currentDoc) scheduleChunkRebuild();
     }
   }
 
@@ -415,6 +503,10 @@ export function useNoteYjs() {
     registerActiveDoc(noteId, newDoc);
     doc.value = newDoc;
     ready.value = true;
+    // A read-only open never flushes, so without this the chunk index would
+    // only ever build after an edit. The rebuild skips itself when the index
+    // is already current (runChunkRebuild), keeping small docs untouched.
+    scheduleChunkRebuild();
 
     let noteKeyHex = null;
     const refreshSharedContent = async () => {
@@ -432,35 +524,53 @@ export function useNoteYjs() {
         console.warn('[yjs] shared-note refresh after key skipped:', err?.message || err);
       }
     };
-    try {
-      const workspaceStore = useWorkspaceStore();
-      const sharing = useNoteSharing();
-      // Fired by the background envelope recovery once the key actually lands:
-      // clear the advisory flag and re-key the realtime room with the shared
-      // key so subsequent updates seal under it (durable sealing is registered
-      // by rememberAndProvision in the same path). A first-open pull that ran
-      // before the key landed could not decrypt, so re-pull once it resolves.
-      const onKeyResolved = async (hex) => {
-        if (!hex || isStale()) return;
-        pendingSetup.value = false;
-        // A shared-with-me note lives in its owning workspace's room, not the
-        // active one (Google-Docs-style note presence).
+    // Server-bound provisioning (key distribution + shared re-pull) must not
+    // hold the open hostage: against a broken/backed-off server these awaits
+    // ran 40s+ (observed under 402s). Race it with a cap; the work continues
+    // in the background — the key-resolved callback clears the advisory flag
+    // and re-keys the room whenever it lands — so the editor ships on time.
+    const PROVISION_CAP_MS = 4000;
+    let provisionSettled = false;
+    const provision = (async () => {
+      try {
+        const workspaceStore = useWorkspaceStore();
+        const sharing = useNoteSharing();
+        // Fired by the background envelope recovery once the key actually lands:
+        // clear the advisory flag and re-key the realtime room with the shared
+        // key so subsequent updates seal under it (durable sealing is registered
+        // by rememberAndProvision in the same path). A first-open pull that ran
+        // before the key landed could not decrypt, so re-pull once it resolves.
+        const onKeyResolved = async (hex) => {
+          if (!hex || isStale()) return;
+          pendingSetup.value = false;
+          // A shared-with-me note lives in its owning workspace's room, not the
+          // active one (Google-Docs-style note presence).
+          const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
+          if (ownerId) {
+            await setRoomKey(`workspace:${ownerId}:note:${noteId}`, hex);
+          }
+          await refreshSharedContent();
+        };
+        noteKeyHex = await sharing.ensureNoteKey(noteId, { backgroundRetry: true, onKeyResolved });
         const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
-        if (ownerId) {
-          await setRoomKey(`workspace:${ownerId}:note:${noteId}`, hex);
+        if (noteKeyHex && ownerId) {
+          await setRoomKey(`workspace:${ownerId}:note:${noteId}`, noteKeyHex);
         }
-        await refreshSharedContent();
-      };
-      noteKeyHex = await sharing.ensureNoteKey(noteId, { backgroundRetry: true, onKeyResolved });
-      const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
-      if (noteKeyHex && ownerId) {
-        await setRoomKey(`workspace:${ownerId}:note:${noteId}`, noteKeyHex);
+        // Same re-pull for the foreground path: the key may have resolved only
+        // now, after the fetch-time durable sync already ran keyless.
+        if (noteKeyHex) await refreshSharedContent();
+      } catch (err) {
+        console.warn('[yjs] note-key provisioning skipped:', err);
+      } finally {
+        provisionSettled = true;
       }
-      // Same re-pull for the foreground path: the key may have resolved only
-      // now, after the fetch-time durable sync already ran keyless.
-      if (noteKeyHex) await refreshSharedContent();
-    } catch (err) {
-      console.warn('[yjs] note-key provisioning skipped:', err);
+    })();
+    await Promise.race([
+      provision,
+      new Promise((resolve) => setTimeout(resolve, PROVISION_CAP_MS)),
+    ]);
+    if (!provisionSettled) {
+      console.warn('[yjs] note provisioning deferred (server slow or blocked); continuing in background');
     }
     // Advisory only: a missing key no longer gates editing or persistence, it
     // just records that this device hasn't been handed the shared key *yet*.
@@ -521,6 +631,10 @@ export function useNoteYjs() {
     if (flushTimer) {
       clearTimeout(flushTimer);
       flushTimer = null;
+    }
+    if (rebuildTimer) {
+      clearTimeout(rebuildTimer);
+      rebuildTimer = null;
     }
     if (retryTimer) {
       clearTimeout(retryTimer);
