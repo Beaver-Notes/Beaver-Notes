@@ -43,6 +43,24 @@
   line-height: 1.5;
   scroll-margin-top: calc(var(--app-safe-area-top) + 1.5rem);
 }
+/* Skip layout/paint for off-screen top-level blocks so scrolling a large
+   note stays 60fps instead of laying out 48k DOM elements every frame. No
+   placeholders — real content, just deferred by the browser. contain-intrinsic-size
+   reserves a stable height estimate so the scrollbar doesn't jump as blocks
+   materialize on scroll. */
+.ProseMirror > p,
+.ProseMirror > h1,
+.ProseMirror > h2,
+.ProseMirror > h3,
+.ProseMirror > h4,
+.ProseMirror > h5,
+.ProseMirror > h6,
+.ProseMirror > blockquote,
+.ProseMirror > table,
+.ProseMirror > hr {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 100px;
+}
 .ProseMirror a {
   @apply text-primary dark:text-primary;
 }
@@ -875,31 +893,10 @@ th.is-active {
 
 /*  Enhanced Table Features  */
 
-/*  Block container (wraps everything)  */
+/*  Table wrapper (was blockContainer + tableWrapper)  */
 [data-content-type='table'] {
   position: relative;
-}
-
-[data-content-type='table'] > .tableWrapper {
   margin: 0;
-}
-
-/*  Table container  */
-.table-container {
-  overflow-x: auto;
-  overflow-y: visible;
-  scrollbar-width: thin;
-}
-
-/*  Selection overlay container  */
-.table-selection-overlay-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: 5;
 }
 
 /*  Drop cursor decoration  */
@@ -973,21 +970,7 @@ th.is-active {
 }
 
 /*  Editable cell while table controls are visible  */
-.table-container td,
-.table-container th {
-  position: relative;
-}
-
-/*  Table controls wrapper (for floating handles)  */
-.table-controls {
-  pointer-events: none;
-}
-
-.table-controls > * {
-  pointer-events: auto;
-}
-
-/* Multi-user collaboration carets */
+/*  Multi-user collaboration carets */
 .collaboration-carets__caret {
   border-left: 2px solid;
   margin-left: -1px;
@@ -1162,3 +1145,4 @@ th.is-active {
     pointer-events: auto !important;
   }
 }
+

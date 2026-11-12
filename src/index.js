@@ -11,6 +11,7 @@ import { getSettingSync, setSettingsMirrorNamespace } from '@/lib/settings';
 import { initializeThemeHandling } from './utils/themeHandler';
 import { initFoldState } from '@/lib/foldable';
 import { initScribbleTargets } from '@/lib/native/scribble';
+import { initPerfRecorder } from '@/lib/perf/recorder';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
@@ -20,6 +21,10 @@ import './assets/css/style.css';
 setSettingsMirrorNamespace(await getAppDirectory().catch(() => ''));
 
 performance.mark('app:init');
+
+// Always-on jank recorder: long tasks, frame stalls, transaction attribution.
+// Dumps via window.__beaverPerf.summary() (e2e bridge or bug reports).
+initPerfRecorder();
 
 initializeThemeHandling();
 

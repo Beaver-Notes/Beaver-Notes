@@ -3,6 +3,32 @@ import { ref } from 'vue';
 
 const MAX_STACK = 50;
 
+// Bulk-delete actions snapshot full note contents (JSON clones) so undo can
+// restore them. Without a byte budget, deleting a large folder pins hundreds
+// of MB of document JSON for the whole session. The newest action is always
+// kept even if it alone exceeds the budget; eviction only drops older ones.
+const MAX_PINNED_BYTES = 32 * 1024 * 1024;
+let pinnedBytes = 0;
+
+type PinnedAction = UndoAction & { _bytes?: number };
+
+function estimateActionBytes(action: UndoAction): number {
+  if (action.type !== 'bulk-delete') return 0;
+  let total = 0;
+  for (const item of action.items || []) {
+    const content = (item.data as { content?: unknown }).content;
+    if (content && typeof content === 'object') {
+      try {
+        total += JSON.stringify(content).length;
+      } catch {
+        // Non-serializable content: skip its estimate. The snapshot itself
+        // was already a deep clone at delete time, so restore still works.
+      }
+    }
+  }
+  return total;
+}
+
 export interface BulkDeleteItem {
   type: 'note' | 'folder';
   data: Record<string, unknown>;
@@ -38,8 +64,17 @@ export const useUndoStore = defineStore('undo', () => {
       _batch.push(action);
       return;
     }
+    const pinned = action as PinnedAction;
+    pinned._bytes = estimateActionBytes(action);
     stack.push(action);
-    if (stack.length > MAX_STACK) stack.shift();
+    pinnedBytes += pinned._bytes ?? 0;
+    while (
+      stack.length > MAX_STACK ||
+      (pinnedBytes > MAX_PINNED_BYTES && stack.length > 1)
+    ) {
+      const dropped = stack.shift() as PinnedAction | undefined;
+      pinnedBytes -= dropped?._bytes ?? 0;
+    }
     lastAction.value = action;
   }
 

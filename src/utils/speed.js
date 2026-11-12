@@ -1,11 +1,19 @@
-/** Start named timer, null when disabled. Enable with window.__BEAVER_SPEED_LOG__ in devtools. Cleanup: delete speed( sites, then file. */
+/** Start named timer. Records the duration into the always-on perf recorder
+ * (dumpable via `window.__beaverPerf.summary()`), console.warns only when
+ * explicitly enabled with window.__BEAVER_SPEED_LOG__ in devtools. */
 export function speed(name) {
-  if (!import.meta.env.DEV || window.__BEAVER_SPEED_LOG__ !== true) return null;
   const t0 = performance.now();
   return {
     end: () => {
       const ms = performance.now() - t0;
-      if (ms >= 1) console.warn(`[speed] ${name} took ${ms.toFixed(1)}ms`);
+      try {
+        window.__beaverPerf?.span(`speed:${name}`, Math.round(ms * 100) / 100);
+      } catch {
+        /* recorder not ready */
+      }
+      if (import.meta.env.DEV && window.__BEAVER_SPEED_LOG__ === true && ms >= 1) {
+        console.warn(`[speed] ${name} took ${ms.toFixed(1)}ms`);
+      }
     },
   };
 }
