@@ -12,7 +12,7 @@ import {
   isEncryptedContent,
 } from '@/utils/crypto/encryption.js';
 
-function yieldToUi() {
+export function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 

@@ -151,6 +151,12 @@ export function useNotesBrowser({
   function handleMouseDown(event) {
     if (event.button !== 0) return;
     if (event.target.closest('[data-item-id]')) return;
+    // Allow clicks on interactive elements (buttons, links, inputs) to work normally
+    if (
+      event.target.closest(
+        'button, [role="button"], a[href], input, select, textarea, [contenteditable="true"], [data-no-drag]',
+      )
+    ) return;
 
     event.preventDefault();
 

@@ -35,8 +35,10 @@
         :aria-label="chooseIconLabel"
         @click="openPicker"
       >
-        <!-- Same construction as HomeFolderCard: tab + stacked sheets + gradient body. -->
-        <span v-if="kind === 'folder'" class="relative block w-40 [aspect-ratio:6/5]">
+        <span
+          v-if="kind === 'folder'"
+          class="relative block w-40 [aspect-ratio:6/5]"
+        >
           <span
             class="absolute top-[10%] left-0 z-0 h-[20%] w-[40%] rounded-tl-xl rounded-tr-md transition-colors"
             :style="{
@@ -82,11 +84,6 @@
                 class="size-8 text-white drop-shadow-sm"
               />
             </span>
-            <span
-              class="block truncate text-sm leading-tight font-bold text-white"
-            >
-              {{ draftName || namePlaceholder }}
-            </span>
           </span>
         </span>
         <span
@@ -95,16 +92,6 @@
           :style="workspaceTileStyle"
           >{{ draftIcon }}</span
         >
-        <span
-          class="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full text-inherit"
-          :style="{
-            backgroundColor: draftColor,
-            filter: 'saturate(0.8)',
-          }"
-          aria-hidden="true"
-        >
-          <v-remixicon name="riPencilLine" size="12" />
-        </span>
       </button>
 
       <ui-input
@@ -174,29 +161,9 @@
             @input="draftColor = $event.target.value"
           />
         </label>
-      </div>
-
-      <!-- Name-based emoji suggestions (live emoji dataset search). -->
-      <div
-        v-if="suggestedIcons.length"
-        class="flex w-full flex-wrap justify-center gap-1"
-        role="group"
-        :aria-label="chooseIconLabel"
-      >
-        <button
-          v-for="emoji in suggestedIcons"
-          :key="`suggested-${emoji}`"
-          type="button"
-          class="emoji-glyph motion-press flex h-9 w-9 items-center justify-center rounded-lg text-xl transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-          :class="{
-            'bg-primary/15 ring-1 ring-primary': emoji === draftIcon,
-          }"
-          :aria-label="emoji"
-          :aria-pressed="emoji === draftIcon"
-          @click="draftIcon = emoji"
-        >
-          {{ emoji }}
-        </button>
+        <ui-button icon circle @click="openPicker">
+          <v-remixicon name="riEmotionLine" />
+        </ui-button>
       </div>
 
       <p v-if="error" class="text-sm text-red-500" role="alert">{{ error }}</p>
@@ -209,7 +176,10 @@
       class="flex flex-col items-center gap-3 px-1 py-1"
     >
       <div class="pointer-events-none scale-[0.7] -my-4" aria-hidden="true">
-        <span v-if="kind === 'folder'" class="relative block w-40 [aspect-ratio:6/5]">
+        <span
+          v-if="kind === 'folder'"
+          class="relative block w-40 [aspect-ratio:6/5]"
+        >
           <span
             class="absolute top-[10%] left-0 z-0 h-[20%] w-[40%] rounded-tl-xl rounded-tr-md"
             :style="{
@@ -254,11 +224,6 @@
                 name="riFolder5Fill"
                 class="size-8 text-white drop-shadow-sm"
               />
-            </span>
-            <span
-              class="block truncate text-sm leading-tight font-bold text-white"
-            >
-              {{ draftName || namePlaceholder }}
             </span>
           </span>
         </span>
@@ -399,7 +364,6 @@ export default {
       const color = draftColor.value || CUSTOMIZE_DEFAULT_COLOR;
       return {
         backgroundColor: /^#[0-9a-fA-F]{6}$/.test(color) ? `${color}21` : color,
-        boxShadow: `inset 0 0 0 2px ${color}`,
       };
     });
 
@@ -410,16 +374,6 @@ export default {
         background: `linear-gradient(to bottom, ${lightenHex(color, 0.18)}, ${color})`,
         transformOrigin: 'bottom center',
       };
-    });
-
-    // Live search of the draft name against the shared emoji dataset —
-    // the same data and matching rules as the picker's search box.
-    const suggestedIcons = computed(() => {
-      const name = draftName.value.trim();
-      if (!name || !emojiPool.value.length) return [];
-      return filterEmojisByQuery(emojiPool.value, name, MAX_SUGGESTIONS).map(
-        (emoji) => emoji.char,
-      );
     });
 
     // Load the dataset once when the dialog opens; suggestions appear as
@@ -570,7 +524,6 @@ export default {
       isColorSelected,
       workspaceTileStyle,
       folderBodyStyle,
-      suggestedIcons,
       pickerColumns,
       primaryDisabled,
       onEscapeCapture,
@@ -592,5 +545,4 @@ export default {
     'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Twemoji',
     sans-serif;
 }
-
 </style>

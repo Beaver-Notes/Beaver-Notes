@@ -17,6 +17,7 @@
           :key="h.id"
           :style="h.style"
           @mousedown.stop="startResize(h.id, $event)"
+          @pointerdown.stop="startResize(h.id, $event)"
         />
       </div>
     </div>
@@ -156,7 +157,7 @@ export default {
       anchorCellPos = anchorPos;
       activeHandle.value = handleId;
 
-      const onMouseMove = (e) => {
+      const onMove = (e) => {
         if (!props.editor || anchorCellPos == null) return;
         const posData = props.editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
         if (!posData) return;
@@ -169,15 +170,21 @@ export default {
         } catch { return; }
       };
 
-      const onMouseUp = () => {
+      const onUp = () => {
         anchorCellPos = null;
         activeHandle.value = null;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
       };
 
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     }
 
     function startTracking() {

@@ -1,5 +1,6 @@
 import { mergeAttributes } from '@tiptap/core';
 import ListItem from '@tiptap/extension-list-item';
+import { centerElementInView } from '@/utils/ui/scroll';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -73,7 +74,7 @@ const Footnote = ListItem.extend({
               )
               .run();
 
-            matchedFootnote.element.scrollIntoView();
+            centerElementInView(matchedFootnote.element);
             return true;
           }
           return false;

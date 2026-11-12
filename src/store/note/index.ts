@@ -153,7 +153,7 @@ function derivedFlushOne(id: string): void {
   syncNoteMeta(note);
 }
 
-function flushDerivedUpdates(): void {
+export function flushDerivedUpdates(): void {
   if (derivedTimer) {
     clearTimeout(derivedTimer);
     derivedTimer = null;

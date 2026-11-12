@@ -5,6 +5,10 @@ import { onImportComplete, onImportProgress } from '@/lib/native/imports';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { convertMarkdownToTiptap } from '@/utils/markdown';
+// Real UI yield between import batches: the batch loop's `typeof yieldToUi`
+// check referenced an unimported name, so vault imports never yielded and the
+// UI froze for the whole run.
+import { yieldToUi } from '@/utils/note/serializer.js';
 import {
   createMediaFallbackNode,
   sanitizeImageSource,
@@ -205,7 +209,11 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
 
       const fileName = node.textContent?.trim() || path.basename(href);
       return {
-        type: fileName.toLowerCase().endsWith('.pdf') ? 'pdfBlock' : 'fileEmbed',
+        // Pdf blocks are dev-only for now: prod imports keep fileEmbed.
+        type:
+          fileName.toLowerCase().endsWith('.pdf') && import.meta.env.DEV
+            ? 'pdfBlock'
+            : 'fileEmbed',
         attrs: {
           src: resolveRelativeFileValue(href, noteId, resources),
           fileName,
@@ -826,9 +834,12 @@ export async function importGoogleKeep(
           attachment.isImage
             ? { type: 'image', attrs: { src, alt: '' } }
             : {
-                type: attachment.fileName.toLowerCase().endsWith('.pdf')
-                  ? 'pdfBlock'
-                  : 'fileEmbed',
+                // Pdf blocks are dev-only for now: prod imports keep fileEmbed.
+                type:
+                  attachment.fileName.toLowerCase().endsWith('.pdf') &&
+                  import.meta.env.DEV
+                    ? 'pdfBlock'
+                    : 'fileEmbed',
                 attrs: { src, fileName: attachment.fileName },
               }
         );

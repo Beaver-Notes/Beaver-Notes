@@ -52,7 +52,8 @@ async function processDropFiles(view, editor, event, files, id) {
         ? 'Audio'
         : mimeType.startsWith('video/')
           ? 'Video'
-          : mimeType === 'application/pdf'
+          : // Pdf blocks are dev-only for now: prod pdfs go to fileEmbed.
+            mimeType === 'application/pdf' && import.meta.env.DEV
             ? 'pdfBlock'
             : 'fileEmbed';
 

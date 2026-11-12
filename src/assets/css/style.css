@@ -78,6 +78,15 @@ html.runtime-foldable {
   --bg-code-dark: theme('colors.neutral.800');
   --border-input: theme('colors.neutral.600');
   --scrollbar-thumb: #424546;
+  /* Light-mode alphas (0.04-0.07 black) vanish on dark surfaces. */
+  --shadow-sm:
+    0px 0px 0px 1px rgba(0, 0, 0, 0.4),
+    0px 1px 2px -1px rgba(0, 0, 0, 0.4),
+    0px 2px 4px 0px rgba(0, 0, 0, 0.3);
+  --shadow-md:
+    0px 0px 0px 1px rgba(0, 0, 0, 0.4),
+    0px 2px 4px -1px rgba(0, 0, 0, 0.45),
+    0px 6px 12px 0px rgba(0, 0, 0, 0.35);
 }
 
 html,

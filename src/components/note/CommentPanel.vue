@@ -1,12 +1,5 @@
 <template>
-  <!--
-    One shell, two presentations:
-    - below md: ui-modal (bottom sheet)
-    - md and up: a floating card, sized like the note action dock
-    The content below is shared, so there is a single copy of the markup.
-  -->
   <component ref="shellRef" :is="isModal ? 'ui-modal' : 'aside'" v-bind="shellAttrs" v-on="shellListeners">
-    <!-- ui-modal renders this above its content. A native <aside> ignores named slots. -->
     <template v-if="isModal" #header>
       <div class="flex items-center gap-2 px-4">
         <h3 class="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100 truncate">
@@ -31,7 +24,6 @@
     </template>
 
     <div data-testid="comments-panel" :class="bodyClass">
-      <!-- Header (desktop panel / drawer) -->
       <header
         v-if="!isModal"
         class="shrink-0 flex items-center gap-2 px-4 h-[52px] border-b border-neutral-200 dark:border-neutral-800"
@@ -110,28 +102,28 @@
           </p>
         </div>
 
-        <div v-else-if="!visibleThreads.length" class="px-6 py-14 flex flex-col items-center text-center">
-          <div class="w-10 h-10 rounded-xl border border-neutral-200 dark:border-neutral-800 grid place-items-center text-neutral-400 mb-3">
-            <v-remixicon :name="emptyState.icon" size="20" />
-          </div>
-          <p class="text-[13px] font-medium text-neutral-900 dark:text-neutral-100">{{ emptyState.title }}</p>
-          <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-[26ch] leading-relaxed">
+        <div v-else-if="!visibleThreads.length" class="px-6 py-10 flex flex-col items-center text-center">
+          <ui-beaver-character
+            class="w-28 mb-4"
+            :state="['idle', 'cursorTrack']"
+            :auto="false"
+          />
+          <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">{{ emptyState.title }}</p>
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-[28ch] leading-relaxed">
             {{ emptyState.hint }}
           </p>
         </div>
 
-        <ul v-else class="p-3 space-y-3">
+        <ul v-else class="divide-y divide-neutral-100 dark:divide-neutral-800">
           <li
             v-for="thread in visibleThreads"
             :key="thread.id"
             data-testid="comment-thread"
             :data-thread-id="thread.id"
-            class="rounded-xl border bg-white dark:bg-neutral-900 overflow-hidden transition"
+            class="px-4 py-3.5 transition-colors"
             :class="[
-              thread.id === activeThreadId
-                ? 'border-primary/40 ring-2 ring-primary/15'
-                : 'border-neutral-200 dark:border-neutral-800',
-              isResolved(thread) ? 'opacity-75' : '',
+              thread.id === activeThreadId ? 'bg-primary/5' : '',
+              isResolved(thread) ? 'opacity-70' : '',
             ]"
             @mouseenter="setThreadMark(thread.id, true)"
             @mouseleave="setThreadMark(thread.id, false)"
@@ -141,120 +133,135 @@
               v-if="thread.anchorFrom !== null && thread.anchorFrom !== undefined"
               type="button"
               data-testid="comment-anchor"
-              class="flex w-full items-center gap-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/70 px-3.5 text-left text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
-              :class="isModal ? 'min-h-11 py-2.5' : 'py-2'"
+              class="mb-3 flex w-full items-center gap-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 px-2.5 text-left text-xs text-neutral-500 dark:text-neutral-400 hover:text-primary dark:hover:text-primary transition-colors focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
+              :class="isModal ? 'min-h-11 py-3' : 'py-2'"
               @click="goToAnchor(thread)"
             >
               <v-remixicon name="riLink" size="12" class="shrink-0" />
               <span class="truncate">{{ threadSnippet(thread) }}</span>
             </button>
 
-            <!-- Comments -->
-            <div class="divide-y divide-neutral-100 dark:divide-neutral-800">
+            <!-- Comments: flat rows, replies linked by a vertical thread line -->
+            <div>
               <div
                 v-for="(comment, ci) in thread.comments"
                 :key="comment.id"
-                class="px-3.5 py-3"
-                :class="{ 'bg-neutral-50/60 dark:bg-neutral-800/40': ci > 0 }"
+                class="relative flex gap-2.5"
+                :class="ci > 0 ? 'mt-3.5' : ''"
               >
-                <div class="flex gap-2.5">
-                  <ui-user-avatar :name="comment.authorName || '?'" :size="28" class="shrink-0" />
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-1.5 min-h-[28px]">
-                      <span
-                        data-testid="comment-author"
-                        class="text-[13px] font-medium text-neutral-900 dark:text-neutral-100 truncate"
-                      >
-                        {{ comment.authorName }}
-                      </span>
-                      <span
-                        class="shrink-0 text-xs text-neutral-500 dark:text-neutral-400 tabular-nums"
-                        :title="fullDate(comment.createdAt)"
-                      >
-                        {{ formatRelative(comment.createdAt) }}
-                      </span>
-                      <!-- Always visible: hover-only actions are unreachable on touch -->
-                      <span
-                        v-if="!isResolved(thread)"
-                        class="ltr:ml-auto rtl:mr-auto ltr:-mr-2 rtl:-ml-2 flex items-center shrink-0"
-                      >
-                        <button
-                          v-if="canEdit(comment)"
-                          type="button"
-                          data-testid="comment-edit"
-                          class="grid place-items-center rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-neutral-100 dark:hover:bg-neutral-800 transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
-                          :class="smallIconBtn"
-                          :aria-label="translationsComments.edit"
-                          @click="startEdit(comment)"
-                        >
-                          <v-remixicon name="riEditLine" size="15" />
-                        </button>
-                        <button
-                          type="button"
-                          data-testid="comment-delete"
-                          class="grid place-items-center rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
-                          :class="smallIconBtn"
-                          :aria-label="translationsComments.delete"
-                          @click="deleteComment(comment.id)"
-                        >
-                          <v-remixicon name="riDeleteBinLine" size="15" />
-                        </button>
-                      </span>
-                    </div>
-
-                    <div v-if="editingId === comment.id" class="mt-1.5">
-                      <textarea
-                        v-model="editDraft"
-                        data-testid="comment-edit-input"
-                        rows="3"
-                        class="w-full resize-none text-base md:text-[13.5px] leading-5 px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 outline-none focus:bg-white dark:focus:bg-neutral-900 focus:border-neutral-300 dark:focus:border-neutral-600 transition"
-                        @keydown="onEditKey"
-                      />
-                      <div class="flex gap-2 mt-2">
-                        <ui-button variant="primary" data-testid="comment-edit-save" @click="saveEdit">
-                          {{ translationsComments.save }}
-                        </ui-button>
-                        <ui-button @click="cancelEdit">
-                          {{ translationsComments.cancel }}
-                        </ui-button>
-                      </div>
-                    </div>
-                    <p
-                      v-else
-                      data-testid="comment-body"
-                      class="mt-0.5 text-[14px] leading-[1.55] text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap break-words"
-                      v-html="formatBody(comment.content)"
-                    />
-
-                    <reaction-bar
+                <!-- Line runs below this avatar (unless it is the last
+                     comment) and down from the previous comment into this
+                     avatar; avatars sit above it and mask it. -->
+                <span
+                  v-if="ci < thread.comments.length - 1"
+                  aria-hidden="true"
+                  class="absolute top-7 bottom-0 w-px bg-neutral-200 dark:bg-neutral-800 ltr:left-[13.5px] rtl:right-[13.5px]"
+                />
+                <span
+                  v-if="ci > 0"
+                  aria-hidden="true"
+                  class="absolute -top-3.5 h-7 w-px bg-neutral-200 dark:bg-neutral-800 ltr:left-[13.5px] rtl:right-[13.5px]"
+                />
+                <ui-user-avatar
+                  :name="comment.authorName || '?'"
+                  :size="28"
+                  class="relative shrink-0"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5 min-h-[28px]">
+                    <span
+                      data-testid="comment-author"
+                      class="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 truncate"
+                    >
+                      {{ comment.authorName }}
+                    </span>
+                    <span
+                      class="shrink-0 text-xs text-neutral-400 dark:text-neutral-500 tabular-nums"
+                      :title="fullDate(comment.createdAt)"
+                    >
+                      {{ formatRelative(comment.createdAt) }}
+                    </span>
+                    <!-- Always visible: hover-only actions are unreachable on touch -->
+                    <span
                       v-if="!isResolved(thread)"
-                      class="mt-1.5"
-                      :reactions="comment.reactions"
-                      :my-id="myId"
-                      :aria-label="translationsComments.addReaction"
-                      @toggle="(emoji) => onToggleReaction(comment.id, emoji)"
-                    />
+                      class="ltr:ml-auto rtl:mr-auto ltr:-mr-1.5 rtl:-ml-1.5 flex items-center shrink-0"
+                    >
+                      <button
+                        v-if="canEdit(comment)"
+                        type="button"
+                        data-testid="comment-edit"
+                        class="grid place-items-center rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-neutral-100 dark:hover:bg-neutral-800 transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
+                        :class="smallIconBtn"
+                        :aria-label="translationsComments.edit"
+                        @click="startEdit(comment)"
+                      >
+                        <v-remixicon name="riEditLine" size="15" />
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="comment-delete"
+                        class="grid place-items-center rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
+                        :class="smallIconBtn"
+                        :aria-label="translationsComments.delete"
+                        @click="deleteComment(comment.id)"
+                      >
+                        <v-remixicon name="riDeleteBinLine" size="15" />
+                      </button>
+                    </span>
                   </div>
+
+                  <div v-if="editingId === comment.id" class="mt-1.5">
+                    <textarea
+                      v-model="editDraft"
+                      data-testid="comment-edit-input"
+                      rows="3"
+                      class="w-full resize-none text-base md:text-[13.5px] leading-5 px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 outline-none focus:bg-white dark:focus:bg-neutral-900 focus:border-neutral-300 dark:focus:border-neutral-600 transition"
+                      @keydown="onEditKey"
+                    />
+                    <div class="flex gap-2 mt-2">
+                      <ui-button variant="primary" data-testid="comment-edit-save" @click="saveEdit">
+                        {{ translationsComments.save }}
+                      </ui-button>
+                      <ui-button @click="cancelEdit">
+                        {{ translationsComments.cancel }}
+                      </ui-button>
+                    </div>
+                  </div>
+                  <p
+                    v-else
+                    data-testid="comment-body"
+                    class="mt-0.5 text-[14px] leading-[1.55] text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap break-words"
+                    v-html="formatBody(comment.content)"
+                  />
+
+                  <reaction-bar
+                    v-if="!isResolved(thread)"
+                    class="mt-1.5"
+                    :reactions="comment.reactions"
+                    :my-id="myId"
+                    :aria-label="translationsComments.addReaction"
+                    @toggle="(emoji) => onToggleReaction(comment.id, emoji)"
+                  />
                 </div>
               </div>
             </div>
 
             <!-- Thread actions -->
-            <div class="flex items-center gap-1 px-2.5 py-2 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900">
+            <div class="mt-3.5 flex items-center gap-0.5">
               <button
                 v-if="!isResolved(thread)"
                 type="button"
-                class="inline-flex items-center gap-1.5 text-[13px] font-medium px-3 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
+                class="inline-flex items-center gap-1.5 text-[13px] font-medium px-2.5 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-primary hover:bg-primary/5 dark:hover:text-primary transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
                 :class="isModal ? 'min-h-11' : 'min-h-8'"
                 @click="toggleResolve(thread.id)"
               >
-                <v-remixicon name="riCheckLine" size="14" class="text-primary" />
+                <v-remixicon name="riCheckLine" size="15" class="text-primary" />
                 {{ translationsComments.resolve }}
               </button>
               <button
                 v-else
                 type="button"
-                class="inline-flex items-center gap-1.5 text-[13px] font-medium px-3 rounded-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
+                class="inline-flex items-center gap-1.5 text-[13px] font-medium px-2.5 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-primary hover:bg-primary/5 dark:hover:text-primary transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
                 :class="isModal ? 'min-h-11' : 'min-h-8'"
                 @click="toggleResolve(thread.id)"
               >
@@ -263,15 +270,15 @@
               <button
                 v-if="!isResolved(thread)"
                 type="button"
-                class="inline-flex items-center gap-1.5 text-[13px] font-medium px-3 rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
+                class="inline-flex items-center gap-1.5 text-[13px] font-medium px-2.5 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none"
                 :class="isModal ? 'min-h-11' : 'min-h-8'"
                 :aria-expanded="replyOpenId === thread.id ? 'true' : 'false'"
                 @click="toggleReply(thread.id)"
               >
-                <v-remixicon name="riArrowGoBackLine" size="14" />
+                <v-remixicon name="riArrowGoBackLine" size="15" />
                 {{ translationsComments.reply }}
               </button>
-              <span class="ltr:ml-auto rtl:mr-auto ltr:pr-1.5 rtl:pl-1.5 text-xs text-neutral-400 tabular-nums">
+              <span class="ltr:ml-auto rtl:mr-auto ltr:pr-1 rtl:pl-1 text-xs text-neutral-400 dark:text-neutral-500 tabular-nums">
                 {{ thread.comments.length }}
                 {{ thread.comments.length === 1 ? translationsComments.comment : translationsComments.comments }}
               </span>
@@ -280,7 +287,7 @@
             <!-- Reply field: only when asked for, keeps the list short on phones -->
             <div
               v-if="replyOpenId === thread.id && !isResolved(thread)"
-              class="flex items-center gap-2 px-3 py-2.5 border-t border-neutral-100 dark:border-neutral-800"
+              class="mt-3 flex items-center gap-2"
             >
               <input
                 :ref="replyRef(thread.id)"
@@ -289,7 +296,7 @@
                 enterkeyhint="send"
                 autocomplete="off"
                 :placeholder="translationsComments.replyPlaceholder"
-                class="flex-1 min-w-0 text-base md:text-[13.5px] px-3 rounded-full border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:bg-white dark:focus:bg-neutral-900 focus:border-neutral-300 dark:focus:border-neutral-600 transition"
+                class="flex-1 min-w-0 text-base md:text-[13.5px] px-3.5 rounded-full border border-transparent bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:bg-white dark:focus:bg-neutral-900 focus:border-neutral-300 dark:focus:border-neutral-600 transition"
                 :class="isModal ? 'h-11' : 'h-9'"
                 @keydown="onReplyKey($event, thread.id)"
               />
@@ -310,19 +317,21 @@
       </div>
 
       <!-- Errors sit next to the composer so they are visible without scrolling -->
-      <p
+      <div
         v-if="actionError"
         data-testid="comment-action-error"
         role="alert"
-        class="shrink-0 mx-3 mb-2 rounded-lg bg-red-50 dark:bg-red-900/20 px-3 py-2 text-xs text-red-600 dark:text-red-400"
+        class="shrink-0 mx-4 mb-2 rounded-lg bg-red-50 dark:bg-red-900/20 px-3 py-2"
       >
-        {{ actionError }}
-      </p>
+        <ui-status-text tone="error" size="xs" icon="riErrorWarningLine">
+          {{ actionError }}
+        </ui-status-text>
+      </div>
 
       <!-- Composer -->
       <div
         v-if="!unavailable"
-        class="shrink-0 px-3 pt-3 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800"
+        class="shrink-0 px-4 pt-3 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800"
         :class="isModal ? 'pb-1' : 'pb-3'"
       >
         <div
@@ -353,7 +362,7 @@
             rows="1"
             enterkeyhint="enter"
             :placeholder="translationsComments.placeholder"
-            class="flex-1 min-w-0 resize-none min-h-[44px] max-h-[120px] text-base md:text-[13.5px] leading-5 px-3.5 py-3 md:py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:bg-white dark:focus:bg-neutral-900 focus:border-neutral-300 dark:focus:border-neutral-600 focus:ring-2 focus:ring-primary/10 transition"
+            class="flex-1 min-w-0 resize-none min-h-[44px] max-h-[120px] text-base md:text-[13.5px] leading-5 px-3.5 py-3 md:py-2.5 rounded-2xl border border-transparent bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none focus:bg-white dark:focus:bg-neutral-900 focus:border-neutral-300 dark:focus:border-neutral-600 focus:ring-2 focus:ring-primary/15 transition"
             @input="autosize($event.target)"
             @keydown="onComposerKey"
           />

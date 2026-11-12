@@ -47,6 +47,7 @@ import {
   autoUpdate,
 } from '@floating-ui/dom';
 import { CellSelection } from '@tiptap/pm/tables';
+import { NodeSelection } from '@tiptap/pm/state';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
@@ -188,7 +189,7 @@ export default {
     // below show nothing. Legacy lowercase aliases included for old snapshots.
     // Single list shared by shouldShowMenuFn + currentMenuComponent so they
     // can't drift apart (mermaidBlock vs mermaidDiagram did exactly that).
-    const NO_EDITOR_MENU_NODES = [
+    const NO_EDITOR_MENU_NODES = new Set([
       'codeBlock',
       'mathBlock',
       'mermaidBlock',
@@ -198,38 +199,62 @@ export default {
       'audioBlock',
       'videoBlock',
       'fileEmbed',
-    ];
-    const isNoEditorMenuNode = (editor) =>
-      NO_EDITOR_MENU_NODES.some((name) => editor.isActive(name));
+    ]);
 
-    const shouldShowMenuFn = ({ editor, state }) => {
-      if (!editor) return false;
-
+    // One bounded pass over the selection collecting node type names. The old
+    // code called editor.isActive() up to 11 times here — each walking the
+    // whole selected range — which after Cmd+A meant ~22 full-document walks
+    // per menu evaluation on top of the native selection cost.
+    function selectionNodeNames(state) {
       const { selection } = state;
+      if (selection instanceof NodeSelection) {
+        return new Set([selection.node.type.name]);
+      }
+      const { from, to, $from, $to, empty } = selection;
+      const names = new Set();
+      if (empty) {
+        names.add($from.parent.type.name);
+      } else if (to - from > 20000) {
+        // Huge ranges (Cmd+A on big notes): skip the walk — parent types only.
+        // A media node buried mid-range may then show the text menu, which is
+        // cosmetic; the alternative is the multi-second stall we measured.
+        names.add($from.parent.type.name);
+        names.add($to.parent.type.name);
+      } else {
+        state.doc.nodesBetween(from, to, (node) => {
+          names.add(node.type.name);
+          return true;
+        });
+      }
+      return names;
+    }
+
+    function classifySelection(state) {
+      if (!state) return null;
+      const { selection } = state;
+      if (selection instanceof CellSelection) return null;
+      const names = selectionNodeNames(state);
+      if (names.has('image')) return 'image';
+      if (names.has('Video')) return 'video';
       const { empty } = selection;
+      if (!empty) {
+        for (const name of names) {
+          if (NO_EDITOR_MENU_NODES.has(name)) return null;
+        }
+        return 'editor';
+      }
+      return null;
+    }
 
-      if (selection instanceof CellSelection) return false;
-
-      if (editor.isActive('image')) return true;
-
-      if (editor.isActive('Video')) return true;
-
-      if (!empty && isNoEditorMenuNode(editor)) return false;
-
-      return !empty;
-    };
+    const shouldShowMenuFn = ({ state }) => classifySelection(state) !== null;
 
     const currentMenuComponent = computed(() => {
       if (!props.editor) return null;
-      if (props.editor.isActive('image')) return 'note-bubble-menu-image';
-      if (props.editor.isActive('Video')) return 'note-bubble-menu-video';
-
-      if (props.editor.state.selection instanceof CellSelection) return null;
-      if (props.editor.state.selection.empty) return null;
-
-      if (isNoEditorMenuNode(props.editor)) return null;
-
-      return 'note-bubble-menu-editor';
+      const kind = classifySelection(props.editor.state);
+      if (kind === 'image') return 'note-bubble-menu-image';
+      if (kind === 'video') return 'note-bubble-menu-video';
+      if (kind === 'editor') return 'note-bubble-menu-editor';
+      return null;
     });
 
     onMounted(() => {

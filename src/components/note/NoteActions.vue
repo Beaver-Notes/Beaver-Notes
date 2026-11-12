@@ -120,9 +120,10 @@
         <v-remixicon name="riHistoryLine" />
       </button>
 
-      <!-- History is part of a paid plan: the locked button opens the paywall -->
+      <!-- History is part of a paid plan; paid plans are hidden this release,
+           so the locked teaser only exists in dev builds -->
       <button
-        v-else
+        v-else-if="devMode"
         v-tooltip.group="translations.noteActions?.historyLocked || 'Note history is part of a paid plan'"
         :aria-label="translations.noteActions?.historyLocked || 'Note history is part of a paid plan'"
         data-testid="history-locked"
@@ -472,6 +473,7 @@ export default {
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const canUseHistory = computed(() => accountStore.canUseHistory);
     const paywallOpen = usePaywall().open;
+    const devMode = import.meta.env.DEV;
     // ponytail: anonymous users keep the app fully usable — the lock only opens
     // the paywall, never blocks the editor itself.
     const hasOnlinePeers = computed(() => {
@@ -586,6 +588,7 @@ export default {
       showShareModal,
       isAuthenticated,
       canUseHistory,
+      devMode,
       paywallOpen,
       showCollaboration,
       mobile,

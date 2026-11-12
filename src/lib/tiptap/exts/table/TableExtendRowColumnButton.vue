@@ -6,6 +6,7 @@
         :title="t?.editor?.table?.addRowBelow || 'Add row'"
         @click="addRow"
         @mousedown.prevent="startDrag('row', $event)"
+        @pointerdown.prevent="startDrag('row', $event)"
       >
         <svg viewBox="0 0 16 16" fill="currentColor" class="extend-icon"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/></svg>
       </button>
@@ -16,6 +17,7 @@
         :title="t?.editor?.table?.addColumnRight || 'Add column'"
         @click="addCol"
         @mousedown.prevent="startDrag('col', $event)"
+        @pointerdown.prevent="startDrag('col', $event)"
       >
         <svg viewBox="0 0 16 16" fill="currentColor" class="extend-icon"><path d="M8 2a.75.75 0 0 1 .75.75v4.5h4.5a.75.75 0 0 1 0 1.5h-4.5v4.5a.75.75 0 0 1-1.5 0v-4.5h-4.5a.75.75 0 0 1 0-1.5h4.5v-4.5A.75.75 0 0 1 8 2z"/></svg>
       </button>
@@ -156,10 +158,16 @@ export default {
         dragState = null;
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
       };
 
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     }
 
     return {

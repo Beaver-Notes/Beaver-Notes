@@ -90,7 +90,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
-import { transactionAffectsHeadings } from '@/lib/tiptap/exts/collapse-heading/headings-detect';
+import { scrollContainerOf, scrollTopTo } from '@/utils/ui/scroll';
 
 export default {
   props: { editor: Object },
@@ -110,9 +110,36 @@ export default {
 
     let hoverTimeout = null;
     let ticking = false;
-    let positions = [];
     let removeEditorUpdate = null;
     let removeScrollListener = null;
+    // Sorted by document position; drives both the active-pill lookup and the
+    // jump targets. Model data — never invalidated by DOM re-rendering.
+    let headingPositions = [];
+    let buildTimer = 0;
+    // Layout cache: rects and last midline, refreshed lazily so scrolling does
+    // not force a full document layout on every frame.
+    let lastRect = null;
+    let lastCRect = null;
+    let lastMidY = -1;
+    let rectStamp = 0;
+    const RECT_STALE_MS = 250;
+    const MIDY_DELTA_PX = 16;
+    // Cache the last posAtCoords hit-test result so repeated calls with nearly
+    // identical coordinates (typical during continuous scroll) don't re-run the
+    // expensive DOM hit-test on a large document.
+    let lastCoords = null;
+    const COORDS_STALE_PX = 8;
+
+    // Trailing debounce for rail rebuilds: one walk after edits settle
+    // instead of one walk per keystroke during typing bursts.
+    function scheduleBuild() {
+      if (buildTimer) clearTimeout(buildTimer);
+      buildTimer = setTimeout(() => {
+        buildTimer = 0;
+        if (!props.editor || props.editor.isDestroyed) return;
+        build();
+      }, 250);
+    }
 
     const visibleHeadings = computed(() => headings.value.slice(0, 500));
 
@@ -124,20 +151,6 @@ export default {
 
     function setPillRef(i, el) {
       pillRefs.value[i] = el;
-    }
-
-    function findScrollContainer(el) {
-      let node = el?.parentElement;
-      while (
-        node &&
-        node !== document.body &&
-        node !== document.documentElement
-      ) {
-        const ov = window.getComputedStyle(node).overflowY;
-        if (ov === 'auto' || ov === 'scroll') return node;
-        node = node.parentElement;
-      }
-      return window;
     }
 
     function getScrollInfo() {
@@ -161,53 +174,110 @@ export default {
     }
 
     function build() {
-      const el = props.editor?.options?.element;
+      const ed = props.editor;
+      const el = ed?.options?.element;
       if (!el) return;
 
       // Determine the scroll container from the editor's DOM position
       if (!scrollContainer.value) {
-        scrollContainer.value = findScrollContainer(el);
+        scrollContainer.value = scrollContainerOf(el);
         setupScrollListener();
       }
 
-      headings.value = Array.from(el.querySelectorAll('h1,h2,h3,h4')).map(
-        (node, i) => ({
-          id: i,
-          el: node,
-          text: node.innerText.slice(0, 120),
-          level: Number(node.tagName[1]),
-        }),
-      );
-      cache();
-      update();
-    }
+      // Scan the DOCUMENT MODEL, not the DOM: reading rendered headings
+      // (innerText) or measuring their rects would force layout of every
+      // content-visibility block in a huge note. Model text is free, and
+      // document positions survive DOM re-rendering.
+      const found = [];
+      ed.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'heading') {
+          found.push({
+            id: found.length,
+            pos,
+            text: node.textContent.slice(0, 120),
+            level: node.attrs.level || 2,
+          });
+        }
+        return true;
+      });
 
-    function cache() {
-      const { scrollY } = getScrollInfo();
-      positions = headings.value.map((h) => ({
-        item: h,
-        top: h.el.getBoundingClientRect().top + scrollY,
-      }));
+      // Rebuild the reactive list only when the heading set actually changed
+      // (typing body text neither adds headings nor moves them). Replacing
+      // the array on every keystroke re-rendered up to 500 rail pills per
+      // transaction — one of the "everything lags" sources on large notes.
+      const prev = headings.value;
+      let changed = prev.length !== found.length;
+      if (!changed) {
+        for (let i = 0; i < found.length; i += 1) {
+          if (
+            prev[i].pos !== found[i].pos ||
+            prev[i].level !== found[i].level ||
+            prev[i].text !== found[i].text
+          ) {
+            changed = true;
+            break;
+          }
+        }
+      }
+      if (changed) {
+        headings.value = found;
+        headingPositions = found;
+        lastCoords = null; // document changed, coords cache is stale
+        update(); // heading set changed — re-detect the active heading
+      } else if (activeHeading.value === null) {
+        update(); // first build — set the initial active heading
+      }
+      // Unchanged and already have an active heading: skip layout reads.
     }
 
     function update() {
-      const { scrollY, innerHeight } = getScrollInfo();
-      const cy = scrollY + innerHeight / 2;
+      const ed = props.editor;
+      if (!ed || !headingPositions.length) return;
 
-      if (!positions.length) return;
-
-      let found = positions[0].item;
-      let closestDist = Math.abs(positions[0].top - cy);
-
-      for (let i = 1; i < positions.length; i++) {
-        const dist = Math.abs(positions[i].top - cy);
-        if (dist < closestDist) {
-          closestDist = dist;
-          found = positions[i].item;
-        }
+      const now = performance.now();
+      // Cache rects to avoid forcing layout on every scroll frame. Refresh
+      // on resize or when the cache goes stale.
+      if (!lastRect || now - rectStamp > RECT_STALE_MS) {
+        lastRect = ed.view.dom.getBoundingClientRect();
+        lastCRect =
+          scrollContainer.value !== window
+            ? scrollContainer.value.getBoundingClientRect()
+            : { top: 0, left: lastRect.left, height: window.innerHeight };
+        rectStamp = now;
+        lastCoords = null; // rects changed, coords cache is stale
       }
 
-      if (activeHeading.value !== found) {
+      const midY = lastCRect.top + lastCRect.height / 2;
+      // Skip posAtCoords (layout-forcing hit-test) unless the viewport
+      // midline moved enough to potentially change the active heading.
+      if (lastMidY !== -1 && Math.abs(midY - lastMidY) < MIDY_DELTA_PX) return;
+      lastMidY = midY;
+
+      const coords = lastCoords &&
+        Math.abs(lastCoords.left - (lastCRect.left + Math.min(60, lastRect.width / 2))) < COORDS_STALE_PX &&
+        Math.abs(lastCoords.top - midY) < COORDS_STALE_PX
+        ? lastCoords
+        : ed.view.posAtCoords({
+          left: lastCRect.left + Math.min(60, lastRect.width / 2),
+          top: midY,
+        });
+      if (!coords) return;
+      lastCoords = coords;
+
+      let lo = 0;
+      let hi = headingPositions.length - 1;
+      let idx = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (headingPositions[mid].pos <= coords.pos) {
+          idx = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      const found = idx >= 0 ? headingPositions[idx] : null;
+      if (found && activeHeading.value !== found) {
         activeHeading.value = found;
         nextTick(scrollTo);
       }
@@ -269,10 +339,36 @@ export default {
       });
     }
 
+    function scrollViewportTo(px) {
+      scrollTopTo(scrollContainer.value, px);
+    }
+
     function goTo(item) {
-      item.el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const ed = props.editor;
+      if (!ed || item.pos == null) return;
       showMenu.value = false;
       search.value = '';
+      // Focus without letting ProseMirror auto-scroll; we center below.
+      ed.commands.focus(undefined, { scrollIntoView: false });
+      ed.commands.setTextSelection(item.pos);
+      // One measurement after the selection is set, then scroll to center.
+      // Avoids centerPosInView's per-frame getBoundingClientRect() during the
+      // glide, which forced layout on every frame of a large document.
+      nextTick(() => {
+        if (ed.isDestroyed) return;
+        try {
+          const coords = ed.view.coordsAtPos(item.pos);
+          if (!coords) return;
+          const cRect =
+            scrollContainer.value !== window
+              ? scrollContainer.value.getBoundingClientRect()
+              : { top: 0, height: window.innerHeight };
+          const current = getScrollInfo().scrollY;
+          scrollViewportTo(
+            Math.max(0, current + (coords.top - (cRect.top + cRect.height / 2))),
+          );
+        } catch { /* position shifted between phases */ }
+      });
     }
 
     function onEnter() {
@@ -349,9 +445,13 @@ export default {
         removeEditorUpdate = null;
       }
       if (props.editor) {
-        const onUpdate = ({ transaction }) => {
-          if (transaction && !transactionAffectsHeadings(transaction)) return;
-          requestAnimationFrame(build);
+        // Rebuild on updates, trailing-debounced: the model scan itself is
+        // ~1-2ms, but per-keystroke rebuilds (during typing bursts or yjs
+        // sync fills) kept the rail and its v-for hot on every transaction.
+        // A trailing debounce still catches the yjs sync that fills content
+        // right after open — the rail no longer stays empty for the session.
+        const onUpdate = () => {
+          scheduleBuild();
         };
         props.editor.on('update', onUpdate);
         removeEditorUpdate = () => {
@@ -374,7 +474,7 @@ export default {
         'ontouchstart' in window || navigator.maxTouchPoints > 0;
       // Fallback: attach to window initially (build() will switch to the real container)
       setupScrollListener();
-      window.addEventListener('resize', cache);
+      window.addEventListener('resize', update);
       document.addEventListener('keydown', onKeydown);
       document.addEventListener('click', onClickOutside);
     });
@@ -382,9 +482,10 @@ export default {
     onUnmounted(() => {
       if (animFrame) cancelAnimationFrame(animFrame);
       clearTimeout(hoverTimeout);
+      if (buildTimer) clearTimeout(buildTimer);
       if (removeEditorUpdate) removeEditorUpdate();
       if (removeScrollListener) removeScrollListener();
-      window.removeEventListener('resize', cache);
+      window.removeEventListener('resize', update);
       document.removeEventListener('keydown', onKeydown);
       document.removeEventListener('click', onClickOutside);
     });

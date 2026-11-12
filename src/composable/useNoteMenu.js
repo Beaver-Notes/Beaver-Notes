@@ -322,19 +322,26 @@ export function useNoteMenu(props) {
     },
   ]);
 
-  const drawActions = computed(() => [
-    {
-      name: 'block',
-      title:
-        translations.value.menu.insertDrawingBlock || 'Insert drawing block',
-      description:
-        translations.value.menu.insertDrawingBlockDescription ||
-        'Create a standalone sketch area inside the note.',
-      icon: 'riBrushLine',
-      isActive: false,
-      handler: () => props.editor.chain().focus().insertPaper().run(),
-    },
-  ]);
+  // Drawing blocks are dev-only for now: prod gets an empty list so the
+  // toolbar draw button has nothing to bind to.
+  const drawActions = computed(() =>
+    import.meta.env.DEV
+      ? [
+          {
+            name: 'block',
+            title:
+              translations.value.menu.insertDrawingBlock ||
+              'Insert drawing block',
+            description:
+              translations.value.menu.insertDrawingBlockDescription ||
+              'Create a standalone sketch area inside the note.',
+            icon: 'riBrushLine',
+            isActive: false,
+            handler: () => props.editor.chain().focus().insertPaper().run(),
+          },
+        ]
+      : [],
+  );
 
   // The table the caret sits in, plus the row/column it is in. Null outside one.
   function tableContext() {
@@ -589,7 +596,8 @@ export function useNoteMenu(props) {
   function insertFile() {
     const url = normalizePath(fileUrl.value);
     const name = url.substring(url.lastIndexOf('/') + 1);
-    if (/\.pdf$/i.test(name)) {
+    // Pdf blocks are dev-only for now: prod files go to fileEmbed.
+    if (import.meta.env.DEV && /\.pdf$/i.test(name)) {
       props.editor.commands.insertPdfBlock({ src: url, fileName: name });
     } else {
       props.editor.commands.setFileEmbed(url, name);
@@ -606,7 +614,9 @@ export function useNoteMenu(props) {
     const view = props.editor.view;
     for (const file of event.target.files) {
       const fileName = assetFileName(file);
+      // Pdf blocks are dev-only for now: prod pdfs go to fileEmbed.
       const isPdf =
+        import.meta.env.DEV &&
         (file.type || mime.getType(file.name) || '') === 'application/pdf';
       insertFileBlockOptimistic(view, {
         typeName: isPdf ? 'pdfBlock' : 'fileEmbed',
@@ -726,7 +736,9 @@ export function useNoteMenu(props) {
   const visibleItemIds = computed(
     () => new Set(visibleItems.value.map((item) => item.id))
   );
-  const isItemVisible = (id) => visibleItemIds.value.has(id);
+  const isItemVisible = (id) =>
+    // Draw stays dev-only; visibility comes from the toolbar registry.
+    (id !== 'draw' || import.meta.env.DEV) && visibleItemIds.value.has(id);
   const visibleInlineFormatItems = computed(() =>
     inlineFormatItems.filter((item) => isItemVisible(item.id))
   );

@@ -76,6 +76,7 @@
 
 <script>
 import { onMounted, onUnmounted, ref } from 'vue';
+import { NodeSelection } from '@tiptap/pm/state';
 import { useTranslations } from '@/composable/useTranslations';
 import { saveDialog } from '@/lib/native/dialog';
 import { readData, writeFile } from '@/lib/native/fs';
@@ -173,6 +174,17 @@ export default {
       'Delete';
 
     function syncLayout() {
+      if (!props.editor) return;
+      // O(1) gate: this menu only matters while an image node is selected.
+      // Previously both 'selectionUpdate' AND 'transaction' ran getAttributes
+      // on every transaction (every keystroke anywhere in the note).
+      const { selection } = props.editor.state;
+      if (
+        !(selection instanceof NodeSelection) ||
+        selection.node.type.name !== 'image'
+      ) {
+        return;
+      }
       currentLayout.value = getLayoutMode(props.editor.getAttributes('image'));
     }
 

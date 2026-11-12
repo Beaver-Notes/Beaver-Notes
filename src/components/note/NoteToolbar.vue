@@ -3,7 +3,7 @@
     <div
       class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex tablet:flex foldable:right-[var(--app-rail-width)]"
       :class="
-        isPaperEditing && isMobile
+        isPaperEditing
           ? 'mobile:!hidden tablet:!hidden'
           : store.inReaderMode
           ? 'opacity-0 hover:opacity-100 mobile:hidden tablet:hidden'
@@ -1119,8 +1119,9 @@ export default {
       if (!t) return;
       const dx = t.clientX - swipeX;
       const dy = t.clientY - swipeY;
-      if (container.value) container.value.scrollLeft = 0;
-      if (dx > 64 && Math.abs(dx) > Math.abs(dy) * 1.6) closeSub();
+      const shouldClose = dx > 64 && Math.abs(dx) > Math.abs(dy) * 1.6;
+      if (shouldClose && container.value) container.value.scrollLeft = 0;
+      if (shouldClose) closeSub();
       swipeEdge = false;
     }
 

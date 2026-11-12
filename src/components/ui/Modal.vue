@@ -9,7 +9,10 @@
           v-if="show"
           class="modal-ui__content-container group fixed inset-0 flex items-center justify-center bg-black/20 p-0 md:p-5 mobile:items-end mobile:p-0 tablet:items-end tablet:p-0 folded:items-end folded:p-0"
           :class="overlayClass"
-          :style="{ 'backdrop-filter': blur && 'blur(2px)' }"
+          :style="[
+            overlayStyle,
+            { 'backdrop-filter': blur && 'blur(2px)' },
+          ]"
           @click.self="closeModal"
         >
           <slot v-if="customContent"></slot>
@@ -45,7 +48,7 @@
             :style="modalContentStyle"
           >
             <div
-              class="hidden cursor-grab touch-none select-none mobile:block tablet:block folded:block -mt-2 px-8 pb-1 pt-3"
+              class="hidden cursor-grab touch-none select-none mobile:block tablet:block folded:block -mt-2 px-8 pb-1 pt-3 h-11"
               @touchstart.passive="handleTouchStart"
               @touchmove="handleTouchMove"
               @touchend="handleTouchEnd"
@@ -145,10 +148,15 @@ export default {
     const touchCurrentY = ref(0);
     const touchScrollableAncestor = ref(null);
     const touchStartTime = ref(0);
+    let touchLastY = 0;
+    let touchLastTime = 0;
     const SWIPE_CLOSE_THRESHOLD = 96;
     // Slop before a downward touch becomes a card drag: a scroll gesture
     // often starts with a few px of downward wobble, which must not claim it.
     const DRAG_SLOP_PX = 12;
+    const SOFT_MAX_PX = 160;
+    const FLICK_VELOCITY = 0.5; // px per ms
+
     const prefersReducedMotion = () =>
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
@@ -165,7 +173,12 @@ export default {
     function closeModal() {
       if (props.persist) return;
 
-      resetDrag();
+      // If we're mid-drag and past threshold, the sheet should finish its exit
+      // from the current drag offset (so the leave transition starts from the
+      // finger's position, not from rest).
+      const isDismissing = isDragging.value && dragOffsetY.value >= SWIPE_CLOSE_THRESHOLD;
+      if (!isDismissing) resetDrag();
+
       show.value = false;
       emit('close', false);
       emit('update:modelValue', false);
@@ -217,11 +230,12 @@ export default {
         dragOffsetY.value > 0
           ? `translate3d(0, ${dragOffsetY.value}px, 0)`
           : '',
-      opacity:
-        dragOffsetY.value > 0
-          ? String(Math.max(0.82, 1 - dragOffsetY.value / 420))
-          : '',
     }));
+
+    const overlayStyle = computed(() => {
+      if (dragOffsetY.value <= 0) return { opacity: '1' };
+      return { opacity: String(Math.max(0.82, 1 - dragOffsetY.value / 420)) };
+    });
 
     function getScrollableParent(target) {
       let current = target;
@@ -266,7 +280,9 @@ export default {
 
       touchStartY.value = touch.clientY;
       touchCurrentY.value = touch.clientY;
+      touchLastY = touch.clientY;
       touchStartTime.value = performance.now();
+      touchLastTime = performance.now();
       touchScrollableAncestor.value = getScrollableParent(event.target);
       isDragging.value = false;
     }
@@ -277,17 +293,12 @@ export default {
       const touch = event.touches?.[0];
       if (!touch) return;
 
-      // Yield once the browser has committed to native scroll — while the
-      // gesture is unattributed we must never preventDefault (on iOS the
-      // first prevented move kills native scroll for the whole gesture).
       if (!event.cancelable) return;
 
       touchCurrentY.value = touch.clientY;
+      const now = performance.now();
       const deltaY = touchCurrentY.value - touchStartY.value;
 
-      // Per-move edge check against the remembered scrollable ancestor:
-      // swipe only when moving down from the ancestor's top edge, otherwise
-      // hand the gesture to native scroll.
       const ancestor = touchScrollableAncestor.value;
       if (ancestor && !(deltaY > 0 && ancestor.scrollTop <= 0)) {
         dragOffsetY.value = 0;
@@ -295,17 +306,19 @@ export default {
       }
 
       if (deltaY <= DRAG_SLOP_PX) {
-        // Always release: a reversed drag must let go immediately so the
-        // browser can take over native scrolling instead of freezing mid-pose.
         dragOffsetY.value = 0;
         return;
       }
 
       isDragging.value = true;
       const engaged = deltaY - DRAG_SLOP_PX;
-      // ponytail: rubber-band past the 160 soft bound instead of a hard clamp
       dragOffsetY.value =
-        engaged <= 160 ? engaged : 160 + (engaged - 160) * 0.3;
+        engaged <= SOFT_MAX_PX ? engaged : SOFT_MAX_PX + (engaged - SOFT_MAX_PX) * 0.3;
+
+      // Track recent move for release velocity
+      touchLastY = touch.clientY;
+      touchLastTime = now;
+
       event.preventDefault();
     }
 
@@ -315,21 +328,27 @@ export default {
         return;
       }
 
-      const elapsed = performance.now() - touchStartTime.value;
-      const velocity = Math.abs(dragOffsetY.value) / Math.max(elapsed, 1);
+      // Release velocity from the last few move events (not whole-gesture average)
+      const now = performance.now();
+      const recentMs = Math.max(now - touchLastTime, 1);
+      const velocity = Math.abs(touchCurrentY.value - touchLastY) / recentMs;
 
-      if (dragOffsetY.value >= SWIPE_CLOSE_THRESHOLD || velocity > 0.11) {
+      const shouldDismiss =
+        dragOffsetY.value >= SWIPE_CLOSE_THRESHOLD || velocity > FLICK_VELOCITY;
+
+      if (shouldDismiss) {
+        // Exit animation starts from current drag offset; leave transition uses
+        // --ease-exit which already matches the skill's Vaul curve (500ms spring).
         closeModal();
         return;
       }
 
-      // modalContent is a component ref: reach the DOM node via $el first.
+      // Snap back with spring
       const el = modalContent.value?.$el || modalContent.value;
       if (el && el.style) {
         const dur = prefersReducedMotion() ? '0.01ms' : '300ms';
-        el.style.transition = `transform ${dur} var(--ease-spring), opacity ${dur} var(--ease-standard)`;
+        el.style.transition = `transform ${dur} var(--ease-spring)`;
         el.style.transform = 'translate3d(0, 0, 0)';
-        el.style.opacity = '1';
         el.addEventListener(
           'transitionend',
           () => {
@@ -352,6 +371,7 @@ export default {
       closeModal,
       modalContent,
       modalContentStyle,
+      overlayStyle,
       isDragging,
       handleTouchStart,
       handleTouchMove,

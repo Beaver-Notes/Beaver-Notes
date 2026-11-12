@@ -48,6 +48,7 @@
 
 <script>
 import { onMounted, onUnmounted, ref } from 'vue';
+import { NodeSelection } from '@tiptap/pm/state';
 import { useTranslations } from '@/composable/useTranslations';
 
 function getLayoutMode(attrs = {}) {
@@ -70,6 +71,15 @@ export default {
     const currentLayout = ref('block');
 
     function syncLayout() {
+      if (!props.editor) return;
+      // O(1) gate: only sync while a Video node is selected (see Image menu).
+      const { selection } = props.editor.state;
+      if (
+        !(selection instanceof NodeSelection) ||
+        selection.node.type.name !== 'Video'
+      ) {
+        return;
+      }
       currentLayout.value = getLayoutMode(props.editor.getAttributes('Video'));
     }
 

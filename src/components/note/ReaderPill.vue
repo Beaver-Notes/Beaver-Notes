@@ -38,7 +38,7 @@
           class="min-w-0 transition-[max-width,opacity] duration-300 ease-[var(--ease-snappy)] motion-reduce:transition-none"
           :class="
             showAa
-              ? 'max-w-[28rem] opacity-100 ml-1 overflow-x-auto overscroll-x-contain'
+              ? 'max-w-[28rem] opacity-100 ml-1 overflow-x-auto overscroll-x-contain w-full rounded-full'
               : 'max-w-0 opacity-0 overflow-hidden'
           "
           :inert="!showAa"

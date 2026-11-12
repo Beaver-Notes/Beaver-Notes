@@ -18,6 +18,9 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
   const touchDragPayload = ref(null);
 
   let touchGhost = null;
+  let touchAutoScrollRaf = null;
+  const AUTO_SCROLL_ZONE = 60;
+  const AUTO_SCROLL_SPEED = 18;
 
   function getIdsForDrag(kind, id) {
     const key = `${kind}-${id}`;
@@ -281,6 +284,12 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
 
     positionTouchGhost(touch);
 
+    // Edge auto-scroll so off-screen folders are reachable
+    const y = touch.clientY;
+    const viewportHeight = window.innerHeight;
+    if (y < AUTO_SCROLL_ZONE) window.scrollBy(0, -AUTO_SCROLL_SPEED);
+    else if (y > viewportHeight - AUTO_SCROLL_ZONE) window.scrollBy(0, AUTO_SCROLL_SPEED);
+
     const target = document
       .elementFromPoint(touch.clientX, touch.clientY)
       ?.closest?.('[data-item-id^="folder-"]');
@@ -320,6 +329,10 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
       touchGhost.parentNode.removeChild(touchGhost);
     }
     touchGhost = null;
+    if (touchAutoScrollRaf) {
+      cancelAnimationFrame(touchAutoScrollRaf);
+      touchAutoScrollRaf = null;
+    }
   }
 
   function cancelTouchDrag() {

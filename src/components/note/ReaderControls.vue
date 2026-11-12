@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex flex-col gap-3 md:flex-row md:items-center md:shrink-0 md:gap-1"
+    class="flex flex-row items-center shrink-0 gap-1"
   >
     <div
       class="flex w-full items-center rounded-full bg-neutral-100 p-0.5 dark:bg-neutral-800 md:w-auto"

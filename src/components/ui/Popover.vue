@@ -17,6 +17,7 @@
       <div
         v-if="sheet && isShow"
         class="fixed inset-0 z-40 bg-black/20"
+        :style="sheetBackdropStyle"
         @click="hide"
       ></div>
       <Transition name="ui-popover">
@@ -39,13 +40,13 @@
                list/grid touches inside the panel are never hijacked. -->
           <div
             v-if="sheet"
-            class="cursor-grab touch-none select-none px-8 pb-1 pt-1.5"
+            class="flex h-11 cursor-grab touch-none select-none items-center justify-center px-8"
             @touchstart.passive="onSheetTouchStart"
             @touchmove="onSheetTouchMove"
             @touchend="onSheetTouchEnd"
             @touchcancel="onSheetTouchCancel"
           >
-            <div class="mx-auto h-1 w-9 rounded-full bg-neutral-400/60"></div>
+            <div class="h-1 w-9 rounded-full bg-neutral-400/60"></div>
           </div>
           <slot v-bind="{ isShow }"></slot>
         </div>
@@ -122,20 +123,86 @@ export default {
 
     const { lock: lockScroll, unlock: unlockScroll } = useScrollLock();
 
-    // Sheet drag-to-close: dx of the grab strip only; the panel springs back
-    // when the release is short, closes when the drag crosses the threshold.
+    // Sheet drag-to-close: only the grab strip listens, so panel content keeps
+    // its native scroll. Track 1:1, rubber-band past 160px, dismiss on distance
+    // OR release velocity, and settle back with a spring.
+    const SHEET_DISMISS_PX = 120;
+    const SHEET_SOFT_MAX = 160;
+    const SHEET_FLICK_VELOCITY = 0.5; // px per ms
     const sheetDragOffset = ref(null);
+    const sheetTransition = ref('');
     let sheetStartY = 0;
+    let sheetLastTime = 0;
+    let sheetVelocity = 0;
+    let sheetDismissTimer = null;
+
+    const prefersReducedMotion = () =>
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
     const sheetDragging = computed(() => (sheetDragOffset.value ?? 0) > 0);
     const sheetDragStyle = computed(() => {
       if (props.sheet === false || sheetDragOffset.value === null) return null;
-      return { transform: `translateY(${Math.max(sheetDragOffset.value, 0)}px)` };
+      return {
+        transform: `translateY(${Math.max(sheetDragOffset.value, 0)}px)`,
+        transition: sheetTransition.value || 'none',
+      };
     });
+    const sheetBackdropStyle = computed(() => {
+      const offset = sheetDragOffset.value ?? 0;
+      const height = content.value?.offsetHeight || 360;
+      return { opacity: String(Math.max(0, 1 - offset / Math.max(height, 1))) };
+    });
+
+    function clearSheetTimers() {
+      if (sheetDismissTimer) {
+        clearTimeout(sheetDismissTimer);
+        sheetDismissTimer = null;
+      }
+    }
+
+    function settleSheetBack() {
+      const duration = prefersReducedMotion() ? '0.01ms' : '280ms';
+      sheetTransition.value = `transform ${duration} var(--ease-spring)`;
+      sheetDragOffset.value = 0;
+      clearSheetTimers();
+      sheetDismissTimer = setTimeout(
+        () => {
+          sheetDismissTimer = null;
+          sheetDragOffset.value = null;
+          sheetTransition.value = '';
+        },
+        prefersReducedMotion() ? 30 : 300,
+      );
+    }
+
+    function dismissSheet() {
+      const distance = content.value?.offsetHeight || 360;
+      sheetTransition.value = `transform ${
+        prefersReducedMotion() ? '0.01ms' : '220ms'
+      } var(--ease-exit)`;
+      sheetDragOffset.value = distance;
+      clearSheetTimers();
+      // Hide only after the sheet has slid out, otherwise the leave class
+      // would restart from the rest position and jump.
+      sheetDismissTimer = setTimeout(
+        () => {
+          sheetDismissTimer = null;
+          sheetDragOffset.value = null;
+          sheetTransition.value = '';
+          hide();
+        },
+        prefersReducedMotion() ? 20 : 240,
+      );
+    }
 
     const onSheetTouchStart = (event) => {
       const touch = event.touches?.[0];
       if (!touch) return;
+      clearSheetTimers();
+      sheetTransition.value = '';
       sheetStartY = touch.clientY;
+      sheetLastTime = performance.now();
+      sheetVelocity = 0;
       sheetDragOffset.value = 0;
     };
 
@@ -144,22 +211,40 @@ export default {
       if (!event.cancelable) return;
       const touch = event.touches?.[0];
       if (!touch) return;
+      const now = performance.now();
       const delta = touch.clientY - sheetStartY;
-      sheetDragOffset.value = delta > 0 ? delta : 0;
+      const next = delta > 0 ? delta : 0;
+      sheetVelocity =
+        (next - sheetDragOffset.value) / Math.max(now - sheetLastTime, 1);
+      sheetLastTime = now;
+      sheetDragOffset.value =
+        next <= SHEET_SOFT_MAX
+          ? next
+          : SHEET_SOFT_MAX + (next - SHEET_SOFT_MAX) * 0.3;
       event.preventDefault();
     };
 
     const onSheetTouchEnd = () => {
-      if (sheetDragging.value && sheetDragOffset.value >= 120) {
-        sheetDragOffset.value = null;
-        hide();
+      if (sheetDragOffset.value === null) return;
+      if (
+        sheetDragging.value &&
+        (sheetDragOffset.value >= SHEET_DISMISS_PX ||
+          sheetVelocity > SHEET_FLICK_VELOCITY)
+      ) {
+        dismissSheet();
         return;
       }
-      sheetDragOffset.value = null;
+      if (sheetDragging.value) settleSheetBack();
+      else {
+        sheetDragOffset.value = null;
+        sheetTransition.value = '';
+      }
     };
 
     const onSheetTouchCancel = () => {
+      clearSheetTimers();
       sheetDragOffset.value = null;
+      sheetTransition.value = '';
     };
 
     const show = () => {
@@ -225,6 +310,7 @@ export default {
     });
 
     onUnmounted(() => {
+      clearSheetTimers();
       document.removeEventListener('click', handleClickOutside, true);
       document.removeEventListener('keydown', handleKeydown, true);
       if (isShow.value) {
@@ -244,6 +330,7 @@ export default {
       // (a warning on every render) and the drag does nothing.
       sheetDragging,
       sheetDragStyle,
+      sheetBackdropStyle,
       onSheetTouchStart,
       onSheetTouchMove,
       onSheetTouchEnd,

@@ -162,6 +162,7 @@
 import { ref } from 'vue';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
 import { useTranslations } from '@/composable/useTranslations';
+import { triggerInteractionHaptic } from '@/lib/native/haptics';
 
 export const GROUP_STYLES = {
   text: { bg: 'bg-blue-50 dark:bg-blue-950/40', icon: 'text-blue-500' },
@@ -310,6 +311,7 @@ export default {
         if (!pressCandidate) return;
         touchStartIndex = pressCandidate.index;
         dragIndex.value = pressCandidate.index;
+        triggerInteractionHaptic('move');
         pressCandidate = null;
       }, LONG_PRESS_MS);
     }

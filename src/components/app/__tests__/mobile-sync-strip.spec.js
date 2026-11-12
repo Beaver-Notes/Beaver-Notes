@@ -42,23 +42,42 @@ import MobileSyncStrip from '../MobileSyncStrip.vue';
 
 enableAutoUnmount(afterEach);
 
-function dispatchTouch(type, y, changed = false) {
+function dispatchTouch(type, y, opts = {}) {
   const ev = new Event(type);
-  ev.touches = [{ clientY: y }];
-  if (changed) ev.changedTouches = [{ clientY: y }];
+  ev.touches = [{ clientY: y, ...opts.touch }];
+  if (opts.target) {
+    Object.defineProperty(ev, 'target', { value: opts.target });
+  }
+  if (opts.changed) ev.changedTouches = [{ clientY: y }];
   document.dispatchEvent(ev);
+}
+
+function pencilPull() {
+  dispatchTouch('touchstart', 100, { touch: { type: 'stylus' } });
+  dispatchTouch('touchmove', 200, { touch: { type: 'stylus' } });
+  dispatchTouch('touchend', 200, { touch: { type: 'stylus' }, changed: true });
 }
 
 function pullToReveal() {
   dispatchTouch('touchstart', 100);
   dispatchTouch('touchmove', 140);
-  dispatchTouch('touchend', 140, true);
+  dispatchTouch('touchend', 140, { changed: true });
 }
 
 function pullToRefresh() {
   dispatchTouch('touchstart', 100);
   dispatchTouch('touchmove', 200);
-  dispatchTouch('touchend', 200, true);
+  dispatchTouch('touchend', 200, { changed: true });
+}
+
+function inkSurfacePull() {
+  const surface = document.createElement('div');
+  surface.setAttribute('data-paper-surface', '');
+  document.body.appendChild(surface);
+  dispatchTouch('touchstart', 100, { target: surface });
+  dispatchTouch('touchmove', 200, { target: surface });
+  dispatchTouch('touchend', 200, { target: surface, changed: true });
+  surface.remove();
 }
 
 async function mountStrip() {
@@ -87,12 +106,12 @@ describe('MobileSyncStrip', () => {
 
   it('stays hidden until the user pulls down', async () => {
     const wrapper = await mountStrip();
-    expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(false);
 
     pullToReveal();
     await nextTick();
 
-    expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(true);
   });
 
   it('shows the live sync status and progress while syncing', async () => {
@@ -174,12 +193,12 @@ describe('MobileSyncStrip', () => {
     const wrapper = await mountStrip();
     pullToReveal();
     await nextTick();
-    expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(true);
 
     vi.advanceTimersByTime(6000);
     await nextTick();
 
-    expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(false);
   });
 
   it('does not auto-hide while a sync is running', async () => {
@@ -193,7 +212,7 @@ describe('MobileSyncStrip', () => {
     vi.advanceTimersByTime(6000);
     await nextTick();
 
-    expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(true);
   });
 
   it('does not auto-hide while an attention/error state is active', async () => {
@@ -212,7 +231,7 @@ describe('MobileSyncStrip', () => {
     vi.advanceTimersByTime(6000);
     await nextTick();
 
-    expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(true);
   });
 
   it('stays passive: no inline toggle button (pull-to-refresh and Settings are the only triggers)', async () => {
@@ -232,6 +251,27 @@ describe('MobileSyncStrip', () => {
     expect(syncCtl.syncNow).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores Apple Pencil strokes: drawing at the top never reveals or syncs', async () => {
+    const wrapper = await mountStrip();
+
+    pencilPull();
+    await nextTick();
+
+    // an ink stroke must not read as pull-to-sync (revealed strip + kick)
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(false);
+    expect(syncCtl.syncNow).not.toHaveBeenCalled();
+  });
+
+  it('ignores pulls that start on an ink surface (paper/pdf markup)', async () => {
+    const wrapper = await mountStrip();
+
+    inkSurfacePull();
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(false);
+    expect(syncCtl.syncNow).not.toHaveBeenCalled();
+  });
+
   it('ignores pull gestures while a modal dialog is open', async () => {
     const wrapper = await mountStrip();
     const dlg = document.createElement('div');
@@ -241,7 +281,7 @@ describe('MobileSyncStrip', () => {
     try {
       pullToReveal();
       await nextTick();
-      expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(false);
 
       pullToRefresh();
       await nextTick();
@@ -252,7 +292,7 @@ describe('MobileSyncStrip', () => {
 
     pullToReveal();
     await nextTick();
-    expect(wrapper.find('[data-testid="mobile-sync-strip"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="mobile-sync-strip"]').isVisible()).toBe(true);
   });
 
   it('desktop settings surface routes through the same shared control (no duplicate handler)', () => {

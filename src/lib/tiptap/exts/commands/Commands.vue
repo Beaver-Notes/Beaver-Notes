@@ -332,12 +332,17 @@ export default {
         description: 'mermaidDescription',
         action: (chain) => chain.setMermaidDiagram(),
       },
-      {
-        icon: 'riBrush3Fill',
-        name: 'drawing',
-        description: 'drawingDescription',
-        action: (chain) => chain.insertPaper(),
-      },
+      // Drawing blocks are dev-only for now.
+      ...(import.meta.env.DEV
+        ? [
+            {
+              icon: 'riBrush3Fill',
+              name: 'drawing',
+              description: 'drawingDescription',
+              action: (chain) => chain.insertPaper(),
+            },
+          ]
+        : []),
       {
         icon: 'riImageLine',
         name: 'image',

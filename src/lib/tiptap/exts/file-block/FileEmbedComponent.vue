@@ -46,7 +46,7 @@
         </div>
         <div v-else class="flex items-center gap-2">
           <button
-            v-if="isPdfFile"
+            v-if="isPdfFile && devMode"
             class="bg-input p-1 px-3 rounded-lg outline-none"
             title="Convert to PDF markup"
             @click="convertToPdfBlock"
@@ -112,6 +112,8 @@ export default {
   props: nodeViewProps,
   setup(props) {
     const { translations } = useTranslations();
+    // Pdf blocks are dev-only for now: hide the conversion button in prod.
+    const devMode = import.meta.env.DEV;
     const fileName = ref(props.node.attrs.fileName || '');
     const missing = ref(false);
     const fileSize = ref('');
@@ -283,6 +285,7 @@ export default {
       openDocument,
       downloadFile,
       isPdfFile,
+      devMode,
       convertToPdfBlock,
     };
   },

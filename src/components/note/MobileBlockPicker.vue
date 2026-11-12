@@ -281,11 +281,16 @@ export default {
         name: 'mermaid',
         action: () => props.editor.chain().focus().setMermaidDiagram().run(),
       },
-      {
-        icon: 'riBrush3Fill',
-        name: 'drawing',
-        action: () => props.editor.chain().focus().insertPaper().run(),
-      },
+      // Drawing blocks are dev-only for now.
+      ...(import.meta.env.DEV
+        ? [
+            {
+              icon: 'riBrush3Fill',
+              name: 'drawing',
+              action: () => props.editor.chain().focus().insertPaper().run(),
+            },
+          ]
+        : []),
       {
         icon: 'riImageLine',
         name: 'image',

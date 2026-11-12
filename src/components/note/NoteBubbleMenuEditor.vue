@@ -158,7 +158,7 @@
           v-keep-focus
           v-tooltip.group="fmtMap[item.id].title"
           :class="
-            editor.isActive(fmtMap[item.id].state)
+            activeFmt[fmtMap[item.id].state]
               ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-white'
               : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
           "
@@ -190,7 +190,7 @@
             v-keep-focus
             v-tooltip.group="translations.menu.link"
             :class="
-              editor.isActive('link')
+              activeFmt.link
                 ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-white'
                 : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
             "
@@ -418,7 +418,7 @@
 </template>
 
 <script>
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, shallowReactive } from 'vue';
 import {
   useFloating,
   offset,
@@ -766,18 +766,141 @@ export default {
       },
     ];
 
-    const nodeName = computed(() => {
-      const { editor } = props;
-      if (!editor) return t('text') || 'Text';
-
-      const active = blockTypes.find((type) =>
-        type.level
-          ? editor.isActive(type.id, { level: type.level })
-          : editor.isActive(type.id),
-      );
-
-      return active ? active.label : t('text') || 'Text';
+    // Cached menu active-states. Previously every render evaluated
+    // editor.isActive() per button (each walking the selected range) plus
+    // ~20 more calls in the nodeName/alignment computeds — after Cmd+A that
+    // was dozens of full-document walks per bubble evaluation. Now: ONE
+    // nodesBetween pass, computed once per selection settle (not while the
+    // mouse is down), with the cursor case served O(1) from $from.marks().
+    const activeFmt = shallowReactive({
+      bold: false,
+      italic: false,
+      underline: false,
+      strike: false,
+      code: false,
+      link: false,
     });
+    const activeAlign = ref('left');
+    const activeNodeLabel = ref(t('text') || 'Text');
+
+    function recomputeMenuState() {
+      const editor = props.editor;
+      if (!editor || editor.isDestroyed) return;
+      const state = editor.state;
+      const { selection } = state;
+      const { empty, from, to, $from } = selection;
+
+      const markNames = new Set();
+      const nodeNames = new Set();
+      const aligns = new Set();
+      const headingLevels = new Set();
+
+      if (empty) {
+        const marks = state.storedMarks || $from.marks();
+        for (const m of marks) markNames.add(m.type.name);
+        const parent = $from.parent;
+        nodeNames.add(parent.type.name);
+        const ta = parent.attrs?.textAlign;
+        if (ta) aligns.add(ta);
+        if (parent.type.name === 'heading') {
+          headingLevels.add(parent.attrs.level);
+        }
+      } else {
+        state.doc.nodesBetween(from, to, (node) => {
+          if (node.marks) for (const m of node.marks) markNames.add(m.type.name);
+          const ta = node.attrs?.textAlign;
+          if (ta) aligns.add(ta);
+          nodeNames.add(node.type.name);
+          if (node.type.name === 'heading') headingLevels.add(node.attrs.level);
+          return true;
+        });
+      }
+
+      activeFmt.bold = markNames.has('bold');
+      activeFmt.italic = markNames.has('italic');
+      activeFmt.underline = markNames.has('underline');
+      activeFmt.strike = markNames.has('strike');
+      activeFmt.code = markNames.has('code');
+      activeFmt.link = markNames.has('link');
+
+      const alignMatch = alignmentTypes.find((type) => aligns.has(type.id));
+      activeAlign.value = alignMatch ? alignMatch.id : 'left';
+
+      // Same first-match ordering as the previous blockTypes.isActive loop.
+      const blockMatch = blockTypes.find((type) =>
+        type.level
+          ? headingLevels.has(type.level)
+          : nodeNames.has(type.id),
+      );
+      activeNodeLabel.value = blockMatch
+        ? blockMatch.label
+        : t('text') || 'Text';
+    }
+
+    // Recompute on settle: trailing 100ms debounce for keyboard selection and
+    // typing; during pointer drag-select we skip entirely and recompute once
+    // on pointerup so growing selections never pay repeated range walks.
+    let menuStateTimer = 0;
+    let pointerDown = false;
+    let pendingWhilePointerDown = false;
+
+    function scheduleMenuState() {
+      if (pointerDown) {
+        pendingWhilePointerDown = true;
+        return;
+      }
+      if (menuStateTimer) clearTimeout(menuStateTimer);
+      menuStateTimer = setTimeout(() => {
+        menuStateTimer = 0;
+        recomputeMenuState();
+      }, 100);
+    }
+
+    function onEditorTransaction({ transaction }) {
+      if (transaction.selectionSet || transaction.docChanged) {
+        scheduleMenuState();
+      }
+    }
+
+    function onPointerDown() {
+      pointerDown = true;
+    }
+
+    function onPointerUp() {
+      pointerDown = false;
+      if (menuStateTimer) {
+        clearTimeout(menuStateTimer);
+        menuStateTimer = 0;
+      }
+      if (pendingWhilePointerDown) {
+        pendingWhilePointerDown = false;
+        recomputeMenuState();
+      }
+    }
+
+    onMounted(() => {
+      recomputeMenuState();
+      const ed = props.editor;
+      if (!ed || ed.isDestroyed) return;
+      ed.on('transaction', onEditorTransaction);
+      ed.view?.dom?.addEventListener('pointerdown', onPointerDown);
+      // window-level pointerup: drags that end outside the editor still settle
+      window.addEventListener('pointerup', onPointerUp);
+    });
+
+    onBeforeUnmount(() => {
+      const ed = props.editor;
+      if (ed && !ed.isDestroyed) {
+        ed.off('transaction', onEditorTransaction);
+        try {
+          ed.view?.dom?.removeEventListener('pointerdown', onPointerDown);
+        } catch { /* view already torn down */ }
+      }
+      window.removeEventListener('pointerup', onPointerUp);
+      if (menuStateTimer) clearTimeout(menuStateTimer);
+    });
+
+    const nodeName = computed(() => activeNodeLabel.value);
 
     const menuOptions = computed(() => {
       return blockTypes.map((type) => ({
@@ -789,24 +912,12 @@ export default {
     });
 
     const currentAlignment = computed(() => {
-      const { editor } = props;
-      if (!editor) return t('left') || 'Left';
-
-      const active = alignmentTypes.find((type) =>
-        editor.isActive({ textAlign: type.id }),
-      );
-
+      const active = alignmentTypes.find((type) => type.id === activeAlign.value);
       return active ? active.label : t('left') || 'Left';
     });
 
     const currentAlignmentIcon = computed(() => {
-      const { editor } = props;
-      if (!editor) return 'riAlignLeft';
-
-      const active = alignmentTypes.find((type) =>
-        editor.isActive({ textAlign: type.id }),
-      );
-
+      const active = alignmentTypes.find((type) => type.id === activeAlign.value);
       return active ? active.icon : 'riAlignLeft';
     });
 
@@ -815,12 +926,13 @@ export default {
         label: type.label,
         command: () => type.cmd(props.editor),
         icon: type.icon,
-        isActive: props.editor?.isActive({ textAlign: type.id }) || false,
+        isActive: type.id === activeAlign.value,
       }));
     });
 
     return {
       ...menu,
+      activeFmt,
       nodeName,
       menuOptions,
       currentAlignment,

@@ -51,6 +51,7 @@
 <script>
 import { ref, watch, onMounted } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
+import { useBlockVisibility } from '../use-block-visibility';
 import { useTranslations } from '@/composable/useTranslations';
 import ExpandCollapse from '@/components/ui/ExpandCollapse.vue';
 import MermaidComponent from './mermaid-renderer.vue';
@@ -66,6 +67,8 @@ export default {
     const isEditing = ref(false);
     const mermaidContent = ref('');
     const inputRef = ref(null);
+    const mermaidRef = ref(null);
+    const blockVisible = useBlockVisibility(() => mermaidRef.value?.$el);
 
     function renderContent() {
       mermaidContent.value = props.node.attrs.content || '';
@@ -118,7 +121,14 @@ export default {
     }
 
     onMounted(() => {
-      renderContent();
+      if (blockVisible.value) renderContent();
+    });
+
+    // Render the diagram only once the block approaches the viewport; the
+    // renderer derives all work from mermaidContent, so leaving it empty
+    // keeps off-screen diagrams free until they scroll in.
+    watch(blockVisible, (visible) => {
+      if (visible) renderContent();
     });
 
     watch(

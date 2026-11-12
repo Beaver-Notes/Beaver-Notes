@@ -36,7 +36,7 @@
         </button>
       </div>
 
-      <!-- Recents (emoji-mart "frequent"): last picks, no search needed. -->
+      <!-- Recents: last picks, no search needed. -->
       <div v-if="showRecents" class="mb-3">
         <div class="flex items-center justify-between mb-1.5 px-0.5">
           <p class="text-xs font-semibold text-neutral-500">{{ recentLabel }}</p>
@@ -214,7 +214,7 @@ export default {
   props: {
     current: { type: String, default: '' },
     columns: { type: Number, default: 8 },
-    maxRecents: { type: Number, default: 24 },
+    maxRecents: { type: Number, default: 8 },
     recentKey: { type: String, default: 'beaver-recent-emojis' },
   },
   emits: ['select'],

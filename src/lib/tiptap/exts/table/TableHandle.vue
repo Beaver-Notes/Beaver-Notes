@@ -320,6 +320,13 @@ export default {
   border-color: hsl(var(--twc-primary) / 0.3);
   background: hsl(var(--twc-primary) / 0.08);
 }
+
+/* Hide HTML5 drag handles on touch devices (they don't work on touch). */
+@media (pointer: coarse) {
+  .thandle[draggable="true"] {
+    display: none;
+  }
+}
 :root.dark .thandle:hover,
 :root.dark .thandle.open {
   color: hsl(var(--twc-primary));

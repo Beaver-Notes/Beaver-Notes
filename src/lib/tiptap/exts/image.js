@@ -300,6 +300,7 @@ export class ImageNodeView {
       passive: false,
     });
     document.addEventListener('touchend', this.handleDocumentTouchEnd);
+    document.addEventListener('touchcancel', this.handleDocumentTouchEnd);
   }
 
   handleDocumentMouseMove(event) {

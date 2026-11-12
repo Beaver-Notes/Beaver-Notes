@@ -223,10 +223,6 @@ export default {
       return 'w-[216px]';
     });
 
-    emitter.on('new-note', addNote);
-    emitter.on('new-folder', addFolder);
-    emitter.on('open-settings', openSettings);
-
     if (typeof window !== 'undefined') {
       window.addNote = addNote;
     }
