@@ -3,6 +3,8 @@ use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
+use filetime::{set_file_mtime, FileTime};
+
 use base64::{
     engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD},
     Engine as _,
@@ -1923,6 +1925,13 @@ fn mirror_asset_dir(from: &Path, to: &Path) -> Result<u64, AppError> {
 fn atomic_copy_file(src: &Path, dst: &Path) -> Result<(), AppError> {
     let name = dst.file_name().and_then(|n| n.to_str()).unwrap_or("asset");
     let tmp = dst.with_file_name(format!(".{name}.mirror-{}", std::process::id()));
+    // Capture the source mtime so we can restore it on the destination: the
+    // mirror decides "already synced" from equal size + equal mtime. Without
+    // this, the copy stamps `dst` with `now()`, which is always newer than
+    // `src`, so the reverse direction copies it back next tick — files ping-
+    // pong between folder and local forever (14 assets re-transferred every
+    // 30s cycle, see [sync::local] folder assets transferred).
+    let src_mtime = std::fs::metadata(src)?.modified()?;
     let result = (|| -> std::io::Result<()> {
         let mut from = std::fs::File::open(src)?;
         let mut to = std::fs::File::create(&tmp)?;
@@ -1934,7 +1943,11 @@ fn atomic_copy_file(src: &Path, dst: &Path) -> Result<(), AppError> {
     if result.is_err() {
         let _ = std::fs::remove_file(&tmp);
     }
-    result.map_err(AppError::from)
+    result?;
+    // Best-effort: if we can't stamp the mtime, the mirror just re-copies once
+    // more next cycle and then stabilizes (size equal, mtime equal).
+    let _ = set_file_mtime(dst, FileTime::from_system_time(src_mtime));
+    Ok(())
 }
 
 /// Whether `src` should supersede `dst` in the folder mirror.

@@ -274,6 +274,7 @@ pub fn run() {
             commands::yjs::yjs_append_batch,
             commands::yjs::yjs_get_updates,
             commands::yjs::yjs_get_state_vector,
+            commands::yjs::yjs_content_version,
             commands::yjs::yjs_get_snapshot,
             commands::yjs::yjs_get_snapshots,
             commands::yjs::yjs_compact,

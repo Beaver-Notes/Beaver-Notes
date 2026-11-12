@@ -13,7 +13,7 @@ use crate::shared::{
 
 pub(crate) type DbPool = Pool<SqliteConnectionManager>;
 
-pub(crate) const SCHEMA_VERSION: i64 = 6;
+pub(crate) const SCHEMA_VERSION: i64 = 7;
 
 // ponytail: fixed per-note cap; a note edited for years would otherwise grow
 // this table without bound. 200 entries is far more than any UI scroll-back
@@ -156,6 +156,20 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
             "CREATE TABLE IF NOT EXISTS db_key_marker (
               id     INTEGER PRIMARY KEY CHECK (id = 1),
               key_id TEXT NOT NULL
+            );",
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    }
+
+    // Monotonic per-note content counter. The chunk index must prove it is
+    // still current on every open; row ids drift (compaction rewrites the
+    // rows) and the state vector costs a full document rebuild (1s+ on big
+    // notes). This counter moves only when the stored state changes.
+    if from < 7 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS note_versions (
+              note_id TEXT PRIMARY KEY NOT NULL,
+              version INTEGER NOT NULL DEFAULT 0
             );",
         )
         .map_err(|e| AppError::Other(e.to_string()))?;
@@ -769,7 +783,11 @@ pub(crate) fn yjs_append(
         None => blob.to_vec(),
     };
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-    conn.execute(
+    let mut conn = conn;
+    // The row insert and the version bump share one transaction: a lost bump
+    // would let the chunk index look current while the content moved on.
+    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+    tx.execute(
         "INSERT INTO note_content (note_id, data, device, created_at) VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![
             note_id,
@@ -779,7 +797,38 @@ pub(crate) fn yjs_append(
         ],
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
+    bump_content_version(&tx, note_id)?;
+    tx.commit().map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
+}
+
+/// Bump the note's content version. Must run in the same transaction as the
+/// write that changed the stored state.
+fn bump_content_version(conn: &rusqlite::Connection, note_id: &str) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO note_versions (note_id, version) VALUES (?1, 1)
+         ON CONFLICT(note_id) DO UPDATE SET version = version + 1",
+        rusqlite::params![note_id],
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(())
+}
+
+/// The note's content version: a counter that moves exactly when the stored
+/// state changes. It proves "unchanged since the chunk index was built"
+/// without decoding the content blob, so a big note opens in milliseconds
+/// instead of rebuilding its whole document to read a state vector.
+pub(crate) fn yjs_content_version(pool: &DbPool, note_id: &str) -> Result<i64, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    match conn.query_row(
+        "SELECT version FROM note_versions WHERE note_id = ?1",
+        rusqlite::params![note_id],
+        |row| row.get::<_, i64>(0),
+    ) {
+        Ok(version) => Ok(version),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(0),
+        Err(e) => Err(AppError::Other(e.to_string())),
+    }
 }
 
 pub(crate) fn yjs_get_updates(
@@ -1231,6 +1280,10 @@ pub(crate) fn yjs_append_batch(
                 .map_err(|e| AppError::Other(e.to_string()))?;
         }
     }
+    // Same transaction as the inserts above: the version must move with them.
+    for note_id in note_ids {
+        bump_content_version(&tx, note_id)?;
+    }
     tx.commit().map_err(|e| AppError::Other(e.to_string()))?;
     Ok(updates.len())
 }
@@ -1244,6 +1297,13 @@ pub(crate) fn yjs_delete(pool: &DbPool, note_id: &str, workspace_id: &str) -> Re
     .map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "DELETE FROM yjs_snapshots WHERE note_id = ?1",
+        rusqlite::params![note_id],
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    // Drop the content version too: a note re-created under the same id must
+    // not inherit a version a stale chunk manifest could still match.
+    conn.execute(
+        "DELETE FROM note_versions WHERE note_id = ?1",
         rusqlite::params![note_id],
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
@@ -1878,6 +1938,45 @@ mod tests {
         yjs_compact(&pool, "n1", &full, None).expect("covering compact");
         let rows = yjs_get_updates(&pool, "n1", None).expect("read");
         assert_eq!(rows.len(), 1, "covering compact folds history into one row");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// The chunk index proves freshness with this counter, so it must move
+    /// exactly when the stored content changes — and never when compaction
+    /// folds the rows into an equivalent snapshot.
+    #[test]
+    fn content_version_tracks_appends_but_not_compaction() {
+        use yrs::{Doc, ReadTxn, StateVector, Transact};
+        use yrs::updates::decoder::Decode;
+        let (pool, root) = test_pool("beaver-notes-db-content-version");
+        assert_eq!(yjs_content_version(&pool, "n1").expect("unknown note"), 0);
+
+        let a = seed_update("hello");
+        yjs_append(&pool, "n1", &a, "devA", None).expect("append a");
+        assert_eq!(yjs_content_version(&pool, "n1").expect("after append"), 1);
+
+        let doc = Doc::new();
+        let mut txn = doc.transact_mut();
+        txn.apply_update(yrs::Update::decode_v1(&a).expect("decode a"))
+            .expect("apply a");
+        let full = txn.encode_state_as_update_v1(&StateVector::default());
+        yjs_compact(&pool, "n1", &full, None).expect("covering compact");
+        assert_eq!(
+            yjs_content_version(&pool, "n1").expect("after compact"),
+            1,
+            "compaction preserves the content, so the version must not move"
+        );
+
+        let b = seed_update("world");
+        yjs_append(&pool, "n1", &b, "devB", None).expect("append b");
+        assert_eq!(yjs_content_version(&pool, "n1").expect("after second append"), 2);
+
+        // The batch append path bumps the version as well.
+        let ids = vec!["n2".to_string()];
+        let updates = vec![seed_update("batch")];
+        let devices = vec!["devA".to_string()];
+        yjs_append_batch(&pool, &ids, &updates, &devices, None).expect("batch append");
+        assert_eq!(yjs_content_version(&pool, "n2").expect("batch note"), 1);
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -1305,6 +1305,96 @@ fn fully_decoded_counts(
     total > 0 && decoded_count.get(note).copied().unwrap_or(0) == total
 }
 
+/// Refuse pulled batches that would collapse a note's stored content.
+/// Observed failure mode: a broken / metadata-only server answering a pull
+/// with a state that deletes locally-known content; the append then persists
+/// the wipe and the next compaction makes it durable. A batch that reduces a
+/// large document's `content` fragment to under a fifth of its live nodes is
+/// treated as corruption, not collaboration: its updates are dropped, its
+/// checkpoint is NOT settled (the server re-delivers), and the event is
+/// logged loudly. Small docs skip the check (cheap to rebuild, low stakes).
+/// The guard fails open: an unmeasurable state is never blocked here.
+const GUARD_MIN_CONTENT_NODES: u32 = 300;
+
+fn filter_destructive_pull(
+    pool: &DbPool,
+    decoded: &[(String, Vec<u8>, String)],
+    app_key: &[u8; 32],
+) -> (Vec<(String, Vec<u8>, String)>, HashSet<String>) {
+    use yrs::{
+        updates::decoder::Decode as _, Doc as YrsDoc, Transact as _, Update as YrsUpdate,
+        XmlFragment as _,
+    };
+    let mut order: Vec<String> = Vec::new();
+    let mut per_note: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, (note, _, _)) in decoded.iter().enumerate() {
+        if !per_note.contains_key(note) {
+            order.push(note.clone());
+        }
+        per_note.entry(note.clone()).or_default().push(i);
+    }
+    let mut refused: HashSet<String> = HashSet::new();
+    for note in order {
+        let idxs = match per_note.get(&note) {
+            Some(v) => v,
+            None => continue,
+        };
+        let rows = match crate::db::yjs_get_updates(pool, &note, Some(*app_key)) {
+            Ok(rows) => rows,
+            Err(_) => continue, // fail-open: unmeasurable state is not blocked
+        };
+        if rows.is_empty() {
+            continue;
+        }
+        let doc = YrsDoc::new();
+        {
+            let mut t = doc.transact_mut();
+            for (_, blob) in &rows {
+                if let Ok(u) = YrsUpdate::decode_v1(blob) {
+                    let _ = t.apply_update(u);
+                }
+            }
+        }
+        let frag = doc.get_or_insert_xml_fragment("content");
+        let before = {
+            let t = doc.transact();
+            frag.len(&t)
+        };
+        if before < GUARD_MIN_CONTENT_NODES {
+            continue;
+        }
+        {
+            let mut t = doc.transact_mut();
+            for &i in idxs {
+                if let Ok(u) = YrsUpdate::decode_v1(&decoded[i].1) {
+                    let _ = t.apply_update(u);
+                }
+            }
+        }
+        let after = {
+            let t = doc.transact();
+            frag.len(&t)
+        };
+        if (after as usize) * 5 < before as usize {
+            crate::rs_log!(
+                "[sync::cloud] DESTRUCTIVE PULL refused for {note}: content {before} -> {after} nodes"
+            );
+            refused.insert(note);
+        }
+    }
+    if refused.is_empty() {
+        return (decoded.to_vec(), refused);
+    }
+    (
+        decoded
+            .iter()
+            .filter(|(n, _, _)| !refused.contains(n))
+            .cloned()
+            .collect(),
+        refused,
+    )
+}
+
 fn decode_append_store(
     pool: &DbPool,
     app_key: &[u8; 32],
@@ -1453,6 +1543,17 @@ fn decode_append_store(
             let _ = db::db_delete(pool, &ckpt_key(note));
         }
         return Ok((Vec::new(), 0));
+    }
+    // Content-loss guard: refuse a pull that would erase a large note's
+    // stored content (server-state corruption signature). Refused notes keep
+    // their checkpoints unset so the server re-delivers instead of the loss
+    // becoming durable.
+    let (mut decoded, refused) = filter_destructive_pull(pool, &decoded, app_key);
+    let mut pending = pending;
+    if !refused.is_empty() {
+        for note in &refused {
+            pending.remove(note);
+        }
     }
     // Meta-before-note, mirroring the JS pull apply order.
     decoded.sort_by_key(|(n, _, _)| usize::from(n != META_DOC_ID));

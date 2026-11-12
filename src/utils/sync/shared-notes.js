@@ -65,19 +65,37 @@ export async function registerSharedNoteLocation(noteId, workspaceId) {
 }
 
 // Durable pull+push of exactly one shared note under its owning workspace id.
+// A 402 (plan limit) is policy, not a transient fault: the server keeps
+// rejecting until the account changes, so after the first rejection all
+// single-note syncs no-op for a while instead of burning a network round-trip
+// on every open and every save.
+let quotaBlockedUntil = 0;
+const QUOTA_BACKOFF_MS = 10 * 60 * 1000;
+
+export function isSyncQuotaBlocked() {
+  return Date.now() < quotaBlockedUntil;
+}
+
 export async function syncSharedNote(noteId, { serverUrl = '', token = '' } = {}) {
   // A note the account owns (not just one shared with it) syncs against its
   // own workspace too — a second device reads the account's workspace, so a
   // key that resolves late still needs this re-pull to see the content.
   const workspaceId = accessOf(noteId)?.workspaceId || resolveNoteWorkspaceId(noteId, useWorkspaceStore().activeId);
   if (!noteId || !workspaceId) return false;
+  if (Date.now() < quotaBlockedUntil) return false;
   try {
     const backend = await getBackend();
     if (!backend) return false;
     await backend.invoke('sync:cloud-note', { noteId, workspaceId, serverUrl, token });
     return true;
   } catch (err) {
-    logger.warn('[shared-notes] single-note sync failed:', err?.message || err);
+    const message = String(err?.message || err || '');
+    if (message.includes('402')) {
+      quotaBlockedUntil = Date.now() + QUOTA_BACKOFF_MS;
+      logger.warn('[shared-notes] sync blocked by plan limit (402); backing off for 10 minutes');
+    } else {
+      logger.warn('[shared-notes] single-note sync failed:', message);
+    }
     return false;
   }
 }

@@ -651,6 +651,8 @@ dependencies = [
  "chrono",
  "dirs 5.0.1",
  "file_icon_provider",
+ "filetime",
+ "flate2",
  "font-kit",
  "futures-util",
  "gtk",
