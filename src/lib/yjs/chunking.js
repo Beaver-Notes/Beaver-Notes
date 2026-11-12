@@ -31,8 +31,8 @@ export const CHUNK_TARGET_NODES = 150;
 // hard caps forces a cut between arbitrary nodes.
 export const CHUNK_HARD_MAX_BYTES = 512 * 1024;
 export const CHUNK_HARD_MAX_NODES = 400;
-// Manifest key inside the base note doc's Y.Map.
-export const CHUNK_MANIFEST_KEY = 'manifest';
+// Manifest key inside the base note doc's Y.Map (kept in chunk-store.js, its
+// only reader/writer).
 
 export function chunkSlotId(noteId, index) {
   return `${noteId}_c${index}`;

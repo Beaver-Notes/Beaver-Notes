@@ -16,13 +16,6 @@ export class CustomTableView extends TableView {
     Object.entries(this.containerAttributes).forEach(([key, value]) => {
       if (key !== 'class') this.dom.setAttribute(key, value);
     });
-
-    // Removed wrapper divs that are no longer needed:
-    //  - blockContainer:    data-content-type now lives on tableWrapper directly
-    //  - table-container:   redundant; tableWrapper already has overflow-x: auto
-    //  - table-controls:    TableHandle is a separate editor-level component
-    //  - table-selection-overlay-container: TableSelectionOverlay uses Teleport to body
-    // Each removed div saves ~4 elements × 500 tables = ~2,000 DOM nodes.
   }
 
   ignoreMutation(mutation) {

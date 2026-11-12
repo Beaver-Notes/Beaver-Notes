@@ -179,7 +179,7 @@ import { useDialog } from '@/lib/dialog';
 import { useRouter } from 'vue-router';
 import FolderContextMenu from './FolderContextMenu.vue';
 import FolderTree from './FolderTree.vue';
-import { CUSTOMIZE_DEFAULT_COLOR } from '@/lib/customize';
+import { CUSTOMIZE_DEFAULT_COLOR, lightenHex } from '@/lib/customize';
 
 const props = defineProps({
   folder: { type: Object, required: true },
@@ -260,37 +260,6 @@ function onClickOutside() {
 }
 onMounted(() => window.addEventListener('click', onClickOutside));
 onBeforeUnmount(() => window.removeEventListener('click', onClickOutside));
-
-function hexToRgb(hex) {
-  const normalized = hex.replace('#', '').trim();
-  const fullHex =
-    normalized.length === 3
-      ? normalized
-          .split('')
-          .map((char) => char + char)
-          .join('')
-      : normalized;
-  if (!/^[0-9a-fA-F]{6}$/.test(fullHex)) return null;
-  return {
-    r: parseInt(fullHex.slice(0, 2), 16),
-    g: parseInt(fullHex.slice(2, 4), 16),
-    b: parseInt(fullHex.slice(4, 6), 16),
-  };
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function lightenHex(hex, amount = 0.18) {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return '#818cf8';
-  const toHex = (value) =>
-    clamp(Math.round(value + (255 - value) * amount), 0, 255)
-      .toString(16)
-      .padStart(2, '0');
-  return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
-}
 
 const itemCount = computed(() => {
   return noteStore.notesCountByFolder.get(props.folder.id) || 0;

@@ -102,7 +102,6 @@ function mountIndex() {
         HomeNoteMasonry: true,
         HomeFolderCard: true,
         FolderTree: true,
-        FolderCustomizeModal: true,
         Actions: true,
         EmptyState: true,
         MobileSyncStrip: true,
