@@ -8,7 +8,7 @@ import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
-import { saveNote, syncSearchIndex } from '@/store/note/index';
+import { saveNote, syncSearchIndex, isSearchIndexCurrent } from '@/store/note/index';
 import { yMapToObj, toUint8Array, getDeviceId } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from './meta-doc.js';
 import { registerWsKeyForNotes } from '@/utils/sync/shared-keys.js';
@@ -73,6 +73,8 @@ function evictRemovedNotes(noteStore, docIds) {
     if (isPendingNoteMeta(id)) continue;
     delete noteStore.data[id];
   }
+  // Evictions change folder counts (notes disappeared); caller rebuilds when >0.
+  return removed.length;
 }
 
 /** Push workspace-doc changes into Pinia (one-way doc to store). Idempotent, Y.Doc is metadata truth, content lives per-note. */
@@ -117,6 +119,10 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
     metaChanges.labelColors ||
     sweptMeta;
 
+  // Folder counts derive from folderId (+ existence); rebuild the O(n) map
+  // only when one of those actually changed instead of on every burst.
+  let folderCountsDirty = isInitialHydration || sweptMeta;
+
   // Incremental batches rebuild only when flagged: avoids app-wide re-renders at scale. Initial rebuilds all.
   if (foldersNeedRebuild) {
     const folders = {};
@@ -144,28 +150,52 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
       const existing = noteStore.data[id] || {};
       const { note: merged, needsSnapshot } = mergeNoteEntry(existing, meta);
       if (needsSnapshot) pendingPreviews.push(id);
+      if (
+        !existing.id ||
+        existing.folderId !== merged.folderId ||
+        existing.isArchived !== merged.isArchived
+      ) {
+        folderCountsDirty = true;
+      }
       noteStore.data[id] = merged;
       // Remote/peered notes only reached the store here; without this they stay
-      // unsearchable until the next launch rebuilds the index.
-      syncSearchIndex(merged);
+      // unsearchable until the next launch rebuilds the index. Local saves
+      // already re-indexed via saveNote → syncSearchIndex, so skip the
+      // redundant re-tokenization when the index is known-current.
+      if (!isSearchIndexCurrent(merged)) syncSearchIndex(merged);
     }
 
-    evictRemovedNotes(noteStore, new Set(yNotes.keys()));
+    if (evictRemovedNotes(noteStore, new Set(yNotes.keys())) > 0) {
+      folderCountsDirty = true;
+    }
   } else {
     for (const [id, yNote] of yNotes.entries()) {
       const meta = yMapToObj(yNote);
       const existing = noteStore.data[id] || {};
       const { note: merged, needsSnapshot } = mergeNoteEntry(existing, meta);
       if (needsSnapshot) pendingPreviews.push(id);
+      if (
+        !existing.id ||
+        existing.folderId !== merged.folderId ||
+        existing.isArchived !== merged.isArchived
+      ) {
+        folderCountsDirty = true;
+      }
       noteStore.data[id] = merged;
-      syncSearchIndex(merged);
+      if (!isSearchIndexCurrent(merged)) syncSearchIndex(merged);
     }
 
-    evictRemovedNotes(noteStore, new Set(yNotes.keys()));
+    if (evictRemovedNotes(noteStore, new Set(yNotes.keys())) > 0) {
+      folderCountsDirty = true;
+    }
+    // Full sweep: projections came from the whole doc, keep the old behavior.
+    folderCountsDirty = true;
   }
 
-  // Direct Yjs hydration bypasses the store's incremental counters.
-  noteStore.rebuildFolderCounts();
+  // Direct Yjs hydration bypasses the store's incremental counters. Skipped
+  // when nothing folder-relevant changed: the version bump busts the Pinia
+  // getter cache and used to force O(n) work + re-renders on every burst.
+  if (folderCountsDirty) noteStore.rebuildFolderCounts();
 
   // Batch-load snapshots for notes with no in-memory content source.
   if (pendingPreviews.length > 0) {

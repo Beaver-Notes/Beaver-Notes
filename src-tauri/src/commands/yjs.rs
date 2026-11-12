@@ -1,9 +1,27 @@
 use std::collections::HashMap;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use tauri::{AppHandle, Manager, State};
 
 use crate::shared::*;
+
+/// Snapshot responses cross the IPC bridge as base64 strings; multi-MB notes
+/// transferred better compressed (gzip shrinks yjs updates ~3x, so the base64
+/// payload shrinks proportionally). The JS side detects the gzip magic and
+/// decompresses natively (DecompressionStream), falling back to raw bytes for
+/// older builds.
+fn gzip_snapshot(data: &[u8]) -> Result<Vec<u8>, AppError> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    use std::io::Write as _;
+    encoder
+        .write_all(data)
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    encoder
+        .finish()
+        .map_err(|e| AppError::Other(e.to_string()))
+}
 
 /// No key (plaintext) only when encryption not configured. When locked, fail closed with EncryptionLocked:
 /// reading ciphertext as plaintext poisons the Yjs decoder, writing interleaves plaintext.
@@ -126,7 +144,7 @@ pub(crate) async fn yjs_get_snapshot(
         tokio::task::spawn_blocking(move || crate::db::yjs_get_snapshot(&pool, &note_id, key))
             .await
             .map_err(|e| AppError::Other(e.to_string()))??;
-    Ok(BASE64.encode(result))
+    Ok(BASE64.encode(gzip_snapshot(&result)?))
 }
 
 /// Fresh merged snapshots for many notes in one round-trip (batched SQL, no N+1 IPC).
@@ -146,7 +164,10 @@ pub(crate) async fn yjs_get_snapshots(
             .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(result
         .into_iter()
-        .map(|(id, blob)| (id, BASE64.encode(blob)))
+        .map(|(id, blob)| {
+            let gzipped = gzip_snapshot(&blob).unwrap_or_else(|_| blob.clone());
+            (id, BASE64.encode(gzipped))
+        })
         .collect())
 }
 
@@ -189,6 +210,20 @@ pub(crate) async fn yjs_get_state_vector(
         .map(serde_json::to_value)
         .transpose()?
         .unwrap_or(serde_json::json!({})))
+}
+
+/// Cheap freshness probe for the chunk index: the note's content version.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn yjs_content_version(
+    app: AppHandle,
+    note_id: String,
+    state: State<'_, AppState>,
+) -> Result<i64, AppError> {
+    let pool = data_pool(&app, &state)?;
+    tokio::task::spawn_blocking(move || crate::db::yjs_content_version(&pool, &note_id))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Replace all updates with one compressed snapshot to bound row count.

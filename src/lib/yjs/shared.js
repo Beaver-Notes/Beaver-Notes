@@ -107,11 +107,47 @@ export function applyRemote(noteId, update) {
   return applyToDoc(noteId, doc, update);
 }
 
+// Content-loss guard for remote batches: a pull that would erase the
+// overwhelming majority of a large document's content is treated as server
+// state corruption, not collaboration (observed: a broken metadata-only
+// server answering pulls with a destructive state). Large docs dry-run the
+// batch against a clone of the current state and refuse collapses; small
+// docs skip the guard (cheap to rebuild, low stakes). Fails open: a guard
+// error never blocks sync.
+const GUARD_MIN_NODES = 300;
+const GUARD_KEEP_RATIO = 0.2;
+
+function dryRunContentLength(doc, update) {
+  const dry = new Y.Doc();
+  try {
+    Y.applyUpdate(dry, Y.encodeStateAsUpdate(doc), 'sync');
+    Y.applyUpdate(dry, update, 'sync');
+    return dry.getXmlFragment('content').length;
+  } finally {
+    dry.destroy();
+  }
+}
+
 function applyToDoc(noteId, doc, update) {
   let changed = false;
   const onUpdate = () => {
     changed = true;
   };
+  const beforeNodes = doc.getXmlFragment('content').length;
+  if (beforeNodes >= GUARD_MIN_NODES) {
+    let afterNodes = beforeNodes;
+    try {
+      afterNodes = dryRunContentLength(doc, update);
+    } catch (err) {
+      console.warn('[yjs] content-loss guard could not dry-run, applying anyway:', err?.message);
+    }
+    if (afterNodes * (1 / GUARD_KEEP_RATIO) < beforeNodes) {
+      console.error(
+        `[yjs] DESTRUCTIVE remote update refused for ${noteId}: content ${beforeNodes} -> ${afterNodes} nodes`,
+      );
+      return false;
+    }
+  }
   doc.on('update', onUpdate);
   try {
     doc.transact(() => {

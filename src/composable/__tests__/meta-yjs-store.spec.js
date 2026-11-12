@@ -19,6 +19,7 @@ vi.mock('@/store/workspace.ts', () => ({ useWorkspaceStore: () => ({ activeId: n
 vi.mock('@/store/note/index', () => ({
   saveNote: vi.fn(),
   syncSearchIndex: vi.fn(),
+  isSearchIndexCurrent: vi.fn(() => false),
 }));
 vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc, onWorkspaceDocDestroy: vi.fn() }));
 

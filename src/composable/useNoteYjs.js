@@ -5,6 +5,7 @@ import {
   getUpdates,
   getSnapshot,
   getStateVector,
+  getContentVersion,
   compactUpdates,
   compactNote,
 } from '@/lib/native/yjs.js';
@@ -13,6 +14,7 @@ import {
   planOpenPath,
   readManifest,
   rebuildChunkIndex,
+  upgradeManifestVersion,
 } from '@/lib/yjs/chunk-store.js';
 import { shouldChunkDoc } from '@/lib/yjs/chunking.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
@@ -66,6 +68,16 @@ async function retryWrite(fn, label) {
   }
 }
 
+// Background jobs (compaction, key provisioning) must not start while a note is
+// still loading: they take the SQLite write lock and the crypto/cloud IPC queue
+// and turn a ~0.5s open into seconds. Run them once the UI is idle instead.
+function whenIdle(fn, timeout = 2000) {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    return window.requestIdleCallback(fn, { timeout });
+  }
+  return setTimeout(fn, timeout);
+}
+
 async function seedFromTipJson(ydoc, contentJson, noteId) {
   const { prosemirrorJSONToYXmlFragment } = await import('@tiptap/y-tiptap');
   const schema = await ensureSchema();
@@ -89,9 +101,21 @@ async function loadStateIntoDoc(newDoc, noteId) {
   try {
     const manifest = await readManifest(noteId);
     if (manifest) {
-      const storedSv = await getStateVector(noteId);
-      if (planOpenPath({ manifest, storedStateVector: storedSv }) === 'chunks') {
-        const loaded = await loadChunksIntoDoc(noteId, manifest, newDoc);
+      // Read the cheap version first: it is captured before the state-vector
+      // probe, so an append landing during the probe leaves the recorded
+      // version behind the stored one (stale index, not a missing edit).
+      const contentVersion = await getContentVersion(noteId);
+      const legacy = typeof manifest.contentVersion !== 'number';
+      const storedSv = legacy ? await getStateVector(noteId) : null;
+      if (planOpenPath({ manifest, storedStateVector: storedSv, contentVersion }) === 'chunks') {
+        if (legacy) void upgradeManifestVersion(noteId, manifest, contentVersion);
+        // Load only the first chunk initially — enough for the visible viewport
+        // with virtualization. Off-screen chunks load in the background after
+        // first paint, and on-demand when placeholders materialize.
+        const firstSlot = manifest.chunks[0]?.key;
+        const loaded = firstSlot
+          ? await loadChunksIntoDoc(noteId, manifest, newDoc, [firstSlot])
+          : false;
         // Serve from chunks only when content actually arrived: an index can
         // be watermark-current yet describe an empty document (e.g. rebuilt
         // after a wipe); returning here would also skip the caller's
@@ -104,6 +128,9 @@ async function loadStateIntoDoc(newDoc, noteId) {
             newDoc.transact(() => title.insert(0, String(manifest.title)), 'load');
           }
           t?.end();
+          // Background-load remaining chunks after first paint so the Y.Doc is
+          // complete before the user scrolls far. Never blocks first render.
+          void loadRemainingChunks(noteId, manifest, newDoc, firstSlot);
           return;
         }
       }
@@ -160,6 +187,30 @@ async function loadStateIntoDoc(newDoc, noteId) {
     }
   }
   t?.end();
+}
+
+// Background-load the remaining (off-screen) chunk slots after first paint.
+// Never blocks first render: yields to the event loop, then fetches chunks
+// that weren't included in the initial lazy load. Applied to the same Y.Doc
+// so ProseMirror receives them as normal Yjs update events and materializes
+// placeholders as they scroll into view.
+//
+// Chunks are applied in small batches with yields between batches so the
+// main thread stays responsive: each Y.applyUpdate triggers a ProseMirror
+// re-render, and applying all 14 chunks at once blocks the UI for seconds.
+async function loadRemainingChunks(noteId, manifest, targetDoc, firstSlot) {
+  const remainingSlots = manifest.chunks
+    .map((c) => c.key)
+    .filter((k) => k !== firstSlot);
+  if (remainingSlots.length === 0) return;
+  // Yield so first paint completes before contending for the SQLite lock and
+  // the crypto/cloud IPC queue.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  try {
+    await loadChunksIntoDoc(noteId, manifest, targetDoc, remainingSlots);
+  } catch (err) {
+    console.warn('[yjs] background chunk load failed:', err?.message);
+  }
 }
 
 // Persist a Yjs update to SQLite (Rust reads `note_content`) and dirty-kick
@@ -227,14 +278,25 @@ export function useNoteYjs() {
   let rebuilding = false;
 
   function scheduleChunkRebuild() {
-    if (rebuildTimer) clearTimeout(rebuildTimer);
-    rebuildTimer = setTimeout(() => {
+    if (rebuildTimer) {
+      if (typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(rebuildTimer);
+      else clearTimeout(rebuildTimer);
+    }
+    const run = () => {
       rebuildTimer = null;
       const noteId = currentNoteId;
       const docRef = currentDoc;
       if (disposed || !noteId || !docRef) return;
       void runChunkRebuild(noteId, docRef);
-    }, CHUNK_REBUILD_IDLE_MS);
+    };
+    // Defer to an idle period so the O(document) rebuild never pins the main
+    // thread while the user is actively editing the open note. Falls back to
+    // a timed deferral where requestIdleCallback isn't available.
+    if (typeof window !== 'undefined' && window.requestIdleCallback) {
+      rebuildTimer = window.requestIdleCallback(run);
+    } else {
+      rebuildTimer = setTimeout(run, CHUNK_REBUILD_IDLE_MS);
+    }
   }
 
   async function runChunkRebuild(noteId, docRef) {
@@ -247,8 +309,15 @@ export function useNoteYjs() {
       if (previous) {
         // Index already reflects the stored state (no edits since the last
         // rebuild): redoing O(document) work would produce identical chunks.
-        const storedSv = await getStateVector(noteId);
-        if (planOpenPath({ manifest: previous, storedStateVector: storedSv }) === 'chunks') return;
+        const contentVersion = await getContentVersion(noteId);
+        const storedSv =
+          typeof previous.contentVersion === 'number' ? null : await getStateVector(noteId);
+        if (
+          planOpenPath({ manifest: previous, storedStateVector: storedSv, contentVersion }) ===
+          'chunks'
+        ) {
+          return;
+        }
       }
       await rebuildChunkIndex(noteId, docRef, { previousManifest: previous });
     } catch (err) {
@@ -332,7 +401,10 @@ export function useNoteYjs() {
   flushHandlers.add(flushHandler);
 
   // Unregister / leave the room / destroy the active doc. Idempotent.
-  function teardownActiveDoc() {
+  // `deferCompact` moves the Rust merge of the outgoing note out of a note
+  // switch: it rewrites the whole content blob and would hold the DB while the
+  // incoming note is still reading its chunks.
+  function teardownActiveDoc({ deferCompact = false } = {}) {
     const oldDoc = currentDoc;
     const oldNoteId = currentNoteId;
     currentDoc = null;
@@ -340,9 +412,12 @@ export function useNoteYjs() {
     if (!oldDoc) return;
     if (oldNoteId) {
       // Fire-and-forget Rust merge; pending was flushed before the switch.
-      compactNote(oldNoteId).catch(() => {
-        // non-critical
-      });
+      const compact = () =>
+        compactNote(oldNoteId).catch(() => {
+          // non-critical
+        });
+      if (deferCompact) whenIdle(compact);
+      else compact();
       // Unmount awaits a flush, so a later mount of the same note can register
       // its doc while this instance is suspended. Only give up the shared entry
       // if it is still ours; otherwise the live editor would silently stop
@@ -406,13 +481,17 @@ export function useNoteYjs() {
       clearTimeout(flushTimer);
       flushTimer = null;
     }
+    const tFlush = speed('yjs_load_note_flush');
     await flushPendingUpdates();
+    tFlush?.end();
     if (isStale()) {
       t?.end();
       return;
     }
 
-    teardownActiveDoc();
+    const tTeardown = speed('yjs_load_note_teardown');
+    teardownActiveDoc({ deferCompact: true });
+    tTeardown?.end();
 
     const newDoc = new Y.Doc();
 
@@ -525,58 +604,47 @@ export function useNoteYjs() {
       }
     };
     // Server-bound provisioning (key distribution + shared re-pull) must not
-    // hold the open hostage: against a broken/backed-off server these awaits
-    // ran 40s+ (observed under 402s). Race it with a cap; the work continues
-    // in the background — the key-resolved callback clears the advisory flag
-    // and re-keys the room whenever it lands — so the editor ships on time.
-    const PROVISION_CAP_MS = 4000;
-    let provisionSettled = false;
-    const provision = (async () => {
-      try {
-        const workspaceStore = useWorkspaceStore();
-        const sharing = useNoteSharing();
-        // Fired by the background envelope recovery once the key actually lands:
-        // clear the advisory flag and re-key the realtime room with the shared
-        // key so subsequent updates seal under it (durable sealing is registered
-        // by rememberAndProvision in the same path). A first-open pull that ran
-        // before the key landed could not decrypt, so re-pull once it resolves.
-        const onKeyResolved = async (hex) => {
-          if (!hex || isStale()) return;
-          pendingSetup.value = false;
-          // A shared-with-me note lives in its owning workspace's room, not the
-          // active one (Google-Docs-style note presence).
-          const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
-          if (ownerId) {
-            await setRoomKey(`workspace:${ownerId}:note:${noteId}`, hex);
-          }
-          await refreshSharedContent();
-        };
-        noteKeyHex = await sharing.ensureNoteKey(noteId, { backgroundRetry: true, onKeyResolved });
+    // hold the open hostage: crypto + sync:cloud-note Tauri IPC ran ~3s per
+    // open, and it contends with the load for the DB and the IPC queue. It is
+    // started on idle below. The onKeyResolved callback re-keys the room and
+    // re-pulls once the key lands; pendingSetup stays advisory-only and never
+    // gates editing.
+    const workspaceStore = useWorkspaceStore();
+    const sharing = useNoteSharing();
+    const onKeyResolved = async (hex) => {
+      if (!hex || isStale()) return;
+      pendingSetup.value = false;
+      const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
+      if (ownerId) {
+        await setRoomKey(`workspace:${ownerId}:note:${noteId}`, hex);
+      }
+      await refreshSharedContent();
+    };
+    const tProvision = speed('yjs_load_note_provision');
+    // Deferred like compaction: crypto + cloud IPC must not compete with the
+    // load or the editor build. pendingSetup stays advisory-only either way.
+    whenIdle(() => {
+      void sharing.ensureNoteKey(noteId, { backgroundRetry: true, onKeyResolved }).then((hex) => {
+        noteKeyHex = hex;
         const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
         if (noteKeyHex && ownerId) {
-          await setRoomKey(`workspace:${ownerId}:note:${noteId}`, noteKeyHex);
+          void setRoomKey(`workspace:${ownerId}:note:${noteId}`, noteKeyHex);
         }
-        // Same re-pull for the foreground path: the key may have resolved only
-        // now, after the fetch-time durable sync already ran keyless.
-        if (noteKeyHex) await refreshSharedContent();
-      } catch (err) {
+        if (noteKeyHex) {
+          void refreshSharedContent();
+        }
+        tProvision?.end();
+      }).catch((err) => {
         console.warn('[yjs] note-key provisioning skipped:', err);
-      } finally {
-        provisionSettled = true;
-      }
-    })();
-    await Promise.race([
-      provision,
-      new Promise((resolve) => setTimeout(resolve, PROVISION_CAP_MS)),
-    ]);
-    if (!provisionSettled) {
-      console.warn('[yjs] note provisioning deferred (server slow or blocked); continuing in background');
-    }
-    // Advisory only: a missing key no longer gates editing or persistence, it
-    // just records that this device hasn't been handed the shared key *yet*.
+        tProvision?.end();
+      });
+    });
+    // Provisioning is fire-and-forget: it starts once the UI is idle and
+    // continues in the background. The editor must not wait on it — a missing
+    // key is advisory only, it never gates editing or persistence.
     pendingSetup.value = applyNoteKeyResult(noteKeyHex);
     if (isStale()) {
-      if (currentDoc === newDoc) teardownActiveDoc();
+      if (currentDoc === newDoc) teardownActiveDoc({ deferCompact: true });
       else newDoc.destroy();
       t?.end();
       return;

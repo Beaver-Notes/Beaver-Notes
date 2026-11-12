@@ -33,7 +33,7 @@ vi.mock('@/lib/yjs/workspace-doc.js', () => ({
 vi.mock('@/store/folder', () => ({ useFolderStore: () => ({ data: {}, _rebuildIndex: vi.fn() }) }));
 vi.mock('@/store/label', () => ({ useLabelStore: () => ({ data: [], colors: {} }) }));
 vi.mock('@/store/note', () => ({ useNoteStore: () => ({ data: {}, deletedIds: {} }) }));
-vi.mock('@/store/note/index', () => ({ saveNote: vi.fn(), syncSearchIndex: vi.fn() }));
+vi.mock('@/store/note/index', () => ({ saveNote: vi.fn(), syncSearchIndex: vi.fn(), isSearchIndexCurrent: vi.fn(() => false) }));
 
 import { repairStrandedNotes } from '@/lib/yjs/meta-store.js';
 import { removeNoteMeta } from '@/lib/yjs/workspace-doc.js';

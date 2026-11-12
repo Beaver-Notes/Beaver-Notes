@@ -132,6 +132,7 @@ const commandAliases = {
   'yjs:appendBatch': 'yjs_append_batch',
   'yjs:getUpdates': 'yjs_get_updates',
   'yjs:getStateVector': 'yjs_get_state_vector',
+  'yjs:contentVersion': 'yjs_content_version',
   'yjs:getSnapshot': 'yjs_get_snapshot',
   'yjs:getSnapshots': 'yjs_get_snapshots',
   'yjs:compact': 'yjs_compact',

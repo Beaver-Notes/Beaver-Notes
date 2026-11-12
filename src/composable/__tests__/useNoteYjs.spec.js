@@ -124,10 +124,16 @@ describe('late joiner while the note key is pending (non-blocking, self-healing)
   let capturedOpts;
   beforeEach(() => {
     capturedOpts = null;
+    // whenIdle() falls back to a 2s timer when requestIdleCallback is missing;
+    // stub it so key provisioning (and its onKeyResolved handle) runs promptly.
+    window.requestIdleCallback = (fn) => setTimeout(fn, 0);
     ensureNoteKeyMock.mockImplementation((noteId, opts) => {
       capturedOpts = opts;
       return Promise.resolve(null);
     });
+  });
+  afterEach(() => {
+    delete window.requestIdleCallback;
   });
 
   it('accepts and persists an edit under the note id instead of dropping it', async () => {
@@ -148,6 +154,7 @@ describe('late joiner while the note key is pending (non-blocking, self-healing)
   it('clears pendingSetup and re-keys the room when the key arrives later', async () => {
     const { load, doc, pendingSetup } = useNoteYjs();
     await load('late');
+    await tick();
     expect(pendingSetup.value).toBe(true);
     expect(capturedOpts.onKeyResolved).toBeTypeOf('function');
 
