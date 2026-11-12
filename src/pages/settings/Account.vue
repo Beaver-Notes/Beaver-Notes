@@ -442,8 +442,9 @@
       >
         <!-- Storage almost full — kept first in DOM: the billing test clicks
              the first banner's primary action and expects reason 'storage'. -->
+        <!-- Pure upsell this release: hidden outside dev, no purchase path -->
         <div
-          v-if="storageNearLimit && !storageWarningDismissed"
+          v-if="storageNearLimit && !storageWarningDismissed && devMode"
           data-testid="storage-quota-warning"
         >
           <settings-alert
@@ -510,7 +511,7 @@
             :description="planDescription"
           >
             <ui-button
-              v-if="!accountStore.isPaidPlan"
+              v-if="!accountStore.isPaidPlan && devMode"
               variant="primary"
               data-testid="upgrade-choose-plan"
               @click="openPaywall('settings')"
@@ -518,7 +519,7 @@
               {{ tr.choosePlan || 'Choose a plan' }}
             </ui-button>
             <ui-button
-              v-else
+              v-else-if="accountStore.isPaidPlan"
               :loading="billingBusy"
               :disabled="billingBusy"
               :aria-label="tr.manageBilling || 'Manage billing'"
@@ -590,7 +591,7 @@
           }}
         </p>
         <p
-          v-else
+          v-else-if="devMode"
           class="mt-3 px-1 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
         >
           {{ upgradeDescription }}
@@ -599,7 +600,7 @@
         <!-- Cloud sync CTA -->
         <div class="beaver-sync-ready mt-3">
           <div
-            v-if="!accountStore.isPaidPlan"
+            v-if="!accountStore.isPaidPlan && devMode"
             class="flex flex-col gap-3 rounded-xl border border-dashed border-neutral-300 px-5 py-4 dark:border-neutral-700"
           >
             <div>
@@ -1297,6 +1298,7 @@ export default {
     const billingSuccess = ref(false);
     const isMobile = isMobileRuntime();
     const { open: openPaywall } = usePaywall();
+    const devMode = import.meta.env.DEV;
     const upgradeDescription = computed(() =>
       isMobile
         ? translations.value?.account?.upgradeDescriptionMobile ||
@@ -1424,9 +1426,11 @@ export default {
         })
         .catch(() => {});
       // Deep link from the Team settings upgrade gate: open the shared paywall
-      // with the plans view so the user picks the tier there.
+      // with the plans view so the user picks the tier there. Paid plans are
+      // hidden this release, so prod ignores the query.
       const requestedPlan = route.query?.upgrade;
       if (
+        devMode &&
         typeof requestedPlan === 'string' &&
         Object.values(PLAN_NAMES).includes(requestedPlan)
       ) {
@@ -1819,6 +1823,7 @@ export default {
       storageUsedPercent,
       storageNearLimit,
       openPaywall,
+      devMode,
       unifiedDevices,
       platformIcon,
       platformLabel,

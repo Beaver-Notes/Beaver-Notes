@@ -14,7 +14,11 @@
           class="transition-colors duration-150 rounded-xl flex items-center h-10 mobile:h-11 w-full gap-2 cursor-pointer"
         >
           <span
-            class="w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
+            class="w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none"
+            :style="{
+              backgroundColor: `${activeColor || '#64748b'}20`,
+              color: activeColor || '#64748b',
+            }"
           >
             <span v-if="activeEmoji">{{ activeEmoji }}</span>
             <v-remixicon v-else name="riFolderLine" size="14" />
@@ -40,7 +44,11 @@
           class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
         >
           <span
-            class="w-9 h-9  rounded-xl flex items-center justify-center text-sm leading-none bg-primary/10 text-primary"
+            class="w-9 h-9 rounded-xl flex items-center justify-center text-sm leading-none"
+            :style="{
+              backgroundColor: `${activeColor || '#64748b'}20`,
+              color: activeColor || '#64748b',
+            }"
           >
             <span v-if="activeEmoji">{{ activeEmoji }}</span>
             <v-remixicon v-else name="riFolderLine" size="14" />
@@ -70,7 +78,7 @@
               :class="
                 acct.id === activeAccountId
                   ? 'bg-primary/10 text-primary'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-200'
               "
             >
               {{ accountInitial(acct) }}
@@ -112,16 +120,20 @@
                     ? 'workspace-option-active'
                     : 'workspace-option'
                 "
-                class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+                class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left transition-colors text-sm"
+                :class="
+                  ws.id === activeId
+                    ? 'bg-primary/10'
+                    : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                "
                 @click="switchWorkspace(ws.id)"
               >
                 <span
                   class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none"
-                  :class="
-                    ws.id === activeId
-                      ? 'bg-primary/10 text-primary'
-                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-400'
-                  "
+                  :style="{
+                    backgroundColor: `${ws.color || '#64748b'}20`,
+                    color: ws.color || '#64748b',
+                  }"
                 >
                   <span v-if="ws.emoji">{{ ws.emoji }}</span>
                   <v-remixicon v-else name="riFolderLine" size="14" />
@@ -142,7 +154,7 @@
                      there is no hover, and hiding management behind one made
                      them undiscoverable. -->
                 <span
-                  v-if="canManageWorkspace(ws)"
+                  v-if="canCustomizeWorkspace(ws)"
                   class="shrink-0 -mr-1 flex items-center gap-0.5"
                 >
                   <button
@@ -157,6 +169,7 @@
                     />
                   </button>
                   <button
+                    v-if="canManageWorkspace(ws)"
                     class="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 motion-press"
                     :aria-label="`Team settings for ${ws.name}`"
                     @click.stop="goToTeamSettings(ws)"
@@ -357,6 +370,7 @@ export default {
     );
     const activeName = computed(() => activeWs.value?.name ?? 'Default');
     const activeEmoji = computed(() => activeWs.value?.emoji ?? '');
+    const activeColor = computed(() => activeWs.value?.color ?? '#64748b');
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const isPaid = computed(() => accountStore.isPaidPlan);
     const accounts = computed(() => listAccounts());
@@ -392,7 +406,10 @@ export default {
     }
 
     const canManageWorkspace = (ws) =>
-      ws.role === 'owner' || ws.role === 'admin';
+      accountStore.planLimits?.flags?.dashboard === true &&
+      (ws.role === 'owner' || ws.role === 'admin');
+    const canCustomizeWorkspace = (ws) =>
+      ws.local || ws.role === 'owner' || ws.role === 'admin';
 
     // Deleted local workspaces whose files are still kept: restoring is just a
     // move back, so the list is read on every open instead of being cached.
@@ -596,6 +613,7 @@ export default {
       activeId,
       activeName,
       activeEmoji,
+      activeColor,
       isAuthenticated,
       isPaid,
       accounts,
@@ -606,6 +624,7 @@ export default {
       accountPlan,
       canCreateWorkspace,
       canManageWorkspace,
+      canCustomizeWorkspace,
       archivedUntil,
       restoreArchived,
       switchWorkspace,

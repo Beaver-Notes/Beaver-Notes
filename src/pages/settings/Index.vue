@@ -745,6 +745,7 @@ export default {
     const { lastSyncAt, lastSyncLabel, syncNow: onSyncNow } = useSyncControl();
     const cloudSync = useSettingsCloudSync();
     const paywall = usePaywall();
+    const devMode = import.meta.env.DEV;
     const isMacOS = computed(() => isMacOSRuntime());
     const route = useRoute();
     const router = useRouter();
@@ -791,7 +792,9 @@ export default {
         ...unmet,
         onClick:
           unmet.kind === 'plan'
-            ? () => paywall.open('sync')
+            ? devMode
+              ? () => paywall.open('sync')
+              : null // no purchase path this release
             : dataSettings.chooseDefaultPath,
       };
     }
@@ -799,7 +802,10 @@ export default {
     const attentionPrimary = computed(() => {
       const status = syncProgressStore.attention?.status;
       if (status === 'plan-upgrade-required')
-        return { label: 'Upgrade', onClick: () => paywall.open('sync') };
+        // Paid plans are hidden this release: no upgrade action in prod.
+        return devMode
+          ? { label: 'Upgrade', onClick: () => paywall.open('sync') }
+          : null;
       if (status === 'authorization-failed')
         return {
           label: 'Sign in again',
@@ -1183,6 +1189,7 @@ export default {
       logCopied,
       copyLogPath,
       attentionPrimary,
+      devMode,
       keyLoaded,
       encryptionBusy,
       encryptionProgress,

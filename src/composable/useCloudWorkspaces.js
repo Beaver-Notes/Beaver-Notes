@@ -313,10 +313,13 @@ export function useCloudWorkspaces() {
   }
 
   async function renameWorkspace(id, newName) {
-    if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
-
     const ws = workspaces.value.find((w) => w.id === id);
     if (!ws) throw new Error('Workspace not found');
+    // Mirrors the server (PATCH /workspaces/:id): owners and admins may edit
+    // on any plan; everyone else gets the same denial the server would send.
+    if (!['owner', 'admin'].includes(ws.role)) {
+      throw new Error('Only owners or admins can update workspaces.');
+    }
 
     const { importCollabKey } = await import('@/utils/crypto/collab');
     const { encryptName } = await import('@/utils/crypto/comment-crypto');
@@ -341,10 +344,12 @@ export function useCloudWorkspaces() {
   }
 
   async function updateWorkspaceDecoration(id, { emoji, color }) {
-    if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
-
     const ws = workspaces.value.find((w) => w.id === id);
     if (!ws) throw new Error('Workspace not found');
+    // Same owner/admin rule as renameWorkspace — see above.
+    if (!['owner', 'admin'].includes(ws.role)) {
+      throw new Error('Only owners or admins can update workspaces.');
+    }
 
     await apiUpdateWorkspaceDecoration(id, { emoji, color, baseUrl: activeBaseUrl() });
 

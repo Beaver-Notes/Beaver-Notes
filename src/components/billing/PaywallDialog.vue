@@ -112,51 +112,6 @@
 
     <!-- Plans -->
     <div v-else>
-      <!-- What you get. Wide: tiles, with the triggering feature outlined.
-           Phone: an icon list. -->
-      <div v-if="wide" class="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <div
-          v-for="f in features"
-          :key="f.key"
-          class="rounded-2xl border p-3"
-          :class="
-            reason === f.key
-              ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-400 dark:bg-amber-400/10'
-              : 'border-neutral-200 dark:border-neutral-700'
-          "
-        >
-          <v-remixicon :name="f.icon" class="h-5 w-5 text-primary" />
-          <p
-            class="mt-2 text-sm font-semibold text-neutral-900 dark:text-neutral-50"
-          >
-            {{ f.title }}
-          </p>
-          <p class="text-xs text-neutral-500 dark:text-neutral-400">
-            {{ f.body }}
-          </p>
-        </div>
-      </div>
-      <ul v-else class="mb-4 flex flex-col gap-2.5">
-        <li v-for="f in features" :key="f.key" class="flex items-center gap-3">
-          <span
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-            :class="
-              reason === f.key
-                ? 'bg-amber-400 text-neutral-900'
-                : 'bg-neutral-100 text-primary dark:bg-neutral-800'
-            "
-          >
-            <v-remixicon :name="f.icon" class="h-5 w-5" />
-          </span>
-          <span class="text-sm text-neutral-900 dark:text-neutral-50">
-            <b class="font-semibold">{{ f.title }}</b>
-            <span class="text-neutral-500 dark:text-neutral-400">
-              {{ f.body }}
-            </span>
-          </span>
-        </li>
-      </ul>
-
       <!-- Mobile collab: Team is not sold via store billing -->
       <div
         v-if="teamOnlyNote"
@@ -484,33 +439,6 @@ const REASON_COPY = {
   },
 };
 
-const FEATURES = [
-  {
-    key: 'sync',
-    icon: 'riRefreshLine',
-    title: 'Sync',
-    body: 'Unlimited devices',
-  },
-  {
-    key: 'history',
-    icon: 'riHistoryLine',
-    title: 'History',
-    body: '30 days to 1 year',
-  },
-  {
-    key: 'collab',
-    icon: 'riGroupLine',
-    title: 'Collab',
-    body: 'Share notes, team workspaces',
-  },
-  {
-    key: 'storage',
-    icon: 'riDatabase2Line',
-    title: 'Storage',
-    body: '10 GB and up',
-  },
-];
-
 // Same trust rule Account.vue enforces: https-only, known billing hosts,
 // or the account's own sync server (passed per call so multi-account
 // switches are respected).
@@ -640,13 +568,6 @@ export default {
       view.value === 'success' ? 'happy' : 'wink',
     );
 
-    const features = computed(() =>
-      FEATURES.map((f) => ({
-        ...f,
-        title: tr.value[`feature-${f.key}-title`] || f.title,
-        body: tr.value[`feature-${f.key}-body`] || f.body,
-      })),
-    );
     // Team is not sold through store billing, so the collab prompt on
     // mobile explains where to get it instead of showing plans.
     const teamOnlyNote = computed(() => isMobile && reason.value === 'collab');
@@ -936,7 +857,6 @@ export default {
       headline,
       subtext,
       characterState,
-      features,
       teamOnlyNote,
       ctaLabel,
       wide,

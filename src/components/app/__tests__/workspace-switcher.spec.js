@@ -4,8 +4,10 @@ import { mount, flushPromises } from '@vue/test-utils';
 import WorkspaceSwitcher from '@/components/app/WorkspaceSwitcher.vue';
 import { clearIndex, saveIndex } from '@/lib/accounts-index';
 
-const { blobs, ctl } = vi.hoisted(() => ({
+const { blobs, ctl, accountState } = vi.hoisted(() => ({
   blobs: new Map(),
+  // Mutable so tests can flip the plan's dashboard flag.
+  accountState: { planLimits: { flags: {} } },
   ctl: {
     confirm: vi.fn(),
     alert: vi.fn(),
@@ -15,6 +17,7 @@ const { blobs, ctl } = vi.hoisted(() => ({
     listArchived: vi.fn(async () => []),
     restoreLocal: vi.fn(async () => {}),
     renameLocal: vi.fn(async () => {}),
+    updateDecoration: vi.fn(async () => ({})),
     storeRename: vi.fn(async () => {}),
   },
 }));
@@ -51,11 +54,14 @@ vi.mock('@/store/account', () => ({
     isAuthenticated: true,
     isPaidPlan: true,
     serverUrl: 'https://api.test',
-    planLimits: { flags: {} },
+    get planLimits() {
+      return accountState.planLimits;
+    },
   }),
 }));
 
 vi.mock('@/store/workspace', () => ({
+  saveLocalWorkspaceDecoration: vi.fn(async () => {}),
   useWorkspaceStore: () => ({
     workspaces: [
       { id: 'ws1', name: 'Personal', role: 'owner' },
@@ -74,6 +80,7 @@ vi.mock('@/composable/useCloudWorkspaces', () => ({
     pendingRequests: ref([]),
     fetchMyPendingRequests: vi.fn(async () => []),
     joinWorkspace: vi.fn(async () => ({})),
+    updateWorkspaceDecoration: ctl.updateDecoration,
   }),
 }));
 
@@ -129,6 +136,7 @@ describe('WorkspaceSwitcher accounts', () => {
     localStorage.clear();
     blobs.clear();
     vi.clearAllMocks();
+    accountState.planLimits = { flags: {} };
     ctl.switchAccount.mockImplementation(async () => ({ switched: true }));
     ctl.signOutAccount.mockImplementation(async () => ({ switched: true }));
     ctl.confirm.mockReset();
@@ -156,14 +164,20 @@ describe('WorkspaceSwitcher accounts', () => {
     expect(wrapper.find('[data-testid="workspace-option"]').exists()).toBe(true);
   });
 
-  it('shows customize and settings icons for owners without any plan flag', async () => {
+  it('shows customize for owners but gates the gear on the dashboard flag', async () => {
     const wrapper = mountSwitcher();
     await flushPromises();
 
+    // Free/pro plans have no dashboard, so team settings is unreachable.
     expect(wrapper.find('[aria-label="Customize Personal"]').exists()).toBe(true);
     expect(wrapper.find('[aria-label="Team settings for Personal"]').exists()).toBe(
-      true,
+      false,
     );
+    // Team/enterprise plans carry flags.dashboard from GET /plans.
+    accountState.planLimits = { flags: { dashboard: true } };
+    expect(wrapper.vm.canManageWorkspace({ role: 'owner' })).toBe(true);
+    expect(wrapper.vm.canManageWorkspace({ role: 'admin' })).toBe(true);
+    expect(wrapper.vm.canManageWorkspace({ role: 'editor' })).toBe(false);
   });
 
   it('switching account goes through switchAccount without a reload', async () => {
@@ -216,6 +230,39 @@ describe('WorkspaceSwitcher accounts', () => {
 
     expect(ctl.renameLocal).toHaveBeenCalledWith('ws-local', 'New');
     expect(ctl.storeRename).not.toHaveBeenCalled();
+  });
+
+  it('routes a cloud edit through decoration and rename', async () => {
+    const wrapper = mountSwitcher();
+    await flushPromises();
+
+    wrapper.vm.formDialogMode = 'edit';
+    wrapper.vm.formDialogWorkspace = { id: 'ws1', name: 'Personal' };
+    await wrapper.vm.handleFormConfirm({ name: 'New', emoji: '📁', color: null });
+
+    expect(ctl.updateDecoration).toHaveBeenCalledWith('ws1', {
+      emoji: '📁',
+      color: null,
+    });
+    expect(ctl.storeRename).toHaveBeenCalledWith('ws1', 'New');
+    expect(ctl.renameLocal).not.toHaveBeenCalled();
+  });
+
+  it('lets local workspaces customize but not manage', () => {
+    const wrapper = mountSwitcher();
+
+    expect(wrapper.vm.canCustomizeWorkspace({ name: 'L', local: true })).toBe(
+      true,
+    );
+    expect(wrapper.vm.canManageWorkspace({ name: 'L', local: true })).toBe(
+      false,
+    );
+    expect(wrapper.vm.canCustomizeWorkspace({ name: 'C', role: 'editor' })).toBe(
+      false,
+    );
+    expect(wrapper.vm.canCustomizeWorkspace({ name: 'C', role: 'admin' })).toBe(
+      true,
+    );
   });
 
   it('asks before signing an account out', async () => {

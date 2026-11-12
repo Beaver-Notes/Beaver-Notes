@@ -100,6 +100,7 @@ function mountAdmin() {
         'ui-button': { template: '<button type="button"><slot /></button>' },
         'ui-modal': true,
         'ui-user-avatar': true,
+        'ui-progress-bar': true,
         'v-remixicon': true,
       },
     },

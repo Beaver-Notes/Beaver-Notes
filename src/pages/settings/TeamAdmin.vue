@@ -1,13 +1,47 @@
 <template>
-  <div class="mb-14 w-full max-w-3xl space-y-6">
-    <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-      {{ tr.teamSettings || 'Team settings' }}
-    </p>
+  <div class="general mb-14 w-full max-w-xl space-y-6">
+    <!-- Workspace overview: shown on every plan, not just team/enterprise. -->
+    <settings-group :title="tr.workspace || 'Workspace'">
+      <settings-row :label="tr.workspaceName || 'Name'">
+        <span class="max-w-[14rem] truncate text-sm text-neutral-600 dark:text-neutral-400">
+          {{ workspaceName }}
+        </span>
+      </settings-row>
+      <settings-row :label="tr.yourRole || 'Your role'">
+        <span class="text-sm text-neutral-600 dark:text-neutral-400">{{ workspaceRoleLabel }}</span>
+      </settings-row>
+      <settings-row
+        v-if="canCustomizeWorkspace"
+        :label="tr.customize || 'Customize'"
+        :description="tr.customizeDescription || 'Change the name, icon and color of this workspace.'"
+      >
+        <ui-button variant="secondary" @click="requestWorkspaceCustomize">
+          {{ tr.customize || 'Customize' }}
+        </ui-button>
+      </settings-row>
+    </settings-group>
+
+    <!-- Plan overview: storage, plan and retention apply to every plan. -->
+    <section class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div class="col-span-2 rounded-2xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900 sm:col-span-1">
+        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.storage || 'Storage' }}</p>
+        <p v-if="quotaLabel" class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ quotaLabel }}</p>
+        <ui-progress-bar :value="storagePercent" class="mt-2.5" />
+      </div>
+      <div class="rounded-2xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.plan || 'Plan' }}</p>
+        <p class="mt-0.5 text-xs capitalize text-neutral-500 dark:text-neutral-400">{{ plan }}</p>
+      </div>
+      <div class="rounded-2xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.history || 'History' }}</p>
+        <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ historyLabel }}</p>
+      </div>
+    </section>
 
     <!-- Upgrade gate: the dashboard flag is team/enterprise-only -->
     <section v-if="plansLoaded && !flags.dashboard" class="space-y-2">
       <div
-        class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-6"
+        class="space-y-1 rounded-2xl border bg-neutral-50 px-4 py-5 dark:bg-neutral-900"
       >
         <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
           {{ tr.dashboardRequires || 'Team dashboard requires the Team or Enterprise plan' }}
@@ -27,14 +61,14 @@
         <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
           {{ tr.pendingRequests || 'Pending requests' }}
         </p>
-        <div class="space-y-2 rounded-xl border border-primary/30 bg-primary/10 p-2">
+        <div class="space-y-2 rounded-2xl border border-primary/30 bg-primary/5 p-2">
           <p class="px-2 text-xs font-medium text-primary">
             {{ tr.needsAttention || 'Needs your attention' }}
           </p>
           <div
             v-for="req in joinRequests"
             :key="`${req.type}:${req.id}`"
-            class="flex flex-col gap-3 rounded-lg border border-neutral-100 bg-white px-3 py-3 dark:border-neutral-800 dark:bg-neutral-950/60 sm:flex-row sm:items-center"
+            class="flex flex-col gap-3 rounded-xl border border-neutral-200/70 bg-white px-3 py-3 dark:border-neutral-800 dark:bg-neutral-950/60 sm:flex-row sm:items-center"
           >
             <div class="flex min-w-0 flex-1 items-center gap-3">
               <ui-user-avatar :name="req.username || req.accountId" :size="32" />
@@ -67,39 +101,9 @@
         </div>
       </section>
 
-      <!-- Plan overview -->
-      <section class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <div class="col-span-2 rounded-xl border bg-white px-4 py-3.5 dark:bg-neutral-950 sm:col-span-1">
-          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.storage || 'Storage' }}</p>
-          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ quotaGB }} GB pooled</p>
-          <div
-            class="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800"
-            role="progressbar"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            :aria-valuenow="storagePercent"
-          >
-            <div
-              class="h-full rounded-full bg-primary transition-all duration-300"
-              :style="{ width: storagePercent + '%' }"
-            ></div>
-          </div>
-        </div>
-        <div class="rounded-xl border bg-white px-4 py-3.5 dark:bg-neutral-950">
-          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.plan || 'Plan' }}</p>
-          <p class="mt-0.5 text-xs capitalize text-neutral-500 dark:text-neutral-400">{{ plan }}</p>
-        </div>
-        <div class="rounded-xl border bg-white px-4 py-3.5 dark:bg-neutral-950">
-          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.history || 'History' }}</p>
-          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ historyLabel }}</p>
-        </div>
-      </section>
-
       <!-- Members -->
-      <section class="space-y-2">
-        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.members || 'Members' }}</p>
-        <div class="divide-y divide-neutral-200 rounded-xl border bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-950">
-          <div class="p-3 space-y-2">
+      <settings-group :title="tr.members || 'Members'">
+        <div class="p-3 space-y-2">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
               <ui-input
                 v-model="inviteInput"
@@ -194,28 +198,28 @@
               <v-remixicon name="riDeleteBin6Line" />
             </ui-button>
           </div>
+          <p
+            v-if="!members.length"
+            class="px-4 py-6 text-sm text-neutral-500 dark:text-neutral-400"
+          >
+            {{ tr.noMembers || 'No members yet.' }}
+          </p>
           <p v-if="error" class="px-4 py-3">
             <span class="text-sm text-red-500" role="alert">{{ error }}</span>
           </p>
-        </div>
-      </section>
+      </settings-group>
 
       <!-- Devices & Sessions -->
-      <section class="space-y-2">
-        <div class="flex items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3.5 dark:bg-neutral-950">
-          <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-              {{ tr.devicesAndSessions || 'Devices & Sessions' }}
-            </p>
-            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-              {{ devicesSummary }}
-            </p>
-          </div>
-          <ui-button variant="secondary" class="max-md:h-11" @click="toggleDevices">
+      <settings-group :title="tr.devicesAndSessions || 'Devices & Sessions'">
+        <div class="flex items-center justify-between gap-3 px-4 py-3.5">
+          <p class="min-w-0 flex-1 text-xs text-neutral-500 dark:text-neutral-400">
+            {{ devicesSummary }}
+          </p>
+          <ui-button variant="secondary" @click="toggleDevices">
             {{ showDevices ? (tr.hide || 'Hide') : (tr.review || 'Review') }}
           </ui-button>
         </div>
-        <div v-if="showDevices" class="divide-y divide-neutral-200 rounded-xl border bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-950">
+        <template v-if="showDevices">
           <div class="flex items-center justify-end px-4 pt-3">
             <ui-button variant="secondary" @click="handleLoadDevices">{{ tr.refresh || 'Refresh' }}</ui-button>
           </div>
@@ -268,78 +272,74 @@
           <p v-if="devices.length === 0 && sessions.length === 0" class="px-4 py-3">
             <span class="text-xs text-neutral-500 dark:text-neutral-400">{{ tr.noDevices || 'No devices or active sessions.' }}</span>
           </p>
-        </div>
-      </section>
+        </template>
+      </settings-group>
 
       <!-- Audit (Enterprise only — the section is hidden, not gated with a card) -->
-      <section v-if="flags.audit" class="space-y-2">
-        <div class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-3.5">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ tr.auditLogs || 'Audit logs' }}</p>
-            </div>
-            <ui-button @click="handleLoadAudit">{{ tr.load || 'Load' }}</ui-button>
-          </div>
-          <ul v-if="flags.audit && auditLogs.length > 0" class="space-y-1 pt-2">
-            <li
-              v-for="log in auditLogs"
-              :key="log.id"
-              class="text-xs text-neutral-500 dark:text-neutral-400"
-            >
-              {{ log.createdAt }} · {{ log.action }}
-            </li>
-          </ul>
+      <settings-group v-if="flags.audit" :title="tr.auditLogs || 'Audit logs'">
+        <div class="flex items-center justify-end px-4 py-3">
+          <ui-button variant="secondary" @click="handleLoadAudit">{{ tr.load || 'Load' }}</ui-button>
         </div>
-      </section>
+        <ul v-if="auditLogs.length > 0" class="space-y-1 px-4 py-3">
+          <li
+            v-for="log in auditLogs"
+            :key="log.id"
+            class="break-words text-xs text-neutral-500 dark:text-neutral-400"
+          >
+            {{ log.createdAt }} · {{ log.action }}
+          </li>
+        </ul>
+      </settings-group>
 
       <!-- SSO (Enterprise only — hidden otherwise) -->
       <section v-if="flags.audit" class="space-y-2">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-3 px-1">
           <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">{{ tr.sso || 'Single Sign-On (SSO)' }}</p>
-          <button
-            class="text-xs text-primary dark:text-primary-light hover:underline rounded focus-visible:ring-2 focus-visible:ring-secondary"
-            @click="sso.showForm = !sso.showForm"
-          >
-            {{ sso.showForm ? (tr.cancel || 'Cancel') : (tr.addSso || '+ Add SSO') }}
-          </button>
+          <ui-button variant="secondary" @click="sso.showForm = !sso.showForm">
+            {{ sso.showForm ? (tr.cancel || 'Cancel') : (tr.addSso || 'Add SSO') }}
+          </ui-button>
         </div>
 
         <template>
-          <div v-if="sso.loading" class="text-xs text-neutral-500 py-4">{{ tr.ssoLoading || 'Loading…' }}</div>
+          <div v-if="sso.loading" class="px-1 text-xs text-neutral-500">{{ tr.ssoLoading || 'Loading…' }}</div>
 
-          <div v-else-if="sso.configs.length === 0 && !sso.showForm" class="space-y-1 bg-white dark:bg-neutral-950 rounded-xl border px-4 py-6">
+          <div v-else-if="sso.configs.length === 0 && !sso.showForm" class="space-y-1 rounded-2xl border bg-neutral-50 px-4 py-6 dark:bg-neutral-900">
             <p class="text-sm text-neutral-500 dark:text-neutral-400">
               {{ tr.noSso || 'No SSO configurations yet. Add one to enable single sign-on for your workspace members.' }}
             </p>
           </div>
 
-          <div v-for="cfg in sso.configs" :key="cfg.id" class="bg-white dark:bg-neutral-950 rounded-xl border px-4 py-3.5">
-            <div class="flex items-center justify-between">
-              <div class="space-y-1">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ cfg.slug }}</span>
-                  <span class="text-xs font-semibold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">{{ cfg.protocol }}</span>
+          <div v-for="cfg in sso.configs" :key="cfg.id" class="rounded-2xl border bg-neutral-50 px-4 py-3.5 dark:bg-neutral-900">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 space-y-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="break-all text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ cfg.slug }}</span>
+                  <span class="rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-semibold text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">{{ cfg.protocol }}</span>
                 </div>
-                <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                <p class="break-all text-xs text-neutral-500 dark:text-neutral-400">
                   {{ fmt('loginUrl', { url: sso.loginUrl(cfg) }) }}
                 </p>
-                <p v-if="cfg.allowedEmailDomains" class="text-xs text-neutral-500 dark:text-neutral-400">
+                <p v-if="cfg.allowedEmailDomains" class="break-words text-xs text-neutral-500 dark:text-neutral-400">
                   {{ fmt('allowedDomains', { domains: cfg.allowedEmailDomains }) }}
                 </p>
               </div>
-              <div class="flex items-center gap-2">
-                <button type="button" class="text-xs text-neutral-500 hover:text-neutral-800 rounded px-1 focus-visible:ring-2 focus-visible:ring-secondary dark:hover:text-neutral-200" @click="sso.editConfig(cfg)">{{ tr.edit || 'Edit' }}</button>
-                <button type="button" class="text-xs text-red-500 hover:text-red-700 rounded px-1 focus-visible:ring-2 focus-visible:ring-secondary dark:hover:text-red-400" @click="sso.removeConfig(cfg)">{{ tr.delete || 'Delete' }}</button>
+              <div class="flex shrink-0 items-center gap-1">
+                <ui-button icon :aria-label="tr.edit || 'Edit'" @click="sso.editConfig(cfg)">
+                  <v-remixicon name="riEditLine" />
+                </ui-button>
+                <ui-button icon variant="danger" :aria-label="tr.delete || 'Delete'" @click="sso.removeConfig(cfg)">
+                  <v-remixicon name="riDeleteBin6Line" />
+                </ui-button>
               </div>
             </div>
           </div>
 
           <!-- Create / Edit form -->
-          <div v-if="sso.showForm" class="bg-white dark:bg-neutral-950 rounded-xl border px-4 py-4 space-y-4">
+          <div v-if="sso.showForm" class="space-y-4 rounded-2xl border bg-neutral-50 px-4 py-4 dark:bg-neutral-900">
             <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
               {{ sso.editingId ? (tr.editSso || 'Edit SSO Configuration') : (tr.newSso || 'New SSO Configuration') }}
             </p>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <ui-select v-model="sso.form.protocol" :label="tr.protocol || 'Protocol'">
                 <option value="saml">SAML 2.0</option>
                 <option value="oidc">OpenID Connect</option>
@@ -362,15 +362,11 @@
               <ui-input v-model="sso.form.oidcClientSecret" label="Client Secret" type="password" />
             </template>
 
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
               <ui-button variant="primary" :disabled="sso.saving" @click="sso.saveConfig">
                 {{ sso.saving ? (tr.saving || 'Saving…') : (sso.editingId ? (tr.update || 'Update') : (tr.create || 'Create')) }}
               </ui-button>
-              <button
-                type="button"
-                class="text-xs text-neutral-500 hover:text-neutral-800 focus-visible:ring-2 focus-visible:ring-secondary rounded dark:hover:text-neutral-200"
-                @click="sso.cancelForm"
-              >{{ tr.cancel || 'Cancel' }}</button>
+              <ui-button variant="secondary" @click="sso.cancelForm">{{ tr.cancel || 'Cancel' }}</ui-button>
               <p v-if="sso.formError" class="text-xs text-red-500">{{ sso.formError }}</p>
             </div>
           </div>
@@ -403,6 +399,7 @@
 <script>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import emitter from 'tiny-emitter/instance';
 import { useAccountStore } from '@/store/account';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useTeamAdmin } from '@/composable/useTeamAdmin';
@@ -412,11 +409,14 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/lib/dialog';
 import { useClipboard } from '@/composable/clipboard';
 import { roleLabel } from '@/utils/roleLabel';
+import SettingsGroup from '@/components/settings/SettingsGroup.vue';
+import SettingsRow from '@/components/settings/SettingsRow.vue';
 import { deviceDisplayName, devicePlatform } from '@/utils/device/device-label';
 import { getSyncDeviceId } from '@/utils/sync/sync-repository';
 import { triggerInteractionHaptic } from '@/lib/native/haptics';
 
 export default {
+  components: { SettingsGroup },
   setup() {
     const accountStore = useAccountStore();
     const workspaceStore = useWorkspaceStore();
@@ -565,7 +565,15 @@ export default {
 
       function devWriteLabel(label) {
         const base = window.location.hash.split('?')[0];
-        window.location.hash = label ? `${base}?data=${DEV_PARAM[label]}` : base;
+        // replaceState, not `location.hash =`: this is a hash-mode router, so
+        // assigning the hash navigates. App.vue keys the route component on
+        // `fullPath` (useAppShell.js:513), so a new query string destroys and
+        // remounts the whole settings page — the fixture click looked slow.
+        window.history.replaceState(
+          null,
+          '',
+          label ? `${base}?data=${DEV_PARAM[label]}` : base,
+        );
       }
 
       const devUuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -848,9 +856,40 @@ export default {
     const addingMember = ref(false);
     const inviteSuccess = ref('');
     const inviteLinkCopied = ref(false);
-    const { copyState: inviteCopyState, copyToClipboard } = useClipboard();
+    const { copyToClipboard } = useClipboard();
 
-    const quotaGB = computed(() => (quotaBytes.value / 1024 ** 3).toFixed(0));
+    // Enterprise quota is Number.MAX_SAFE_INTEGER on the server; printing it
+    // as a GB figure would claim 8,388,608 GB, so it reads as unlimited.
+    const quotaLabel = computed(() => {
+      if (quotaBytes.value >= Number.MAX_SAFE_INTEGER) {
+        return copy('unlimited', 'Unlimited');
+      }
+      if (!quotaBytes.value) return '';
+      return `${(quotaBytes.value / 1024 ** 3).toFixed(0)} GB pooled`;
+    });
+    // Workspace identity is local data: shown on every plan, from the store
+    // the switcher already keeps in sync.
+    const workspace = computed(() => workspaceStore.activeWorkspace || null);
+    const workspaceName = computed(
+      () => workspace.value?.name || tr.value.unknownWorkspace || '—',
+    );
+    const workspaceRoleLabel = computed(() => {
+      const ws = workspace.value;
+      if (!ws) return '—';
+      if (ws.local) return tr.value.localWorkspace || 'On this device';
+      return ws.role ? displayRole(ws.role) : '—';
+    });
+    // Same rule as the switcher: the device holder owns a local workspace.
+    const canCustomizeWorkspace = computed(() => {
+      const ws = workspace.value;
+      if (!ws) return false;
+      return ws.local || ws.role === 'owner' || ws.role === 'admin';
+    });
+    // The workspace switcher owns the customize dialog; asking for it there
+    // keeps one implementation of the local/cloud save paths.
+    function requestWorkspaceCustomize() {
+      if (workspace.value) emitter.emit('customize-workspace', workspace.value.id);
+    }
     // Pooled-storage usage comes from the account subscription (owner's org
     // plan); fall back to 0 so the meter never renders a fake number.
     const storagePercent = computed(() => {
@@ -873,19 +912,6 @@ export default {
         sessions: s,
       });
     });
-
-    // Phones hide the inline role select + remove button; both live in a
-    // tap-to-open sheet instead (see openMemberSheet).
-    const memberSheet = reactive({ open: false, member: null });
-    function openMemberSheet(m) {
-      memberSheet.member = m;
-      memberSheet.open = true;
-    }
-    function handleRemoveFromSheet() {
-      const m = memberSheet.member;
-      memberSheet.open = false;
-      if (m) handleRemoveMember(m);
-    }
 
     const showDevices = ref(false);
     function toggleDevices() {
@@ -1088,7 +1114,6 @@ export default {
       plan,
       flags,
       quotaBytes,
-      quotaGB,
       storagePercent,
       historyLabel,
       devicesSummary,
@@ -1114,7 +1139,6 @@ export default {
       addingMember,
       inviteSuccess,
       inviteLinkCopied,
-      inviteCopyState,
       members: admin.members,
       devices: admin.devices,
       sessions: admin.sessions,

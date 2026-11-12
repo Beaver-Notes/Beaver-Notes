@@ -110,7 +110,8 @@
 
   <ui-dialog />
 
-  <paywall-dialog />
+  <!-- Paid plans are hidden this release; no purchase path in prod builds -->
+  <paywall-dialog v-if="devMode" />
 
   <ui-toast-host />
 
@@ -173,6 +174,7 @@ export default {
     useIncomingShare();
     useShareExtensionSync();
     const { translations } = useTranslations();
+    const devMode = import.meta.env.DEV;
     const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));
     const shell = useAppShell(onboardingCompleted.value);
     const mainRef = ref(null);
@@ -256,6 +258,7 @@ export default {
 
     return {
       ...shell,
+      devMode,
       mainRef,
       skipToMain,
       onboardingCompleted,

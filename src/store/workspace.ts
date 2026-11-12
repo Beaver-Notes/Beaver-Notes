@@ -25,6 +25,31 @@ interface WorkspaceState {
   loading: boolean;
 }
 
+// The Rust workspace registry has no emoji/color columns, so a local
+// workspace's decoration lives here instead of being lost on every retrieve().
+const LOCAL_DECORATION_KEY = 'beaver.localWorkspaceDecorations';
+
+type Decoration = { emoji?: string | null; color?: string | null };
+
+function readLocalDecorations(): Record<string, Decoration> {
+  try {
+    const raw = localStorage.getItem(LOCAL_DECORATION_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, Decoration>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveLocalWorkspaceDecoration(id: string, patch: Decoration) {
+  try {
+    const all = readLocalDecorations();
+    all[id] = { ...all[id], ...patch };
+    localStorage.setItem(LOCAL_DECORATION_KEY, JSON.stringify(all));
+  } catch {
+    // Cosmetic only: private mode or a quota error just skips the icon.
+  }
+}
+
 export const useWorkspaceStore = defineStore('workspace', {
   state: (): WorkspaceState => ({
     workspaces: [],
@@ -84,7 +109,12 @@ export const useWorkspaceStore = defineStore('workspace', {
           const cloudIds = new Set(cloudList.map((w) => w.id));
           localList = (local || [])
             .filter((w) => w.cloudSync === false && !cloudIds.has(w.id))
-            .map((w) => ({ id: w.id, name: w.name, local: true }));
+            .map((w) => ({
+              id: w.id,
+              name: w.name,
+              local: true,
+              ...readLocalDecorations()[w.id],
+            }));
           native = await getActiveLocalWorkspace().catch(() => null);
         }
         this.workspaces = [...cloudList, ...localList];
