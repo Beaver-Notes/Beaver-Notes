@@ -251,6 +251,8 @@
 
 <script>
 import { shallowReactive, onMounted, onUnmounted, ref, nextTick, computed } from 'vue';
+import { debounce } from '@/utils/helpers';
+import { centerPosInView } from '@/utils/ui/scroll';
 import { useTranslations } from '@/composable/useTranslations';
 import { useUiState } from '@/composable/useUiState';
 import { useSidebar } from '@/composable/useSidebar';
@@ -313,12 +315,20 @@ export default {
       props.editor.commands.resetIndex();
     }
 
-    function startSearch() {
+    // The search extension rebuilds full-document decorations on every term
+    // change; on large notes that is hundreds of milliseconds per keystroke.
+    // Debounce it like every other editor-wide recompute (Notion-style).
+    const debouncedTermSearch = debounce(() => {
       if (!props.editor) return;
       props.editor.commands.setSearchTerm(state.query);
-      props.editor.commands.setReplaceTerm(state.replaceWith);
       props.editor.commands.setCaseSensitive(state.caseSensitive);
       goToSelection();
+    }, 250);
+
+    function startSearch() {
+      if (!props.editor) return;
+      props.editor.commands.setReplaceTerm(state.replaceWith);
+      debouncedTermSearch();
     }
 
     function findNextResult() {
@@ -343,11 +353,23 @@ export default {
 
       props.editor.commands.setTextSelection(position);
 
-      const { node } = props.editor.view.domAtPos(
-        props.editor.state.selection.anchor,
-      );
-      if (node instanceof HTMLElement) {
-        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Two-phase navigation (virtual-scroller pattern): the first glide uses
+      // placeholder-based geometry on a content-visibility page, so re-settle
+      // once the destination block has rendered to avoid landing on a blank
+      // region or the wrong offset.
+      const settle = () => {
+        if (props.editor.isDestroyed) return;
+        try {
+          props.editor.commands.setTextSelection(position);
+          centerPosInView(props.editor, position);
+        } catch { /* position shifted between phases */ }
+      };
+      try {
+        if (!centerPosInView(props.editor, position, { onDone: settle })) {
+          props.editor.commands.scrollIntoView();
+        }
+      } catch {
+        props.editor.commands.scrollIntoView();
       }
     }
 

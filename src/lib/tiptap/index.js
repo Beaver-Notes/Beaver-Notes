@@ -32,7 +32,7 @@ import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
 import CollapseHeading from './exts/collapse-heading';
-import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
+import SearchAndReplace from './exts/search-and-replace';
 import Dropcursor from '@tiptap/extension-dropcursor';
 import { CharacterCount } from '@tiptap/extensions';
 import {
@@ -167,9 +167,12 @@ function createBaseExtensions({ yjs = false, direction = null } = {}) {
     markdownEngine,
     Paper,
     PdfBlock,
-    PaperInsert,
-    PaperStrokesMigration,
-    PdfEmbedMigration,
+    // Everything that creates or converts paper/pdf blocks is dev-only for
+    // now: the nodes stay registered so existing docs still parse, but prod
+    // never inserts them. Reads/renders keep working either way.
+    ...(import.meta.env.DEV
+      ? [PaperInsert, PaperStrokesMigration, PdfEmbedMigration]
+      : []),
     Placeholder.configure({
       placeholder: translations.editor.tiptapPlaceholder,
     }),

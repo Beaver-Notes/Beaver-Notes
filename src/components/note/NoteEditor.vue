@@ -1,5 +1,5 @@
 <template>
-  <div class="note-editor mb-64">
+  <div class="note-editor mb-64" :class="{ 'is-ipad': isIpad }">
     <slot v-bind="{ editor }" />
     <drag-handle
       v-if="editor && showDragHandle"
@@ -22,6 +22,7 @@
     </drag-handle>
     <editor-content
       v-if="editor"
+      ref="editorContentRef"
       :editor="editor"
       class="note-editor__content prose prose-stone dark:text-neutral-100 max-w-none print:cursor-none"
     />
@@ -54,7 +55,6 @@ import {
   Commands,
 } from '@/lib/tiptap';
 import { canEdit } from '@/utils/permissions';
-import { debounce } from '@/utils/helpers/index.js';
 import VersionPreview from '@/lib/tiptap/exts/version-preview';
 import LiveCollab from '@/lib/tiptap/exts/live-collab';
 import { NodeRangeSelection } from '@tiptap/extension-node-range';
@@ -62,8 +62,11 @@ import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
 import { offset } from '@floating-ui/dom';
 import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationSeed from '@/lib/tiptap/exts/collaboration-seed';
 import CollaborationCursor from '@tiptap/extension-collaboration-caret';
 import { CommentExtension } from '@sereneinserenade/tiptap-comment-extension';
+import { isIPadRuntime } from '@/lib/tauri/runtime';
+import { useBlockDrag } from '@/composable/useBlockDrag';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
@@ -104,14 +107,16 @@ export default {
     const isYjs = computed(() => !!props.ydoc);
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
 
+    const isIpad = isIPadRuntime();
     const showDragHandle = ref(
-      typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
+      typeof window !== 'undefined' ? window.innerWidth >= 768 && !isIpad : true,
     );
     const isDragging = ref(false);
     const currentNodePos = ref(-1);
+    const editorContentRef = ref(null);
 
     function updateDragHandleVisibility() {
-      showDragHandle.value = window.innerWidth >= 768;
+      showDragHandle.value = window.innerWidth >= 768 && !isIpad;
     }
 
     function onElementDragStart() {
@@ -204,11 +209,21 @@ export default {
       onDragEnd();
     }
 
+    let blockDragUnbind = null;
+
     onMounted(() => {
       window.addEventListener('resize', updateDragHandleVisibility);
       window.addEventListener('dragover', onDragOver);
       window.addEventListener('dragend', onDragEnd);
       window.addEventListener('drop', onDrop);
+
+      // Bind long-press block drag on the editor content DOM element.
+      nextTick(() => {
+        const el = editorContentRef.value?.$el;
+        if (el) {
+          blockDragUnbind = bindBlockDrag(el);
+        }
+      });
     });
 
     onBeforeUnmount(() => {
@@ -219,6 +234,10 @@ export default {
       if (dragScrollRafId) {
         cancelAnimationFrame(dragScrollRafId);
         dragScrollRafId = null;
+      }
+      if (blockDragUnbind) {
+        blockDragUnbind();
+        blockDragUnbind = null;
       }
     });
 
@@ -293,6 +312,7 @@ export default {
           field: 'content',
         }),
       );
+      exts.push(CollaborationSeed);
       if (props.awareness && canEdit(props.role)) {
         try {
           exts.push(
@@ -368,6 +388,31 @@ export default {
           'data-testid': 'note-body-editor',
         },
       },
+      // Perf recorder attribution: one cheap log entry per transaction, so
+      // every recorded stall knows what the editor did just before it. The
+      // recorder also keeps the live editor handle for generic sweeps.
+      onTransaction: ({ editor: ed, transaction }) => {
+        window.__beaverPerf?.tx(transaction, ed);
+      },
+    });
+
+    // Long-press to move any block (touch devices). Only active when the
+    // drag-handle gutter is hidden (iPad, phones, foldables).
+    const {
+      isDragging: blockDragDragging,
+      bindBlockDrag,
+    } = useBlockDrag({
+      editor,
+      enabled: computed(() => isIpad || window.innerWidth < 768),
+      onBlockMoved: (fromPos, toPos) => {
+        // Block moved — editor emits update via its 'update' observer.
+      },
+      onDragStart: (pos) => {
+        isDragging.value = true;
+      },
+      onDragEnd: () => {
+        isDragging.value = false;
+      },
     });
 
     function handleClick(view, pos, { target }) {
@@ -408,15 +453,14 @@ export default {
       }
     }
 
-    // Yjs owns persistence; downstream (previews, search index) only needs a
-    // periodic JSON snapshot — serialize the document at most ~4×/s instead of
-    // once per transaction. Reads fresh state at emit time.
-    const emitYjsUpdate = debounce(() => {
-      // editor.value is nulled on unmount; the route-leave flush
-      // (persistCurrentNote) persists the final state instead.
-      if (editor.value) emit('update', editor.value.getJSON());
-    }, 250);
-
+    // Yjs owns persistence — content is saved via binary updates
+    // (useNoteYjs.js: enqueueUpdate → flushPendingUpdates → appendUpdate),
+    // which is incremental and does not block the main thread. We deliberately
+    // do NOT call editor.getJSON() on every transaction: that walks the entire
+    // ProseMirror tree (O(document), ~200-500ms on large notes) and causes
+    // editor lag. The Pinia store and derived data (card preview, search text,
+    // link index) are synced once on route leave / pagehide via
+    // persistCurrentNote + flushDerivedUpdates.
     onMounted(() => {
       if (!editor.value) return;
       emit('init', editor.value);
@@ -435,18 +479,12 @@ export default {
       }
 
       editor.value.on('update', () => {
-        if (isYjs.value) {
-          emitYjsUpdate();
-          return;
-        }
+        if (isYjs.value) return;
         if (pendingProgrammaticUpdates > 0) {
           pendingProgrammaticUpdates--;
           return;
         }
         hasUserEdited.value = true;
-        const data = editor.value.getJSON();
-        emit('update', data);
-        emit('update:modelValue', data);
       });
     });
 
@@ -513,6 +551,7 @@ export default {
       showDragHandle,
       isDragging,
       currentNodePos,
+      isIpad,
       onElementDragStart,
       onElementDragEnd,
       onNodeChange,

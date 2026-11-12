@@ -58,7 +58,7 @@
     </template>
 
     <div
-      class="editor note-editor-page self-center w-full px-4 pt-10"
+      class="editor note-editor-page self-center w-full px-10 pt-10"
       :class="{
         'mobile-search-open': showSearch,
         'mobile:pt-0': !uiState.inReaderMode,
