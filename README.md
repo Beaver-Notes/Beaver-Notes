@@ -5,7 +5,7 @@
 
   <h1>Beaver Notes</h1>
 
-  <p><strong>Built for people who actually read privacy policies.</strong></p>
+  <p><strong>The workspace that can't read your data</strong></p>
   <p>Your notes, your rules: on your device, your server, or ours.</p>
 
 [![All Contributors](https://img.shields.io/badge/all_contributors-8-orange.svg?style=flat)](#contributors-)

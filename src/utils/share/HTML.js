@@ -16,7 +16,7 @@ function getShareTranslations() {
   }
 }
 
-export async function exportHTML(noteId, noteTitle, editor) {
+export async function exportHTML(noteId, noteTitle, editor, dir) {
   const share = getShareTranslations();
   const { canceled, filePaths = [] } = await chooseExportDirectory(
     share.selectExportFolderTitle || 'Select export folder'
@@ -26,6 +26,7 @@ export async function exportHTML(noteId, noteTitle, editor) {
     mode: 'folder',
     title: noteTitle,
     noteId,
+    dir: dir || document.documentElement.dir || 'auto',
   });
   const outputDir = filePaths[0];
   const fileName = sanitizeFileName(noteTitle);

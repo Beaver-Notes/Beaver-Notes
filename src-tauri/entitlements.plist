@@ -8,5 +8,18 @@
   <true/>
   <key>com.apple.security.files.downloads.read-write</key>
   <true/>
+  <!-- Passkeys (tauri-plugin-passkey): ASAuthorization refuses without an
+       application identifier; associated-domains must match the server's
+       WEBAUTHN_RPID and be authorized in the Apple portal + provisioning
+       profile. See vendor/tauri-plugin-passkey/macos/README.md. -->
+  <key>com.apple.application-identifier</key>
+  <string>F8U6VTU2DJ.com.beavernotes.beaver-notes</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>F8U6VTU2DJ</string>
+  <key>com.apple.developer.associated-domains</key>
+  <array>
+    <string>webcredentials:beavernotes.com</string>
+    <string>webcredentials:api.beavernotes.com</string>
+  </array>
 </dict>
 </plist>

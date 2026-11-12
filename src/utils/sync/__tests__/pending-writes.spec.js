@@ -1,13 +1,35 @@
-import { describe, expect, it, vi } from 'vitest';
-import { queueSyncWrite, setSyncTrigger } from '../pending-writes.js';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-describe('pending sync writes', () => {
-  it('triggers a sync cycle when a write is queued', () => {
-    const trigger = vi.fn();
-    setSyncTrigger(trigger);
+vi.mock('../rust-shim.js', () => ({
+  isRustSyncActive: vi.fn(),
+  kickRustDirty: vi.fn(),
+  kickRustSync: vi.fn(),
+}));
 
-    queueSyncWrite('/sync/commits', 'note-1', new Uint8Array([1]));
+import { isRustSyncActive, kickRustDirty, kickRustSync } from '../rust-shim.js';
 
-    expect(trigger).toHaveBeenCalledTimes(1);
+describe('queueSyncWrite dirty-kick', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('dirty-kicks rust when sync is active', async () => {
+    const { queueSyncWrite } = await import('../pending-writes.js');
+    isRustSyncActive.mockReturnValue(true);
+
+    queueSyncWrite('note-1');
+
+    expect(kickRustDirty).toHaveBeenCalledTimes(1);
+    expect(kickRustSync).not.toHaveBeenCalled();
+  });
+
+  it('plain-kicks rust when sync is inactive', async () => {
+    const { queueSyncWrite } = await import('../pending-writes.js');
+    isRustSyncActive.mockReturnValue(false);
+
+    queueSyncWrite('note-1');
+
+    expect(kickRustSync).toHaveBeenCalledTimes(1);
+    expect(kickRustDirty).not.toHaveBeenCalled();
   });
 });

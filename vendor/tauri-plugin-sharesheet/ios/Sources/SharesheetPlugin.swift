@@ -28,6 +28,9 @@ class SharesheetPlugin: Plugin {
                 activityItems: [args.text],
                 applicationActivities: nil
             )
+            activityViewController.completionWithItemsHandler = { _, _, _, _ in
+                invoke.resolve()
+            }
             self.present(activityViewController)
         }
     }
@@ -41,6 +44,9 @@ class SharesheetPlugin: Plugin {
                 activityItems: [fileURL],
                 applicationActivities: nil
             )
+            activityViewController.completionWithItemsHandler = { _, _, _, _ in
+                invoke.resolve()
+            }
             self.present(activityViewController)
         }
     }

@@ -14,7 +14,8 @@
     "@wdio/local-runner",
     "@wdio/mocha-framework",
     "@wdio/spec-reporter",
-    "lint-staged"
+    "lint-staged",
+    "lib0"
   ],
   "ignoreBinaries": [
     "audit"

@@ -2,17 +2,15 @@ use tauri::{AppHandle, State};
 
 use crate::shared::*;
 
-/// Return all registered workspaces.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_list(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<WorkspaceInfo>, AppError> {
-    Ok(load_workspace_registry(&app, &state)?)
+    visible_workspaces(&app, &state)
 }
 
-/// Return the currently active workspace.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_get_active(
@@ -28,6 +26,11 @@ pub(crate) fn workspace_get_active(
             id: id.clone(),
             name: DEFAULT_WORKSPACE_NAME.to_string(),
             created_at: String::new(),
+            workspace_type: "personal".into(),
+            org_id: None,
+            owner_id: None,
+            cloud_sync: false,
+            archived_at: None,
         });
     Ok(ws)
 }
@@ -47,19 +50,22 @@ pub(crate) fn workspace_create(
     let ws_dir = workspace_root(&app, &state)?.join(&id);
     std::fs::create_dir_all(&ws_dir)?;
 
-    // Create the data.db for the new workspace
     let data_path = ws_dir.join("data.db");
     let _pool = crate::db::open_pool(&data_path)?;
 
-    // Create settings.db for the new workspace
     let settings_path = ws_dir.join("settings.db");
     let new_settings_pool = crate::db::open_pool(&settings_path)?;
 
-    // Optionally copy all settings from the current workspace
+    // Locked vault → rows unreadable; skip silently like the other best-efforts.
     if copy_settings.unwrap_or(false) {
         if let Ok(current_pool) = settings_pool(&app, &state) {
-            if let Ok(all_settings) = crate::db::db_all(&current_pool) {
-                let _ = crate::db::db_replace_all(&new_settings_pool, all_settings);
+            let kv_key = kv_encryption_key(&state).ok().flatten();
+            if let Ok(all_settings) = crate::db::db_all(&current_pool, kv_key) {
+                let kept: serde_json::Map<String, serde_json::Value> = all_settings
+                    .into_iter()
+                    .filter(|(key, _)| !is_sync_routing_setting(key))
+                    .collect();
+                let _ = crate::db::db_replace_all(&new_settings_pool, kept, kv_key);
             }
         }
     }
@@ -69,16 +75,77 @@ pub(crate) fn workspace_create(
         id: id.clone(),
         name,
         created_at: now,
+        workspace_type: "personal".into(),
+        org_id: None,
+        owner_id: None,
+        cloud_sync: false,
+        archived_at: None,
     };
 
     let mut registry = load_workspace_registry(&app, &state)?;
     registry.push(ws.clone());
     save_workspace_registry(&app, &state, &registry)?;
 
-    // Switch to the new workspace
     save_active_workspace_id(&app, &state, &id)?;
+    // Stop the running scheduler before the data pool is swapped: its cached
+    // config still names the old workspace, and the JS side re-`sync_start`s
+    // with the new identity after the switch (finding C10).
+    crate::sync::scheduler::stop_for_workspace_change();
     swap_data_pool(&app, &state, &id)?;
     swap_settings_pool(&app, &state, &id)?;
+
+    Ok(ws)
+}
+
+/// Register a backend (cloud) workspace in the local registry so local mirrors
+/// of shared workspaces participate in removal reconciliation. Creates the
+/// directory + DBs on first registration; never changes the active workspace.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_register_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+    org_id: Option<String>,
+    owner_id: Option<String>,
+    workspace_type: Option<String>,
+    created_at: Option<String>,
+) -> Result<WorkspaceInfo, AppError> {
+    validate_workspace_id(&id)?;
+
+    let ws_root = workspace_root(&app, &state)?;
+    let ws_dir = ws_root.join(&id);
+    if !is_path_inside(&ws_root, &ws_dir) {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    if !ws_dir.exists() {
+        std::fs::create_dir_all(&ws_dir)?;
+        let data_path = ws_dir.join("data.db");
+        let _data_pool = crate::db::open_pool(&data_path)?;
+        let settings_path = ws_dir.join("settings.db");
+        let _settings_pool = crate::db::open_pool(&settings_path)?;
+    }
+
+    let now = created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let ws = WorkspaceInfo {
+        id: id.clone(),
+        name,
+        created_at: now,
+        workspace_type: workspace_type.unwrap_or_else(|| "shared".into()),
+        org_id,
+        owner_id,
+        cloud_sync: true,
+        archived_at: None,
+    };
+
+    let mut registry = load_workspace_registry(&app, &state)?;
+    if let Some(existing) = registry.iter_mut().find(|w| w.id == id) {
+        *existing = ws.clone();
+    } else {
+        registry.push(ws.clone());
+    }
+    save_workspace_registry(&app, &state, &registry)?;
 
     Ok(ws)
 }
@@ -91,21 +158,41 @@ pub(crate) fn workspace_switch(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), AppError> {
-    let registry = load_workspace_registry(&app, &state)?;
-    if !registry.iter().any(|w| w.id == id) {
-        return Err(AppError::Other(format!("Workspace not found: {id}")));
+    // The default workspace is a real registered directory, so it can be
+    // switched to; `validate_workspace_id` only blocks creating or deleting it
+    // (the constant itself needs no path checks).
+    if id != DEFAULT_WORKSPACE_ID {
+        validate_workspace_id(&id)?;
     }
-    let ws_dir = workspace_root(&app, &state)?.join(&id);
+    let registry = load_workspace_registry(&app, &state)?;
+    let ws = registry
+        .iter()
+        .find(|w| w.id == id)
+        .ok_or_else(|| AppError::Other(format!("Workspace not found: {id}")))?;
+    if ws.archived_at.is_some() {
+        return Err(AppError::Other(format!(
+            "Workspace was deleted; restore it first: {id}"
+        )));
+    }
+    let ws_root = workspace_root(&app, &state)?;
+    let ws_dir = ws_root.join(&id);
+    if !is_path_inside(&ws_root, &ws_dir) {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
     if !ws_dir.exists() {
-        return Err(AppError::Other(format!("Workspace directory missing: {id}")));
+        return Err(AppError::Other(format!(
+            "Workspace directory missing: {id}"
+        )));
     }
     save_active_workspace_id(&app, &state, &id)?;
+    // See `workspace_create`: the scheduler must not keep running with the old
+    // workspace's cached identity against the newly swapped pool (finding C10).
+    crate::sync::scheduler::stop_for_workspace_change();
     swap_data_pool(&app, &state, &id)?;
     swap_settings_pool(&app, &state, &id)?;
     Ok(())
 }
 
-/// Rename a workspace.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_rename(
@@ -124,8 +211,28 @@ pub(crate) fn workspace_rename(
     Ok(())
 }
 
-/// Delete a workspace. Cannot delete the currently active workspace.
-/// The workspace directory and all its data are removed.
+/// Detach a workspace from cloud sync without touching its data. Used when a
+/// workspace is missing from a server list: a list miss is not proof of
+/// deletion, so the directory and notes are preserved. The workspace stays in
+/// the registry and becomes readable as a local-only workspace; it re-attaches
+/// automatically if the backend lists it again.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_detach(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), AppError> {
+    validate_workspace_id(&id)?;
+    let mut registry = load_workspace_registry(&app, &state)?;
+    if let Some(ws) = registry.iter_mut().find(|w| w.id == id) {
+        ws.cloud_sync = false;
+    }
+    save_workspace_registry(&app, &state, &registry)?;
+    Ok(())
+}
+
+/// Delete a workspace (never the active or default one); removes its directory.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn workspace_delete(
@@ -133,15 +240,24 @@ pub(crate) fn workspace_delete(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), AppError> {
+    validate_workspace_id(&id)?;
     if id == DEFAULT_WORKSPACE_ID {
-        return Err(AppError::Other("Cannot delete the default workspace".into()));
+        return Err(AppError::Other(
+            "Cannot delete the default workspace".into(),
+        ));
     }
     let active_id = current_workspace_id(&app, &state)?;
     if id == active_id {
-        return Err(AppError::Other("Cannot delete the currently active workspace".into()));
+        return Err(AppError::Other(
+            "Cannot delete the currently active workspace".into(),
+        ));
     }
 
-    let ws_dir = workspace_root(&app, &state)?.join(&id);
+    let ws_root = workspace_root(&app, &state)?;
+    let ws_dir = ws_root.join(&id);
+    if !is_path_inside(&ws_root, &ws_dir) {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
     if ws_dir.exists() {
         std::fs::remove_dir_all(&ws_dir)?;
     }
@@ -152,7 +268,216 @@ pub(crate) fn workspace_delete(
     Ok(())
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Delete a local workspace but keep its files for `WORKSPACE_ARCHIVE_RETENTION_DAYS`,
+/// so the user can undo the "delete the local copy" answer after a copy into an
+/// account workspace. The registry row stays behind hidden: the default
+/// workspace is re-created at boot when its row disappears.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_archive(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), AppError> {
+    if id != DEFAULT_WORKSPACE_ID {
+        validate_workspace_id(&id)?;
+    }
+    let active_id = current_workspace_id(&app, &state)?;
+    if id == active_id {
+        return Err(AppError::Other(
+            "Cannot delete the currently active workspace".into(),
+        ));
+    }
+
+    let mut registry = load_workspace_registry(&app, &state)?;
+    let ws = registry
+        .iter_mut()
+        .find(|w| w.id == id)
+        .ok_or_else(|| AppError::Other(format!("Workspace not found: {id}")))?;
+    if ws.cloud_sync {
+        return Err(AppError::Other(
+            "Only a local workspace can be deleted".into(),
+        ));
+    }
+    if ws.archived_at.is_some() {
+        return Err(AppError::Other("Workspace is already deleted".into()));
+    }
+
+    let ws_root = workspace_root(&app, &state)?;
+    let ws_dir = ws_root.join(&id);
+    if !is_path_inside(&ws_root, &ws_dir) {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    let archive_root = archive_root(&app, &state)?;
+    let archive_dir = archive_root.join(&id);
+    if archive_dir.exists() {
+        return Err(AppError::Other(
+            "A kept copy of this workspace already exists".into(),
+        ));
+    }
+    std::fs::create_dir_all(&archive_root)?;
+    if ws_dir.exists() {
+        std::fs::rename(&ws_dir, &archive_dir)?;
+    }
+
+    ws.archived_at = Some(chrono::Utc::now().to_rfc3339());
+    save_workspace_registry(&app, &state, &registry)?;
+    Ok(())
+}
+
+/// Deleted local workspaces whose files are still kept and can be restored.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_archived_list(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<WorkspaceInfo>, AppError> {
+    let _ = purge_expired_archives(&app, &state);
+    let root = archive_root(&app, &state)?;
+    Ok(load_workspace_registry(&app, &state)?
+        .into_iter()
+        .filter(|w| w.archived_at.is_some() && root.join(&w.id).exists())
+        .collect())
+}
+
+/// Put a deleted local workspace's files back. The user stays where they are.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_restore(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), AppError> {
+    if id != DEFAULT_WORKSPACE_ID {
+        validate_workspace_id(&id)?;
+    }
+    let mut registry = load_workspace_registry(&app, &state)?;
+    let ws = registry
+        .iter_mut()
+        .find(|w| w.id == id)
+        .ok_or_else(|| AppError::Other(format!("Workspace not found: {id}")))?;
+    if ws.archived_at.is_none() {
+        return Err(AppError::Other("Workspace is not deleted".into()));
+    }
+
+    let ws_root = workspace_root(&app, &state)?;
+    let ws_dir = ws_root.join(&id);
+    if !is_path_inside(&ws_root, &ws_dir) {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    let archive_dir = archive_root(&app, &state)?.join(&id);
+    if !archive_dir.exists() {
+        return Err(AppError::Other(
+            "The kept copy of this workspace has expired".into(),
+        ));
+    }
+    if ws_dir.exists() {
+        return Err(AppError::Other(format!(
+            "Workspace directory already exists: {id}"
+        )));
+    }
+    std::fs::rename(&archive_dir, &ws_dir)?;
+
+    ws.archived_at = None;
+    save_workspace_registry(&app, &state, &registry)?;
+    Ok(())
+}
+
+/// Workspaces whose notes were already copied into an account workspace. Read
+/// once per sign-in so the same local notes never land in a second workspace.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_notes_copied(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<bool, AppError> {
+    local_notes_copied(&app, &state, &id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_mark_notes_copied(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), AppError> {
+    mark_local_notes_copied(&app, &state, &id)
+}
+
+fn archive_root(app: &AppHandle, state: &AppState) -> Result<std::path::PathBuf, AppError> {
+    Ok(app_storage_dir(app, state)?.join(WORKSPACES_ARCHIVE_DIR))
+}
+
+/// A deleted workspace is listed and switchable only while its files are kept.
+fn visible_workspaces(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<Vec<WorkspaceInfo>, AppError> {
+    let _ = purge_expired_archives(app, state);
+    let active = current_workspace_id(app, state).unwrap_or_default();
+    let root = workspace_root(app, state)?;
+    Ok(load_workspace_registry(app, state)?
+        .into_iter()
+        .filter(|w| w.archived_at.is_none())
+        // Every install bootstraps an empty local "Default". Listing it on a
+        // device that only uses cloud puts a dead row in the switcher; keep it
+        // when it holds notes or is the workspace the user is looking at.
+        .filter(|w| {
+            w.cloud_sync
+                || w.id == active
+                || crate::db::workspace_has_notes(&root.join(&w.id).join("data.db"))
+        })
+        .collect())
+}
+
+/// True once a kept copy has outlived the restore window. An unreadable
+/// timestamp counts as fresh: keeping data is safer than deleting it.
+fn archive_expired(archived_at: &str, now: chrono::DateTime<chrono::Utc>) -> bool {
+    match chrono::DateTime::parse_from_rfc3339(archived_at) {
+        Ok(at) => {
+            now.signed_duration_since(at.with_timezone(&chrono::Utc))
+                >= chrono::Duration::days(WORKSPACE_ARCHIVE_RETENTION_DAYS)
+        }
+        Err(_) => false,
+    }
+}
+
+/// Erase copies past the restore window. A failed delete keeps its row, so the
+/// next run retries instead of orphaning the files.
+fn purge_expired_archives(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
+    let registry = load_workspace_registry(app, state)?;
+    if !registry.iter().any(|w| w.archived_at.is_some()) {
+        return Ok(());
+    }
+    let now = chrono::Utc::now();
+    let root = archive_root(app, state)?;
+    let mut purged = Vec::new();
+    for ws in &registry {
+        let expired = ws
+            .archived_at
+            .as_deref()
+            .is_some_and(|at| archive_expired(at, now));
+        if !expired {
+            continue;
+        }
+        let dir = root.join(&ws.id);
+        if dir.exists() && std::fs::remove_dir_all(&dir).is_err() {
+            continue;
+        }
+        purged.push(ws.id.clone());
+    }
+    if purged.is_empty() {
+        return Ok(());
+    }
+    // The default workspace keeps its row: dropping it makes bootstrap create a
+    // fresh, empty "Default" at the next launch.
+    let mut registry = registry;
+    registry.retain(|w| w.id == DEFAULT_WORKSPACE_ID || !purged.contains(&w.id));
+    save_workspace_registry(app, state, &registry)
+}
+
 
 fn slugify(name: &str) -> String {
     let slug: String = name
@@ -186,6 +511,22 @@ fn slugify(name: &str) -> String {
     }
 }
 
+fn validate_workspace_id(id: &str) -> Result<(), AppError> {
+    if id.is_empty() || id == DEFAULT_WORKSPACE_ID {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    if id.contains('/') || id.contains('\\') || id.contains('\0') {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    if id.contains("..") || id.starts_with('.') || id.ends_with('.') {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+    Ok(())
+}
+
 fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, AppError> {
     let registry = load_workspace_registry(app, state)?;
     let existing: Vec<&str> = registry.iter().map(|w| w.id.as_str()).collect();
@@ -198,5 +539,40 @@ fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, Ap
             return Ok(candidate);
         }
     }
-    Err(AppError::Other("Too many workspaces with similar names".into()))
+    Err(AppError::Other(
+        "Too many workspaces with similar names".into(),
+    ))
+}
+
+/// Settings that choose where a workspace reads and writes synced data. They are
+/// never copied between workspaces: an inherited folder makes the new workspace
+/// ingest another account's notes and push them to its own cloud workspace.
+fn is_sync_routing_setting(key: &str) -> bool {
+    key == "syncPath" || key == "syncTransport" || key.starts_with("sync:")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{archive_expired, is_sync_routing_setting};
+
+    #[test]
+    fn kept_copy_expires_after_ten_days() {
+        let now = chrono::DateTime::parse_from_rfc3339("2026-10-24T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        assert!(!archive_expired("2026-10-20T00:00:00Z", now));
+        assert!(archive_expired("2026-10-13T23:00:00Z", now));
+        // Unreadable dates keep the copy instead of deleting it.
+        assert!(!archive_expired("not a date", now));
+    }
+
+    #[test]
+    fn sync_routing_settings_are_not_copyable() {
+        assert!(is_sync_routing_setting("syncPath"));
+        assert!(is_sync_routing_setting("syncTransport"));
+        assert!(is_sync_routing_setting("sync:local:folder"));
+        assert!(!is_sync_routing_setting("theme"));
+        assert!(!is_sync_routing_setting("selectedFont"));
+        assert!(!is_sync_routing_setting("default-path"));
+    }
 }

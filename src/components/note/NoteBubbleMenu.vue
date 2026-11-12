@@ -1,5 +1,4 @@
 <template>
-  <!-- Selection-based bubble menu for text formatting and images -->
   <bubble-menu
     v-if="editor"
     :editor="editor"
@@ -38,7 +37,7 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { BubbleMenu } from '@tiptap/vue-3/menus';
 import {
   computePosition,
@@ -47,9 +46,12 @@ import {
   shift,
   autoUpdate,
 } from '@floating-ui/dom';
+import { CellSelection } from '@tiptap/pm/tables';
+import { NodeSelection } from '@tiptap/pm/state';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
+import NoteBubbleMenuVideo from './NoteBubbleMenuVideo.vue';
 import NoteBubbleMenuEditor from './NoteBubbleMenuEditor.vue';
 
 export default {
@@ -57,6 +59,7 @@ export default {
     BubbleMenu,
     NoteBubbleMenuLink,
     NoteBubbleMenuImage,
+    NoteBubbleMenuVideo,
     NoteBubbleMenuEditor,
   },
   props: {
@@ -71,7 +74,6 @@ export default {
     const hoverMenuVisible = ref(false);
     let hoverCleanup = null;
 
-    // Extract link attributes from the hovered DOM element
     const hoverLinkAttrs = computed(() => {
       const el = hoveredLinkEl.value;
       if (!el) return null;
@@ -89,7 +91,6 @@ export default {
       if (el.hasAttribute('tiptap-url')) {
         const href = el.getAttribute('href') || '';
 
-        // Treat note:// URLs as internal note links
         if (href.startsWith('note://')) {
           const noteId = href.slice('note://'.length);
           return {
@@ -150,7 +151,6 @@ export default {
       // Small delay so the menu doesn't flicker when moving mouse to it
       setTimeout(() => {
         if (!hoverMenuVisible.value) return;
-        // Check if mouse is actually outside the menu
         const menu = hoverMenuRef.value;
         if (menu && !menu.matches(':hover')) {
           closeHoverMenu();
@@ -176,7 +176,6 @@ export default {
       const linkEl =
         target.closest('a[data-link-note]') || target.closest('a[tiptap-url]');
       if (!linkEl && hoveredLinkEl.value) {
-        // Mouse left the link – close if not hovering the menu
         setTimeout(() => {
           const menu = hoverMenuRef.value;
           if (menu && menu.matches(':hover')) return;
@@ -185,43 +184,77 @@ export default {
       }
     }
 
-    const shouldShowMenuFn = ({ editor, state }) => {
-      if (!editor) return false;
+    // Node types where the text-formatting bubble is irrelevant (media/atomic
+    // blocks). image/Video have their own dedicated menus above; the entries
+    // below show nothing. Legacy lowercase aliases included for old snapshots.
+    // Single list shared by shouldShowMenuFn + currentMenuComponent so they
+    // can't drift apart (mermaidBlock vs mermaidDiagram did exactly that).
+    const NO_EDITOR_MENU_NODES = new Set([
+      'codeBlock',
+      'mathBlock',
+      'mermaidBlock',
+      'mermaidDiagram',
+      'paper',
+      'Audio',
+      'audioBlock',
+      'videoBlock',
+      'fileEmbed',
+    ]);
 
+    // One bounded pass over the selection collecting node type names. The old
+    // code called editor.isActive() up to 11 times here — each walking the
+    // whole selected range — which after Cmd+A meant ~22 full-document walks
+    // per menu evaluation on top of the native selection cost.
+    function selectionNodeNames(state) {
       const { selection } = state;
+      if (selection instanceof NodeSelection) {
+        return new Set([selection.node.type.name]);
+      }
+      const { from, to, $from, $to, empty } = selection;
+      const names = new Set();
+      if (empty) {
+        names.add($from.parent.type.name);
+      } else if (to - from > 20000) {
+        // Huge ranges (Cmd+A on big notes): skip the walk — parent types only.
+        // A media node buried mid-range may then show the text menu, which is
+        // cosmetic; the alternative is the multi-second stall we measured.
+        names.add($from.parent.type.name);
+        names.add($to.parent.type.name);
+      } else {
+        state.doc.nodesBetween(from, to, (node) => {
+          names.add(node.type.name);
+          return true;
+        });
+      }
+      return names;
+    }
+
+    function classifySelection(state) {
+      if (!state) return null;
+      const { selection } = state;
+      if (selection instanceof CellSelection) return null;
+      const names = selectionNodeNames(state);
+      if (names.has('image')) return 'image';
+      if (names.has('Video')) return 'video';
       const { empty } = selection;
+      if (!empty) {
+        for (const name of names) {
+          if (NO_EDITOR_MENU_NODES.has(name)) return null;
+        }
+        return 'editor';
+      }
+      return null;
+    }
 
-      // Always show for images
-      if (editor.isActive('image')) return true;
-
-      // Don't show for atomic / drawing blocks
-      if (
-        !empty &&
-        (editor.isActive('codeBlock') ||
-          editor.isActive('mathBlock') ||
-          editor.isActive('mermaidBlock') ||
-          editor.isActive('paper'))
-      )
-        return false;
-
-      return !empty;
-    };
+    const shouldShowMenuFn = ({ state }) => classifySelection(state) !== null;
 
     const currentMenuComponent = computed(() => {
       if (!props.editor) return null;
-      if (props.editor.isActive('image')) return 'note-bubble-menu-image';
-
-      if (props.editor.state.selection.empty) return null;
-
-      if (
-        props.editor.isActive('codeBlock') ||
-        props.editor.isActive('mathBlock') ||
-        props.editor.isActive('mermaidBlock') ||
-        props.editor.isActive('paper')
-      )
-        return null;
-
-      return 'note-bubble-menu-editor';
+      const kind = classifySelection(props.editor.state);
+      if (kind === 'image') return 'note-bubble-menu-image';
+      if (kind === 'video') return 'note-bubble-menu-video';
+      if (kind === 'editor') return 'note-bubble-menu-editor';
+      return null;
     });
 
     onMounted(() => {

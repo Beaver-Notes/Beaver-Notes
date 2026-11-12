@@ -9,13 +9,11 @@ import {
   readDir,
   readFile,
 } from '@/lib/native/fs';
-import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { convertMarkdownToTiptap } from '@/utils/markdown';
 import { useNoteStore } from '@/store/note';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
-import mime from 'mime';
 
 const _pendingImportNotes = [];
 
@@ -134,19 +132,6 @@ export async function isFile(targetPath) {
   } catch {
     return false;
   }
-}
-
-export function extensionForContentType(contentType) {
-  return mime.getExtension(String(contentType || '').toLowerCase()) || 'png';
-}
-
-export function parseDataUri(value) {
-  const match = String(value || '').match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) return null;
-  return {
-    contentType: match[1],
-    data: base64ToUint8Array(match[2]),
-  };
 }
 
 export async function listFilesRecursive(rootPath, extensions, options = {}) {
@@ -474,33 +459,6 @@ export function parseFrontmatter(markdown) {
   });
 
   return { meta, body };
-}
-
-export async function getOrCreateFolder(
-  name,
-  parentId,
-  folderStore,
-  createdFolderIds = null
-) {
-  const normalizedName = String(name || '').trim();
-  const normalizedParentId = parentId || null;
-
-  const { createdIds } = await folderStore.createFolderPath(
-    [normalizedName],
-    normalizedParentId
-  );
-
-  for (const id of createdIds) {
-    createdFolderIds?.add(id);
-  }
-
-  const childIds =
-    folderStore._index.get(normalizedParentId) ?? new Set();
-  for (const cid of childIds) {
-    if (folderStore.data[cid]?.name === normalizedName) return cid;
-  }
-
-  throw new Error(`Failed to find or create folder: ${normalizedName}`);
 }
 
 export async function buildFolderIdFromPath(

@@ -1,0 +1,71 @@
+[package]
+name = "tauri-plugin-passkey"
+version = "0.2.0"
+authors = ["Don Kackman"]
+description = "a Tauri plugin for WebAuthn"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dkackman/tauri-plugin-passkey"
+homepage = "https://github.com/dkackman/tauri-plugin-passkey"
+documentation = "https://docs.rs/tauri-plugin-passkey"
+categories = ["api-bindings", "authentication", "cryptography"]
+keywords = ["tauri", "plugin", "webauthn", "passkey", "fido2"]
+edition = "2021"
+rust-version = "1.81"
+exclude = [
+  "/examples",
+  "/dist-js",
+  "/guest-js",
+  "/node_modules",
+  "/.github",
+  "/.vscode",
+]
+links = "tauri-plugin-passkey"
+
+[package.metadata.docs.rs]
+default-target = "x86_64-unknown-linux-gnu"
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "aarch64-apple-darwin",
+]
+all-features = true
+
+[dependencies]
+tauri = { version = "2.5.0" }
+serde = "1.0"
+thiserror = "2"
+webauthn-rs-proto = "~0.5"
+log = { version = "0.4.27", optional = true }
+serde_json = "1.0.140"
+tokio = { version = "1.45.0", features = ["sync"] }
+base64urlsafedata = "0.5.1"
+base64 = "0.23.0"
+sha2 = "0.10"
+
+[build-dependencies]
+tauri-plugin = { version = "2.2.0", features = ["build"] }
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+swift-rs = { version = "1.0.5", features = ["build"] }
+
+[features]
+default = ["log"]
+log = ["dep:log"]
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios", target_os = "windows", target_os = "macos")))'.dependencies]
+authenticator = { version = "0.5.0", default-features = false, features = [
+  "crypto_openssl",
+] }
+serde_cbor_2 = "0.13.0"
+openssl = "0.10.72"
+
+[target.'cfg(windows)'.dependencies]
+webauthn-authenticator-rs = { version = "0.5.0", features = [
+  "nfc",
+  "usb",
+  "win10",
+] }
+# webauthn-authenticator-rs pulls openssl-sys transitively (via webauthn-rs-core).
+# Windows runners/toolchains have no discoverable system OpenSSL, so build it from
+# source. Feature unification makes the transitive openssl-sys build vendored too.
+openssl = { version = "0.10", features = ["vendored"] }

@@ -1,9 +1,8 @@
-import { ref } from 'vue';
+import { ref, toRaw } from 'vue';
 import { nanoid } from 'nanoid';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
-import { readDir, removePath } from '@/lib/native/fs';
-import { trackDeletedAssets } from '@/utils/sync';
+import { removePath } from '@/lib/native/fs';
 import { deleteUpdates } from '@/lib/native/yjs.js';
 import { hydrateNote, extractTextFromContent } from '@/utils/note/serializer.js';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
@@ -24,7 +23,6 @@ import {
   getSearchIndexJSON,
   loadSearchIndex,
 } from '@/utils/note/search.js';
-import { collectExpiredIds } from '@/utils/helpers/index.js';
 import {
   rebuildLinkIndexForNote,
   removeNoteFromLinkIndex,
@@ -35,9 +33,12 @@ import {
 import {
   syncNoteMeta,
   removeNoteMeta,
-  syncDeletedNoteIds,
   transactWorkspace,
 } from '@/lib/yjs/workspace-doc';
+import {
+  markPendingNoteMeta,
+  clearPendingNoteMeta,
+} from '@/lib/yjs/shared';
 
 export interface CardPreviewBlock {
   kind: string;
@@ -69,30 +70,126 @@ export interface NoteData {
   isArchived: boolean;
   isLocked: boolean;
   isFullWidth: boolean;
+  showWordCount?: boolean;
+  wordCountLimit?: number | null;
   folderId: string | null;
   preview?: string;
   searchText?: string;
   cardPreview?: CardPreview;
+  dir?: 'auto' | 'ltr' | 'rtl';
+  access?: NoteAccess;
+}
+
+/**
+ * Present only on notes shared with this account by invitation. The account is
+ * a collaborator on this one note, not a member of the workspace holding it, so
+ * the note is stored in the active workspace's meta doc and the owning
+ * workspace id travels with the note instead of in a separate side map.
+ */
+export interface NoteAccess {
+  role: 'editor' | 'viewer';
+  workspaceId: string;
+  by?: string;
 }
 
 export interface NoteState {
   data: Record<string, NoteData>;
-  deletedIds: Record<string, number>;
-  lockStatus: Record<string, unknown>;
-  isLocked: Record<string, unknown>;
   syncInProgress: boolean;
 }
 
 const _skipUndo = { value: false };
 
-const contentSignature: Map<string, object> = new Map();
+export function setSkipUndo(value: boolean): void {
+  _skipUndo.value = value;
+}
+
+// WeakRef keeps only object identity: a strong ref here pinned one stale full
+// document per note until sign-out. Primitive contents (legacy strings) use a
+// boxed wrapper so value comparison keeps working.
+const contentSignature: Map<string, WeakRef<object> | { primitive: unknown }> = new Map();
+
+/**
+ * Drop the content signatures. They hold note plaintext, so they are torn down
+ * with the store on sign-out rather than outliving it.
+ */
+export function clearNoteContentSignatures(): void {
+  contentSignature.clear();
+  lastIndexState.clear();
+}
+
 const indexSignature: Map<string, string> = new Map();
 
-// ── Incremental folder counts ──
-// Maintained by add/delete/patchLocal to avoid O(n) rebuild on every getter access.
-// `folderCountsVersion` is the reactive dep so the `notesCountByFolder` getter
-// (Pinia caches getters) invalidates when a count changes — otherwise it would
-// return the first Map forever and folder cards would show 0 items.
+// Derived-data deferral. preview/searchText/link-index are derived views of
+// content: rebuilding them inside the 300ms persist loop costs three
+// full-document walks plus a MiniSearch re-tokenization on every typing
+// burst. The durable content write lives in the yjs flush, so derived data
+// lands on idle time instead — and is flushed synchronously on
+// pagehide/visibilitychange so app close never loses it.
+const DERIVED_DEFER_MS = 1500;
+const derivedPending = new Map<string, NoteStoreThis>();
+let derivedTimer: ReturnType<typeof setTimeout> | null = null;
+let derivedHooksInstalled = false;
+
+function derivedFlushOne(id: string): void {
+  // Read BEFORE deleting: deleting first left `store` undefined for every
+  // flush, so derived data (preview/searchText/link-index/saveNote/meta)
+  // silently never updated for notes over the threshold.
+  const store = derivedPending.get(id) ?? undefined;
+  derivedPending.delete(id);
+  const note = store?.data[id];
+  if (!store || !note || note.isLocked || isEncryptedContent(note.content)) return;
+  const rawContent = toRaw(note.content);
+  const { cardPreview, preview } = buildNotePreview({
+    content: rawContent,
+    preview: note.preview,
+    searchText: note.searchText,
+    hidden: false,
+  });
+  note.preview = preview;
+  note.cardPreview = cardPreview as CardPreview;
+  note.searchText = extractTextFromContent(rawContent) || note.searchText;
+  rebuildLinkIndexForNote(id, rawContent);
+  void saveNote(id, note);
+  syncNoteMeta(note);
+}
+
+export function flushDerivedUpdates(): void {
+  if (derivedTimer) {
+    clearTimeout(derivedTimer);
+    derivedTimer = null;
+  }
+  for (const id of derivedPending.keys()) {
+    try {
+      derivedFlushOne(id);
+    } catch (err) {
+      console.error('[store] derived flush failed for', id, err);
+      derivedPending.delete(id);
+    }
+  }
+}
+
+function scheduleDerivedUpdate(id: string, store: NoteStoreThis): void {
+  derivedPending.set(id, store);
+  if (derivedTimer) return;
+  derivedTimer = setTimeout(flushDerivedUpdates, DERIVED_DEFER_MS);
+  if (!derivedHooksInstalled && typeof window !== 'undefined') {
+    derivedHooksInstalled = true;
+    const flushAll = () => flushDerivedUpdates();
+    window.addEventListener('pagehide', flushAll);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushAll();
+    });
+  }
+}
+
+// Last state pushed into MiniSearch per note id. `syncSearchIndex` records it
+// on every upsert (it never skips); the meta-doc projection loop consults it
+// to drop its redundant re-index — the projection re-fires for every typing
+// burst although searchText is not a meta field, so without this each burst
+// re-tokenized large notes ~150ms after saveNote had just done the same work.
+const lastIndexState: Map<string, string> = new Map();
+
+// Incremental folder counts avoid O(n) rebuild. Version counter busts Pinia getter cache.
 const folderCounts: Map<string | null, number> = new Map();
 const folderCountsVersion = ref(0);
 
@@ -120,18 +217,20 @@ function decrementFolderCount(folderId: string | null) {
 function initFolderCounts(data: Record<string, NoteData>) {
   folderCounts.clear();
   for (const note of Object.values(data)) {
-    if (!note?.id) continue;
     incrementFolderCount(note.folderId);
   }
   bumpFolderCounts();
 }
 
-// ── search (from search.js) ──
+/** Rebuild after Yjs hydration, which writes data directly. */
+export function rebuildFolderCounts(this: NoteStoreThis) {
+  initFolderCounts(this.data);
+}
 
-// ─── Simple getters (kept together for discoverability) ──────────────────────
+
 
 export function notes(state: NoteState) {
-  return Object.values(state.data).filter(({ id }) => id);
+  return Object.values(state.data);
 }
 
 export function getById(state: NoteState) {
@@ -140,38 +239,31 @@ export function getById(state: NoteState) {
 
 export function getByFolder(state: NoteState) {
   return (folderId: string | null = null) =>
-    Object.values(state.data).filter(
-      (note) => note.folderId === folderId && note.id
-    );
+    Object.values(state.data).filter((note) => note.folderId === folderId);
 }
 
 export function getNotesCountByFolder(state: NoteState) {
   return (folderId: string | null = null) => {
     let count = 0;
     for (const note of Object.values(state.data)) {
-      if (note.id && note.folderId === folderId) count++;
+      if (note.folderId === folderId) count++;
     }
     return count;
   };
 }
 
-/**
- * Precomputed note counts per folder, maintained incrementally by add/delete/patchLocal.
- * Avoids O(n) rebuild on every store mutation.
- */
+/** Precomputed folder counts, maintained incrementally. Avoids O(n) rebuild. */
 export function notesCountByFolder(_state: NoteState): Map<string | null, number> {
-  // Reading the reactive version counter makes this getter re-evaluate whenever
-  // a count changes, so it returns a fresh Map (never a stale cached one).
+  // Read version counter so getter re-evaluates on count change.
   void folderCountsVersion.value;
   return new Map(folderCounts);
 }
 
-// ─── Search-related getters ──────────────────────────────────────────────────
 
 export function getFolderContents(state: NoteState) {
   return (folderId: string | null = null) => {
     const notes = Object.values(state.data)
-      .filter((note) => note.folderId === folderId && note.id)
+      .filter((note) => note.folderId === folderId)
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
     const folders = useFolderStore()
@@ -182,17 +274,11 @@ export function getFolderContents(state: NoteState) {
   };
 }
 
-/**
- * Synchronous in-memory fallback search using the pre-computed `searchText`
- * field. Used when the local search index hasn't been populated yet or for
- * callers that need a synchronous result.
- * For the primary search UI use `searchNotesSql` instead.
- */
+/** Sync in-memory fallback search on precomputed searchText. Use searchNotesSql for primary UI. */
 export function searchNotes(state: NoteState) {
   return (query: string) => {
     const searchTerm = query.toLowerCase();
     return Object.values(state.data).filter((note) => {
-      if (!note.id) return false;
       const labels = Array.isArray(note.labels) ? note.labels.join(' ') : '';
       return (
         note.title.toLowerCase().includes(searchTerm) ||
@@ -203,17 +289,14 @@ export function searchNotes(state: NoteState) {
   };
 }
 
-// ─── Actions ─────────────────────────────────────────────────────────────────
 
 export interface NoteStoreThis {
   data: Record<string, NoteData>;
-  deletedIds: Record<string, number>;
   searchNotes?(query: string): NoteData[];
   patchLocal(id: string, data?: Record<string, any>): NoteData | null;
   persist(id: string): Promise<NoteData | null>;
   persistMeta(id: string): Promise<NoteData | null>;
   delete(id: string): Promise<string>;
-  cleanupDeletedIds(days?: number): Promise<string[]>;
   addMany?(notes: NoteData[]): Promise<void>;
 }
 
@@ -223,19 +306,16 @@ export async function searchNotesSql(this: NoteStoreThis, query: string): Promis
     const ids = searchNotesIndex(query);
     return ids.map((id: string) => this.data[id]).filter(Boolean);
   } catch {
-    // Index not yet available (first launch before rebuild) — fall back
+    // Index not yet available (first launch): fall back.
     return this.searchNotes!(query);
   }
 }
 
-// ── crud (from crud.js) ──
 
-// ─── Load & hydration ────────────────────────────────────────────────────────
 
 export async function retrieve(this: NoteStoreThis): Promise<Record<string, NoteData>> {
   try {
-    // Data is already populated from the Yjs workspace doc via
-    // writeStoresFromWorkspace().  No KV reads needed.
+    // Data already from Yjs workspace doc, no KV reads.
 
     initFolderCounts(this.data);
 
@@ -264,6 +344,7 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
         // Remove deleted notes from indexes
         for (const id of Object.keys(signatures)) {
           if (!this.data[id]) {
+            lastIndexState.delete(id);
             removeSearchEntry(id);
             removeNoteFromLinkIndex(id);
             delete signatures[id];
@@ -282,7 +363,7 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
         coldStart = true;
       }
     } catch (indexError) {
-      // Corrupt/stale persisted index — fall back to full rebuild
+      // Corrupt persisted index: fall back to rebuild.
       console.error(
         'Persisted index invalid; falling back to full rebuild:',
         indexError
@@ -292,7 +373,9 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
 
     // Skip Spotlight reindex when nothing changed
     if (coldStart || indexChanged) {
-      reindexAllNotes(this.data);
+      reindexAllNotes(this.data).catch((err) =>
+        console.warn('[spotlight] reindex failed:', err?.message || err)
+      );
     }
     return this.data;
   } catch (error) {
@@ -301,7 +384,6 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
   }
 }
 
-// ─── CRUD ────────────────────────────────────────────────────────────────────
 
 export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<string, any> = {}): Promise<NoteData> {
   try {
@@ -319,19 +401,28 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
       isArchived: false,
       isLocked: false,
       isFullWidth: false,
+      showWordCount: false,
+      wordCountLimit: null,
+      dir: 'auto' as const,
       ...note,
       folderId,
     } as NoteData;
 
     this.data[id] = hydrateNote(newNote);
     incrementFolderCount(this.data[id].folderId);
-    await saveNote(id, this.data[id]);
-    // Content lives in Yjs — write it at creation so the editor finds it
-    // immediately (no KV content, no later conversion).
-    const { writeNoteContentToYjs } = await import('@/utils/note/contentToYjs.js');
-    await writeNoteContentToYjs(id, this.data[id].content);
-    rebuildLinkIndexForNote(id, this.data[id].content);
-    syncNoteMeta(this.data[id]);
+    // Guard against meta-doc observer eviction while the meta write is in
+    // flight: the note is in Pinia before it exists in the Yjs doc.
+    markPendingNoteMeta(id);
+    try {
+      await saveNote(id, this.data[id]);
+      // Content lives in Yjs: write at creation so editor finds it immediately.
+      const { writeNoteContentToYjs } = await import('@/utils/note/contentToYjs.js');
+      await writeNoteContentToYjs(id, this.data[id].content);
+      rebuildLinkIndexForNote(id, this.data[id].content);
+      syncNoteMeta(this.data[id]);
+    } finally {
+      clearPendingNoteMeta(id);
+    }
 
     return this.data[id];
   } catch (error) {
@@ -348,7 +439,14 @@ export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<v
   for (const note of notes) {
     this.data[note.id] = hydrateNote(note);
     incrementFolderCount(this.data[note.id].folderId);
+    markPendingNoteMeta(note.id);
   }
+
+  // Content must be durable before the meta lands: committing meta first and
+  // then failing the content write strands the card (and the pending guard was
+  // cleared in `finally`, so the observer could evict/repair it away).
+  const { writeNotesContentToYjs } = await import('@/utils/note/contentToYjs.js');
+  await writeNotesContentToYjs(notes);
 
   transactWorkspace(() => {
     for (const note of notes) {
@@ -356,14 +454,16 @@ export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<v
     }
   });
 
-  // Imports convert content to Yjs in one batched IPC — the app never stores
-  // note content outside Yjs.
-  const { writeNotesContentToYjs } = await import('@/utils/note/contentToYjs.js');
-  await writeNotesContentToYjs(notes);
+  // Only now is it safe to drop the guard: meta exists for every note.
+  for (const note of notes) {
+    clearPendingNoteMeta(note.id);
+  }
 
   buildSearchIndex(this.data);
   rebuildLinkIndexFromAll(this.data);
-  reindexAllNotes(this.data);
+  reindexAllNotes(this.data).catch((err) =>
+    console.warn('[spotlight] reindex failed:', err?.message || err)
+  );
 
   // Persist indexes for next startup
   const signatures: Record<string, number> = {};
@@ -447,40 +547,50 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
   await ensureKeyReadyForWrite();
 
   const note = this.data[id];
-  const contentChanged = note.content !== contentSignature.get(id);
+  const sig = contentSignature.get(id);
+  const prevContent = sig instanceof WeakRef ? sig.deref() : sig?.primitive;
+  const contentChanged = note.content !== prevContent;
 
-  // Rebuild preview + searchText only when content actually changed
-  if (!note.isLocked && !isEncryptedContent(note.content)) {
-    if (contentChanged) {
-      const { cardPreview, preview } = buildNotePreview({
-        content: note.content,
-        preview: note.preview,
-        searchText: note.searchText,
-      });
-      note.preview = preview;
-      note.cardPreview = cardPreview as CardPreview;
-      note.searchText = extractTextFromContent(note.content) || note.searchText;
+  // Derived data (preview/searchText/link-index/search/spotlight) is a view
+  // of content: rebuilding it inside the 300ms persist burst costs three
+  // full-document walks plus a MiniSearch re-tokenization on every burst —
+  // for every note size, not just huge ones. Route all content changes
+  // through the deferred flush (trailing 1.5s debounce, flushed on
+  // pagehide/visibilitychange). Title/label-only changes stay on the
+  // immediate path below.
+  if (contentChanged && !note.isLocked && !isEncryptedContent(note.content)) {
+    scheduleDerivedUpdate(id, this);
+  }
+
+  if (!contentChanged) {
+    const indexKey = `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`;
+    if (indexKey !== indexSignature.get(id)) {
+      await saveNote(id, note);
     }
   }
 
-  if (contentChanged) {
-    await saveNote(id, note);
-    rebuildLinkIndexForNote(id, note.content);
-    } else {
-      // Content unchanged — only reindex if title/searchText/labels changed
-      const indexKey = `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`;
-      if (indexKey !== indexSignature.get(id)) {
-        await saveNote(id, note);
-      }
-    }
+  // patchLocal replaces the note object instead of mutating it, so `note` above is
+  // a detached snapshot: an edit landing during the await would push the snapshot's
+  // stale title into the shared meta doc and overwrite the newer edit. Re-read the
+  // live note for the meta write.
+  const live = this.data[id] ?? note;
+  syncNoteMeta(live);
 
-    syncNoteMeta(note);
+  // Signatures stay keyed to what was actually written above, so an edit that raced
+  // this persist is still seen as dirty by the next one. WeakRef: identity only —
+  // the proxy identity still matches because Vue returns the same proxy per target.
+  const sigContent = note.content;
+  contentSignature.set(
+    id,
+    sigContent && typeof sigContent === 'object'
+      ? new WeakRef(sigContent as object)
+      : ({ primitive: sigContent } as unknown as WeakRef<object>),
+  );
+  indexSignature.set(id, `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`);
 
-    // Update signatures
-    contentSignature.set(id, note.content);
-    indexSignature.set(id, `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`);
+  scheduleSharedNotePush(id);
 
-  return note;
+  return live;
 }
 
 export async function persistMeta(this: NoteStoreThis, id: string): Promise<NoteData | null> {
@@ -488,12 +598,10 @@ export async function persistMeta(this: NoteStoreThis, id: string): Promise<Note
   await ensureKeyReadyForWrite();
   const note = this.data[id];
 
-  // Skip content walks (preview, searchText) — content unchanged
-  // Skip MiniSearch/Spotlight — only title/searchText/labels matter, and
-  // meta-only ops don't change those either
-  // Skip rebuildLinkIndexForNote — links live in content
+  // Content unchanged: skip preview/searchText walks, MiniSearch/Spotlight, link reindex.
 
   syncNoteMeta(note);
+  scheduleSharedNotePush(id);
   return note;
 }
 
@@ -507,11 +615,6 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     const lastEditedNote = localStorage.getItem('lastNoteEdit');
     if (lastEditedNote === id) localStorage.removeItem('lastNoteEdit');
 
-    this.deletedIds = this.deletedIds || {};
-    if (!this.deletedIds[id]) {
-      this.deletedIds[id] = Date.now();
-    }
-
     const folderId = this.data[id]?.folderId;
     delete this.data[id];
     if (folderId !== undefined) decrementFolderCount(folderId);
@@ -519,31 +622,23 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     indexSignature.delete(id);
     removeNoteFromLinkIndex(id);
 
-    // Clean up Yjs document updates
+    // Content lives per-note in Yjs: wipe it, Yjs delete is tombstone.
     deleteUpdates(id).catch((error) => {
       console.warn('[note] failed to delete Yjs updates for', id, error);
     });
 
+    lastIndexState.delete(id);
     removeSearchEntry(id);
 
     deleteNoteFromSpotlight(id);
 
     removeNoteMeta(id);
-    syncDeletedNoteIds(this.deletedIds);
-
-    this.cleanupDeletedIds(30);
 
     // Best-effort cleanup of asset files on disk
     try {
       const appDirectory = await getAppDirectory();
       if (appDirectory) {
         const assetDir = path.join(appDirectory, 'assets', id);
-        try {
-          const files = await readDir(assetDir);
-          if (files?.length) await trackDeletedAssets('assets', id, files);
-        } catch {
-          // Asset folder may not exist — that's fine
-        }
         await removePath(assetDir);
       }
     } catch (fileError) {
@@ -564,19 +659,11 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
   }
 }
 
-export async function cleanupDeletedIds(this: NoteStoreThis, days = 30): Promise<string[]> {
-  const toDelete = collectExpiredIds(this.deletedIds, days);
-
-  for (const id of toDelete) {
-    delete this.deletedIds[id];
-  }
-
-  syncDeletedNoteIds(this.deletedIds);
-
-  return toDelete;
+// No deletedIds tombstones: Yjs delete plus yjs_delete is tombstone. No-op for compat.
+export async function cleanupDeletedIds(this: NoteStoreThis, _days = 30): Promise<string[]> {
+  return [];
 }
 
-// ─── Folder operations ───────────────────────────────────────────────────────
 
 export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folderId: string | null): Promise<NoteData[]> {
   try {
@@ -591,15 +678,17 @@ export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folde
     const undoNotes: { id: string; prevFolderId: string | null | undefined }[] = [];
     const updatePromises: Promise<NoteData | null>[] = [];
     for (const noteId of noteIds) {
-      if (this.data[noteId]) {
-        undoNotes.push({
-          id: noteId,
-          prevFolderId: this.data[noteId].folderId,
-        });
-        this.patchLocal(noteId, { folderId: targetFolderId });
-        updatePromises.push(this.persistMeta(noteId));
-      }
+      if (!this.data[noteId]) continue;
+      if ((this.data[noteId].folderId ?? null) === targetFolderId) continue;
+      undoNotes.push({
+        id: noteId,
+        prevFolderId: this.data[noteId].folderId,
+      });
+      this.patchLocal(noteId, { folderId: targetFolderId });
+      updatePromises.push(this.persistMeta(noteId));
     }
+
+    if (!undoNotes.length) return [];
 
     await Promise.all(updatePromises);
 
@@ -625,7 +714,13 @@ export async function normalizeInvalidFolderIds(this: NoteStoreThis): Promise<st
   return invalid.map((note) => note.id);
 }
 
-// ─── Labels ──────────────────────────────────────────────────────────────────
+// Manual per-note extraction retry (card chip entry point). Delegates to the
+// shared lib helper via dynamic import: retryExtraction statically imports
+// this store, so a static import back would cycle.
+export async function retryNoteExtraction(this: NoteStoreThis, id: string): Promise<boolean> {
+  const { retrySingleExtraction } = await import('@/lib/share/retryExtraction');
+  return retrySingleExtraction(id);
+}
 
 export async function addLabel(this: NoteStoreThis, id: string, labelId: string): Promise<string | undefined> {
   try {
@@ -646,6 +741,7 @@ export async function addLabel(this: NoteStoreThis, id: string, labelId: string)
 
     await saveNote(id, this.data[id]);
     syncNoteMeta(this.data[id]);
+    scheduleSharedNotePush(id);
 
     return labelId;
   } catch (error) {
@@ -676,6 +772,7 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
 
     await saveNote(id, this.data[id]);
     syncNoteMeta(this.data[id]);
+    scheduleSharedNotePush(id);
 
     return labelId;
   } catch (error) {
@@ -684,16 +781,37 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
   }
 }
 
-// ── helpers (from helpers.js) ──
 
-/**
- * Silently sync a note into the local search index after it is written to storage.
- * Uses the pre-computed `searchText` field so no content serialisation is needed.
- * Errors are swallowed — a stale index degrades gracefully to no results.
- */
+/** Sync note into local search index after storage write. Uses precomputed searchText, no serialisation. Stale index degrades to no results. */
+function searchStateOf(note: NoteData): string {
+  return `${note.title || ''}\0${note.searchText || ''}\0${(note.labels || []).join('\u0001')}`;
+}
+
 export function syncSearchIndex(note: NoteData): void {
   if (!note?.id || note.isLocked || isEncryptedContent(note.content)) return;
+  lastIndexState.set(note.id, searchStateOf(note));
   upsertSearchEntry(note);
+}
+
+/** True when the MiniSearch entry for this note already matches its current title/searchText/labels. */
+export function isSearchIndexCurrent(note: NoteData): boolean {
+  if (!note?.id) return false;
+  return lastIndexState.get(note.id) === searchStateOf(note);
+}
+
+/**
+ * Queue a note-scoped push for a note shared with this account. The Rust
+ * workspace push skips notes this account only collaborates on and the shared
+ * note fetch is one-shot, so without this the write stays on this device.
+ * Fire-and-forget: a push that fails is a sync condition, not a failed save.
+ * Imported lazily because the composable pulls this store back in.
+ */
+function scheduleSharedNotePush(id: string): void {
+  void import('@/composable/useSharedNotes')
+    .then((m) => m.scheduleSharedNotePush(id))
+    .catch((error) => {
+      console.warn('[note] failed to schedule shared note push:', error);
+    });
 }
 
 export async function saveNote(id: string, noteData: NoteData): Promise<void> {

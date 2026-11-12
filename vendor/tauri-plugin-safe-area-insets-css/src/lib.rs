@@ -37,7 +37,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .invoke_handler(tauri::generate_handler![
             commands::get_top_inset,
             commands::get_bottom_inset,
-            commands::set_scribble_enabled
+            commands::get_fold_state,
+            commands::set_scribble_enabled,
+            commands::set_scribble_targets
         ])
         .setup(|app, api| {
             #[cfg(mobile)]

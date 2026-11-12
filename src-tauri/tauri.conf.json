@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' assets: data: blob: https:; media-src 'self' assets: blob: https:; font-src 'self' data:; frame-src 'none'; object-src 'none'; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' assets: data: blob: https:; media-src 'self' assets: blob: https:; font-src 'self' data:; frame-src 'none'; object-src 'none'; connect-src ipc: http://ipc.localhost assets: file-assets: https: wss: http://localhost:* ws://localhost:* http://127.0.0.1:*"
     }
   },
   "bundle": {
@@ -71,12 +71,17 @@
       "signCommand": "ossign.exe -t pecoff -o %1 %1"
     },
     "macOS": {
-      "entitlements": "../buildResources/entitlements.mac.plist"
+      "minimumSystemVersion": "12.0",
+      "entitlements": "../buildResources/entitlements.mac.plist",
+      "infoPlist": "../buildResources/info-mac.plist"
     },
     "iOS": {
       "developmentTeam": "F8U6VTU2DJ",
-      "minimumSystemVersion": "15.0",
+      "minimumSystemVersion": "17.4",
       "infoPlist": "../buildResources/ios-info.plist"
+    },
+    "android": {
+      "minSdkVersion": 28
     },
     "linux": {
       "deb": { "depends": [] },

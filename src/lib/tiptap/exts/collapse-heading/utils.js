@@ -1,13 +1,7 @@
 /**
- * Collect the start positions of headings that became empty as a result of the
- * given transactions.
- *
- * Scanning is limited to the blocks the transactions actually touched (via
- * `Transaction.changedRange()`), instead of traversing the whole document. A
- * heading elsewhere in the doc is left untouched unless its own content changed
- * — the original plugin traversed the entire doc on every transaction.
- *
- * Returns an array of absolute positions (the heading node's start position).
+ * Collect start positions of headings emptied by the given transactions.
+ * Scans only the transactions' changedRange() (the original plugin traversed
+ * the whole doc every transaction); returns absolute positions.
  */
 export function collectEmptyHeadingPositions(doc, transactions) {
   const blocks = new Set();

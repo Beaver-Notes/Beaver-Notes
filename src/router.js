@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import { getSettingSync } from '@/lib/settings';
+import { getSetting } from '@/lib/settings';
 import Settings from './pages/Settings.vue';
 import Onboarding from './pages/Onboarding.vue';
 import SettingsIndex from './pages/settings/Index.vue';
@@ -7,10 +7,10 @@ import SettingsAppearance from './pages/settings/Appearance.vue';
 import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
 import SettingsLabels from './pages/settings/Labels.vue';
-import SettingsSecurity from './pages/settings/Security.vue';
 import SettingsAccount from './pages/settings/Account.vue';
-import SettingsData from './pages/settings/Data.vue';
-import JoinNote from './pages/join/[token].vue';
+import SettingsTeamAdmin from './pages/settings/TeamAdmin.vue';
+import VerifyEmail from './pages/VerifyEmail.vue';
+import ResetPassword from './pages/ResetPassword.vue';
 import Home from './pages/Index.vue';
 import Note from './pages/note/_id.vue';
 import Folder from './pages/folder/_id.vue';
@@ -21,14 +21,13 @@ const routeTitles = {
   Home: APP_NAME,
   Note: 'Note',
   Folder: 'Folder',
-  Settings: `Settings — ${APP_NAME}`,
-  'Settings-Appearance': `Appearance — ${APP_NAME}`,
-  'Settings-Shortcuts': `Shortcuts — ${APP_NAME}`,
-  'Settings-About': `About — ${APP_NAME}`,
-  'Settings-Labels': `Labels — ${APP_NAME}`,
-  'Settings-Security': `Security — ${APP_NAME}`,
-  'Settings-Data': `Data — ${APP_NAME}`,
-  Onboarding: `Welcome — ${APP_NAME}`,
+  Settings: `Settings - ${APP_NAME}`,
+  'Settings-Appearance': `Appearance - ${APP_NAME}`,
+  'Settings-Shortcuts': `Shortcuts - ${APP_NAME}`,
+  'Settings-About': `About - ${APP_NAME}`,
+  'Settings-Labels': `Labels - ${APP_NAME}`,
+  'Settings-Workspace': `Team - ${APP_NAME}`,
+  Onboarding: `Welcome - ${APP_NAME}`,
 };
 
 const routes = [
@@ -73,6 +72,11 @@ const routes = [
         component: SettingsAccount,
       },
       {
+        path: 'workspace',
+        name: 'Settings-Workspace',
+        component: SettingsTeamAdmin,
+      },
+      {
         path: 'shortcuts',
         name: 'Settings-Shortcuts',
         component: SettingsShortcuts,
@@ -87,22 +91,36 @@ const routes = [
         name: 'Settings-Labels',
         component: SettingsLabels,
       },
-      {
-        path: 'security',
-        name: 'Settings-Security',
-        component: SettingsSecurity,
-      },
-      {
-        path: 'data',
-        name: 'Settings-Data',
-        component: SettingsData,
-      },
     ],
   },
   {
+    // Legacy invite-link URLs preserve entry: rewrite them into the
+    // `?join=<token>` modal shape the Index page hosts.
     path: '/join/:token',
-    name: 'JoinNote',
-    component: JoinNote,
+    redirect: (to) => ({ path: '/', query: { join: to.params.token } }),
+  },
+  {
+    path: '/verify-email',
+    name: 'VerifyEmail',
+    component: VerifyEmail,
+    meta: { guest: true },
+  },
+  {
+    path: '/verify-email/:token',
+    name: 'VerifyEmailToken',
+    component: VerifyEmail,
+    meta: { guest: true },
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: ResetPassword,
+    meta: { guest: true },
+  },
+  {
+    path: '/reset-password/:token',
+    name: 'ResetPasswordToken',
+    component: ResetPassword,
     meta: { guest: true },
   },
   {
@@ -137,13 +155,19 @@ const router = createRouter({
   },
 });
 
-router.beforeEach((to) => {
-  // Synchronous check: if onboarding hasn't completed and we're not
-  // already on the onboarding route, redirect there immediately.
-  // This prevents the sidebar from rendering before onboarding is shown.
-  const onboardingCompleted = getSettingSync('onboardingCompleted');
+router.beforeEach(async (to) => {
+  // Await the storage read: the localStorage mirror is only written once
+  // getSetting has run, so a synchronous read after a reload sees the false
+  // default and bounces a completed user back to onboarding.
+  const onboardingCompleted = await getSetting('onboardingCompleted');
   if (!onboardingCompleted && to.name !== 'Onboarding') {
     return { name: 'Onboarding' };
+  }
+  // Symmetric guard: a completed user parked on the onboarding route (e.g. a
+  // stale #/onboarding URL or a bounce from an older build) must not be stuck
+  // there — nothing else routes away from onboarding once it is done.
+  if (onboardingCompleted && to.name === 'Onboarding') {
+    return { name: 'Home' };
   }
 });
 

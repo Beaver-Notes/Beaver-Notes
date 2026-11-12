@@ -1,6 +1,4 @@
-/**
- * Kept framework-agnostic so sync/app/note encryption paths can reuse one implementation.
- */
+// Kept framework-agnostic so sync/app/note encryption paths can reuse one implementation.
 
 import { BASE64_CHUNK_SIZE } from './constants.js';
 

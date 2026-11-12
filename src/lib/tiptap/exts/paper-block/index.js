@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, VueNodeViewRenderer } from '@tiptap/vue-3';
 import Component from './Paper.vue';
+import { parseStrokes } from './ink/stroke-model';
 
 export default Node.create({
   name: 'paper',
@@ -18,36 +19,35 @@ export default Node.create({
 
   addAttributes() {
     return {
-      // linesV2: canonical format - [x, y, pressure] triplets per stroke
+      // strokes: canonical v3 - {id, tool, color, size, opacity, shape?, points:[[x,y,pressure]]}
+      strokes: {
+        default: [],
+        parseHTML: (el) =>
+          parseStrokes(
+            el.getAttribute('data-lines-v3') ||
+              el.getAttribute('data-lines-v2') ||
+              el.getAttribute('data-lines') ||
+              '[]',
+          ),
+        renderHTML: (attrs) => ({
+          'data-lines-v3': JSON.stringify(parseStrokes(attrs.strokes ?? [])),
+        }),
+      },
+      height: { default: 210 },
+      paperType: { default: 'transparent' },
+      // Legacy stroke payloads: read-only so Yjs-backed notes (which bypass
+      // parseHTML) surface their old attrs to PaperStrokesMigration. Never
+      // rendered; nulled out by the migration.
       linesV2: {
-        default: [],
-        parseHTML: (el) => {
-          try {
-            return JSON.parse(el.getAttribute('data-lines-v2') || '[]');
-          } catch {
-            return [];
-          }
-        },
-        renderHTML: (attrs) => ({
-          'data-lines-v2': JSON.stringify(attrs.linesV2 ?? []),
-        }),
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-lines-v2'),
+        renderHTML: () => ({}),
       },
-      // lines: kept for backward compat HTML export / old note parsing
       lines: {
-        default: [],
-        parseHTML: (el) => {
-          try {
-            return JSON.parse(el.getAttribute('data-lines') || '[]');
-          } catch {
-            return [];
-          }
-        },
-        renderHTML: (attrs) => ({
-          'data-lines': JSON.stringify(attrs.lines ?? []),
-        }),
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-lines'),
+        renderHTML: () => ({}),
       },
-      height: { default: 400 },
-      paperType: { default: 'plain' },
     };
   },
 
@@ -76,7 +76,7 @@ export default Node.create({
         ({ commands }) => {
           return commands.insertContent({
             type: 'paper',
-            attrs: { lines: [], height: 800 },
+            attrs: { strokes: [], height: 210, paperType: 'transparent' },
           });
         },
     };

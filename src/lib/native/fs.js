@@ -51,8 +51,12 @@ export function isFile(path) {
   return backend.invoke('fs:isFile', path);
 }
 
-export function downloadUrl(url, dest) {
-  return backend.invoke('fs:downloadUrl', { url, dest });
+export function stat(path) {
+  return backend.invoke('fs:stat', path);
+}
+
+export function getFileIcon(path, size) {
+  return backend.invoke('fs:fileIcon', size == null ? path : { path, size });
 }
 
 export function removePath(path) {

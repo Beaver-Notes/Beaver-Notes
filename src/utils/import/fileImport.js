@@ -122,8 +122,6 @@ const EXTENSION_MAP = {
   html: importSingleHTML,
 };
 
-export const SUPPORTED_EXTENSIONS = Object.keys(EXTENSION_MAP);
-
 export async function importSingleFile(filePath, folderId = null, rawContent) {
   const ext = path.extname(filePath).toLowerCase().replace('.', '');
   const importer = EXTENSION_MAP[ext];

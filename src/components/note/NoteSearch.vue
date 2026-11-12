@@ -1,16 +1,17 @@
 <template>
   <div
-    class="fixed inset-x-0 z-40 mx-2 transition-all duration-300 ease-[var(--ease-standard)] bottom-4 md:pl-16"
+    class="fixed inset-x-0 z-40 flex justify-center px-2 transition-all duration-300 ease-[var(--ease-standard)] bottom-4 foldable:right-[var(--app-rail-width)]"
+    :style="wrapperStyle"
   >
     <div
-      class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
+      class="relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
     >
       <!-- Desktop Layout -->
       <div
-        class="flex items-center p-2 space-x-2 max-md:flex-wrap max-md:hidden"
+        class="flex flex-wrap items-center p-2 space-x-2 mobile:hidden foldable:hidden"
       >
-        <!-- Regex Toggle Button -->
         <ui-button
+          v-keep-focus
           v-tooltip="translations.search.useRegex"
           icon
           @click="toggleRegex"
@@ -21,7 +22,6 @@
           />
         </ui-button>
 
-        <!-- Search Term Input -->
         <div class="relative flex-1">
           <ui-input
             v-model="state.query"
@@ -40,7 +40,6 @@
           </div>
         </div>
 
-        <!-- Replace Term Input -->
         <ui-input
           v-model="state.replaceWith"
           :placeholder="translations.search.replacePlaceholder"
@@ -48,8 +47,8 @@
           @keyup="startSearch"
         />
 
-        <!-- Clear Search Button -->
         <ui-button
+          v-keep-focus
           v-tooltip="translations.search.clear"
           icon
           @click="clearSearch"
@@ -57,8 +56,8 @@
           <v-remixicon name="riDeleteBackLine" />
         </ui-button>
 
-        <!-- Replace Button -->
         <ui-button
+          v-keep-focus
           v-tooltip="translations.searchReplace?.altEnter || 'Alt+Enter'"
           :disabled="!state.replaceWith"
           @click="replaceText"
@@ -66,8 +65,8 @@
           {{ translations.search.replace || 'Replace' }}
         </ui-button>
 
-        <!-- Replace All Button -->
         <ui-button
+          v-keep-focus
           v-tooltip="
             translations.searchReplace?.ctrlAltEnter || 'Ctrl+Alt+Enter'
           "
@@ -77,31 +76,33 @@
           {{ translations.search.replaceAll || 'Replace All' }}
         </ui-button>
 
-        <!-- Case Sensitivity Toggle -->
         <ui-button
+          v-keep-focus
           :class="{ 'text-primary': state.caseSensitive }"
           @click="toggleCaseSensitive"
         >
           <v-remixicon name="riFontSize" />
         </ui-button>
 
-        <!-- Find Previous Button -->
-        <ui-button :disabled="!state.query" @click="findPreviousResult">
+        <ui-button
+          v-keep-focus
+          :disabled="!state.query"
+          @click="findPreviousResult"
+        >
           <v-remixicon
             name="riArrowUpLine"
             class="dark:text-neutral-200 text-neutral-600"
           />
         </ui-button>
 
-        <!-- Find Next Button -->
-        <ui-button :disabled="!state.query" @click="findNextResult">
+        <ui-button v-keep-focus :disabled="!state.query" @click="findNextResult">
           <v-remixicon
             name="riArrowDownLine"
             class="dark:text-neutral-200 text-neutral-600"
           />
         </ui-button>
 
-        <ui-button @click="$emit('close')">
+        <ui-button v-keep-focus @click="$emit('close')">
           <v-remixicon
             name="riCloseLine"
             class="dark:text-neutral-200 text-neutral-600"
@@ -110,10 +111,9 @@
       </div>
 
       <!-- Mobile Layout -->
-      <div class="hidden max-md:block">
+      <div class="hidden mobile:block foldable:block">
         <!-- Search Row -->
         <div class="flex items-center p-2 space-x-2">
-          <!-- Search Term Input -->
           <div class="relative flex-1">
             <ui-input
               v-model="state.query"
@@ -136,10 +136,9 @@
             </div>
           </div>
 
-          <!-- Navigation Controls -->
           <div class="flex items-center space-x-1">
-            <!-- Find Previous Button -->
             <ui-button
+              v-keep-focus
               :disabled="
                 !state.query ||
                 (props.editor?.storage?.searchAndReplace?.results?.length ||
@@ -155,8 +154,8 @@
               />
             </ui-button>
 
-            <!-- Find Next Button -->
             <ui-button
+              v-keep-focus
               :disabled="
                 !state.query ||
                 (props.editor?.storage?.searchAndReplace?.results?.length ||
@@ -173,8 +172,8 @@
             </ui-button>
           </div>
 
-          <!-- Toggle Replace Button -->
           <ui-button
+            v-keep-focus
             icon
             class="p-2"
             @click="state.showReplace = !state.showReplace"
@@ -185,8 +184,7 @@
             />
           </ui-button>
 
-          <!-- Close Button -->
-          <ui-button icon class="p-2" @click="$emit('close')">
+          <ui-button v-keep-focus icon class="p-2" @click="$emit('close')">
             <v-remixicon
               name="riCloseLine"
               class="w-4 h-4 text-neutral-600 dark:text-neutral-400"
@@ -203,7 +201,6 @@
         >
           <div class="border-t border-neutral-200 dark:border-neutral-700 p-2">
             <div class="flex items-center space-x-2">
-              <!-- Replace Input -->
               <ui-input
                 v-model="state.replaceWith"
                 :placeholder="translations.search.replacePlaceholder"
@@ -211,10 +208,9 @@
                 @keyup="startSearch"
               />
 
-              <!-- Replace Controls -->
               <div class="flex items-center space-x-1">
-                <!-- Replace Button -->
                 <ui-button
+                  v-keep-focus
                   :disabled="!state.replaceWith || !state.query"
                   class="px-3 py-2 text-xs"
                   @click="replaceText"
@@ -222,8 +218,8 @@
                   {{ translations.search.replace || 'Replace' }}
                 </ui-button>
 
-                <!-- Replace All Button -->
                 <ui-button
+                  v-keep-focus
                   :disabled="!state.replaceWith || !state.query"
                   class="px-3 py-2 text-xs"
                   @click="replaceAllText"
@@ -231,8 +227,8 @@
                   {{ translations.search.replaceAll || 'All' }}
                 </ui-button>
 
-                <!-- Case Sensitivity Toggle -->
                 <ui-button
+                  v-keep-focus
                   :class="[
                     'p-2 transition-colors',
                     state.caseSensitive
@@ -254,8 +250,14 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, onUnmounted, ref, nextTick } from 'vue';
+import { shallowReactive, onMounted, onUnmounted, ref, nextTick, computed } from 'vue';
+import { debounce } from '@/utils/helpers';
+import { centerPosInView } from '@/utils/ui/scroll';
 import { useTranslations } from '@/composable/useTranslations';
+import { useUiState } from '@/composable/useUiState';
+import { useSidebar } from '@/composable/useSidebar';
+import { backend } from '@/lib/tauri-bridge';
+import { foldState } from '@/lib/foldable';
 import Mousetrap from '@/lib/mousetrap';
 
 export default {
@@ -272,7 +274,22 @@ export default {
   emits: ['close'],
   setup(props) {
     const { translations } = useTranslations();
+    const uiState = useUiState();
+    const { expanded: sidebarExpanded } = useSidebar();
     const mobileSearchInput = ref(null);
+
+    // Presentation, not user agent: the unfolded Duo is a regular-width canvas
+    // and gets the single-row layout.
+    const isMobile = backend.isMobileRuntime() && !foldState.isFoldable;
+
+    const wrapperStyle = computed(() => {
+      if (isMobile) {
+        return { bottom: 'var(--app-keyboard-inset-bottom, 1rem)' };
+      }
+      if (uiState.inReaderMode) return {};
+      if (foldState.isFoldable) return { right: 'var(--app-rail-width)' };
+      return { paddingLeft: sidebarExpanded.value ? '16rem' : '4rem' };
+    });
 
     const state = shallowReactive({
       query: '',
@@ -298,12 +315,20 @@ export default {
       props.editor.commands.resetIndex();
     }
 
-    function startSearch() {
+    // The search extension rebuilds full-document decorations on every term
+    // change; on large notes that is hundreds of milliseconds per keystroke.
+    // Debounce it like every other editor-wide recompute (Notion-style).
+    const debouncedTermSearch = debounce(() => {
       if (!props.editor) return;
       props.editor.commands.setSearchTerm(state.query);
-      props.editor.commands.setReplaceTerm(state.replaceWith);
       props.editor.commands.setCaseSensitive(state.caseSensitive);
       goToSelection();
+    }, 250);
+
+    function startSearch() {
+      if (!props.editor) return;
+      props.editor.commands.setReplaceTerm(state.replaceWith);
+      debouncedTermSearch();
     }
 
     function findNextResult() {
@@ -328,11 +353,23 @@ export default {
 
       props.editor.commands.setTextSelection(position);
 
-      const { node } = props.editor.view.domAtPos(
-        props.editor.state.selection.anchor,
-      );
-      if (node instanceof HTMLElement) {
-        node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Two-phase navigation (virtual-scroller pattern): the first glide uses
+      // placeholder-based geometry on a content-visibility page, so re-settle
+      // once the destination block has rendered to avoid landing on a blank
+      // region or the wrong offset.
+      const settle = () => {
+        if (props.editor.isDestroyed) return;
+        try {
+          props.editor.commands.setTextSelection(position);
+          centerPosInView(props.editor, position);
+        } catch { /* position shifted between phases */ }
+      };
+      try {
+        if (!centerPosInView(props.editor, position, { onDone: settle })) {
+          props.editor.commands.scrollIntoView();
+        }
+      } catch {
+        props.editor.commands.scrollIntoView();
       }
     }
 
@@ -397,6 +434,7 @@ export default {
       props,
       state,
       translations,
+      wrapperStyle,
       mobileSearchInput,
       startSearch,
       replaceText,

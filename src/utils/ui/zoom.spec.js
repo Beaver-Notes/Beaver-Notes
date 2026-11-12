@@ -34,4 +34,14 @@ describe('zoom boot dedup', () => {
     await setStoredZoomLevel(1.0);
     expect(wasZoomAppliedAtBoot()).toBe(true);
   });
+
+  // H1 (async scan 2026-11-01): callers assign the awaited result to zoom
+  // state; if it were ever a Promise, the next step parseFloat()s it to NaN
+  // and persists the literal "NaN".
+  it('setStoredZoomLevel resolves to a parseable numeric string', async () => {
+    const { setStoredZoomLevel } = await import('./zoom.js');
+    const resolved = await setStoredZoomLevel(1.1);
+    expect(typeof resolved).toBe('string');
+    expect(parseFloat(resolved)).toBe(1.1);
+  });
 });

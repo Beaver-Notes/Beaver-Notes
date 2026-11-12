@@ -1,18 +1,25 @@
 <template>
-  <nav class="w-full" role="navigation" aria-label="Main navigation" data-selection-keep>
-    <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
-      <!-- ── Left Rail ── -->
+  <nav :class="rail ? 'w-auto' : 'w-full'" role="navigation" aria-label="Main navigation" data-selection-keep>
+    <div
+      class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between"
+      :class="{ 'max-w-none flex-col items-center gap-2': rail }"
+    >
       <div
         class="flex items-center rounded-full bg-white dark:bg-neutral-900 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-[width] duration-300 ease-[var(--ease-snappy)] overflow-hidden"
-        :class="railWidthClass"
+        :class="
+          rail
+            ? '!rounded-2xl flex-col p-1.5 !border-0 !bg-transparent !shadow-none !backdrop-blur-none !text-[color:var(--text-dark)]'
+            : railWidthClass
+        "
       >
         <!-- Default Navigation -->
         <div
           v-if="!showAddMenu && !selectionBar.hasSelection"
           ref="navRailRef"
-          class="relative flex items-center gap-1.5 w-full"
+          :class="rail ? 'relative flex flex-col items-center gap-1.5' : 'relative flex items-center gap-1.5 w-full'"
         >
           <div
+            v-if="!rail"
             class="pointer-events-none absolute inset-y-0 rounded-full bg-primary/15 ring-1 ring-white/60 transition-[transform,opacity] duration-300 ease-[var(--ease-snappy)] dark:bg-primary/20 dark:ring-white/10"
             :style="activePillStyle"
           />
@@ -25,10 +32,8 @@
             "
             :aria-label="nav.name"
             :data-testid="getNavTestId(nav.path)"
-            class="relative z-10 flex h-12 w-16 items-center justify-center rounded-full text-inherit transition-[color,transform] duration-300 ease-[var(--ease-snappy)] active:scale-[0.97]"
-            :class="{
-              'text-primary': isActivePath(nav.path),
-            }"
+            class="relative z-10 flex h-12 items-center justify-center rounded-full text-inherit transition-[color,transform] duration-300 ease-[var(--ease-snappy)] active:scale-[0.97]"
+            :class="[rail ? 'w-12' : 'w-16', { 'text-primary': isActivePath(nav.path) }]"
             @click="handleNavigation(nav)"
           >
             <v-remixicon :name="nav.icon" size="22" />
@@ -39,10 +44,12 @@
         <div
           v-else-if="showAddMenu && !selectionBar.hasSelection"
           class="flex items-center justify-around w-full"
+          :class="{ 'flex-col gap-0.5': rail }"
         >
           <button
             v-tooltip:right="translations.sidebar.newFolder || 'New Folder'"
             :aria-label="translations.sidebar.newFolder || 'New Folder'"
+            data-testid="add-folder-menu-item"
             class="flex h-12 w-16 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors duration-200"
             @click="addFolderAndClose"
           >
@@ -51,6 +58,7 @@
           <button
             v-tooltip:right="translations.sidebar.addNotes || 'New Note'"
             :aria-label="translations.sidebar.addNotes || 'New Note'"
+            data-testid="add-note-menu-item"
             class="flex h-12 w-16 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors duration-200"
             @click="addNoteAndClose"
           >
@@ -62,63 +70,23 @@
         <div
           v-else-if="selectionBar.hasSelection"
           class="flex items-center justify-between w-full"
+          :class="{ 'flex-col gap-1': rail }"
         >
           <span class="text-xs font-medium text-neutral-500 px-2 select-none">
             {{ selectionBar.selectedCount }}
             {{ selectionBar.selectedCount === 1 ? 'item' : 'items' }}
           </span>
-          <div class="flex items-center">
+          <div class="flex items-center" :class="{ 'flex-col': rail }">
             <button
-              v-if="selectionBar.hasSelectedNotes"
-              v-tooltip:right="
-                selectionBar.shouldLock
-                  ? translations.card.lock || 'Lock'
-                  : translations.card.unlock || 'Unlock'
-              "
-              :aria-label="
-                selectionBar.shouldLock
-                  ? translations.card.lock || 'Lock'
-                  : translations.card.unlock || 'Unlock'
-              "
-              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-amber-600 transition-colors duration-200"
-              @click="selectionBar.toggleLock()"
+              v-if="selectionBar.showCustomize"
+              v-tooltip:right="translations.card?.customize || 'Customize'"
+              :aria-label="translations.card?.customize || 'Customize'"
+              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
+              @click="selectionBar.customizeSelection()"
             >
-              <v-remixicon
-                :name="
-                  selectionBar.shouldLock ? 'riLockLine' : 'riLockUnlockLine'
-                "
-                size="20"
-              />
+              <v-remixicon name="riPaletteLine" size="20" />
             </button>
-            <button
-              v-if="selectionBar.hasSelectedNotes"
-              v-tooltip:right="
-                selectionBar.shouldBookmark
-                  ? translations.card.bookmark || 'Bookmark'
-                  : translations.card.removeBookmark || 'Unbookmark'
-              "
-              :aria-label="
-                selectionBar.shouldBookmark
-                  ? translations.card.bookmark || 'Bookmark'
-                  : translations.card.removeBookmark || 'Unbookmark'
-              "
-              class="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200"
-              :class="
-                selectionBar.shouldBookmark
-                  ? 'text-neutral-400 hover:text-amber-500'
-                  : 'text-amber-500'
-              "
-              @click="selectionBar.toggleBookmark()"
-            >
-              <v-remixicon
-                :name="
-                  selectionBar.shouldBookmark
-                    ? 'riBookmarkLine'
-                    : 'riBookmarkFill'
-                "
-                size="20"
-              />
-            </button>
+
             <button
               v-tooltip:right="
                 selectionBar.shouldArchive
@@ -171,7 +139,11 @@
       </div>
 
       <!-- Right Button -->
-      <div v-if="!selectionBar.hasSelection" class="relative flex-shrink-0">
+      <div
+        v-if="!selectionBar.hasSelection"
+        class="relative flex-shrink-0 flex items-center gap-2"
+        :class="{ 'flex-col gap-1': rail }"
+      >
         <button
           v-tooltip:right="
             showAddMenu
@@ -183,7 +155,7 @@
               ? translations.index.close || 'Close'
               : translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
           "
-          data-testid="add-note-button"
+          data-testid="add-notes-menu-button"
           class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-[transform,background-color] duration-300 ease-[var(--ease-snappy)] hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/100"
           :class="{ 'rotate-40 scale-95': showAddMenu }"
           @click="toggleAddMenu"
@@ -213,8 +185,9 @@ import { useRoute } from 'vue-router';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
+import { foldState } from '@/lib/foldable';
 import { useDialog } from '@/lib/dialog';
-import { useNoteStore } from '@/store/note';
 
 export default {
   setup() {
@@ -229,7 +202,10 @@ export default {
       handleNavigation,
       createShortcutMap,
     } = useAppShellActions({ includeSettingsNav: true });
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
+    const isMacOS = isMacOSRuntime();
+    // Foldable: the bar stacks in the app rail's bottom slot instead of floating
+    // at the bottom of the screen.
+    const rail = computed(() => foldState.isFoldable);
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
     const navRailRef = ref(null);
     const navItemRefs = new Map();
@@ -240,20 +216,12 @@ export default {
     });
     const showAddMenu = ref(false);
     const selectionBar = useSelectionBar();
-    const dialog = useDialog();
-    const noteStore = useNoteStore();
 
-    // ── Rail width ──
     const railWidthClass = computed(() => {
       if (selectionBar.hasSelection) return 'flex-1 min-w-0';
       if (showAddMenu.value) return 'w-[156px]';
       return 'w-[216px]';
     });
-
-    // ── Emitter listeners ──
-    emitter.on('new-note', addNote);
-    emitter.on('new-folder', addFolder);
-    emitter.on('open-settings', openSettings);
 
     if (typeof window !== 'undefined') {
       window.addNote = addNote;
@@ -265,7 +233,6 @@ export default {
     });
     onUnmounted(() => _unregNavbarShortcuts?.());
 
-    // ── Close add menu when clicking outside ──
     function onDocumentClick(event) {
       if (!showAddMenu.value) return;
       // Ignore clicks inside the navbar
@@ -274,7 +241,6 @@ export default {
       showAddMenu.value = false;
     }
 
-    // ── Add menu ──
     function toggleAddMenu() {
       showAddMenu.value = !showAddMenu.value;
     }
@@ -289,28 +255,12 @@ export default {
       addFolder();
     }
 
-    // ── Selection actions ──
     function handleClearSelection() {
       selectionBar.clearSelection();
     }
 
     function handleDeleteSelection() {
-      const notes = selectionBar.selectedNotes;
-      if (!notes.length) return;
-
-      const t = translations.value || {};
-
-      dialog.confirm({
-        title: t.card?.confirmPrompt || 'Delete note?',
-        okText: t.card?.confirm || 'Delete',
-        cancelText: t.card?.cancel || 'Cancel',
-        onConfirm: async () => {
-          for (const note of notes) {
-            await noteStore.delete(note.id);
-          }
-          selectionBar.clearSelection();
-        },
-      });
+      selectionBar.deleteSelection();
     }
 
     function handleMoveSelection() {
@@ -327,7 +277,6 @@ export default {
       }
     }
 
-    // ── Active pill ──
     onMounted(() => {
       document.addEventListener('click', onDocumentClick, true);
       window.addEventListener('resize', updateActivePill);
@@ -440,6 +389,7 @@ export default {
       addFolderAndClose,
       selectionBar,
       railWidthClass,
+      rail,
       handleClearSelection,
       handleDeleteSelection,
       handleMoveSelection,
