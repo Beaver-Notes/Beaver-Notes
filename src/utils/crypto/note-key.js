@@ -1,5 +1,6 @@
 import { createMlKem768 } from 'mlkem';
 import { importCollabKey, isValidCollabKey } from './collab.js';
+import { speed } from '@/utils/speed';
 
 // Cache unwrapped note keys: avoids repeated ML-KEM decap plus unwrap.
 const unwrappedKeyCache = new Map();
@@ -181,19 +182,27 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
 
   // Fresh note: provision key for every keypair collaborator.
   try {
+    const tListKeys = speed('provision:listPublicKeys');
     const publicKeys = await listPublicKeys();
+    tListKeys?.end();
     const keypairCollabs = Array.isArray(publicKeys?.collaborators)
       ? publicKeys.collaborators.filter((c) => c?.kemPublicKey)
       : [];
     if (keypairCollabs.length === 0) return null;
 
     const noteKeyHex = await bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
-    const recipients = [];
-    for (const c of keypairCollabs) {
-      const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, noteKeyHex);
-      recipients.push({ userId: c.userId, deviceId: c.deviceId || 'default', wrappedKey });
-    }
+    const tWrapRecipients = speed('provision:wrapRecipients');
+    const wrappedResults = await Promise.all(
+      keypairCollabs.map(async (c) => {
+        const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, noteKeyHex);
+        return { userId: c.userId, deviceId: c.deviceId || 'default', wrappedKey };
+      })
+    );
+    tWrapRecipients?.end();
+    const recipients = wrappedResults;
+    const tStoreRecipients = speed('provision:storeRecipients');
     const stored = await storeRecipients(recipients);
+    tStoreRecipients?.end();
 
     // Concurrent provisioning: another client won the race; recover the winner's key.
     if (stored?.existing) {

@@ -20,6 +20,7 @@ import {
 } from '@/lib/api/collaboration';
 import { getWorkspaceMembers as apiGetWorkspaceMembers, getWorkspacePublicKeys as apiGetWorkspacePublicKeys } from '@/lib/api/workspaces';
 import { getSettingSync } from '@/lib/settings';
+import { speed } from '@/utils/speed';
 import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
 import { useStorage } from '@/lib/storage';
@@ -404,25 +405,37 @@ export function useNoteSharing() {
     // fire unless team collaboration is explicitly enabled (teams phase).
     if (!getSettingSync('collaborationEnabled')) return null;
 
-    // Register the caller as the note's owner collaborator (idempotent: only
-    // bootstraps when the note has zero collaborators) and ensure the key
-    // envelope context exists. Non-fatal so note creation/opening never breaks.
-    await ensureKey(noteId).catch(() => {});
-
-    const identity = await loadOrCreateIdentity();
-
     // Same 403 self-invitation dance as fetchCollaboratorPublicKeys.
     const getKey = async () => {
       try {
         return await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
       } catch (err) {
         if (err?.status !== 403) throw err;
+        const tApiList = speed('provision:apiList');
         await apiList(noteId, { baseUrl: activeBaseUrl() });
-        return apiGetKey(noteId, { baseUrl: activeBaseUrl() });
+        tApiList?.end();
+        return await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
       }
     };
 
+    // Register the caller as the note's owner collaborator (idempotent: only
+    // bootstraps when the note has zero collaborators) and ensure the key
+    // envelope context exists. Non-fatal so note creation/opening never breaks.
+    // ensureKey (HTTP POST) and apiGetKey (HTTP GET) are independent for
+    // existing notes — ensureKey's result is unused (side effect: register
+    // collaborator). Fire them together to save one round-trip.
+    const tEnsureKey = speed('provision:ensureKey');
+    const tGetKey = speed('provision:getKey');
+    const ensureKeyPromise = ensureKey(noteId).catch(() => null);
     const raw = await getKey();
+    await ensureKeyPromise;
+    tEnsureKey?.end();
+    tGetKey?.end();
+
+    const tIdentity = speed('provision:identity');
+    const identity = await loadOrCreateIdentity();
+    tIdentity?.end();
+    const tRecover = speed('provision:recoverKey');
     const noteKeyHex = await recoverNoteKeyFromEnvelopes(
       raw?.wrappedKeys,
       identity,
@@ -430,9 +443,12 @@ export function useNoteSharing() {
       console,
       verifyRecoveredNoteKey,
     );
+    tRecover?.end();
     if (noteKeyHex) {
       key.value = noteKeyHex;
+      const tRemember = speed('provision:rememberAndProvision');
       await rememberAndProvision(noteId, noteKeyHex);
+      tRemember?.end();
       return noteKeyHex;
     }
 
@@ -501,9 +517,12 @@ export function useNoteSharing() {
     // of sealing with the account items key (which cross-account peers cannot
     // read). The mark is cleared by registration below.
     if (!(typeof noteKeyHex === 'string' && noteKeyHex)) return;
+    const tExpectShared = speed('provision:expectSharedSyncNote');
     await expectSharedSyncNote(noteId, true);
+    tExpectShared?.end();
 
     let collaborators;
+    const tFetchCollab = speed('provision:fetchCollaboratorPublicKeys');
     try {
       const res = await fetchCollaboratorPublicKeys(noteId);
       collaborators = Array.isArray(res?.collaborators) ? res.collaborators : [];
@@ -520,10 +539,14 @@ export function useNoteSharing() {
         '[notes] collaborator lookup failed, registering shared key:',
         err?.message || err,
       );
+      tFetchCollab?.end();
+      const tRegister1 = speed('provision:registerSharedSyncKey');
       await registerSharedSyncKey(noteId, noteKeyHex, getPreviousNoteKeys(noteId), { takeover: true });
+      tRegister1?.end();
       scheduleProvisionRetry(noteId, noteKeyHex);
       return;
     }
+    tFetchCollab?.end();
 
     const selfId = accountStore.profile?.id || null;
     // Team-workspace notes share by construction: merge the workspace member
@@ -545,7 +568,9 @@ export function useNoteSharing() {
     let memberDevices = [];
     if (noteWsId) {
       try {
+        const tWsKeys = speed('provision:apiGetWorkspacePublicKeys');
         const memberRows = await apiGetWorkspacePublicKeys(noteWsId, { baseUrl: activeBaseUrl() });
+        tWsKeys?.end();
         const known = new Set(
           collaborators.map((c) => `${c?.userId}:${c?.deviceId || 'default'}`)
         );
@@ -568,13 +593,19 @@ export function useNoteSharing() {
       // device-local, so an invited reader could never obtain it — the note key
       // (wrapped above for the invitees AND the member devices) must own the
       // note from here on.
+      const tRegister2 = speed('provision:registerSharedSyncKey');
       await registerSharedSyncKey(noteId, noteKeyHex, getPreviousNoteKeys(noteId), { takeover: true });
+      tRegister2?.end();
     } else {
       // Personal (self-only) note: restore the exact v5 items-key path.
+      const tExpectShared2 = speed('provision:expectSharedSyncNote');
       await expectSharedSyncNote(noteId, false);
+      tExpectShared2?.end();
     }
 
+    const tProvisionMissing = speed('provision:provisionMissingEnvelopes');
     await provisionMissingEnvelopes(noteId, noteKeyHex, collaborators, memberDevices);
+    tProvisionMissing?.end();
 
     // `crossAccount` notes switch to the shared key; the wrap above covers the
     // sibling/new-device case (a device the server reports `hasEnvelope: false`).
@@ -610,11 +641,13 @@ export function useNoteSharing() {
     const previous = getPreviousNoteKeys(noteId);
     const payload = previous.length ? buildNoteKeyPayload(noteKeyHex, previous) : noteKeyHex;
     try {
-      const recipients = [];
-      for (const c of targets) {
-        const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, payload);
-        recipients.push({ userId: c.userId, deviceId: c.deviceId || 'default', wrappedKey });
-      }
+      const wrappedResults = await Promise.all(
+        targets.map(async (c) => {
+          const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, payload);
+          return { userId: c.userId, deviceId: c.deviceId || 'default', wrappedKey };
+        })
+      );
+      const recipients = wrappedResults;
       if (recipients.length > 0) {
         await apiStoreRecipients(noteId, recipients, { baseUrl: activeBaseUrl() });
       }

@@ -91,7 +91,9 @@ async function seedFromTipJson(ydoc, contentJson, noteId) {
 }
 
 // Load Yjs state: chunk fast path when the index is current, else snapshot
-// first (O(1)), else replay updates.
+// first (O(1)), else replay updates. Returns the Y.Doc the caller should use
+// — normally `newDoc`, but a fresh doc if applying a corrupt snapshot
+// partially mutated it (the replay path needs a clean state).
 async function loadStateIntoDoc(newDoc, noteId) {
   const t = speed('yjs_load_snapshot');
   // Fast path: a current chunk index serves content from parallel per-chunk
@@ -131,7 +133,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
           // Background-load remaining chunks after first paint so the Y.Doc is
           // complete before the user scrolls far. Never blocks first render.
           void loadRemainingChunks(noteId, manifest, newDoc, firstSlot);
-          return;
+          return newDoc;
         }
       }
     }
@@ -139,29 +141,23 @@ async function loadStateIntoDoc(newDoc, noteId) {
     console.warn('[yjs] chunk fast path unavailable, using full load:', err?.message);
   }
   let snapshotWasCorrupt = false;
+  let activeDoc = newDoc;
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
-      // Defensive decode: a corrupt/garbage snapshot (base64 string, JSON, or
-      // half-decrypted blob from a bad cloud bootstrap) must be discarded here,
-      // not allowed to mutate newDoc. decodeUpdate parses every record of the
-      // update binary and throws on malformed payloads — the same guarantee as
-      // the old apply-to-throwaway-doc probe, without a second full doc
-      // integration (~100-300ms per open on multi-MB notes).
       const bytes = toUint8Array(snapshot);
       try {
-        Y.decodeUpdate(bytes);
+        Y.applyUpdate(activeDoc, bytes);
+        t?.end();
+        return activeDoc;
       } catch (err) {
         snapshotWasCorrupt = true;
-        console.error(`[yjs] Failed to decode snapshot for ${noteId}:`, err);
+        console.error(`[yjs] Failed to apply snapshot for ${noteId}:`, err);
+        // applyUpdate may have partially mutated the doc; use a fresh doc for
+        // the replay path below so updates are applied from a clean state.
+        activeDoc.destroy();
+        activeDoc = new Y.Doc();
       }
-      if (!snapshotWasCorrupt) {
-        Y.applyUpdate(newDoc, bytes);
-        t?.end();
-        return;
-      }
-      // Corrupt snapshot: fall through to the replay path, which repairs the
-      // cached copy below.
     }
   } catch (err) {
     // Snapshot decode failed: repair cached copy after replay.
@@ -171,7 +167,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
 
   try {
     const updates = await getUpdates(noteId);
-    applyUpdatesToDoc(newDoc, updates);
+    applyUpdatesToDoc(activeDoc, updates);
   } catch (err) {
     console.error(`[yjs] Failed to load updates for ${noteId}:`, err);
   }
@@ -179,7 +175,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
   // Repair a corrupt cached snapshot so the decode error doesn't re-trigger on
   // every open. Best-effort: failure just means falling back again next time.
   // Rust merges stored rows in place; no snapshot bytes cross IPC.
-  if (snapshotWasCorrupt && newDoc.store) {
+  if (snapshotWasCorrupt && activeDoc.store) {
     try {
       await compactNote(noteId);
     } catch (repairErr) {
@@ -187,6 +183,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
     }
   }
   t?.end();
+  return activeDoc;
 }
 
 // Background-load the remaining (off-screen) chunk slots after first paint.
@@ -273,14 +270,12 @@ export function useNoteYjs() {
   // Chunk index rebuild (item 7): idle-refresh the derived chunk slots after
   // persistence settles so the NEXT open of a huge note takes the fast path.
   // Single-flight, note-switch aware, and skipped for small docs.
-  const CHUNK_REBUILD_IDLE_MS = 2500;
   let rebuildTimer = null;
   let rebuilding = false;
 
   function scheduleChunkRebuild() {
     if (rebuildTimer) {
-      if (typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(rebuildTimer);
-      else clearTimeout(rebuildTimer);
+      clearTimeout(rebuildTimer);
     }
     const run = () => {
       rebuildTimer = null;
@@ -289,14 +284,12 @@ export function useNoteYjs() {
       if (disposed || !noteId || !docRef) return;
       void runChunkRebuild(noteId, docRef);
     };
-    // Defer to an idle period so the O(document) rebuild never pins the main
-    // thread while the user is actively editing the open note. Falls back to
-    // a timed deferral where requestIdleCallback isn't available.
-    if (typeof window !== 'undefined' && window.requestIdleCallback) {
-      rebuildTimer = window.requestIdleCallback(run);
-    } else {
-      rebuildTimer = setTimeout(run, CHUNK_REBUILD_IDLE_MS);
-    }
+    // Start on the next tick rather than waiting for an idle period, so the
+    // chunk index is refreshed promptly after a save and is current by the next
+    // open. The rebuild is incremental (yields between chunks) and skips when
+    // the index is already current, so it never blocks the UI or does
+    // redundant work.
+    rebuildTimer = setTimeout(run, 0);
   }
 
   async function runChunkRebuild(noteId, docRef) {
@@ -495,26 +488,26 @@ export function useNoteYjs() {
 
     const newDoc = new Y.Doc();
 
-    await loadStateIntoDoc(newDoc, noteId);
+    const activeDoc = await loadStateIntoDoc(newDoc, noteId);
     if (isStale()) {
-      newDoc.destroy();
+      activeDoc.destroy();
       t?.end();
       return;
     }
 
     // Still empty after replay (fresh or corrupt snapshot): seed from store.
-    const frag = newDoc.getXmlFragment('content');
+    const frag = activeDoc.getXmlFragment('content');
     if (frag.length === 0 && initialContent) {
       try {
-        await seedFromTipJson(newDoc, initialContent, noteId);
-        const snapshot = Y.encodeStateAsUpdate(newDoc);
+        await seedFromTipJson(activeDoc, initialContent, noteId);
+        const snapshot = Y.encodeStateAsUpdate(activeDoc);
         await compactUpdates(noteId, snapshot);
       } catch (e) {
         console.error('[yjs] seeding also failed:', e);
       }
     }
     if (isStale()) {
-      newDoc.destroy();
+      activeDoc.destroy();
       t?.end();
       return;
     }
@@ -523,11 +516,11 @@ export function useNoteYjs() {
     // XmlFragment. Legacy docs store title as XmlFragment; new code uses YText.
     // Claiming the wrong type first corrupts the value (length mismatch) and
     // throws on the second accessor.
-    const existing = newDoc.share.get('title');
+    const existing = activeDoc.share.get('title');
     if (existing instanceof Y.XmlFragment) {
       let seed = '';
       try {
-        const frag = newDoc.getXmlFragment('title');
+        const frag = activeDoc.getXmlFragment('title');
         seed = frag.toJSON() || '';
         if (!seed) {
           try { seed = frag.get(0)?.toString() || ''; } catch {}
@@ -536,7 +529,7 @@ export function useNoteYjs() {
         console.warn('[yjs] legacy title migration failed to extract seed:', e);
       }
       try {
-        newDoc.share.delete('title');
+        activeDoc.share.delete('title');
       } catch (e) {
         console.warn('[yjs] failed to delete legacy title key:', e);
       }
@@ -544,7 +537,7 @@ export function useNoteYjs() {
         try {
           // Authored under this doc's own clientID so a later title edit on
           // either device can delete it, same as any typed title.
-          newDoc.transact(() => newDoc.getText('title').insert(0, seed), 'local');
+          activeDoc.transact(() => activeDoc.getText('title').insert(0, seed), 'local');
         } catch (e) {
           console.warn('[yjs] failed to migrate legacy title to YText:', e);
         }
@@ -554,7 +547,7 @@ export function useNoteYjs() {
     // The title is carried by the workspace meta doc; the first real edit goes
     // through applyTitleDelta, which authors it as a normal diff.
 
-    newDoc.on('update', (update, origin, _doc, transaction) => {
+    activeDoc.on('update', (update, origin, _doc, transaction) => {
       if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
       // Remote transactions are already persisted in note_content by the native
       // pull path; re-appending them here echoes them back to the server.
@@ -573,14 +566,14 @@ export function useNoteYjs() {
     // until the next open. Edits stay local meanwhile via pendingSetup.
     pendingSetup.value = true;
     if (isStale()) {
-      newDoc.destroy();
+      activeDoc.destroy();
       t?.end();
       return;
     }
     currentNoteId = noteId;
-    currentDoc = newDoc;
-    registerActiveDoc(noteId, newDoc);
-    doc.value = newDoc;
+    currentDoc = activeDoc;
+    registerActiveDoc(noteId, activeDoc);
+    doc.value = activeDoc;
     ready.value = true;
     // A read-only open never flushes, so without this the chunk index would
     // only ever build after an edit. The rebuild skips itself when the index
@@ -623,7 +616,10 @@ export function useNoteYjs() {
     const tProvision = speed('yjs_load_note_provision');
     // Deferred like compaction: crypto + cloud IPC must not compete with the
     // load or the editor build. pendingSetup stays advisory-only either way.
-    whenIdle(() => {
+    // Use setTimeout(0) so provisioning starts on the next tick instead of
+    // waiting up to 2s for requestIdleCallback idle (actual work is only
+    // ~20-80ms of crypto + IPC).
+    setTimeout(() => {
       void sharing.ensureNoteKey(noteId, { backgroundRetry: true, onKeyResolved }).then((hex) => {
         noteKeyHex = hex;
         const ownerId = resolveNoteWorkspaceId(noteId, workspaceStore.activeId);
@@ -638,14 +634,14 @@ export function useNoteYjs() {
         console.warn('[yjs] note-key provisioning skipped:', err);
         tProvision?.end();
       });
-    });
+    }, 0);
     // Provisioning is fire-and-forget: it starts once the UI is idle and
     // continues in the background. The editor must not wait on it — a missing
     // key is advisory only, it never gates editing or persistence.
     pendingSetup.value = applyNoteKeyResult(noteKeyHex);
     if (isStale()) {
-      if (currentDoc === newDoc) teardownActiveDoc({ deferCompact: true });
-      else newDoc.destroy();
+      if (currentDoc === activeDoc) teardownActiveDoc({ deferCompact: true });
+      else activeDoc.destroy();
       t?.end();
       return;
     }

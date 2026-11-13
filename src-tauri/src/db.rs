@@ -5,7 +5,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rayon::prelude::*;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{Map, Value};
-use y_octo::{Doc, StateVector, Update};
+use y_octo::{Doc, StateVector, Update, merge_updates_v1};
 
 use crate::shared::{
     decrypt_yjs_blob, encrypt_yjs_blob, is_encrypted_yjs_blob, ActivityEntry, AppError,
@@ -914,14 +914,11 @@ pub(crate) fn yjs_get_snapshot(
     }
     // Highest row id the rebuilt snapshot covers; `rows` is id-ascending.
     let src_rowid = rows.last().map(|(id, _)| *id).unwrap_or(0);
-    let mut doc = Doc::new();
-    for (_, blob) in rows {
-        let update = Update::decode_v1(&blob).map_err(|e| AppError::Other(e.to_string()))?;
-        doc.apply_update(update)
-            .map_err(|e| AppError::Other(e.to_string()))?;
-    }
-    let snapshot = doc
-        .encode_state_as_update_v1(&StateVector::default())
+    let blobs: Vec<&[u8]> = rows.iter().map(|(_, b)| b.as_slice()).collect();
+    let merged_update = merge_updates_v1(&blobs)
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let snapshot = merged_update
+        .encode_v1()
         .map_err(|e| AppError::Other(e.to_string()))?;
 
     write_snapshot(pool, note_id, &snapshot, src_rowid, key)?;
