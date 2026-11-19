@@ -23,7 +23,10 @@
           data-testid="note-card-title"
           class="text-md font-semibold text-lg block line-clamp leading-tight note-card__title"
         >
-          {{ note.title || translations.card.untitledNote }}
+          <ui-highlight-text
+            :text="note.title || translations.card.untitledNote"
+            :query="highlightQuery"
+          />
         </div>
         <div
           v-if="note.labels.length !== 0"
@@ -127,7 +130,7 @@
             </template>
 
             <template v-else>
-              {{ block.text }}
+              <ui-highlight-text :text="block.text" :query="highlightQuery" />
             </template>
           </div>
 
@@ -281,6 +284,10 @@ const props = defineProps({
   disableOpen: {
     type: Boolean,
     default: false,
+  },
+  highlightQuery: {
+    type: String,
+    default: '',
   },
 });
 

@@ -64,6 +64,7 @@
                 :folder="folder"
                 :disable-open="selectionMode"
                 :is-drag-over="dragOverFolderId === folder.id"
+                :highlight-query="state.query"
                 :class="{
                   'transform scale-[1.02]':
                     dragOverFolderId === folder.id ||
@@ -102,6 +103,7 @@
               :selected-items="selectedItems"
               :selection-mode="selectionMode"
               :pulse="isFiltering"
+              :highlight-query="state.query"
               :gap-px="24"
               :breakpoints="[
                 { min: 0, cols: 2 },
@@ -251,11 +253,9 @@ export default {
           ? matchNoteIdsByQuery(notes, state.query)
           : null;
 
-      highlightedFolderIds.value.clear();
-
       for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
-        const { title, isArchived, isBookmarked, labels, folderId } = note;
+        const { title, isArchived, isBookmarked, labels } = note;
 
         const labelFilter = state.activeLabel
           ? labels.includes(state.activeLabel)
@@ -302,12 +302,6 @@ export default {
           }
 
           if (!matchesQuery) continue;
-        }
-
-        if (folderId !== null && folderId !== undefined) {
-          highlightedFolderIds.value.add(folderId);
-          bubbleHighlight(folderId);
-          continue;
         }
 
         if (isArchived) {

@@ -27,6 +27,7 @@
           :note="note"
           :is-locked="note.isLocked"
           :disable-open="selectionMode"
+          :highlight-query="highlightQuery"
           class="w-full"
         />
       </div>
@@ -86,6 +87,7 @@
           :is-locked="item.note.isLocked"
           v-bind="{ note: item.note }"
           :disable-open="selectionMode"
+          :highlight-query="highlightQuery"
           :class="{
             'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
               isSelected(item.note.id),
@@ -125,6 +127,7 @@ const props = defineProps({
   selectedItems: { type: Object, default: null },
   pulse: { type: Boolean, default: false },
   selectionMode: { type: Boolean, default: false },
+  highlightQuery: { type: String, default: '' },
   gapPx: { type: Number, default: 20 },
   breakpoints: {
     type: Array,
