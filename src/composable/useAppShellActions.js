@@ -77,7 +77,10 @@ export function useAppShellActions({ includeSettingsNav = false } = {}) {
         ? currentFolderId.value
         : null;
 
-    folderStore.add({ parentId });
+    const folder = await folderStore.add({ parentId });
+    // Let the folder card put the name field straight into rename mode so
+    // the user can name the new folder immediately.
+    if (folder?.id) emitter.emit('folder:rename-request', folder.id);
   }
 
   function handleNavigation(nav) {

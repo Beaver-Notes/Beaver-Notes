@@ -67,8 +67,7 @@
                 :highlight-query="state.query"
                 :class="{
                   'transform scale-[1.02]':
-                    dragOverFolderId === folder.id ||
-                    (state.query && highlightedFolderIds.has(folder.id)),
+                    dragOverFolderId === folder.id || state.query,
                   'transform scale-[1.02] transition-transform duration-200':
                     selectedItems.has(`folder-${folder.id}`),
                 }"
@@ -218,6 +217,31 @@ export default {
 
     const folders = computed(() => {
       const isArchiveView = route.query.archived === 'true';
+      const queryLower = state.query.trim().toLocaleLowerCase();
+
+      if (queryLower !== '') {
+        // Search mode: match folders at ANY depth by name, flattened into
+        // the results so nested folders are found too.
+        const allFolders = Object.values(folderStore.data).filter(
+          (f) => f && !folderStore.deletedIds[f.id]
+        );
+        const matched = allFolders.filter((folder) => {
+          if (isArchiveView ? !folder.isArchived : folder.isArchived) {
+            return false;
+          }
+          const name =
+            folder.name && folder.name.trim() !== ''
+              ? folder.name
+              : translations.value.card?.untitledFolder || '';
+          return name.toLocaleLowerCase().includes(queryLower);
+        });
+        const sorted = sortArray({
+          data: matched,
+          order: state.sortOrder,
+          key: 'name',
+        });
+        return { all: sorted, bookmarked: [], archived: [] };
+      }
 
       let rootFolders = folderStore.rootFolders.filter(
         (f) => !folderStore.deletedIds[f.id]
