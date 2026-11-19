@@ -427,7 +427,10 @@
   "importNotesTitle": "Import Notes",
   "importNotesDescription": "Import data from Obsidian, Notion, Bear, Simplenote, Word documents, Markdown folders, Evernote, and Apple Notes on macOS.",
   "showIssues": "Show issues",
-  "importVaultFromSync": "Import vault from sync"
+  "importVaultFromSync": "Import vault from sync",
+  "exportedNotesCount": "Exported {count} notes",
+  "skippedCount": "{count} skipped.",
+  "importedNotesCount": "Imported {notes} notes across {folders} folders."
  },
  "shortcuts": {
   "arrowLeft": "Arrow Left",
@@ -621,7 +624,9 @@
   "cloudSyncReady": "Cloud sync ready",
   "syncSetupFailed": "Sync setup failed. You can retry from Settings.",
   "openBeaverNotes": "Open Beaver Notes",
-  "orTypeFolderPath": "Or type a folder path"
+  "orTypeFolderPath": "Or type a folder path",
+  "yourNotesReady": "Your notes from {app} are ready.",
+  "importedNotesCount": "Imported {notes} notes across {folders} folders."
  },
  "tray": {
   "noRecentItems": "No recent items",

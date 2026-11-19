@@ -29,7 +29,7 @@
     class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none"
     @click.prevent="skipToMain"
   >
-    Skip to content
+    {{ translations.app?.skipToContent || 'Skip to content' }}
   </a>
 
   <div

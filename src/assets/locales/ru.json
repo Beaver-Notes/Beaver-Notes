@@ -412,7 +412,9 @@
   "cloudSyncReady": "Облачная синхронизация готова",
   "syncSetupFailed": "Не удалось настроить синхронизацию. Повторите попытку в Настройках.",
   "openBeaverNotes": "Открыть Beaver Notes",
-  "orTypeFolderPath": "Или введите путь к папке"
+  "orTypeFolderPath": "Или введите путь к папке",
+  "yourNotesReady": "Ваши заметки из {app} готовы.",
+  "importedNotesCount": "Импортировано заметок: {notes} (в {folders} папках)."
  },
  "paper": {
   "dotted": "Пунктирный",
@@ -601,7 +603,10 @@
   "importNotesTitle": "Импорт заметок",
   "importNotesDescription": "Импорт данных из Obsidian, Notion, Bear, Simplenote, документов Word, папок с Markdown, Evernote и Apple Notes на macOS.",
   "showIssues": "Показать проблемы",
-  "importVaultFromSync": "Импортировать хранилище из синхронизации"
+  "importVaultFromSync": "Импортировать хранилище из синхронизации",
+  "exportedNotesCount": "Экспортировано заметок: {count}",
+  "skippedCount": "Пропущено: {count}.",
+  "importedNotesCount": "Импортировано заметок: {notes} (в {folders} папках)."
  },
  "share": {
   "bestSupport": "Лучшая поддержка",

@@ -9,7 +9,7 @@ use http::StatusCode;
 
 #[cfg(desktop)]
 use serde_json::json;
-use tauri::{App, AppHandle, Emitter, Manager, Wry};
+use tauri::{App, AppHandle, Emitter, Listener, Manager, Wry};
 
 #[cfg(desktop)]
 use tauri::{PhysicalPosition, PhysicalSize, WindowEvent};
@@ -888,8 +888,26 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     };
     #[cfg(desktop)]
     {
-        let menu = menu::build_app_menu(app.handle())?;
+        let menu = menu::build_app_menu(app.handle(), "en")?;
         app.set_menu(menu).map_err(|e| AppError::Other(e.to_string()))?;
+        // Rebuild the native menu in the interface language whenever the
+        // frontend reports a language (re)selection.
+        let app_handle = app.handle().clone();
+        let listener_handle = app_handle.clone();
+        listener_handle.listen("menu-language", move |event| {
+            let lang = event
+                .payload()
+                .trim_matches('"')
+                .trim()
+                .to_string();
+            let lang = if lang.is_empty() { "en".to_string() } else { lang };
+            menu::set_menu_language(&lang);
+            if let Ok(menu) = menu::build_app_menu(&app_handle, &lang) {
+                if let Err(err) = app_handle.set_menu(menu) {
+                    eprintln!("[menu] failed to apply localized menu: {err}");
+                }
+            }
+        });
         if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
             restore_window_state(app.handle(), state.inner())?;
             let app_handle = app.handle().clone();

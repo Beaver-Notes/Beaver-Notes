@@ -179,13 +179,13 @@
                 closeSub();
               "
             >
-              Body
+              {{ translations.toolbar?.body || 'Body' }}
             </button>
             <button
               v-for="h in [1, 2, 3, 4]"
               :key="h"
               :class="tbChip(editor.isActive('heading', { level: h }))"
-              :aria-label="'Heading ' + h"
+              :aria-label="(translations.toolbar?.heading || 'Heading {level}').replace('{level}', h)"
               @click="
                 editor.chain().focus().toggleHeading({ level: h }).run();
                 closeSub();

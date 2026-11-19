@@ -660,7 +660,12 @@
                       <p
                         class="text-neutral-600 dark:text-neutral-400 max-w-sm"
                       >
-                        Your notes from {{ migrationPlatformLabel }} are ready.
+                        {{
+                          (
+                            translations.onboarding?.yourNotesReady ||
+                            'Your notes from {app} are ready.'
+                          ).replace('{app}', migrationPlatformLabel)
+                        }}
                       </p>
                     </div>
 
@@ -670,7 +675,7 @@
                           <p
                             class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                           >
-                            Import complete
+                            {{ translations.onboarding?.importComplete || 'Import complete' }}
                           </p>
                           <span class="text-xs font-bold text-primary"
                             >{{ state.migrationProgress }}%</span
@@ -702,9 +707,20 @@
                         <p
                           class="text-sm text-neutral-600 dark:text-neutral-400"
                         >
-                          Imported
-                          {{ state.migrationResult.imported || 0 }} notes across
-                          {{ state.migrationResult.folders || 0 }} folders.
+                          {{
+                            (
+                              translations.onboarding?.importedNotesCount ||
+                              'Imported {notes} notes across {folders} folders.'
+                            )
+                              .replace(
+                                '{notes}',
+                                state.migrationResult.imported || 0
+                              )
+                              .replace(
+                                '{folders}',
+                                state.migrationResult.folders || 0
+                              )
+                          }}
                         </p>
                       </div>
                     </ui-card>

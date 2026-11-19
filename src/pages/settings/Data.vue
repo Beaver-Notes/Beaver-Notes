@@ -173,10 +173,20 @@
             </p>
             <template v-else-if="exportMdState.result">
               <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Exported {{ exportMdState.result.exported }} notes<span
-                  v-if="exportMdState.result.skipped.length"
-                >
-                  . {{ exportMdState.result.skipped.length }} skipped.</span
+                {{
+                  (
+                    translations.settings?.exportedNotesCount ||
+                    'Exported {count} notes'
+                  )
+                    .replace('{count}', exportMdState.result.exported)
+                }}<span v-if="exportMdState.result.skipped.length">
+                  .
+                  {{
+                    (
+                      translations.settings?.skippedCount ||
+                      '{count} skipped.'
+                    ).replace('{count}', exportMdState.result.skipped.length)
+                  }}</span
                 ><span v-else>.</span>
               </p>
               <details
@@ -231,10 +241,20 @@
             </p>
             <template v-else-if="exportHtmlState.result">
               <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Exported {{ exportHtmlState.result.exported }} notes<span
-                  v-if="exportHtmlState.result.skipped.length"
-                >
-                  . {{ exportHtmlState.result.skipped.length }} skipped.</span
+                {{
+                  (
+                    translations.settings?.exportedNotesCount ||
+                    'Exported {count} notes'
+                  )
+                    .replace('{count}', exportHtmlState.result.exported)
+                }}<span v-if="exportHtmlState.result.skipped.length">
+                  .
+                  {{
+                    (
+                      translations.settings?.skippedCount ||
+                      '{count} skipped.'
+                    ).replace('{count}', exportHtmlState.result.skipped.length)
+                  }}</span
                 ><span v-else>.</span>
               </p>
               <details
@@ -378,8 +398,14 @@
                   class="space-y-3 border-t border-neutral-200 pt-3 dark:border-neutral-700"
                 >
                   <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                    Imported {{ activeImportState.result.imported }} notes
-                    across {{ activeImportState.result.folders }} folders.
+                    {{
+                      (
+                        translations.settings?.importedNotesCount ||
+                        'Imported {notes} notes across {folders} folders.'
+                      )
+                        .replace('{notes}', activeImportState.result.imported)
+                        .replace('{folders}', activeImportState.result.folders)
+                    }}
                   </p>
                   <details
                     v-if="activeImportState.result.errors.length"
