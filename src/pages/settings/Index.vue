@@ -11,7 +11,7 @@
           <p
             class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            Choose the interface language.
+            {{ translations.settings.languageDescription }}
           </p>
           <ui-select
             v-model="selectedLanguage"
@@ -53,7 +53,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Immediately navigate to a note after creating it.
+              {{ translations.settings.openAfterCreationDescription }}
             </p>
           </div>
           <ui-switch v-model="openAfterCreation" />
@@ -73,7 +73,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              When the app launches, reopen the note you were last editing.
+              {{ translations.settings.openLastEditedDescription }}
             </p>
           </div>
           <ui-switch v-model="openLastEdited" />
@@ -85,12 +85,12 @@
             <p
               class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
             >
-              Enable sounds
+              {{ translations.settings.enableSounds }}
             </p>
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Enable sounds for interactions around the app.
+              {{ translations.settings.enableSoundsDescription }}
             </p>
           </div>
           <ui-switch v-model="soundsEnabled" />
@@ -117,7 +117,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Underline spelling errors in the editor as you type.
+              {{ translations.settings.spellCheckDescription }}
             </p>
           </div>
           <ui-switch v-model="spellcheckEnabled" @change="toggleSpellcheck" />
@@ -137,7 +137,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Allow headings to be folded so their content is hidden below.
+              {{ translations.settings.collapsibleHeadingDescription }}
             </p>
           </div>
           <ui-switch v-model="collapsibleHeading" />
@@ -157,7 +157,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Format used when inserting today's date via the /today command.
+              {{ translations.settings.todayDateFormatDescription }}
             </p>
           </div>
           <ui-select
@@ -187,7 +187,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Format used when inserting the current time via the /time command.
+              {{ translations.settings.timeFormatDescription }}
             </p>
           </div>
           <ui-select
@@ -209,7 +209,7 @@
 
     <section v-if="isIOSRuntime" class="space-y-2">
       <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-        Spotlight
+        {{ translations.settings.spotlight }}
       </p>
       <div
         class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
@@ -221,13 +221,12 @@
             <p
               class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
             >
-              Spotlight indexing
+              {{ translations.settings.spotlightIndexing }}
             </p>
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Let iOS / macOS Spotlight index your notes so they can be found
-              via system search.
+              {{ translations.settings.spotlightIndexingDescription }}
             </p>
           </div>
           <ui-switch v-model="spotlightEnabled" @change="toggleSpotlight" />
@@ -239,7 +238,7 @@
       <p
         class="text-xs font-semibold uppercase tracking-[0.12em] text-red-500 dark:text-red-400"
       >
-        Debug
+        {{ translations.settings.debug }}
       </p>
       <ui-card
         padding="p-4"
@@ -247,18 +246,17 @@
       >
         <div class="space-y-0.5">
           <p class="text-sm font-medium text-red-900 dark:text-red-100">
-            Nuke app
+            {{ translations.settings.debugNukeApp }}
           </p>
           <p
             class="mt-0.5 text-xs leading-relaxed text-red-700 dark:text-red-300"
           >
-            Debug-only reset that wipes local Beaver Notes state and relaunches
-            into a fresh install experience.
+            {{ translations.settings.nukeDescription }}
           </p>
         </div>
         <div class="mt-auto pt-2">
           <ui-button class="w-full" variant="danger" @click="nukeAppDebugOnly">
-            Nuke app and restart
+            {{ translations.settings.nukeAndRestart }}
           </ui-button>
         </div>
       </ui-card>
@@ -337,9 +335,9 @@ export default {
         }
       } catch (e) {
         dialog.alert({
-          title: 'Spotlight Error',
-          body: e?.toString?.() || 'Unknown error',
-          okText: 'OK',
+          title: translations.value.app?.spotlightError || 'Spotlight Error',
+          body: e?.toString?.() || translations.value.app?.unknownError || 'Unknown error',
+          okText: translations.value.app?.ok || 'OK',
         });
       }
     }

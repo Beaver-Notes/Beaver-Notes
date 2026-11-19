@@ -35,7 +35,7 @@
         <!-- Collapsed: compact avatar trigger -->
         <button
           v-else
-          v-tooltip:right="'Workspaces'"
+          v-tooltip:right="translations.workspace.workspaces || 'Workspaces'"
           aria-label="Workspaces"
           class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
         >
@@ -52,7 +52,7 @@
         <div
           class="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 select-none"
         >
-          Workspaces
+          {{ translations.workspace.workspaces || 'Workspaces' }}
         </div>
 
         <div
@@ -105,7 +105,7 @@
             v-if="isPaid && (ws.role === 'owner' || ws.role === 'admin')"
             class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
             @click.stop="promptRename(ws)"
-            aria-label="Rename workspace"
+            :aria-label="translations.workspace.renameWorkspace || 'Rename workspace'"
           >
             <v-remixicon name="riEditLine" size="12" class="text-neutral-400" />
           </button>
@@ -126,7 +126,7 @@
           >
             <v-remixicon name="riAddLine" size="14" />
           </span>
-          <span>New Workspace</span>
+          <span>{{ translations.workspace.newWorkspace || 'New Workspace' }}</span>
         </button>
 
         <button
@@ -139,7 +139,7 @@
           >
             <v-remixicon name="riLoginBoxLine" size="14" />
           </span>
-          <span>Join Workspace</span>
+          <span>{{ translations.workspace.joinWorkspace || 'Join Workspace' }}</span>
         </button>
       </div>
     </ui-popover>
@@ -151,6 +151,7 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useAccountStore } from '@/store/account';
+import { useTranslations } from '@/composable/useTranslations';
 
 function clearSettingsLocalStorage() {
   const settingsKeys = [
@@ -185,6 +186,7 @@ export default {
     expanded: { type: Boolean, default: false },
   },
   setup() {
+    const { translations } = useTranslations();
     const workspaceStore = useWorkspaceStore();
     const accountStore = useAccountStore();
     const triggerEl = ref(null);
@@ -217,9 +219,9 @@ export default {
 
     function promptCreate() {
       emitter.emit('show-dialog', 'prompt', {
-        title: 'New Workspace',
-        placeholder: 'Workspace name',
-        okText: 'Create',
+        title: translations.value.workspace.newWorkspace || 'New Workspace',
+        placeholder: translations.value.workspace.workspaceName || 'Workspace name',
+        okText: translations.value.workspace.create || 'Create',
         password: false,
         async onConfirm(name) {
           if (!name || !name.trim()) return;
@@ -235,9 +237,9 @@ export default {
 
     function promptRename(ws) {
       emitter.emit('show-dialog', 'prompt', {
-        title: 'Rename Workspace',
-        placeholder: 'Workspace name',
-        okText: 'Rename',
+        title: translations.value.workspace.renameWorkspace || 'Rename Workspace',
+        placeholder: translations.value.workspace.workspaceName || 'Workspace name',
+        okText: translations.value.workspace.rename || 'Rename',
         password: false,
         defaultValue: ws.name,
         async onConfirm(name) {
@@ -246,8 +248,11 @@ export default {
             await workspaceStore.rename(ws.id, name.trim());
           } catch (err) {
             emitter.emit('show-dialog', 'alert', {
-              title: 'Rename Failed',
-              description: err?.message || 'Failed to rename workspace.',
+              title: translations.value.workspace.renameFailed || 'Rename Failed',
+              description:
+                err?.message ||
+                translations.value.workspace.renameFailedDescription ||
+                'Failed to rename workspace.',
             });
           }
         },
@@ -256,9 +261,10 @@ export default {
 
     function promptJoin() {
       emitter.emit('show-dialog', 'prompt', {
-        title: 'Join Workspace',
-        placeholder: 'Paste invite token',
-        okText: 'Join',
+        title: translations.value.workspace.joinWorkspace || 'Join Workspace',
+        placeholder:
+          translations.value.workspace.pasteInviteToken || 'Paste invite token',
+        okText: translations.value.workspace.join || 'Join',
         password: false,
         async onConfirm(token) {
           if (!token || !token.trim()) return;
@@ -272,8 +278,11 @@ export default {
             window.location.reload();
           } catch (err) {
             emitter.emit('show-dialog', 'alert', {
-              title: 'Join Failed',
-              description: err?.message || 'Invalid or expired invite token.',
+              title: translations.value.workspace.joinFailed || 'Join Failed',
+              description:
+                err?.message ||
+                translations.value.workspace.joinFailedDescription ||
+                'Invalid or expired invite token.',
             });
           }
         },
@@ -282,6 +291,7 @@ export default {
 
     return {
       triggerEl,
+      translations,
       workspaces,
       activeId,
       activeName,

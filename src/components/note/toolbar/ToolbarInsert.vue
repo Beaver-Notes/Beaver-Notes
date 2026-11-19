@@ -147,7 +147,7 @@
       <button
         :class="tbBtn()"
         class="!text-red-500"
-        aria-label="Stop recording"
+        :aria-label="translations.toolbar?.stopRecording || 'Stop recording'"
         @click="toggleRecording"
       >
         <v-remixicon name="riStopCircleLine" />

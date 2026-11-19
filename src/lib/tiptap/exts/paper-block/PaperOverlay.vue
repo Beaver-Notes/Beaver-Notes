@@ -14,13 +14,13 @@
         <span
           class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
         >
-          Drawing
+          {{ translations.toolbar?.drawing || 'Drawing' }}
         </span>
         <div class="flex items-center gap-1.5">
           <button
             type="button"
             class="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-400 transition-colors"
-            title="Zoom out"
+            :title="translations.toolbar?.zoomOut || 'Zoom out'"
             @pointerdown.stop.prevent="zoomOut"
           >
             <svg
@@ -41,7 +41,7 @@
           <button
             type="button"
             class="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-400 transition-colors"
-            title="Zoom in"
+            :title="translations.toolbar?.zoomIn || 'Zoom in'"
             @pointerdown.stop.prevent="zoomIn"
           >
             <svg
@@ -61,7 +61,7 @@
             :class="{ '!text-primary': zoomPercent !== '100%' }"
             @pointerdown.stop.prevent="resetZoom"
           >
-            Reset
+            {{ translations.toolbarCustomizer?.reset || 'Reset' }}
           </button>
           <span
             class="w-px h-5 bg-neutral-300 dark:bg-neutral-600 mx-1.5 shrink-0"
@@ -71,7 +71,7 @@
             class="text-sm px-3 py-1.5 bg-primary text-white rounded-lg transition-colors font-medium"
             @pointerdown.stop.prevent="handleDone"
           >
-            Done
+            {{ translations.toolbarCustomizer?.done || 'Done' }}
           </button>
         </div>
       </div>
@@ -114,6 +114,7 @@
 <script>
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useStore } from '@/store';
+import { useTranslations } from '@/composable/useTranslations';
 import OverlayPortal from '@/components/ui/OverlayPortal.vue';
 import DrawMode from './DrawMode.vue';
 import PaperToolbar from './PaperToolbar.vue';
@@ -151,6 +152,7 @@ export default {
   emits: ['close', 'update-attributes'],
   setup(props, { emit }) {
     const store = useStore();
+    const { translations } = useTranslations();
 
     const drawModeRef = ref(null);
     const overlayRef = ref(null);
@@ -348,6 +350,7 @@ export default {
     });
 
     return {
+      translations,
       drawModeRef,
       overlayRef,
       localNode,

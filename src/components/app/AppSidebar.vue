@@ -164,7 +164,7 @@
         <div
           class="text-[11px] font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-2 px-3 select-none shrink-0"
         >
-          Recent
+          {{ translations.sidebar.recent || 'Recent' }}
         </div>
         <div v-if="recentItems.length > 0" class="flex flex-col gap-0.5">
           <button
@@ -247,7 +247,7 @@
             v-if="expanded"
             class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
-            Sync
+            {{ translations.sidebar.sync || 'Sync' }}
           </span>
         </transition>
       </button>
@@ -274,7 +274,11 @@
             v-if="expanded"
             class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
-            {{ theme.isDark() ? 'Light' : 'Dark' }}
+            {{
+              theme.isDark()
+                ? translations.appearance.light || 'Light'
+                : translations.appearance.dark || 'Dark'
+            }}
           </span>
         </transition>
       </button>

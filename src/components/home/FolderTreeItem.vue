@@ -56,14 +56,14 @@
       v-if="folder.isArchived"
       name="riArchiveLine"
       class="w-3.5 h-3.5 text-neutral-400 shrink-0 ml-1"
-      title="Archived"
+      :title="translations.folderTree.archived || 'Archived'"
     />
 
     <span
       v-if="isCurrentFolder"
       class="text-[10px] uppercase tracking-wider opacity-60 ml-2"
     >
-      Current
+      {{ translations.folderTree.current || 'Current' }}
     </span>
   </div>
 </template>

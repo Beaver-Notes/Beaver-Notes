@@ -41,7 +41,7 @@
                   name="riCloseLine"
                   size="20"
                   role="button"
-                  aria-label="Close"
+                  :aria-label="translations.dialog?.close || 'Close'"
                   tabindex="0"
                   @click="closeModal"
                 ></v-remixicon>
@@ -60,6 +60,7 @@
 <script>
 import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
 import { useUiState } from '@/composable/useUiState';
+import { useTranslations } from '@/composable/useTranslations';
 import { useFocusTrap } from '@/composable/useFocusTrap';
 
 export default {
@@ -83,6 +84,7 @@ export default {
   },
   emits: ['close', 'update:modelValue'],
   setup(props, { emit }) {
+    const { translations } = useTranslations();
     const uiState = useUiState();
     const show = ref(false);
     const modalContent = ref(null);
@@ -265,6 +267,7 @@ export default {
     }
 
     return {
+      translations,
       show,
       closeModal,
       modalContent,

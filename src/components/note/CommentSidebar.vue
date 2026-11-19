@@ -19,7 +19,7 @@
 
       <div class="flex-1 overflow-auto">
         <div v-if="loading" class="p-4 text-center text-neutral-500 text-sm">
-          Loading...
+          {{ translationsComments.loading }}
         </div>
 
         <template v-else>
@@ -219,6 +219,7 @@ export default {
       reopen: translations.value['comments.reopen'] || 'Reopen',
       empty: translations.value['comments.empty'] || 'No comments yet',
       newComment: translations.value['comments.newComment'] || 'New comment',
+      loading: translations.value['comments.loading'] || 'Loading...',
     }));
 
     const loading = computed(() => commentStore.loading);

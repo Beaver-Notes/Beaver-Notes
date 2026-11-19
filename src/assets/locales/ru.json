@@ -28,7 +28,10 @@
   "openSettings": "Открыть настройки",
   "spotlightError": "Ошибка Spotlight",
   "syncLockContent": "Синхронизация зашифрована, но заблокирована на этом устройстве. Разблокируйте её в Настройках, чтобы возобновить синхронизацию.",
-  "unknownError": "Неизвестная ошибка"
+  "unknownError": "Неизвестная ошибка",
+  "skipToContent": "Перейти к содержимому",
+  "mainNavigation": "Основная навигация",
+  "mascot": "Талисман Beaver Notes"
  },
  "appearance": {
   "accessibility": "Специальные возможности",
@@ -136,7 +139,8 @@
   "previousNote": "Прошлые заметки",
   "tiptapPlaceholder": "Напишите что-нибудь...",
   "untitledNote": "Безымянная заметка",
-  "unsupportedDiagram": "Неподдерживаемый тип диаграммы"
+  "unsupportedDiagram": "Неподдерживаемый тип диаграммы",
+  "katexMacros": "Макросы KaTeX"
  },
  "emptyState": {
   "chipCapture": "Запишите идеи",
@@ -170,7 +174,9 @@
   "notePlural": "заметки",
   "noteSingular": "заметка",
   "root": "Корневая папка",
-  "untitledFolder": "Папка без названия"
+  "untitledFolder": "Папка без названия",
+  "current": "Текущая",
+  "archived": "В архиве"
  },
  "image": {
   "imgUrl": "URL изображения"
@@ -329,7 +335,8 @@
   "search": "Поиск",
   "searchHeadings": "Поиск по заголовкам…",
   "unarchive": "Из архива",
-  "undo": "Отменить"
+  "undo": "Отменить",
+  "back": "Назад"
  },
  "onboarding": {
   "accentColor": "Акцентный цвет",
@@ -383,7 +390,29 @@
   "syncFolderLabel": "Папка",
   "syncHeading": "Папка синхронизации",
   "welcomeHeading": "Добро пожаловать в Beaver Notes",
-  "welcomeSubheading": "Личное пространство для ваших мыслей без лишнего шума."
+  "welcomeSubheading": "Личное пространство для ваших мыслей без лишнего шума.",
+  "customizeOrDefaults": "Начнём с настройки параметров — или используйте значения по умолчанию.",
+  "useDefaults": "По умолчанию",
+  "continue": "Продолжить",
+  "stepOf": "Шаг {current} из {total}",
+  "enableSounds": "Включить звуки",
+  "enableSoundsDescription": "Включить звуки для действий в приложении.",
+  "spotlightIndexing": "Индексация Spotlight",
+  "whatGetsCopied": "Что будет скопировано",
+  "portableDataFolder": "Папка портативных данных",
+  "newBeaverNotes": "Новый Beaver Notes",
+  "windowsPortable": "Windows Portable",
+  "importingFrom": "Импорт из",
+  "importYourNotesFrom": "Импортируйте заметки из",
+  "importSummary": "Сводка импорта",
+  "issues": "Проблемы",
+  "copyToClipboard": "Скопировать в буфер обмена",
+  "youreSignedIn": "Вы вошли в аккаунт",
+  "settingUpCloudSync": "Настройка облачной синхронизации…",
+  "cloudSyncReady": "Облачная синхронизация готова",
+  "syncSetupFailed": "Не удалось настроить синхронизацию. Повторите попытку в Настройках.",
+  "openBeaverNotes": "Открыть Beaver Notes",
+  "orTypeFolderPath": "Или введите путь к папке"
  },
  "paper": {
   "dotted": "Пунктирный",
@@ -547,7 +576,32 @@
   "utilities": "Утилиты",
   "warning": "Если вы забудете свой пароль, вы потеряете доступ к зашифрованным заметкам, а для установки нового пароля потребуется знание старого",
   "writing": "Написание",
-  "wrongCurrentPassword": "Пароль введен неверно, попробуйте еще раз"
+  "wrongCurrentPassword": "Пароль введен неверно, попробуйте еще раз",
+  "behavior": "Поведение",
+  "languageDescription": "Выберите язык интерфейса.",
+  "spellCheckDescription": "Подчёркивать орфографические ошибки в редакторе при вводе.",
+  "todayDateFormatDescription": "Формат, используемый при вставке сегодняшней даты через команду /today.",
+  "timeFormatDescription": "Формат, используемый при вставке текущего времени через команду /time.",
+  "spotlight": "Spotlight",
+  "spotlightIndexing": "Индексация Spotlight",
+  "spotlightIndexingDescription": "Позволить Spotlight в iOS/macOS индексировать заметки, чтобы их можно было находить через системный поиск.",
+  "debug": "Отладка",
+  "nukeDescription": "Сброс только для отладки: стирает локальное состояние Beaver Notes и перезапускает приложение как при первой установке.",
+  "nukeAndRestart": "Сбросить приложение и перезапустить",
+  "syncPathDescription": "Папка, в которой на диске хранятся ваши заметки и вложения.",
+  "cloudSyncDescription": "Синхронизировать заметки через Beaver Sync (вместо папки).",
+  "export": "Экспорт",
+  "exportAsMarkdown": "Экспорт в Markdown",
+  "exportMarkdown": "Экспортировать Markdown",
+  "exportMarkdownDescription": "Экспортировать все заметки в файлы .md с YAML-шапкой. Совместимо с Obsidian, Bear и большинством Markdown-редакторов.",
+  "exportAsHtml": "Экспорт в HTML",
+  "exportHtml": "Экспортировать HTML",
+  "showSkipped": "Показать пропущенные",
+  "importNotes": "Импорт заметок",
+  "importNotesTitle": "Импорт заметок",
+  "importNotesDescription": "Импорт данных из Obsidian, Notion, Bear, Simplenote, документов Word, папок с Markdown, Evernote и Apple Notes на macOS.",
+  "showIssues": "Показать проблемы",
+  "importVaultFromSync": "Импортировать хранилище из синхронизации"
  },
  "share": {
   "bestSupport": "Лучшая поддержка",
@@ -562,7 +616,24 @@
   "missingEssentialFields": "В импортированном файле отсутствуют необходимые поля заметки.",
   "noteExportedToPath": "Заметка «{title}» экспортирована в «{path}».",
   "noteWithIdNotFound": "Заметка с ID {id} не найдена.",
-  "selectExportFolderTitle": "Выберите папку для экспорта"
+  "selectExportFolderTitle": "Выберите папку для экспорта",
+  "shareNote": "Поделиться заметкой",
+  "collaborationEnabled": "Для этой заметки включена совместная работа",
+  "inviteByEmail": "Пригласить по имени пользователя или email",
+  "usernameOrEmailPlaceholder": "имя пользователя или email",
+  "roleEditor": "Редактор",
+  "roleViewer": "Наблюдатель",
+  "collaborators": "Участники",
+  "noCollaborators": "Пока нет участников. Пригласите кого-нибудь для совместной работы.",
+  "inviteLink": "Ссылка-приглашение",
+  "canEdit": "Может редактировать",
+  "canView": "Может просматривать",
+  "neverExpires": "Без срока действия",
+  "creating": "Создание…",
+  "createInviteLink": "Создать ссылку-приглашение",
+  "removeCollaborator": "Удалить участника",
+  "copyLink": "Скопировать ссылку",
+  "revokeLink": "Отозвать ссылку"
  },
  "shortcuts": {
   "arrowLeft": "Стрелка влево",
@@ -606,7 +677,10 @@
   "notes": "Заметки",
   "notification": "Уведомления",
   "toggleDarkTheme": "Вкл/выкл тёмную тему",
-  "toggleSync": "Запустить синхронизацию"
+  "toggleSync": "Запустить синхронизацию",
+  "recent": "Недавние",
+  "sync": "Синхронизация",
+  "sidebar": "Боковая панель"
  },
  "toolbar": {
   "active": "Активно",
@@ -653,7 +727,24 @@
   "underline": "Подчёркнутый",
   "upload": "Загрузить",
   "video": "Видео",
-  "videoUrl": "URL видео"
+  "videoUrl": "URL видео",
+  "back": "Назад",
+  "defaultFontSize": "Размер шрифта по умолчанию",
+  "decreaseFontSize": "Уменьшить шрифт",
+  "increaseFontSize": "Увеличить шрифт",
+  "removeTextColor": "Убрать цвет текста",
+  "removeHighlight": "Убрать выделение",
+  "uploadImage": "Загрузить изображение",
+  "uploadFile": "Загрузить файл",
+  "uploadVideo": "Загрузить видео",
+  "alignLeft": "По левому краю",
+  "alignCenter": "По центру",
+  "alignRight": "По правому краю",
+  "alignJustify": "По ширине",
+  "stopRecording": "Остановить запись",
+  "zoomIn": "Приблизить",
+  "zoomOut": "Отдалить",
+  "drawing": "Рисование"
  },
  "toolbarCustomizer": {
   "divider": "разделитель",
@@ -674,5 +765,59 @@
   "bookmarked": "В закладках",
   "moved": "Перемещено",
   "undo": "Отменить"
+ },
+ "workspace": {
+  "workspaces": "Рабочие пространства",
+  "newWorkspace": "Новое пространство",
+  "joinWorkspace": "Присоединиться к пространству",
+  "renameWorkspace": "Переименовать пространство",
+  "workspaceName": "Название пространства",
+  "create": "Создать",
+  "rename": "Переименовать",
+  "renameFailed": "Не удалось переименовать",
+  "renameFailedDescription": "Не удалось переименовать пространство.",
+  "join": "Присоединиться",
+  "joinFailed": "Не удалось присоединиться",
+  "joinFailedDescription": "Недействительный или просроченный токен приглашения.",
+  "pasteInviteToken": "Вставьте токен приглашения"
+ },
+ "comments": {
+  "loading": "Загрузка…"
+ },
+ "history": {
+  "title": "История заметки",
+  "lastEdited": "Последнее изменение",
+  "all": "Все",
+  "today": "Сегодня",
+  "thisWeek": "На этой неделе",
+  "week": "Неделя",
+  "loading": "Загрузка истории…",
+  "empty": "История недоступна",
+  "version": "Версия",
+  "timestamp": "Время",
+  "words": "Слова",
+  "change": "Изменение",
+  "preview": "Предпросмотр",
+  "hide": "Скрыть",
+  "restore": "Восстановить",
+  "history": "История",
+  "auto": "Авто",
+  "author": "Автор",
+  "justNow": "только что",
+  "minutesAgo": "{m} мин назад",
+  "hoursAgo": "{h} ч назад",
+  "daysAgo": "{d} дн назад"
+ },
+ "account": {
+  "cloudSyncReady": "Облачная синхронизация готова",
+  "syncSetupFailed": "Не удалось настроить синхронизацию"
+ },
+ "join": {
+  "joining": "Подключение…",
+  "goToHome": "На главную",
+  "role": "Роль:",
+  "openNote": "Открыть заметку",
+  "invited": "Вас пригласили к совместной работе над заметкой.",
+  "joinNote": "Присоединиться к заметке"
  }
 }

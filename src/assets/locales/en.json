@@ -108,12 +108,13 @@
   "exit": "Press Ctrl + Enter to close",
   "linkPlaceholder": "URL or type @ to link a note",
   "linkShortcut": "Press Alt + Click to open the link",
-   "mathPlaceholder": "Text here…",
-   "mermaidPlaceholder": "Enter Mermaid code here…",
-   "unsupportedDiagram": "Unsupported diagram type",
+  "mathPlaceholder": "Text here…",
+  "mermaidPlaceholder": "Enter Mermaid code here…",
+  "unsupportedDiagram": "Unsupported diagram type",
   "previousNote": "Previous notes",
   "tiptapPlaceholder": "Write something… or type \"/\" for commands.",
-  "untitledNote": "Untitled note"
+  "untitledNote": "Untitled note",
+  "katexMacros": "KaTeX macros"
  },
  "filter": {
   "alphabetical": "Alphabetical",
@@ -137,7 +138,9 @@
   "noteSingular": "note",
   "notePlural": "notes",
   "folderSingular": "folder",
-  "folderPlural": "folders"
+  "folderPlural": "folders",
+  "current": "Current",
+  "archived": "Archived"
  },
  "image": {
   "imgUrl": "Image url"
@@ -399,7 +402,32 @@
   "selectEnexFile": "Select ENEX File",
   "selectSimplenoteExport": "Select notes.json",
   "selectMarkdownFolder": "Select Markdown Folder",
-  "markdownBased": "Markdown-based"
+  "markdownBased": "Markdown-based",
+  "behavior": "Behavior",
+  "languageDescription": "Choose the interface language.",
+  "spellCheckDescription": "Underline spelling errors in the editor as you type.",
+  "todayDateFormatDescription": "Format used when inserting today's date via the /today command.",
+  "timeFormatDescription": "Format used when inserting the current time via the /time command.",
+  "spotlight": "Spotlight",
+  "spotlightIndexing": "Spotlight indexing",
+  "spotlightIndexingDescription": "Let iOS / macOS Spotlight index your notes so they can be found via system search.",
+  "debug": "Debug",
+  "nukeDescription": "Debug-only reset that wipes local Beaver Notes state and relaunches into a fresh install experience.",
+  "nukeAndRestart": "Nuke app and restart",
+  "syncPathDescription": "The folder where your notes and assets are stored on disk.",
+  "cloudSyncDescription": "Sync notes through Beaver Sync (instead of a folder).",
+  "export": "Export",
+  "exportAsMarkdown": "Export as Markdown",
+  "exportMarkdown": "Export Markdown",
+  "exportMarkdownDescription": "Export all notes as .md files with YAML frontmatter. Compatible with Obsidian, Bear, and most Markdown editors.",
+  "exportAsHtml": "Export as HTML",
+  "exportHtml": "Export HTML",
+  "showSkipped": "Show skipped",
+  "importNotes": "Import notes",
+  "importNotesTitle": "Import Notes",
+  "importNotesDescription": "Import data from Obsidian, Notion, Bear, Simplenote, Word documents, Markdown folders, Evernote, and Apple Notes on macOS.",
+  "showIssues": "Show issues",
+  "importVaultFromSync": "Import vault from sync"
  },
  "shortcuts": {
   "arrowLeft": "Arrow Left",
@@ -443,7 +471,10 @@
   "notes": "Notes",
   "notification": "Notification",
   "toggleDarkTheme": "Toggle dark theme",
-  "toggleSync": "Toggle sync"
+  "toggleSync": "Toggle sync",
+  "recent": "Recent",
+  "sync": "Sync",
+  "sidebar": "Sidebar"
  },
  "labels": {
   "title": "Labels",
@@ -483,7 +514,24 @@
   "missingEssentialFields": "Missing essential note fields in the imported file.",
   "invalidAssetsStructure": "Invalid assets structure in the imported note.",
   "exportedNoteAndAssetsTo": "Exported note and assets to \"{path}\"",
-  "exportedHtmlToFolder": "Exported HTML to folder: {path}"
+  "exportedHtmlToFolder": "Exported HTML to folder: {path}",
+  "shareNote": "Share Note",
+  "collaborationEnabled": "Collaboration enabled for this note",
+  "inviteByEmail": "Invite by username or email",
+  "usernameOrEmailPlaceholder": "username or email",
+  "roleEditor": "Editor",
+  "roleViewer": "Viewer",
+  "collaborators": "Collaborators",
+  "noCollaborators": "No collaborators yet. Invite someone to start collaborating.",
+  "inviteLink": "Invite Link",
+  "canEdit": "Can edit",
+  "canView": "Can view",
+  "neverExpires": "Never expires",
+  "creating": "Creating...",
+  "createInviteLink": "Create Invite Link",
+  "removeCollaborator": "Remove collaborator",
+  "copyLink": "Copy link",
+  "revokeLink": "Revoke link"
  },
  "app": {
   "syncLockContent": "Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.",
@@ -494,7 +542,10 @@
   "spotlightError": "Spotlight Error",
   "unknownError": "Unknown error",
   "ok": "OK",
-  "noteEncryptedAtRest": "This note is encrypted at rest. Enter your password to unlock it."
+  "noteEncryptedAtRest": "This note is encrypted at rest. Enter your password to unlock it.",
+  "skipToContent": "Skip to content",
+  "mainNavigation": "Main navigation",
+  "mascot": "Beaver Notes mascot"
  },
  "onboarding": {
   "subtitle": "Configure everything just the way you like it, or import your existing notes from Beaver Notes (Legacy).",
@@ -548,7 +599,29 @@
   "importProgress": "Importing {done} of {total}…",
   "importIssueFormat": "{title}: {reason}",
   "locatePortableData": "Locate Beaver Notes portable data folder",
-  "chooseSyncFolder": "Choose a sync folder"
+  "chooseSyncFolder": "Choose a sync folder",
+  "customizeOrDefaults": "Lets start by customizing your settings, or use the defaults.",
+  "useDefaults": "Use defaults",
+  "continue": "Continue",
+  "stepOf": "Step {current} of {total}",
+  "enableSounds": "Enable sounds",
+  "enableSoundsDescription": "Enable sounds for interactions around the app.",
+  "spotlightIndexing": "Spotlight indexing",
+  "whatGetsCopied": "What gets copied",
+  "portableDataFolder": "Portable data folder",
+  "newBeaverNotes": "New Beaver Notes",
+  "windowsPortable": "Windows Portable",
+  "importingFrom": "Importing from",
+  "importYourNotesFrom": "Import your notes from",
+  "importSummary": "Import summary",
+  "issues": "Issues",
+  "copyToClipboard": "Copy to clipboard",
+  "youreSignedIn": "You're signed in",
+  "settingUpCloudSync": "Setting up cloud sync...",
+  "cloudSyncReady": "Cloud sync ready",
+  "syncSetupFailed": "Sync setup failed. You can retry from Settings.",
+  "openBeaverNotes": "Open Beaver Notes",
+  "orTypeFolderPath": "Or type a folder path"
  },
  "tray": {
   "noRecentItems": "No recent items",
@@ -577,7 +650,8 @@
   "copied": "Copied!",
   "copyContent": "Copy content",
   "searchHeadings": "Search headings…",
-  "noHeadingsFound": "No headings found"
+  "noHeadingsFound": "No headings found",
+  "back": "Back"
  },
  "toolbar": {
   "align": "Align",
@@ -624,7 +698,24 @@
   "fileUrl": "File URL",
   "videoUrl": "Video URL",
   "active": "Active",
-  "upload": "Upload"
+  "upload": "Upload",
+  "back": "Back",
+  "defaultFontSize": "Default font size",
+  "decreaseFontSize": "Decrease font size",
+  "increaseFontSize": "Increase font size",
+  "removeTextColor": "Remove text color",
+  "removeHighlight": "Remove highlight",
+  "uploadImage": "Upload image",
+  "uploadFile": "Upload file",
+  "uploadVideo": "Upload video",
+  "alignLeft": "Align left",
+  "alignCenter": "Align center",
+  "alignRight": "Align right",
+  "alignJustify": "Align justify",
+  "stopRecording": "Stop recording",
+  "zoomIn": "Zoom in",
+  "zoomOut": "Zoom out",
+  "drawing": "Drawing"
  },
  "searchReplace": {
   "altEnter": "Alt+Enter",
@@ -674,5 +765,59 @@
   "fair": "Fair",
   "strong": "Strong",
   "veryStrong": "Very strong"
+ },
+ "workspace": {
+  "workspaces": "Workspaces",
+  "newWorkspace": "New Workspace",
+  "joinWorkspace": "Join Workspace",
+  "renameWorkspace": "Rename workspace",
+  "workspaceName": "Workspace name",
+  "create": "Create",
+  "rename": "Rename",
+  "renameFailed": "Rename Failed",
+  "renameFailedDescription": "Failed to rename workspace.",
+  "join": "Join",
+  "joinFailed": "Join Failed",
+  "joinFailedDescription": "Invalid or expired invite token.",
+  "pasteInviteToken": "Paste invite token"
+ },
+ "comments": {
+  "loading": "Loading..."
+ },
+ "history": {
+  "title": "Note History",
+  "lastEdited": "Last edited",
+  "all": "All",
+  "today": "Today",
+  "thisWeek": "This Week",
+  "week": "Week",
+  "loading": "Loading history...",
+  "empty": "No history available",
+  "version": "Version",
+  "timestamp": "Timestamp",
+  "words": "Words",
+  "change": "Change",
+  "preview": "Preview",
+  "hide": "Hide",
+  "restore": "Restore",
+  "history": "History",
+  "auto": "Auto",
+  "author": "Author",
+  "justNow": "just now",
+  "minutesAgo": "{m}m ago",
+  "hoursAgo": "{h}h ago",
+  "daysAgo": "{d}d ago"
+ },
+ "account": {
+  "cloudSyncReady": "Cloud sync ready",
+  "syncSetupFailed": "Sync setup failed"
+ },
+ "join": {
+  "joining": "Joining...",
+  "goToHome": "Go to home",
+  "role": "Role:",
+  "openNote": "Open Note",
+  "invited": "You've been invited to collaborate on a note.",
+  "joinNote": "Join Note"
  }
 }
