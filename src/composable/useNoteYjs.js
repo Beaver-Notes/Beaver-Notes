@@ -17,6 +17,8 @@ import {
 import { getHocuspocusSync, setRoomKey } from '@/lib/sync/hocuspocus-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';
+import { useNoteStore } from '@/store/note';
+import { upsertSearchEntry } from '@/utils/note/search.js';
 import { speed } from '@/utils/speed.js';
 
 export { registerActiveDoc, applyRemote } from '@/lib/yjs/shared.js';
@@ -24,6 +26,26 @@ import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared.js';
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
+
+/**
+ * Flat plain text of a Yjs XML fragment, for the search index. Cheap string
+ * walk — no ProseMirror conversion.
+ */
+function yFragmentPlainText(fragment) {
+  const parts = [];
+  const walk = (node) => {
+    if (node instanceof Y.XmlText) {
+      parts.push(node.toString());
+    } else if (
+      node instanceof Y.XmlElement ||
+      node instanceof Y.XmlFragment
+    ) {
+      for (const child of node.toArray()) walk(child);
+    }
+  };
+  walk(fragment);
+  return parts.join(' ');
+}
 
 async function retryWrite(fn, label) {
   for (let attempt = 1; attempt <= MAX_WRITE_RETRIES; attempt++) {
@@ -133,6 +155,26 @@ export function useNoteYjs() {
     updatesSinceCompact += updates.length;
     const merged = Y.mergeUpdates(updates);
     await persistUpdate(currentNoteId, merged);
+
+    // Keep the search index in sync with the Yjs content — persistUpdate only
+    // writes updates to storage; without this, content edits were invisible
+    // to search (note.searchText stayed empty for Yjs-backed notes).
+    try {
+      if (currentDoc) {
+        const text = yFragmentPlainText(currentDoc.getXmlFragment('content'));
+        const noteStore = useNoteStore();
+        const note = noteStore.data?.[currentNoteId];
+        if (note && text !== note.searchText) {
+          note.searchText = text;
+          note.updatedAt = Date.now();
+          upsertSearchEntry(note);
+          const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
+          syncNoteMeta(note);
+        }
+      }
+    } catch (err) {
+      console.warn('[yjs] search index update failed:', err);
+    }
 
     // Fold the accumulated update history into a single snapshot row once the
     // session has been open long enough / appended enough rows. Non-blocking

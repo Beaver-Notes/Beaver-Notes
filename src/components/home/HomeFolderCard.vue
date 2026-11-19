@@ -133,7 +133,10 @@
                 class="text-white font-bold text-sm truncate leading-tight"
                 @click.stop="startRenaming"
               >
-                {{ folder.name || translations.card.untitledFolder }}
+                <ui-highlight-text
+                  :text="folder.name || translations.card.untitledFolder"
+                  :query="highlightQuery"
+                />
               </h3>
               <p class="text-white/80 text-[10px] font-medium">
                 {{ itemCount }} item{{ itemCount !== 1 ? 's' : '' }}
@@ -156,7 +159,10 @@
             <h3
               class="text-white font-bold text-sm truncate leading-tight drop-shadow-sm"
             >
-              {{ folder.name || translations.card.untitledFolder }}
+              <ui-highlight-text
+                :text="folder.name || translations.card.untitledFolder"
+                :query="highlightQuery"
+              />
             </h3>
             <p class="text-white/80 text-[10px] font-medium">
               {{ itemCount }} item{{ itemCount !== 1 ? 's' : '' }}
@@ -283,7 +289,8 @@
 
 <script setup>
 import { useTranslations } from '@/composable/useTranslations';
-import { ref, nextTick, computed } from 'vue';
+import { ref, nextTick, computed, onMounted, onUnmounted } from 'vue';
+import emitter from 'tiny-emitter/instance';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useDialog } from '@/lib/dialog';
@@ -295,6 +302,7 @@ const props = defineProps({
   folder: { type: Object, required: true },
   disableOpen: { type: Boolean, default: false },
   isDragOver: { type: Boolean, default: false },
+  highlightQuery: { type: String, default: '' },
 });
 
 const folderStore = useFolderStore();
@@ -377,6 +385,16 @@ function startRenaming() {
     renameInput.value?.select();
   });
 }
+
+// A freshly created folder opens its name field immediately.
+function handleRenameRequest(folderId) {
+  if (folderId !== props.folder.id) return;
+  if (isMobileRuntime) openCustomizeModal();
+  else startRenaming();
+}
+
+onMounted(() => emitter.on('folder:rename-request', handleRenameRequest));
+onUnmounted(() => emitter.off('folder:rename-request', handleRenameRequest));
 
 function saveRename() {
   if (!newName.value.trim()) {

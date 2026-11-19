@@ -27,6 +27,7 @@
           :note="note"
           :is-locked="note.isLocked"
           :disable-open="selectionMode"
+          :highlight-query="highlightQuery"
           class="w-full"
         />
       </div>
@@ -86,6 +87,7 @@
           :is-locked="item.note.isLocked"
           v-bind="{ note: item.note }"
           :disable-open="selectionMode"
+          :highlight-query="highlightQuery"
           :class="{
             'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
               isSelected(item.note.id),
@@ -125,6 +127,7 @@ const props = defineProps({
   selectedItems: { type: Object, default: null },
   pulse: { type: Boolean, default: false },
   selectionMode: { type: Boolean, default: false },
+  highlightQuery: { type: String, default: '' },
   gapPx: { type: Number, default: 20 },
   breakpoints: {
     type: Array,
@@ -510,7 +513,21 @@ watch(
       }
     }
 
+    const prevCount = _prevNoteIds.size;
     _prevNoteIds = newIds;
+
+    // Filtering (e.g. search) replaces the list with a short result set.
+    // The virtual window would otherwise stay at the old scroll offset,
+    // which sits past the new content and renders nothing. Only reset on
+    // shrink — sorting reorders ids without changing the set size.
+    if (newIds.size < prevCount) {
+      if (scrollEl === window) {
+        if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'instant' });
+      } else if (scrollEl && scrollEl.scrollTop > 0) {
+        scrollEl.scrollTo({ top: 0, behavior: 'instant' });
+      }
+      scrollTop.value = 0;
+    }
 
     await nextTick();
     scheduleMeasure();

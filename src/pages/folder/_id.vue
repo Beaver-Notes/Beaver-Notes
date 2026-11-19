@@ -119,6 +119,7 @@
                 :folder="childFolder"
                 :disable-open="selectionMode"
                 :is-drag-over="dragOverFolderId === childFolder.id"
+                :highlight-query="state.query"
                 :class="{
                   'transform scale-[1.02]':
                     dragOverFolderId === childFolder.id ||
@@ -157,6 +158,7 @@
               :selected-items="selectedItems"
               :selection-mode="selectionMode"
               :pulse="isFiltering"
+              :highlight-query="state.query"
               :gap-px="24"
               :breakpoints="[
                 { min: 0, cols: 2 },

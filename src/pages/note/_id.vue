@@ -611,6 +611,11 @@ export default {
       async (newNote) => {
         await nextTick();
         if (!titleDiv.value) return;
+        // While the user is editing the title, the DOM is the source of truth.
+        // Rewriting textContent from a (possibly stale) store snapshot resets
+        // the caret to the start and drops characters typed since the last
+        // debounced update.
+        if (document.activeElement === titleDiv.value) return;
         // Prefer store title, fall back to Yjs title, then empty
         const stored = newNote?.title || yjsGetTitle() || '';
         if (titleDiv.value.textContent !== stored) {
@@ -633,8 +638,13 @@ export default {
           if (note.value && note.value.title !== title) {
             updateNote(id.value, { title });
           }
-          // Sync to div if it doesn't match
-          if (titleDiv.value && titleDiv.value.textContent !== title) {
+          // Sync to div if it doesn't match — but never while the user is
+          // actively editing the title, or the caret would jump.
+          if (
+            titleDiv.value &&
+            document.activeElement !== titleDiv.value &&
+            titleDiv.value.textContent !== title
+          ) {
             titleDiv.value.textContent = title;
             autoResizeTitle();
           }
