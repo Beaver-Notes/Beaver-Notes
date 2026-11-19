@@ -154,6 +154,8 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
         );
         const merged = noteStore.data[id];
         if (!merged) continue;
+        const text = extractTextFromContent(content);
+        if (text) merged.searchText = text;
         const { cardPreview, preview } = buildNotePreviewFromContent(merged, content);
         merged.cardPreview = cardPreview;
         if (!merged.preview) merged.preview = preview;
@@ -167,6 +169,58 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
     }
   }
   noteStore.deletedIds = yMapToObj(doc.getMap('deletedNoteIds'));
+}
+
+/**
+ * Cold-start helper: fill `searchText` for notes whose content lives only in
+ * their per-note Yjs doc, so the search index can be rebuilt with full text.
+ * One batched snapshot round-trip for the whole library.
+ *
+ * A note is skipped when its searchText already looks complete — i.e. it was
+ * extracted from content (via editing) rather than copied from the truncated
+ * workspace-doc `preview` (which is capped at 400 chars).
+ */
+export async function ensureSearchTextFromSnapshots(data) {
+  const ids = [];
+  for (const [id, note] of Object.entries(data)) {
+    if (!note || note.isLocked || isEncryptedContent(note.content) || note.content) {
+      continue;
+    }
+    if (note.searchText && !(note.preview && note.searchText === note.preview)) {
+      continue;
+    }
+    ids.push(id);
+  }
+  if (ids.length === 0) return;
+
+  let snapshots = {};
+  try {
+    snapshots = await getSnapshots(ids);
+  } catch (err) {
+    console.warn('[meta-yjs] search-text snapshot batch failed', err);
+    return;
+  }
+
+  for (const id of ids) {
+    const snapshot = snapshots?.[id];
+    const note = data[id];
+    if (!snapshot || snapshot.length === 0 || !note) continue;
+    try {
+      const tmp = new Y.Doc();
+      Y.applyUpdate(tmp, toUint8Array(snapshot));
+      const content = await yXmlFragmentToProsemirrorJSON(
+        tmp.getXmlFragment('content')
+      );
+      const text = extractTextFromContent(content);
+      if (!text) continue;
+      note.searchText = text;
+      if (!note.preview) note.preview = text;
+      // saveNote syncs the entry into the MiniSearch index
+      await saveNote(id, note);
+    } catch (err) {
+      console.warn('[meta-yjs] search-text extraction failed for', id, err);
+    }
+  }
 }
 
 /**
