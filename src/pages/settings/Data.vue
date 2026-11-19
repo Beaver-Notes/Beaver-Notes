@@ -219,8 +219,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Export all notes as .html files preserving folder structure. Open
-              any file in a browser.
+              {{ translations.settings?.exportHtmlDescription || 'Export all notes as .html files preserving folder structure. Open any file in a browser.' }}
             </p>
           </div>
           <div class="mt-auto space-y-2 pt-2">
@@ -450,8 +449,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Save a full backup of all notes, folders, and labels as a dated
-              archive.
+              {{ translations.settings?.exportDataDescription || 'Save a full backup of all notes, folders, and labels as a dated archive.' }}
             </p>
           </div>
           <div class="mt-auto space-y-2 pt-2">
@@ -489,8 +487,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Restore notes from a previously exported Beaver Notes backup
-              archive.
+              {{ translations.settings?.importDataDescription || 'Restore notes from a previously exported Beaver Notes backup archive.' }}
             </p>
           </div>
           <div class="mt-auto pt-2">

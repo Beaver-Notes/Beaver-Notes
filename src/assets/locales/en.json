@@ -39,7 +39,10 @@
   "wide": "Wide",
   "accessibility": "Accessibility",
   "reducedMotion": "Reduced Motion",
-  "highContrast": "High Contrast"
+  "highContrast": "High Contrast",
+  "appIcon": "App Icon",
+  "fontPreviewTitle": "Lorem Ipsum",
+  "fontPreviewText": "Lorem ipsum dolor sit amet, consectetur adipiscing elit."
  },
  "card": {
   "archive": "Archive",
@@ -114,7 +117,17 @@
   "previousNote": "Previous notes",
   "tiptapPlaceholder": "Write something… or type \"/\" for commands.",
   "untitledNote": "Untitled note",
-  "katexMacros": "KaTeX macros"
+  "katexMacros": "KaTeX macros",
+  "backlinks": "Backlinks",
+  "linkedReferences": "Backlinks",
+  "backShortcutTitle": "Alt+Arrow left",
+  "downloadImage": "Download image",
+  "editLink": "Edit link",
+  "removeLink": "Remove link",
+  "keepImageOnOwnLine": "Keep image on its own line",
+  "wrapLeft": "Wrap text on the left",
+  "wrapRight": "Wrap text on the right",
+  "noMatchingNotes": "No matching notes found"
  },
  "filter": {
   "alphabetical": "Alphabetical",
@@ -255,7 +268,10 @@
   "audioDescription": "Insert an audio file",
   "todayDateDescription": "Insert today's date",
   "currentTimeDescription": "Insert current time",
-  "columnsDescription": "Create multiple columns"
+  "columnsDescription": "Create multiple columns",
+  "insertBlock": "Add block",
+  "searchBlocks": "Search blocks",
+  "exportError": "Failed to export PDF. Please try again."
  },
  "paper": {
   "dotted": "Dotted",
@@ -430,7 +446,47 @@
   "importVaultFromSync": "Import vault from sync",
   "exportedNotesCount": "Exported {count} notes",
   "skippedCount": "{count} skipped.",
-  "importedNotesCount": "Imported {notes} notes across {folders} folders."
+  "importedNotesCount": "Imported {notes} notes across {folders} folders.",
+  "account": "Account",
+  "advanced": "Advanced",
+  "securityDesc": "One passphrase protects your notes on this device and sync commits when sync is enabled.",
+  "appPasswordDesc": "Protects all notes on this device.",
+  "passwordSet": "App password is set",
+  "passwordTooShort": "Passphrase must be at least 8 characters.",
+  "cloudSync": "Cloud sync",
+  "syncNow": "Sync now",
+  "syncing": "Syncing...",
+  "syncedJustNow": "Synced just now",
+  "syncedMinAgo": "Synced {n} min ago",
+  "neverSynced": "Never synced yet",
+  "encryptionDesc": "All notes and assets are encrypted at rest. Encryption is a core part of storage.",
+  "encryptionAlwaysOn": "Always on",
+  "importInstructions": "Choose a source, review the instructions, then run the import.",
+  "unlockAppEncryptionTitle": "Unlock to continue",
+  "unlockAppEncryptionBody": "Your notes are encrypted. Enter your encryption passphrase to unlock the app.",
+  "unlockWithBiometrics": "Unlock with Touch ID",
+  "lockNow": "Lock Now",
+  "showRecoveryCode": "Recovery code",
+  "recoverWithCode": "Forgot passphrase? Use recovery code",
+  "changePassphrase": "Change Passphrase",
+  "changePassphraseDesc": "Enter your current passphrase to change it. The underlying encryption key will be re-wrapped — your notes are not re-encrypted.",
+  "currentPassphrase": "Current passphrase",
+  "newPassphrase": "Choose a new passphrase. This will re-wrap your encryption key.",
+  "newPassphraseDesc": "Choose a new passphrase. This will re-wrap your encryption key.",
+  "enterNewPassphrase": "Enter New Passphrase",
+  "confirmPassphrase": "Confirm Passphrase",
+  "confirmPassphrasePlaceholder": "Confirm passphrase",
+  "changePassword": "Change",
+  "keyRotated": "Key Rotated",
+  "keyRotatedDesc": "The encryption key has been rotated. Old keys remain available for existing notes.",
+  "passphraseChanged": "Passphrase Changed",
+  "passphraseChangedDesc": "Your encryption passphrase has been updated.",
+  "vaultImported": "Vault imported. The app will reload.",
+  "noRemoteVault": "No existing vault found in your sync source.",
+  "rotateKey": "Rotate key",
+  "exportHtmlDescription": "Export all notes as .html files preserving folder structure. Open any file in a browser.",
+  "exportDataDescription": "Save a full backup of all notes, folders, and labels as a dated archive.",
+  "importDataDescription": "Restore notes from a previously exported Beaver Notes backup archive."
  },
  "shortcuts": {
   "arrowLeft": "Arrow Left",
@@ -534,7 +590,9 @@
   "createInviteLink": "Create Invite Link",
   "removeCollaborator": "Remove collaborator",
   "copyLink": "Copy link",
-  "revokeLink": "Revoke link"
+  "revokeLink": "Revoke link",
+  "collaborate": "Collaborate",
+  "importNoteDialogTitle": "Import note"
  },
  "app": {
   "syncLockContent": "Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.",
@@ -626,7 +684,11 @@
   "openBeaverNotes": "Open Beaver Notes",
   "orTypeFolderPath": "Or type a folder path",
   "yourNotesReady": "Your notes from {app} are ready.",
-  "importedNotesCount": "Imported {notes} notes across {folders} folders."
+  "importedNotesCount": "Imported {notes} notes across {folders} folders.",
+  "passwordDescription": "Encryption is built into Beaver Notes. Set a passphrase to protect every note and asset on this device.",
+  "passwordWarning": "This passphrase cannot be recovered if forgotten. Store it in a password manager.",
+  "confirmPassword": "Confirm passphrase",
+  "startFresh": "Start fresh with a new vault instead"
  },
  "tray": {
   "noRecentItems": "No recent items",
@@ -787,7 +849,15 @@
   "pasteInviteToken": "Paste invite token"
  },
  "comments": {
-  "loading": "Loading..."
+  "loading": "Loading...",
+  "title": "Comments",
+  "placeholder": "Add a comment...",
+  "replyPlaceholder": "Reply...",
+  "send": "Send",
+  "resolve": "Resolve",
+  "reopen": "Reopen",
+  "empty": "No comments yet",
+  "newComment": "New comment"
  },
  "history": {
   "title": "Note History",
@@ -815,7 +885,63 @@
  },
  "account": {
   "cloudSyncReady": "Cloud sync ready",
-  "syncSetupFailed": "Sync setup failed"
+  "syncSetupFailed": "Sync setup failed",
+  "title": "Beaver Account",
+  "signInHeading": "Sign in to sync across devices.",
+  "signInBody": "A Beaver Account is optional. Without one, your notes stay on this device only.",
+  "emailPlaceholder": "Email (optional)",
+  "passwordPlaceholder": "Password",
+  "confirmPasswordPlaceholder": "Password",
+  "signIn": "Sign in",
+  "createAccount": "Create account",
+  "withPassword": "Or sign in with password",
+  "signInWithPassword": "Sign in",
+  "emailPasswordRequired": "Email and password are required.",
+  "quickConnect": "Signing in from another device?",
+  "quickConnectBody": "Approve a code on another device that is already signed in.",
+  "quickConnectStart": "Start",
+  "quickConnectCheck": "Check approval",
+  "quickConnectEnterCode": "Enter code from another device",
+  "quickConnectHint": "Enter this code on your other device, or paste a code from another device here.",
+  "quickConnectUse": "Use code",
+  "quickConnectCodeRequired": "Enter the code shown on the other device.",
+  "server": "Server",
+  "serverHint": "Default works with Beaver Cloud. Change this for a self-hosted instance.",
+  "useDefault": "Use default",
+  "security": "Security",
+  "devices": "Devices",
+  "plan": "Plan",
+  "noPlan": "No plan",
+  "managePlan": "Manage plan",
+  "storage": "Storage",
+  "signedInAs": "Signed in",
+  "signOut": "Sign out",
+  "signOutTitle": "Sign out?",
+  "signOutBody": "You can sign back in at any time. Local notes stay on this device.",
+  "signOutEverywhere": "Sign out everywhere",
+  "signOutEverywhereTitle": "Sign out everywhere",
+  "signOutEverywhereBody": "Revoke all other devices. This device stays signed in.",
+  "dangerZone": "Danger zone",
+  "deleteAccount": "Delete Beaver Account",
+  "deleteAccountBody": "Permanently delete your Beaver Account and all data on the server. Local notes stay on this device.",
+  "deleteAccountConfirm": "Delete forever",
+  "deletePasswordRequired": "Enter your password to confirm.",
+  "vaultDetected": "Vault detected",
+  "vaultDetectedBody": "A vault was found in your sync source. Import it to unlock your notes.",
+  "importVault": "Import",
+  "importVaultTitle": "Import vault from sync",
+  "importVaultBody": "Importing will replace this device\\",
+  "vaultImported": "Vault imported",
+  "vaultImportedBody": "The vault has been imported. The app will reload.",
+  "vaultPasswordTitle": "Enter vault password",
+  "vaultPasswordBody": "Enter the password for the existing encrypted vault in your sync source.",
+  "onboardingTitle": "Sign in (optional)",
+  "onboardingBody": "A Beaver Account lets your notes follow you across devices with end-to-end encrypted cloud sync. Local-only mode stays fully working without one.",
+  "onboardingBulletPrivacy": "Zero-knowledge encryption — the server only sees encrypted blobs.",
+  "onboardingBulletAuth": "Sign in with a passkey or a password. QuickConnect works across devices.",
+  "onboardingBulletFree": "A free account keeps your notes on this device only. Cloud sync is part of Basic and up.",
+  "cloudSyncCtaHeading": "Cloud sync is part of Basic.",
+  "cloudSyncCtaBody": "Upgrade to Basic or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime."
  },
  "join": {
   "joining": "Joining...",
@@ -824,5 +950,9 @@
   "openNote": "Open Note",
   "invited": "You've been invited to collaborate on a note.",
   "joinNote": "Join Note"
+ },
+ "common": {
+  "save": "Save",
+  "cancel": "Cancel"
  }
 }

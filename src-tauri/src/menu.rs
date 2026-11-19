@@ -2,7 +2,7 @@ use std::sync::{OnceLock, RwLock};
 
 use serde_json::json;
 use tauri::{
-    menu::{Menu, MenuBuilder, MenuEvent, MenuItem, SubmenuBuilder},
+    menu::{Menu, MenuBuilder, MenuEvent, MenuItem, PredefinedMenuItem, SubmenuBuilder},
     AppHandle, Emitter, Manager, Wry,
 };
 use tauri_plugin_opener::OpenerExt;
@@ -38,22 +38,15 @@ fn tr<'a>(lang: &str, en: &'a str, ru: &'a str) -> &'a str {
 
 pub(crate) fn build_context_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
     let lang = current_language();
-    let undo = MenuItem::with_id(app, "ctx-undo", tr(&lang, "Undo", "Отменить"), true, None::<&str>)
-        .map_err(to_error)?;
-    let redo = MenuItem::with_id(app, "ctx-redo", tr(&lang, "Redo", "Повторить"), true, None::<&str>)
-        .map_err(to_error)?;
-    let cut = MenuItem::with_id(app, "ctx-cut", tr(&lang, "Cut", "Вырезать"), true, None::<&str>)
-        .map_err(to_error)?;
-    let copy = MenuItem::with_id(app, "ctx-copy", tr(&lang, "Copy", "Копировать"), true, None::<&str>)
-        .map_err(to_error)?;
-    let paste = MenuItem::with_id(app, "ctx-paste", tr(&lang, "Paste", "Вставить"), true, None::<&str>)
-        .map_err(to_error)?;
-    let select_all = MenuItem::with_id(
+    let text = |en: &str, ru: &str| tr(&lang, en, ru).to_string();
+    let undo = PredefinedMenuItem::undo(app, Some(&text("Undo", "Отменить"))).map_err(to_error)?;
+    let redo = PredefinedMenuItem::redo(app, Some(&text("Redo", "Повторить"))).map_err(to_error)?;
+    let cut = PredefinedMenuItem::cut(app, Some(&text("Cut", "Вырезать"))).map_err(to_error)?;
+    let copy = PredefinedMenuItem::copy(app, Some(&text("Copy", "Копировать"))).map_err(to_error)?;
+    let paste = PredefinedMenuItem::paste(app, Some(&text("Paste", "Вставить"))).map_err(to_error)?;
+    let select_all = PredefinedMenuItem::select_all(
         app,
-        "ctx-select-all",
-        tr(&lang, "Select All", "Выделить все"),
-        true,
-        None::<&str>,
+        Some(&text("Select All", "Выделить все")),
     )
     .map_err(to_error)?;
     MenuBuilder::new(app)
@@ -69,60 +62,85 @@ pub(crate) fn build_context_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError>
 }
 
 pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, AppError> {
+    let text = |en: &str, ru: &str| tr(lang, en, ru).to_string();
+
     let new_note = MenuItem::with_id(
         app,
         "new-note",
-        tr(lang, "New Note", "Новая заметка"),
+        text("New Note", "Новая заметка"),
         true,
         Some("CmdOrCtrl+N"),
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
     let file_submenu = {
-        let mut builder = SubmenuBuilder::new(app, tr(lang, "File", "Файл")).item(&new_note);
+        let mut builder = SubmenuBuilder::new(app, text("File", "Файл")).item(&new_note);
         #[cfg(target_os = "macos")]
         {
-            builder = builder.close_window();
+            let close = PredefinedMenuItem::close_window(
+                app,
+                Some(&text("Close Window", "Закрыть окно")),
+            )
+            .map_err(|e| AppError::Other(e.to_string()))?;
+            builder = builder.item(&close);
         }
         #[cfg(not(target_os = "macos"))]
         {
-            builder = builder.quit();
+            let quit =
+                PredefinedMenuItem::quit(app, Some(&text("Exit", "Выход")))
+                    .map_err(|e| AppError::Other(e.to_string()))?;
+            builder = builder.item(&quit);
         }
         builder.build().map_err(|e| AppError::Other(e.to_string()))?
     };
 
     let edit_submenu = {
-        let mut builder = SubmenuBuilder::new(app, tr(lang, "Edit", "Правка"))
-            .undo()
-            .redo()
+        let undo = PredefinedMenuItem::undo(app, Some(&text("Undo", "Отменить")))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let redo = PredefinedMenuItem::redo(app, Some(&text("Redo", "Повторить")))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let cut = PredefinedMenuItem::cut(app, Some(&text("Cut", "Вырезать")))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let copy = PredefinedMenuItem::copy(app, Some(&text("Copy", "Копировать")))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let paste = PredefinedMenuItem::paste(app, Some(&text("Paste", "Вставить")))
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let select_all = PredefinedMenuItem::select_all(
+            app,
+            Some(&text("Select All", "Выделить все")),
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+        let mut builder = SubmenuBuilder::new(app, text("Edit", "Правка"))
+            .item(&undo)
+            .item(&redo)
             .separator()
-            .cut()
-            .copy()
-            .paste();
+            .item(&cut)
+            .item(&copy)
+            .item(&paste);
         #[cfg(target_os = "macos")]
         {
             builder = builder
                 .text(
                     "edit-paste-match-style",
-                    tr(lang, "Paste and Match Style", "Вставить с сохранением стиля"),
+                    text("Paste and Match Style", "Вставить с сохранением стиля"),
                 )
-                .text("edit-delete", tr(lang, "Delete", "Удалить"))
-                .select_all()
+                .text("edit-delete", text("Delete", "Удалить"))
+                .item(&select_all)
                 .separator()
                 .text(
                     "edit-start-speaking",
-                    tr(lang, "Start Speaking", "Начать озвучивание"),
+                    text("Start Speaking", "Начать озвучивание"),
                 )
                 .text(
                     "edit-stop-speaking",
-                    tr(lang, "Stop Speaking", "Остановить озвучивание"),
+                    text("Stop Speaking", "Остановить озвучивание"),
                 );
         }
         #[cfg(not(target_os = "macos"))]
         {
             builder = builder
-                .text("edit-delete", tr(lang, "Delete", "Удалить"))
+                .text("edit-delete", text("Delete", "Удалить"))
                 .separator()
-                .select_all();
+                .item(&select_all);
         }
         builder.build().map_err(|e| AppError::Other(e.to_string()))?
     };
@@ -131,7 +149,7 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
         let reload = MenuItem::with_id(
             app,
             "reload",
-            tr(lang, "Reload", "Перезагрузить"),
+            text("Reload", "Перезагрузить"),
             true,
             Some("CmdOrCtrl+R"),
         )
@@ -139,7 +157,7 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
         let force_reload = MenuItem::with_id(
             app,
             "force-reload",
-            tr(lang, "Force Reload", "Перезагрузить принудительно"),
+            text("Force Reload", "Перезагрузить принудительно"),
             true,
             Some("CmdOrCtrl+Shift+R"),
         )
@@ -147,7 +165,7 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
         let toggle_devtools = MenuItem::with_id(
             app,
             "toggle-devtools",
-            tr(lang, "Toggle Developer Tools", "Инструменты разработчика"),
+            text("Toggle Developer Tools", "Инструменты разработчика"),
             true,
             Some("Alt+CmdOrCtrl+I"),
         )
@@ -155,7 +173,7 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
         let reset_zoom = MenuItem::with_id(
             app,
             "reset-zoom",
-            tr(lang, "Reset Zoom", "Сбросить масштаб"),
+            text("Reset Zoom", "Сбросить масштаб"),
             true,
             Some("CmdOrCtrl+0"),
         )
@@ -163,7 +181,7 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
         let zoom_in = MenuItem::with_id(
             app,
             "zoom-in",
-            tr(lang, "Zoom In", "Увеличить"),
+            text("Zoom In", "Увеличить"),
             true,
             Some("CmdOrCtrl+Plus"),
         )
@@ -171,7 +189,7 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
         let zoom_out = MenuItem::with_id(
             app,
             "zoom-out",
-            tr(lang, "Zoom Out", "Уменьшить"),
+            text("Zoom Out", "Уменьшить"),
             true,
             Some("CmdOrCtrl+-"),
         )
@@ -179,12 +197,12 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
         let toggle_fullscreen = MenuItem::with_id(
             app,
             "toggle-fullscreen",
-            tr(lang, "Toggle Fullscreen", "Полноэкранный режим"),
+            text("Toggle Fullscreen", "Полноэкранный режим"),
             true,
             Some("F11"),
         )
         .map_err(|e| AppError::Other(e.to_string()))?;
-        SubmenuBuilder::new(app, tr(lang, "View", "Вид"))
+        SubmenuBuilder::new(app, text("View", "Вид"))
             .item(&reload)
             .item(&force_reload)
             .item(&toggle_devtools)
@@ -199,21 +217,38 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
     };
 
     let window_submenu = {
-        let mut builder = SubmenuBuilder::new(app, tr(lang, "Window", "Окно")).minimize().maximize();
+        let minimize = PredefinedMenuItem::minimize(
+            app,
+            Some(&text("Minimize", "Свернуть")),
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+        let maximize = PredefinedMenuItem::maximize(
+            app,
+            Some(&text("Maximize", "Развернуть")),
+        )
+        .map_err(|e| AppError::Other(e.to_string()))?;
+        let mut builder = SubmenuBuilder::new(app, text("Window", "Окно"))
+            .item(&minimize)
+            .item(&maximize);
         #[cfg(target_os = "macos")]
         {
             builder = builder
                 .separator()
                 .text(
                     "window-front",
-                    tr(lang, "Bring All to Front", "Все окна на передний план"),
+                    text("Bring All to Front", "Все окна на передний план"),
                 )
                 .separator()
-                .text("window-window", tr(lang, "Window", "Окно"));
+                .text("window-window", text("Window", "Окно"));
         }
         #[cfg(not(target_os = "macos"))]
         {
-            builder = builder.close_window();
+            let close = PredefinedMenuItem::close_window(
+                app,
+                Some(&text("Close", "Закрыть")),
+            )
+            .map_err(|e| AppError::Other(e.to_string()))?;
+            builder = builder.item(&close);
         }
         builder.build().map_err(|e| AppError::Other(e.to_string()))?
     };
@@ -221,12 +256,12 @@ pub(crate) fn build_app_menu(app: &AppHandle, lang: &str) -> Result<Menu<Wry>, A
     let docs = MenuItem::with_id(
         app,
         "docs",
-        tr(lang, "Docs", "Документация"),
+        text("Docs", "Документация"),
         true,
         None::<&str>,
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
-    let help_submenu = SubmenuBuilder::new(app, tr(lang, "Help", "Справка"))
+    let help_submenu = SubmenuBuilder::new(app, text("Help", "Справка"))
         .item(&docs)
         .build()
         .map_err(|e| AppError::Other(e.to_string()))?;
