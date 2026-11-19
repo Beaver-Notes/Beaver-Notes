@@ -513,7 +513,21 @@ watch(
       }
     }
 
+    const prevCount = _prevNoteIds.size;
     _prevNoteIds = newIds;
+
+    // Filtering (e.g. search) replaces the list with a short result set.
+    // The virtual window would otherwise stay at the old scroll offset,
+    // which sits past the new content and renders nothing. Only reset on
+    // shrink — sorting reorders ids without changing the set size.
+    if (newIds.size < prevCount) {
+      if (scrollEl === window) {
+        if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'instant' });
+      } else if (scrollEl && scrollEl.scrollTop > 0) {
+        scrollEl.scrollTo({ top: 0, behavior: 'instant' });
+      }
+      scrollTop.value = 0;
+    }
 
     await nextTick();
     scheduleMeasure();
