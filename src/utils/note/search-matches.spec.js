@@ -42,11 +42,38 @@ describe('matchNoteIdsByQuery', () => {
     expect([...ids]).toEqual(['2']);
   });
 
-  it('falls back to null when the index throws (caller does a linear scan)', () => {
+  it('still returns substring matches when the index throws', () => {
     const failing = () => {
       throw new Error('index not ready');
     };
-    expect(matchNoteIdsByQuery(notes, 'milk', failing)).toBeNull();
+    const ids = matchNoteIdsByQuery(notes, 'milk', failing);
+    expect([...ids]).toEqual(['1']);
+  });
+
+  it('matches word endings the prefix-only index cannot find', () => {
+    // "view" is a suffix of "review" — the fake index has no entry for it.
+    const ids = matchNoteIdsByQuery(notes, 'view', indexSearch);
+    expect([...ids]).toEqual(['2']);
+  });
+
+  it('matches substrings inside titles', () => {
+    const ids = matchNoteIdsByQuery(notes, 'caten', indexSearch);
+    expect([...ids]).toEqual(['3']);
+  });
+
+  it('combines index hits with substring hits', () => {
+    // "cat" hits the index (3, 4); "cat food" substring only matches 4.
+    const ids = matchNoteIdsByQuery(notes, 'cat food', indexSearch);
+    expect([...ids]).toEqual(['4']);
+  });
+
+  it('skips locked notes in the substring pass', () => {
+    const locked = [
+      ...notes,
+      { id: '5', title: 'Secret', searchText: 'hidden passphrase', labels: [], isLocked: true },
+    ];
+    const ids = matchNoteIdsByQuery(locked, 'passphrase', indexSearch);
+    expect(ids.has('5')).toBe(false);
   });
 
   it('normalizes case-insensitively', () => {
