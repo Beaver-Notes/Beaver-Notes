@@ -253,7 +253,7 @@
   >
     <div class="flex w-full items-center justify-between p-1.5">
       <button
-        aria-label="Back"
+        :aria-label="translations.noteActions?.back || 'Back'"
         class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
         @click="goBack"
       >

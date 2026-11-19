@@ -20,7 +20,7 @@
       <div class="drag-handle-inner">
         <button
           class="dh-button"
-          title="Add block"
+          :title="translations.menu?.insertBlock || 'Add block'"
           @click.prevent="addBlock"
         >
           <v-remixicon name="riAddLine" class="dh-icon" />
@@ -76,6 +76,7 @@ import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
 import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
 import PresenceIndicator from './PresenceIndicator.vue';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   components: {
@@ -101,6 +102,7 @@ export default {
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
+    const { translations } = useTranslations();
 
     const isYjs = !!props.ydoc;
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
@@ -467,6 +469,7 @@ export default {
     );
 
     return {
+      translations,
       editor,
       computePositionConfig,
       showDragHandle,

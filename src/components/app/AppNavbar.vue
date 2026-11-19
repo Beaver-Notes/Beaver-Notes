@@ -1,5 +1,5 @@
 <template>
-  <nav class="w-full" role="navigation" aria-label="Main navigation" data-selection-keep>
+  <nav class="w-full" role="navigation" :aria-label="translations.app?.mainNavigation || 'Main navigation'" data-selection-keep>
     <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
       <!-- ── Left Rail ── -->
       <div
@@ -215,6 +215,7 @@ import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 import { useDialog } from '@/lib/dialog';
 import { useNoteStore } from '@/store/note';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   setup() {

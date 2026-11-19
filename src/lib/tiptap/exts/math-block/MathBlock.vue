@@ -39,7 +39,7 @@
           v-if="useKatexMacros"
           ref="macrosTextarea"
           :value="node.attrs.macros"
-          placeholder="KaTeX macros"
+          :placeholder="translations.editor?.katexMacros || 'KaTeX macros'"
           class="bg-transparent ml-2 pl-2 flex-1 resize-y"
           @input="updateContent($event, 'macros', true)"
           @keydown="handleKeydown"

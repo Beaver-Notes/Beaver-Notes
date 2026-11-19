@@ -91,13 +91,16 @@
 
     <section class="bg-input p-4 rounded-xl space-y-3">
       <div>
-        <p class="text-sm font-medium">Show onboarding again</p>
+        <p class="text-sm font-medium">
+          {{ translations.about.showOnboardingAgain }}
+        </p>
         <p class="text-xs text-neutral-500 dark:text-neutral-400">
-          Reopen the first-run migration and setup screen without clearing your
-          current notes.
+          {{ translations.about.showOnboardingDescription }}
         </p>
       </div>
-      <ui-button @click="showOnboarding"> Show onboarding </ui-button>
+      <ui-button @click="showOnboarding">
+        {{ translations.about.showOnboarding }}
+      </ui-button>
     </section>
   </div>
 </template>

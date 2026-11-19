@@ -88,7 +88,7 @@
               fontSize = null;
             "
           >
-            Default
+            {{ translations.toolbar?.default || 'Default' }}
           </button>
 
           <button

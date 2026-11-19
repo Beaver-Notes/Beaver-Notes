@@ -261,7 +261,7 @@
           <div class="flex items-center gap-2">
             <v-remixicon name="riCheckLine" class="text-green-600 dark:text-green-400" size="18" />
             <p class="text-sm font-medium text-green-700 dark:text-green-300">
-              Cloud sync ready
+              {{ translations.account?.cloudSyncReady || 'Cloud sync ready' }}
             </p>
           </div>
         </div>
@@ -293,7 +293,7 @@
           <div class="flex items-center gap-2">
             <v-remixicon name="riErrorWarningLine" class="text-red-600 dark:text-red-400" size="18" />
             <p class="text-sm font-medium text-red-700 dark:text-red-300">
-              Sync setup failed
+              {{ translations.account?.syncSetupFailed || 'Sync setup failed' }}
             </p>
           </div>
         </div>

@@ -15,7 +15,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              The folder where your notes and assets are stored on disk.
+              {{ translations.settings.syncPathDescription || 'The folder where your notes and assets are stored on disk.' }}
             </p>
           </div>
           <div class="flex items-center gap-2 justify-between">
@@ -46,7 +46,7 @@
             {{ translations.settings.cloudSync || 'Cloud sync' }}
           </p>
           <p class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-            Sync notes through Beaver Sync (instead of a folder).
+            {{ translations.settings.cloudSyncDescription || 'Sync notes through Beaver Sync (instead of a folder).' }}
           </p>
           <div class="mt-3 space-y-2">
             <div
@@ -141,20 +141,19 @@
     </section>
 
     <section>
-      <p class="mb-2">Export</p>
+      <p class="mb-2">{{ translations.settings.export || 'Export' }}</p>
       <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
         <ui-card padding="p-4" class="flex h-full flex-col gap-3">
           <div class="space-y-0.5">
             <p
               class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
             >
-              Export as Markdown
+              {{ translations.settings.exportAsMarkdown || 'Export as Markdown' }}
             </p>
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Export all notes as .md files with YAML frontmatter. Compatible
-              with Obsidian, Bear, and most Markdown editors.
+              {{ translations.settings.exportMarkdownDescription || 'Export all notes as .md files with YAML frontmatter. Compatible with Obsidian, Bear, and most Markdown editors.' }}
             </p>
           </div>
           <div class="mt-auto space-y-2 pt-2">
@@ -164,7 +163,7 @@
               :disabled="exportMdState.running"
               @click="exportAllMarkdownHandler"
             >
-              Export Markdown
+              {{ translations.settings.exportMarkdown || 'Export Markdown' }}
             </ui-button>
             <p
               v-if="exportMdState.running && exportMdState.total"
@@ -174,10 +173,20 @@
             </p>
             <template v-else-if="exportMdState.result">
               <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Exported {{ exportMdState.result.exported }} notes<span
-                  v-if="exportMdState.result.skipped.length"
-                >
-                  . {{ exportMdState.result.skipped.length }} skipped.</span
+                {{
+                  (
+                    translations.settings?.exportedNotesCount ||
+                    'Exported {count} notes'
+                  )
+                    .replace('{count}', exportMdState.result.exported)
+                }}<span v-if="exportMdState.result.skipped.length">
+                  .
+                  {{
+                    (
+                      translations.settings?.skippedCount ||
+                      '{count} skipped.'
+                    ).replace('{count}', exportMdState.result.skipped.length)
+                  }}</span
                 ><span v-else>.</span>
               </p>
               <details
@@ -185,7 +194,7 @@
                 class="text-xs text-neutral-500 dark:text-neutral-400"
               >
                 <summary class="cursor-pointer select-none">
-                  Show skipped ({{ exportMdState.result.skipped.length }})
+                  {{ translations.settings.showSkipped || 'Show skipped' }} ({{ exportMdState.result.skipped.length }})
                 </summary>
                 <ul class="mt-2 space-y-1 pl-4">
                   <li
@@ -205,13 +214,12 @@
             <p
               class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
             >
-              Export as HTML
+              {{ translations.settings.exportAsHtml || 'Export as HTML' }}
             </p>
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Export all notes as .html files preserving folder structure. Open
-              any file in a browser.
+              {{ translations.settings?.exportHtmlDescription || 'Export all notes as .html files preserving folder structure. Open any file in a browser.' }}
             </p>
           </div>
           <div class="mt-auto space-y-2 pt-2">
@@ -221,7 +229,7 @@
               :disabled="exportHtmlState.running"
               @click="exportAllHTMLHandler"
             >
-              Export HTML
+              {{ translations.settings.exportHtml || 'Export HTML' }}
             </ui-button>
             <p
               v-if="exportHtmlState.running && exportHtmlState.total"
@@ -232,10 +240,20 @@
             </p>
             <template v-else-if="exportHtmlState.result">
               <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Exported {{ exportHtmlState.result.exported }} notes<span
-                  v-if="exportHtmlState.result.skipped.length"
-                >
-                  . {{ exportHtmlState.result.skipped.length }} skipped.</span
+                {{
+                  (
+                    translations.settings?.exportedNotesCount ||
+                    'Exported {count} notes'
+                  )
+                    .replace('{count}', exportHtmlState.result.exported)
+                }}<span v-if="exportHtmlState.result.skipped.length">
+                  .
+                  {{
+                    (
+                      translations.settings?.skippedCount ||
+                      '{count} skipped.'
+                    ).replace('{count}', exportHtmlState.result.skipped.length)
+                  }}</span
                 ><span v-else>.</span>
               </p>
               <details
@@ -243,7 +261,7 @@
                 class="text-xs text-neutral-500 dark:text-neutral-400"
               >
                 <summary class="cursor-pointer select-none">
-                  Show skipped ({{ exportHtmlState.result.skipped.length }})
+                  {{ translations.settings.showSkipped || 'Show skipped' }} ({{ exportHtmlState.result.skipped.length }})
                 </summary>
                 <ul class="mt-2 space-y-1 pl-4">
                   <li
@@ -261,22 +279,21 @@
     </section>
 
     <section>
-      <p class="mb-2">Import</p>
+      <p class="mb-2">{{ translations.settings.import || 'Import' }}</p>
       <ui-card padding="p-4" class="flex flex-col gap-4">
         <div class="space-y-1">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-            Import notes
+            {{ translations.settings.importNotes || 'Import notes' }}
           </p>
           <p
             class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            Import data from Obsidian, Notion, Bear, Simplenote, Word documents,
-            Markdown folders, Evernote, and Apple Notes on macOS.
+            {{ translations.settings.importNotesDescription || 'Import data from Obsidian, Notion, Bear, Simplenote, Word documents, Markdown folders, Evernote, and Apple Notes on macOS.' }}
           </p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
           <ui-button class="w-full" @click="openImportModal()">
-            Import
+            {{ translations.settings.import || 'Import' }}
           </ui-button>
         </div>
       </ui-card>
@@ -285,10 +302,10 @@
         <template #header>
           <div>
             <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
-              Import Notes
+              {{ translations.settings.importNotesTitle || 'Import Notes' }}
             </h3>
             <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-              Choose a source, review the instructions, then run the import.
+              {{ translations.settings.importInstructions || 'Choose a source, review the instructions, then run the import.' }}
             </p>
           </div>
         </template>
@@ -347,11 +364,11 @@
                 <label
                   class="text-xs font-medium text-neutral-700 dark:text-neutral-300"
                 >
-                  Notebook name
+                  {{ translations.tray?.notebookName || 'Notebook name' }}
                 </label>
                 <ui-input
                   v-model="importState.evernote.notebookName"
-                  placeholder="Notebook name (optional)"
+                  :placeholder="translations.tray?.notebookNamePlaceholder || 'Notebook name (optional)'"
                   class="w-full"
                 />
               </div>
@@ -380,22 +397,28 @@
                   class="space-y-3 border-t border-neutral-200 pt-3 dark:border-neutral-700"
                 >
                   <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                    Imported {{ activeImportState.result.imported }} notes
-                    across {{ activeImportState.result.folders }} folders.
+                    {{
+                      (
+                        translations.settings?.importedNotesCount ||
+                        'Imported {notes} notes across {folders} folders.'
+                      )
+                        .replace('{notes}', activeImportState.result.imported)
+                        .replace('{folders}', activeImportState.result.folders)
+                    }}
                   </p>
                   <details
                     v-if="activeImportState.result.errors.length"
                     class="space-y-2 text-xs text-neutral-500 dark:text-neutral-400"
                   >
                     <summary class="cursor-pointer select-none">
-                      Show issues ({{ activeImportState.result.errors.length }})
+                      {{ translations.settings.showIssues || 'Show issues' }} ({{ activeImportState.result.errors.length }})
                     </summary>
                     <ui-button
                       class="w-full sm:w-auto"
                       variant="secondary"
                       @click="copyImportIssues(selectedImportSource)"
                     >
-                      Copy to clipboard
+                      {{ translations.onboarding?.copyToClipboard || 'Copy to clipboard' }}
                     </ui-button>
                     <div
                       class="max-h-56 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap dark:bg-neutral-950"
@@ -426,8 +449,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Save a full backup of all notes, folders, and labels as a dated
-              archive.
+              {{ translations.settings?.exportDataDescription || 'Save a full backup of all notes, folders, and labels as a dated archive.' }}
             </p>
           </div>
           <div class="mt-auto space-y-2 pt-2">
@@ -465,8 +487,7 @@
             <p
               class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              Restore notes from a previously exported Beaver Notes backup
-              archive.
+              {{ translations.settings?.importDataDescription || 'Restore notes from a previously exported Beaver Notes backup archive.' }}
             </p>
           </div>
           <div class="mt-auto pt-2">

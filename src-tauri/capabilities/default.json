@@ -20,6 +20,7 @@
       "deny": ["$HOME/.ssh/**", "$HOME/.gnupg/**"]
     },
     "opener:default",
+    "opener:allow-open-url",
     "notification:default",
     "store:default",
     "updater:default",

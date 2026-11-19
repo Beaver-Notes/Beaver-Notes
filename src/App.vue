@@ -29,7 +29,7 @@
     class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none"
     @click.prevent="skipToMain"
   >
-    Skip to content
+    {{ translations.app?.skipToContent || 'Skip to content' }}
   </a>
 
   <div
@@ -41,7 +41,7 @@
   </div>
 
   <div class="flex h-screen w-screen overflow-hidden">
-    <app-sidebar v-if="onboardingCompleted" v-show="showSidebar" class="mobile:hidden shrink-0" aria-label="Sidebar" />
+    <app-sidebar v-if="onboardingCompleted" v-show="showSidebar" class="mobile:hidden shrink-0" :aria-label="translations.sidebar?.sidebar || 'Sidebar'" />
     <main
       id="app-main"
       ref="mainRef"
@@ -148,6 +148,7 @@ import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import AppNavbar from './components/app/AppNavbar.vue';
 import { getSettingSync } from '@/lib/settings';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   components: {
@@ -159,6 +160,7 @@ export default {
     AppEncryptionGate,
   },
   setup() {
+    const { translations } = useTranslations();
     const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));
     const shell = useAppShell(onboardingCompleted.value);
     const mainRef = ref(null);
@@ -224,7 +226,8 @@ export default {
       }
     });
 
-    return { ...shell, mainRef, skipToMain, onboardingCompleted };
+    return {
+      translations, ...shell, mainRef, skipToMain, onboardingCompleted };
   },
 };
 </script>

@@ -115,11 +115,16 @@
             <!-- Centered, scale-compensated wrapper (prevents clipping at any scale) -->
             <div class="fit-scale">
               <div class="p-1 text-center text-xs leading-4">
-                <div class="font-semibold mb-1 truncate">Lorem Ipsum</div>
+                <div class="font-semibold mb-1 truncate">
+                  {{ translations.appearance?.fontPreviewTitle || 'Lorem Ipsum' }}
+                </div>
                 <div
                   class="text-neutral-600 dark:text-neutral-300 line-clamp-3"
                 >
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                  {{
+                    translations.appearance?.fontPreviewText ||
+                    'Lorem ipsum dolor sit amet, consectetur adipiscing elit.'
+                  }}
                 </div>
               </div>
             </div>

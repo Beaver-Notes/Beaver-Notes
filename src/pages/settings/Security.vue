@@ -94,7 +94,7 @@
             :disabled="encryptionBusy"
             @click="importVaultFromSync"
           >
-            Import vault from sync
+            {{ translations.settings.importVaultFromSync || 'Import vault from sync' }}
           </ui-button>
 
           <p
@@ -277,7 +277,7 @@ async function importVaultFromSync() {
     return;
   }
   dialog.confirm({
-    title: 'Import vault from sync',
+    title: translations.value.settings.importVaultFromSync || 'Import vault from sync',
     body: 'Importing will replace this device\u2019s encryption key. Notes encrypted with a different key may no longer be readable.',
     icon: 'riShieldKeyholeLine',
     okText: 'Import',

@@ -59,7 +59,7 @@
                 <h1
                   class="ob-title text-5xl font-bold tracking-tight leading-none text-neutral-800 dark:text-neutral-200"
                 >
-                  Meet Beaver Notes
+                  {{ translations.onboarding?.welcomeHeading || 'Meet Beaver Notes' }}
                 </h1>
               </div>
             </div>
@@ -71,7 +71,7 @@
               <p
                 class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
               >
-                Lets start by customizing your settings, or use the defaults.
+                {{ translations.onboarding?.customizeOrDefaults || 'Lets start by customizing your settings, or use the defaults.' }}
               </p>
             </div>
           </div>
@@ -86,7 +86,7 @@
           >
             <template v-if="!state.savingPreferences">
               <v-remixicon name="riMagicLine" class="mr-1" />
-              Use defaults
+              {{ translations.onboarding?.useDefaults || 'Use defaults' }}
             </template>
           </ui-button>
           <ui-button
@@ -94,7 +94,7 @@
             data-testid="onboarding-welcome-continue"
             @click="handlePrimaryContinue"
           >
-            Continue <v-remixicon name="riArrowRightLine" />
+            {{ translations.onboarding?.continue || 'Continue' }} <v-remixicon name="riArrowRightLine" />
           </ui-button>
         </div>
       </div>
@@ -118,7 +118,7 @@
             <div
               class="flex items-center justify-between text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-1.5"
             >
-              <span>Step {{ currentStepNumber }} of {{ totalStepCount }}</span>
+              <span>{{ (translations.onboarding?.stepOf || 'Step {current} of {total}').replace('{current}', currentStepNumber).replace('{total}', totalStepCount) }}</span>
             </div>
             <div
               class="h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
@@ -150,7 +150,7 @@
                     <h2
                       class="text-xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                     >
-                      Your starting defaults
+                      {{ translations.onboarding?.setupHeading || 'Your starting defaults' }}
                     </h2>
                     <p class="text-neutral-600 dark:text-neutral-400">
                       Changed your mind? You can change these from Settings at
@@ -162,7 +162,7 @@
                     <p
                       class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                     >
-                      Appearance
+                      {{ translations.onboarding?.appearance || 'Appearance' }}
                     </p>
                     <div
                       class="grid grid-cols-3 gap-3 w-full text-neutral-600 dark:text-neutral-300"
@@ -195,7 +195,7 @@
                     <p
                       class="text-sm font-medium text-neutral-800 dark:text-neutral-200 w-full justify-center"
                     >
-                      Accent color
+                      {{ translations.onboarding?.accentColor || 'Accent color' }}
                     </p>
                     <div class="w-full justify-center flex gap-2 right-0">
                       <button
@@ -261,7 +261,7 @@
                     <p
                       class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                     >
-                      Language
+                      {{ translations.onboarding?.language || 'Language' }}
                     </p>
                     <ui-select
                       :options="languages"
@@ -275,7 +275,7 @@
                     <p
                       class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                     >
-                      App font
+                      {{ translations.onboarding?.appFont || 'App font' }}
                     </p>
                     <ui-select
                       :model-value="fresh.selectedFont"
@@ -302,12 +302,12 @@
                         <p
                           class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                         >
-                          Enable sounds
+                          {{ translations.onboarding?.enableSounds || 'Enable sounds' }}
                         </p>
                         <p
                           class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
                         >
-                          Enable sounds for interactions around the app.
+                          {{ translations.onboarding?.enableSoundsDescription || 'Enable sounds for interactions around the app.' }}
                         </p>
                       </div>
                       <ui-switch
@@ -323,7 +323,7 @@
                         <p
                           class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                         >
-                          Spotlight indexing
+                          {{ translations.onboarding?.spotlightIndexing || 'Spotlight indexing' }}
                         </p>
                         <p
                           class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
@@ -349,10 +349,10 @@
                       <h2
                         class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                       >
-                        Import from apps
+                        {{ translations.onboarding?.importHeading || 'Import from apps' }}
                       </h2>
                       <p class="text-neutral-600 dark:text-neutral-400">
-                        Bring your notes from another app, or skip for now.
+                        {{ translations.onboarding?.importSubtext || 'Bring your notes from another app, or skip for now.' }}
                       </p>
                     </div>
 
@@ -429,7 +429,7 @@
                       <h2
                         class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                       >
-                        Import your notes from {{ migrationPlatformLabel }}
+                        {{ translations.onboarding?.importYourNotesFrom || 'Import your notes from' }} {{ migrationPlatformLabel }}
                       </h2>
                       <p
                         class="text-neutral-600 dark:text-neutral-400 max-w-sm"
@@ -445,7 +445,7 @@
                           <p
                             class="text-sm font-semibold text-neutral-800 dark:text-neutral-200"
                           >
-                            Enter your old password
+                            {{ translations.onboarding?.legacyPasswordHeading || 'Enter your old password' }}
                           </p>
                           <p
                             class="text-sm text-neutral-600 dark:text-neutral-400"
@@ -457,7 +457,7 @@
                           <ui-input
                             v-model="legacyPasswordValue"
                             type="password"
-                            placeholder="Old password"
+                            :placeholder="translations.onboarding?.legacyPasswordPlaceholder || 'Old password'"
                             class="w-full"
                             @keyup.enter="submitLegacyPassword"
                           />
@@ -487,11 +487,11 @@
                             <p
                               class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                             >
-                              Evernote notebook
+                              {{ translations.onboarding?.evernoteNotebook || 'Evernote notebook' }}
                             </p>
                             <ui-input
                               :value="state.evernoteNotebookName"
-                              placeholder="Notebook name (optional)"
+                              :placeholder="translations.onboarding?.evernoteNotebookPlaceholder || 'Notebook name (optional)'"
                               class="w-full"
                               @input="state.evernoteNotebookName = $event"
                             />
@@ -503,7 +503,7 @@
                             <p
                               class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                             >
-                              What gets copied
+                              {{ translations.onboarding?.whatGetsCopied || 'What gets copied' }}
                             </p>
                             <p
                               class="text-sm text-neutral-600 dark:text-neutral-400"
@@ -530,7 +530,7 @@
                               <span
                                 class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                               >
-                                Portable data folder
+                                {{ translations.onboarding?.portableDataFolder || 'Portable data folder' }}
                               </span>
                               <code
                                 class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
@@ -545,7 +545,7 @@
                               <span
                                 class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                               >
-                                Beaver Notes (Legacy)
+                                {{ translations.importSource?.legacy || 'Beaver Notes (Legacy)' }}
                               </span>
                               <code
                                 class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
@@ -560,7 +560,7 @@
                               <span
                                 class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                               >
-                                New Beaver Notes
+                                {{ translations.onboarding?.newBeaverNotes || 'New Beaver Notes' }}
                               </span>
                               <code
                                 class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
@@ -585,7 +585,7 @@
                               <p
                                 class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                               >
-                                Windows Portable
+                                {{ translations.onboarding?.windowsPortable || 'Windows Portable' }}
                               </p>
                               <p
                                 class="text-sm text-neutral-600 dark:text-neutral-400"
@@ -610,7 +610,7 @@
                       <h2
                         class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                       >
-                        Importing from {{ migrationPlatformLabel }}
+                        {{ translations.onboarding?.importingFrom || 'Importing from' }} {{ migrationPlatformLabel }}
                       </h2>
                     </div>
                     <ui-card class="bg-input">
@@ -655,12 +655,17 @@
                       <h2
                         class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                       >
-                        Import complete
+                        {{ translations.onboarding?.importComplete || 'Import complete' }}
                       </h2>
                       <p
                         class="text-neutral-600 dark:text-neutral-400 max-w-sm"
                       >
-                        Your notes from {{ migrationPlatformLabel }} are ready.
+                        {{
+                          (
+                            translations.onboarding?.yourNotesReady ||
+                            'Your notes from {app} are ready.'
+                          ).replace('{app}', migrationPlatformLabel)
+                        }}
                       </p>
                     </div>
 
@@ -670,7 +675,7 @@
                           <p
                             class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                           >
-                            Import complete
+                            {{ translations.onboarding?.importComplete || 'Import complete' }}
                           </p>
                           <span class="text-xs font-bold text-primary"
                             >{{ state.migrationProgress }}%</span
@@ -697,14 +702,25 @@
                         <p
                           class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                         >
-                          Import summary
+                          {{ translations.onboarding?.importSummary || 'Import summary' }}
                         </p>
                         <p
                           class="text-sm text-neutral-600 dark:text-neutral-400"
                         >
-                          Imported
-                          {{ state.migrationResult.imported || 0 }} notes across
-                          {{ state.migrationResult.folders || 0 }} folders.
+                          {{
+                            (
+                              translations.onboarding?.importedNotesCount ||
+                              'Imported {notes} notes across {folders} folders.'
+                            )
+                              .replace(
+                                '{notes}',
+                                state.migrationResult.imported || 0
+                              )
+                              .replace(
+                                '{folders}',
+                                state.migrationResult.folders || 0
+                              )
+                          }}
                         </p>
                       </div>
                     </ui-card>
@@ -715,12 +731,12 @@
                           <p
                             class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                           >
-                            Issues
+                            {{ translations.onboarding?.issues || 'Issues' }}
                           </p>
                           <ui-button
                             variant="secondary"
                             @click="copyMigrationIssues"
-                            >Copy to clipboard</ui-button
+                            >{{ translations.onboarding?.copyToClipboard || 'Copy to clipboard' }}</ui-button
                           >
                         </div>
                         <div
@@ -747,7 +763,7 @@
                       <h2
                         class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                       >
-                        You're signed in
+                        {{ translations.onboarding?.youreSignedIn || "You're signed in" }}
                       </h2>
                       <p
                         class="text-sm text-neutral-600 dark:text-neutral-400 truncate"
@@ -771,7 +787,7 @@
                           <v-remixicon name="riLoader4Line" class="text-primary" size="20" />
                         </div>
                         <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                          Setting up cloud sync...
+                          {{ translations.onboarding?.settingUpCloudSync || 'Setting up cloud sync...' }}
                         </p>
                       </div>
                       <div class="space-y-2">
@@ -795,7 +811,7 @@
                       <div class="flex items-center gap-2 justify-center">
                         <v-remixicon name="riCheckLine" class="text-green-600 dark:text-green-400" size="18" />
                         <p class="text-sm font-medium text-green-700 dark:text-green-300">
-                          Cloud sync ready
+                          {{ translations.onboarding?.cloudSyncReady || 'Cloud sync ready' }}
                         </p>
                       </div>
                     </div>
@@ -807,7 +823,7 @@
                       <div class="flex items-center gap-2 justify-center">
                         <v-remixicon name="riErrorWarningLine" class="text-red-600 dark:text-red-400" size="18" />
                         <p class="text-sm font-medium text-red-700 dark:text-red-300">
-                          Sync setup failed. You can retry from Settings.
+                          {{ translations.onboarding?.syncSetupFailed || 'Sync setup failed. You can retry from Settings.' }}
                         </p>
                       </div>
                     </div>
@@ -1019,7 +1035,7 @@
                     <h2
                       class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                     >
-                      Sync folder
+                      {{ translations.onboarding?.syncHeading || 'Sync folder' }}
                     </h2>
                     <p class="text-neutral-600 dark:text-neutral-400">
                       Select a folder to sync your data with — you can skip this
@@ -1033,7 +1049,7 @@
                         <p
                           class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                         >
-                          Folder
+                          {{ translations.onboarding?.syncFolderLabel || 'Folder' }}
                         </p>
                         <p
                           class="text-sm text-neutral-600 dark:text-neutral-400"
@@ -1068,7 +1084,7 @@
                       v-model="fresh.syncPath"
                       class="mt-3"
                       data-testid="onboarding-sync-path"
-                      placeholder="Or type a folder path"
+                      :placeholder="translations.onboarding?.orTypeFolderPath || 'Or type a folder path'"
                     />
                   </div>
                 </template>
@@ -1189,7 +1205,7 @@
               :disabled="step === 'import' && importPhase === 'running'"
               @click="wizardBack"
             >
-              <v-remixicon name="riArrowLeftLine" /> Back
+              <v-remixicon name="riArrowLeftLine" /> {{ translations.onboarding?.back || 'Back' }}
             </ui-button>
 
             <div
@@ -1282,7 +1298,7 @@
               @click="completeAndOpenWorkspace"
             >
               <template v-if="!state.openingWorkspace">
-                <v-remixicon name="riCheckLine" class="mr-1" /> Open Beaver Notes
+                <v-remixicon name="riCheckLine" class="mr-1" /> {{ translations.onboarding?.openBeaverNotes || 'Open Beaver Notes' }}
               </template>
             </ui-button>
           </div>
@@ -1479,7 +1495,7 @@ export default {
         return [
           {
             key: 'continue',
-            label: 'Continue',
+            label: translations.onboarding?.continue || 'Continue',
             icon: 'riArrowRightLine',
             variant: 'primary',
             testid: 'onboarding-customize-next',
@@ -1545,7 +1561,7 @@ export default {
           return [
             {
               key: 'continue',
-              label: 'Continue',
+              label: translations.onboarding?.continue || 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
                onClick: flow.goToNextStep,
@@ -1560,7 +1576,7 @@ export default {
           return [
             {
               key: 'continue',
-              label: 'Continue',
+              label: translations.onboarding?.continue || 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
                onClick: flow.completeAccountStep,
@@ -1582,7 +1598,7 @@ export default {
           return [
             {
               key: 'continue',
-              label: 'Continue',
+              label: translations.onboarding?.continue || 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
               testid: 'onboarding-sync-next',
@@ -1604,7 +1620,7 @@ export default {
         return [
           {
             key: 'continue',
-            label: 'Continue',
+            label: translations.onboarding?.continue || 'Continue',
             icon: 'riArrowRightLine',
             variant: 'primary',
             loading: flow.encryptionPasswordLoading.value,

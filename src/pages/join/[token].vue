@@ -3,7 +3,7 @@
     <div class="w-full max-w-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-6 shadow-lg text-center">
       <div v-if="loading" class="py-8">
         <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-        <p class="text-sm text-neutral-500">Joining...</p>
+        <p class="text-sm text-neutral-500">{{ translations.join?.joining || 'Joining...' }}</p>
       </div>
 
       <div v-else-if="error" class="py-4">
@@ -17,7 +17,7 @@
           @click="$router.push('/')"
           class="text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
         >
-          Go to home
+          {{ translations.join?.goToHome || 'Go to home' }}
         </button>
       </div>
 
@@ -31,25 +31,25 @@
           You've joined the note!
         </p>
         <p class="text-xs text-neutral-500 mb-4">
-          Role: {{ result?.role }}
+          {{ translations.join?.role || 'Role:' }} {{ result?.role }}
         </p>
         <button
           @click="$router.push(`/note/${result?.noteId}`)"
           class="px-4 py-2 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
         >
-          Open Note
+          {{ translations.join?.openNote || 'Open Note' }}
         </button>
       </div>
 
       <div v-else class="py-4">
         <p class="text-sm text-neutral-700 dark:text-neutral-300 mb-4">
-          You've been invited to collaborate on a note.
+          {{ translations.join?.invited || "You've been invited to collaborate on a note." }}
         </p>
         <button
           @click="join"
           class="px-4 py-2 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
         >
-          Join Note
+          {{ translations.join?.joinNote || 'Join Note' }}
         </button>
       </div>
     </div>
@@ -61,9 +61,11 @@ import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { joinViaInviteLink } from '@/lib/api/collaboration';
 import { useAccountStore } from '@/store/account';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   setup() {
+    const { translations } = useTranslations();
     const route = useRoute();
     const router = useRouter();
     const accountStore = useAccountStore();
@@ -87,7 +89,8 @@ export default {
       }
     }
 
-    return { loading, error, success, result, join };
+    return {
+      translations, loading, error, success, result, join };
   },
 };
 </script>
