@@ -90,7 +90,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
-import { scrollContainerOf, scrollTopTo } from '@/utils/ui/scroll';
+import { centerPosInView, scrollContainerOf } from '@/utils/ui/scroll';
 
 export default {
   props: { editor: Object },
@@ -120,15 +120,14 @@ export default {
     // not force a full document layout on every frame.
     let lastRect = null;
     let lastCRect = null;
-    let lastMidY = -1;
     let rectStamp = 0;
     const RECT_STALE_MS = 250;
-    const MIDY_DELTA_PX = 16;
-    // Cache the last posAtCoords hit-test result so repeated calls with nearly
-    // identical coordinates (typical during continuous scroll) don't re-run the
-    // expensive DOM hit-test on a large document.
-    let lastCoords = null;
-    const COORDS_STALE_PX = 8;
+    // Skip the hit-test unless the scroll position actually moved. The
+    // scroller's bounding rect (and therefore the viewport midline) does not
+    // change while scrolling inside it, so the guard must key on scrollTop,
+    // not on rect geometry.
+    let lastScrollY = -1;
+    const SCROLL_DELTA_PX = 2;
 
     // Trailing debounce for rail rebuilds: one walk after edits settle
     // instead of one walk per keystroke during typing bursts.
@@ -222,15 +221,14 @@ export default {
       if (changed) {
         headings.value = found;
         headingPositions = found;
-        lastCoords = null; // document changed, coords cache is stale
-        update(); // heading set changed — re-detect the active heading
+        update(true); // heading set changed — re-detect the active heading
       } else if (activeHeading.value === null) {
-        update(); // first build — set the initial active heading
+        update(true); // first build — set the initial active heading
       }
       // Unchanged and already have an active heading: skip layout reads.
     }
 
-    function update() {
+    function update(force) {
       const ed = props.editor;
       if (!ed || !headingPositions.length) return;
 
@@ -244,25 +242,25 @@ export default {
             ? scrollContainer.value.getBoundingClientRect()
             : { top: 0, left: lastRect.left, height: window.innerHeight };
         rectStamp = now;
-        lastCoords = null; // rects changed, coords cache is stale
       }
 
       const midY = lastCRect.top + lastCRect.height / 2;
-      // Skip posAtCoords (layout-forcing hit-test) unless the viewport
-      // midline moved enough to potentially change the active heading.
-      if (lastMidY !== -1 && Math.abs(midY - lastMidY) < MIDY_DELTA_PX) return;
-      lastMidY = midY;
+      // Skip posAtCoords (layout-forcing hit-test) unless the scroll position
+      // moved enough to potentially change the active heading.
+      const { scrollY } = getScrollInfo();
+      if (!force && lastScrollY !== -1 && Math.abs(scrollY - lastScrollY) < SCROLL_DELTA_PX) return;
+      lastScrollY = scrollY;
 
-      const coords = lastCoords &&
-        Math.abs(lastCoords.left - (lastCRect.left + Math.min(60, lastRect.width / 2))) < COORDS_STALE_PX &&
-        Math.abs(lastCoords.top - midY) < COORDS_STALE_PX
-        ? lastCoords
-        : ed.view.posAtCoords({
-          left: lastCRect.left + Math.min(60, lastRect.width / 2),
-          top: midY,
-        });
+      // Anchor the hit-test x to the editor rect, not the scroller: the
+      // scroller's left edge sits in the page gutter (left of the editable
+      // content), where posAtCoords returns null and the active heading
+      // would never resolve.
+      const hitX = lastRect.left + Math.min(60, lastRect.width / 2);
+      const coords = ed.view.posAtCoords({
+        left: hitX,
+        top: midY,
+      });
       if (!coords) return;
-      lastCoords = coords;
 
       let lo = 0;
       let hi = headingPositions.length - 1;
@@ -339,10 +337,6 @@ export default {
       });
     }
 
-    function scrollViewportTo(px) {
-      scrollTopTo(scrollContainer.value, px);
-    }
-
     function goTo(item) {
       const ed = props.editor;
       if (!ed || item.pos == null) return;
@@ -351,23 +345,11 @@ export default {
       // Focus without letting ProseMirror auto-scroll; we center below.
       ed.commands.focus(undefined, { scrollIntoView: false });
       ed.commands.setTextSelection(item.pos);
-      // One measurement after the selection is set, then scroll to center.
-      // Avoids centerPosInView's per-frame getBoundingClientRect() during the
-      // glide, which forced layout on every frame of a large document.
+      // The target block can be a placeholder whose real height is only
+      // known after the glide starts, so re-measure it every frame.
       nextTick(() => {
         if (ed.isDestroyed) return;
-        try {
-          const coords = ed.view.coordsAtPos(item.pos);
-          if (!coords) return;
-          const cRect =
-            scrollContainer.value !== window
-              ? scrollContainer.value.getBoundingClientRect()
-              : { top: 0, height: window.innerHeight };
-          const current = getScrollInfo().scrollY;
-          scrollViewportTo(
-            Math.max(0, current + (coords.top - (cRect.top + cRect.height / 2))),
-          );
-        } catch { /* position shifted between phases */ }
+        centerPosInView(ed, item.pos);
       });
     }
 
@@ -506,6 +488,7 @@ export default {
       onEnter,
       onLeave,
       onClickRail,
+      onPillClick,
     };
   },
 };

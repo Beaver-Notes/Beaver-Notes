@@ -125,8 +125,9 @@
     "@tiptap/starter-kit": "^3",
     "@tiptap/suggestion": "^3",
     "@tiptap/vue-3": "^3",
-    "@tiptap/y-tiptap": "^3.0.3",
+    "@tiptap/y-tiptap": "3.3.0",
     "beautiful-mermaid": "git+https://github.com/Daniele-rolli/beautiful-mermaid.git#v1.2.0",
+    "beaver-pm-view": "git+https://github.com/Beaver-Notes/beaver-pm-view.git#v1.42.3-pm.8",
     "dayjs": "^1.10.6",
     "defuddle": "^0.19.3",
     "emoji.json": "^16.0.0",
@@ -169,6 +170,9 @@
     "**/js-yaml": "^4.3.1",
     "**/nanoid": "^3.3.17",
     "**/postcss": "^8.5.23",
+    "**/prosemirror-model": "1.25.11",
+    "**/prosemirror-transform": "1.12.1",
+    "**/prosemirror-view": "1.42.3",
     "**/@puppeteer/browsers": "^3.2.0"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"

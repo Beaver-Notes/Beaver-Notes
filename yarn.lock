@@ -1553,12 +1553,13 @@
     "@tiptap/extension-bubble-menu" "^3.31.3"
     "@tiptap/extension-floating-menu" "^3.31.3"
 
-"@tiptap/y-tiptap@^3.0.3":
-  version "3.0.9"
-  resolved "https://registry.npmjs.org/@tiptap/y-tiptap/-/y-tiptap-3.0.9.tgz"
-  integrity sha512-7/El8NQ8R5V5MkdrOUdfj9IgZacpt0H071xNimX7B0AnYiWiKefQnMKd41neQYzo2MOXbWdN3iZ+7Z7BruzOSA==
+"@tiptap/y-tiptap@3.3.0":
+  version "3.3.0"
+  resolved "https://registry.yarnpkg.com/@tiptap/y-tiptap/-/y-tiptap-3.3.0.tgz#c9f9d9cb6a2b299946c8f8d69066821e63242f19"
+  integrity sha512-TLblfhvXCJK2bnow8nBdILh350UcxoGR8Wy3JoC/CPAhjLxdqSmv2dqs/lPA8JhiE+FxZDG9cDmcXbZV1yidbQ==
   dependencies:
     lib0 "^0.2.100"
+    prosemirror-transform "^1.6.0"
 
 "@tybys/wasm-util@^0.10.3":
   version "0.10.4"
@@ -2286,6 +2287,14 @@ baseline-browser-mapping@^2.11.20:
   dependencies:
     elkjs "^0.11.0"
     entities "^7.0.1"
+
+"beaver-pm-view@git+https://github.com/Beaver-Notes/beaver-pm-view.git#v1.42.3-pm.8":
+  version "1.42.3-pm.8"
+  resolved "git+https://github.com/Beaver-Notes/beaver-pm-view.git#252ad7c3b91f7a8345ee6eee3ad7a35963612838"
+  dependencies:
+    prosemirror-model "^1.25.8"
+    prosemirror-state "^1.0.0"
+    prosemirror-transform "^1.1.0"
 
 binary-extensions@^2.0.0:
   version "2.3.0"
@@ -4449,7 +4458,7 @@ open@^7.4.2:
 
 orderedmap@^2.0.0:
   version "2.1.1"
-  resolved "https://registry.npmjs.org/orderedmap/-/orderedmap-2.1.1.tgz"
+  resolved "https://registry.yarnpkg.com/orderedmap/-/orderedmap-2.1.1.tgz#61481269c44031c449915497bf5a4ad273c512d2"
   integrity sha512-TvAWxi0nDe1j/rtMcWcIj94+Ffe6n7zhow33h40SKxmsmozs6dz/e+EajymfoFcHd7sxNn8yHM8839uixMOV6g==
 
 oxc-parser@^0.148.0:
@@ -4907,9 +4916,9 @@ prosemirror-keymap@^1.0.0, prosemirror-keymap@^1.2.3:
     prosemirror-state "^1.0.0"
     w3c-keyname "^2.2.0"
 
-prosemirror-model@^1.0.0, prosemirror-model@^1.21.0, prosemirror-model@^1.25.11, prosemirror-model@^1.25.4, prosemirror-model@^1.25.8:
+prosemirror-model@1.25.11, prosemirror-model@^1.0.0, prosemirror-model@^1.21.0, prosemirror-model@^1.25.11, prosemirror-model@^1.25.4, prosemirror-model@^1.25.8:
   version "1.25.11"
-  resolved "https://registry.npmjs.org/prosemirror-model/-/prosemirror-model-1.25.11.tgz"
+  resolved "https://registry.yarnpkg.com/prosemirror-model/-/prosemirror-model-1.25.11.tgz#2ac01dce5176094a52cc1b889c20f3849563aba9"
   integrity sha512-QWg9RhnpLlogAmp3p96uEFrE5txQpFynd4vhBAELkwgOCWQs/X0yCzB3/hrHqiPwf91RG5KyWq6553zs9JqIOQ==
   dependencies:
     orderedmap "^2.0.0"
@@ -4943,16 +4952,16 @@ prosemirror-tables@^1.8.5:
     prosemirror-transform "^1.10.5"
     prosemirror-view "^1.41.4"
 
-prosemirror-transform@^1.0.0, prosemirror-transform@^1.1.0, prosemirror-transform@^1.10.2, prosemirror-transform@^1.10.5, prosemirror-transform@^1.12.0, prosemirror-transform@^1.7.3:
+prosemirror-transform@1.12.1, prosemirror-transform@^1.0.0, prosemirror-transform@^1.1.0, prosemirror-transform@^1.10.2, prosemirror-transform@^1.10.5, prosemirror-transform@^1.12.0, prosemirror-transform@^1.6.0, prosemirror-transform@^1.7.3:
   version "1.12.1"
-  resolved "https://registry.npmjs.org/prosemirror-transform/-/prosemirror-transform-1.12.1.tgz"
+  resolved "https://registry.yarnpkg.com/prosemirror-transform/-/prosemirror-transform-1.12.1.tgz#335d6d9b1e41fb82ca40815211e8255505e7eda2"
   integrity sha512-t4F5615FycnCqsX7ShTUs8+jfnwcf46kuFRvSl/3qFx2QTZ4DjgowesLHQXcFP7G//TjesqZG3WtgL7vdyVJyA==
   dependencies:
     prosemirror-model "^1.21.0"
 
-prosemirror-view@^1.0.0, prosemirror-view@^1.1.0, prosemirror-view@^1.27.0, prosemirror-view@^1.31.0, prosemirror-view@^1.41.4, prosemirror-view@^1.42.3:
+prosemirror-view@1.42.3, prosemirror-view@^1.0.0, prosemirror-view@^1.1.0, prosemirror-view@^1.27.0, prosemirror-view@^1.31.0, prosemirror-view@^1.41.4, prosemirror-view@^1.42.3:
   version "1.42.3"
-  resolved "https://registry.npmjs.org/prosemirror-view/-/prosemirror-view-1.42.3.tgz"
+  resolved "https://registry.yarnpkg.com/prosemirror-view/-/prosemirror-view-1.42.3.tgz#5b1c8f1b084f9ef2bd7f67057d1784383ee6ac55"
   integrity sha512-oTN7EtH+CpwxU9NrwEYWd0UZ4JUx7l048l5A2Xppm4p/60isZYLnth9QVQmC3VRIvdrIWCxwZSd+Uz791G31/w==
   dependencies:
     prosemirror-model "^1.25.8"

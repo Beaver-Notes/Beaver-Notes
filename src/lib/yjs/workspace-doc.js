@@ -61,14 +61,17 @@ function attachPersistHandler(doc) {
     scheduleMetaFlush();
   });
 
-  // Flush buffered meta updates on pagehide so nothing is lost.
-  if (typeof window !== 'undefined') {
-    window.addEventListener('pagehide', flushPendingMetaUpdates);
-  }
   persistDocs.add(doc);
 }
 
 onWorkspaceDocCreate(attachPersistHandler);
+
+// One pagehide flush for the app lifetime. Attaching it per doc leaked a
+// listener on every workspace switch (the doc is destroyed, the window
+// listener is not).
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushPendingMetaUpdates);
+}
 
 // Debounced, merged persistence: a burst of meta edits would otherwise issue
 // one SQLite IPC + AES encrypt per change. Buffer deltas, merge once
@@ -514,10 +517,4 @@ export function removeNoteMeta(id) {
   });
 }
 
-/** Create untitled placeholders for pulled note ids missing from notes map. Skips existing and META_DOC_ID. */
-export function reconcileUnknownNotePlaceholders(noteIds) {
-  // ponytail: disabled — synthesizing title:'' here flashes "Untitled" when
-  // content arrives a tick before meta. Callers hydrate via meta instead.
-  void noteIds;
-  return;
-}
+

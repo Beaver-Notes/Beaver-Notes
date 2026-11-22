@@ -75,17 +75,7 @@ export function clearPendingRemote() {
   missingDocLogged.clear();
 }
 
-// Notified after a remote update actually changed an active doc. Used by the
-// note page to surface the "merged changes — review" banner. Listeners are
-// intentionally not called for idempotent replays (Yjs only emits `update`
-// when the transaction produced new content, including delete-set changes).
-const remoteAppliedListeners = new Set();
-
-export function onRemoteApplied(listener) {
-  remoteAppliedListeners.add(listener);
-  return () => remoteAppliedListeners.delete(listener);
-}
-
+// Notified after a remote update actually changed an active doc.
 export function applyRemote(noteId, update) {
   const doc = getActiveDoc(noteId);
   if (!doc) {
@@ -129,10 +119,6 @@ function dryRunContentLength(doc, update) {
 }
 
 function applyToDoc(noteId, doc, update) {
-  let changed = false;
-  const onUpdate = () => {
-    changed = true;
-  };
   const beforeNodes = doc.getXmlFragment('content').length;
   if (beforeNodes >= GUARD_MIN_NODES) {
     let afterNodes = beforeNodes;
@@ -148,23 +134,9 @@ function applyToDoc(noteId, doc, update) {
       return false;
     }
   }
-  doc.on('update', onUpdate);
-  try {
-    doc.transact(() => {
-      Y.applyUpdate(doc, update);
-    }, 'sync');
-  } finally {
-    doc.off('update', onUpdate);
-  }
-  if (changed) {
-    for (const listener of remoteAppliedListeners) {
-      try {
-        listener(noteId);
-      } catch {
-        // A bad listener must never break applying a remote update.
-      }
-    }
-  }
+  doc.transact(() => {
+    Y.applyUpdate(doc, update);
+  }, 'sync');
   return true;
 }
 

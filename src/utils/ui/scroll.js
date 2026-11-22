@@ -27,23 +27,9 @@ function setTop(c, px) {
 }
 
 let frame = 0;
-let releaseListeners = null;
 
 function stopGlide() {
   cancelAnimationFrame(frame);
-  releaseListeners?.();
-  releaseListeners = null;
-}
-
-/** A manual scroll wins: the glide must not fight the user's wheel. */
-function interruptible(c) {
-  const interrupt = () => stopGlide();
-  c.addEventListener('wheel', interrupt, { passive: true, capture: true });
-  c.addEventListener('touchstart', interrupt, { passive: true, capture: true });
-  releaseListeners = () => {
-    c.removeEventListener('wheel', interrupt, { capture: true });
-    c.removeEventListener('touchstart', interrupt, { capture: true });
-  };
 }
 
 /**
@@ -52,7 +38,7 @@ function interruptible(c) {
  * that moves while we travel — a block whose real height replaces its
  * `contain-intrinsic-size` placeholder on the way — is still tracked.
  */
-export function scrollToTarget(scroller, measure, { duration = 450, onDone } = {}) {
+export function scrollToTarget(scroller, measure, { duration = 450, onDone, ignoreLayoutDrift = false } = {}) {
   const c = scroller || window;
   stopGlide();
   if (reduceMotion()) {
@@ -61,20 +47,30 @@ export function scrollToTarget(scroller, measure, { duration = 450, onDone } = {
     onDone?.();
     return;
   }
-  interruptible(c);
   const t0 = performance.now();
   const tau = Math.max(50, duration / 4);
   let last = t0;
+  // A manual scroll wins: the glide must not fight the user's wheel. We detect
+  // that by comparing the scroller's actual position with the one we last set,
+  // instead of listening for wheel/touch events — adding a wheel listener to a
+  // scroller makes WebKit recompute the event regions of the whole document,
+  // which costs hundreds of milliseconds in a note with thousands of blocks.
+  let expected = topOf(c);
   const step = (now) => {
     const dt = Math.min(now - last, 64);
     last = now;
+    const cur = topOf(c);
+    if (!ignoreLayoutDrift && Math.abs(cur - expected) > 2) {
+      stopGlide();
+      onDone?.();
+      return;
+    }
     const goal = measure();
     if (goal == null) {
       stopGlide();
       onDone?.();
       return;
     }
-    const cur = topOf(c);
     const delta = goal - cur;
     if (Math.abs(delta) < 2 || now - t0 > duration) {
       setTop(c, goal);
@@ -82,7 +78,12 @@ export function scrollToTarget(scroller, measure, { duration = 450, onDone } = {
       onDone?.();
       return;
     }
-    setTop(c, cur + delta * (1 - Math.exp(-dt / tau)));
+    expected = cur + delta * (1 - Math.exp(-dt / tau));
+    setTop(c, expected);
+    // The scroller may clamp to its current scrollHeight while virtualization
+    // grows the document. Track the position it actually reached so the next
+    // frame does not mistake that clamp for a manual scroll and abort.
+    expected = topOf(c);
     frame = requestAnimationFrame(step);
   };
   frame = requestAnimationFrame(step);
@@ -118,7 +119,7 @@ export function centerPosInView(editor, pos, options) {
       const b = block.getBoundingClientRect();
       return topOf(scroller) + b.top - center;
     },
-    options,
+    { ignoreLayoutDrift: true, ...options },
   );
   return true;
 }

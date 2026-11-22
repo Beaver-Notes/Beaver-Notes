@@ -369,6 +369,7 @@ export default {
       // duplicates (they'd otherwise collide by name).
       enableCoreExtensions: { paste: false, textDirection: false },
       editorProps: {
+        virtualizeTopLevel: { threshold: 500, overscanPx: 800 },
         handleClick,
         handleDOMEvents: {
           drop: (view) => {

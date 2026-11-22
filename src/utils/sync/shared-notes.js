@@ -82,7 +82,7 @@ export async function syncSharedNote(noteId, { serverUrl = '', token = '' } = {}
   // key that resolves late still needs this re-pull to see the content.
   const workspaceId = accessOf(noteId)?.workspaceId || resolveNoteWorkspaceId(noteId, useWorkspaceStore().activeId);
   if (!noteId || !workspaceId) return false;
-  if (Date.now() < quotaBlockedUntil) return false;
+  if (isSyncQuotaBlocked()) return false;
   try {
     const backend = await getBackend();
     if (!backend) return false;

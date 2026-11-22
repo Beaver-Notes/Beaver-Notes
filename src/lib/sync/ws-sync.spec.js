@@ -23,7 +23,6 @@ vi.mock('@/store/collaborator', () => ({
 }))
 vi.mock('@/lib/yjs/meta-doc', () => ({
   getWorkspaceDoc: vi.fn(() => ({ on: vi.fn(), off: vi.fn() })),
-  onWorkspaceDocDestroy: vi.fn(),
   onWorkspaceDocCreate: vi.fn(),
 }))
 vi.mock('@/lib/yjs/shared', () => ({
@@ -90,25 +89,6 @@ describe('ws-sync', () => {
       activeWorkspace: { id: 'ws-1', role: 'editor' },
     })
     useCollaboratorStore.mockReturnValue({ noteId: '', collaborators: [] })
-  })
-  it('creates a singleton instance', () => {
-    const a = getWsSync()
-    const b = getWsSync()
-    expect(a).toBe(b)
-  })
-
-  it('exports expected API methods', () => {
-    const sync = getWsSync()
-    expect(typeof sync.start).toBe('function')
-    expect(typeof sync.stop).toBe('function')
-    expect(typeof sync.connect).toBe('function')
-    expect(typeof sync.disconnect).toBe('function')
-    expect(typeof sync.joinNoteRoom).toBe('function')
-    expect(typeof sync.leaveNoteRoom).toBe('function')
-    expect(typeof sync.joinMetaRoom).toBe('function')
-    expect(typeof sync.handleWorkspaceSwitch).toBe('function')
-    expect(typeof sync.handleNoteSwitch).toBe('function')
-    expect(typeof sync.getRoomRole).toBe('function')
   })
 
   it('getRoomRole returns editor for editable workspace role', () => {

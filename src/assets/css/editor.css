@@ -43,24 +43,6 @@
   line-height: 1.5;
   scroll-margin-top: calc(var(--app-safe-area-top) + 1.5rem);
 }
-/* Skip layout/paint for off-screen top-level blocks so scrolling a large
-   note stays 60fps instead of laying out 48k DOM elements every frame. No
-   placeholders — real content, just deferred by the browser. contain-intrinsic-size
-   reserves a stable height estimate so the scrollbar doesn't jump as blocks
-   materialize on scroll. */
-.ProseMirror > p,
-.ProseMirror > h1,
-.ProseMirror > h2,
-.ProseMirror > h3,
-.ProseMirror > h4,
-.ProseMirror > h5,
-.ProseMirror > h6,
-.ProseMirror > blockquote,
-.ProseMirror > table,
-.ProseMirror > hr {
-  content-visibility: auto;
-  contain-intrinsic-size: 0 100px;
-}
 .ProseMirror a {
   @apply text-primary dark:text-primary;
 }
@@ -713,6 +695,12 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+/* The table drag ghost reuses the editor typography, but not its height or gutter. */
+.ProseMirror.table-drag-ghost {
+  min-height: 0;
+  padding-inline: 0;
+}
+
 .dh-button,
 .dh-grip {
   display: flex;
@@ -772,6 +760,9 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   overflow-x: auto;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
+  /* Keeps a table's layout out of the page's layout pass: scrolling a note with
+     hundreds of tables no longer re-lays-out every table on each tick. */
+  contain: layout;
 }
 
 /*  Table element  */
@@ -1145,4 +1136,3 @@ th.is-active {
     pointer-events: auto !important;
   }
 }
-

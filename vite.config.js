@@ -14,14 +14,21 @@ export default defineConfig({
   resolve: {
     alias: {
       '@/': join(PACKAGE_ROOT, 'src') + '/',
+      'prosemirror-view': join(PACKAGE_ROOT, 'node_modules') + '/beaver-pm-view/src/index.js',
     },
   },
   plugins: [vue()],
+  optimizeDeps: {
+    exclude: ['prosemirror-view'],
+  },
   base: '',
   server: {
     host: process.env.TAURI_DEV_HOST || '127.0.0.1',
     port: 5173,
     strictPort: true,
+    fs: {
+      allow: [PACKAGE_ROOT],
+    },
   },
   css: {
     preprocessorOptions: {
