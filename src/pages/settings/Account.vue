@@ -1073,6 +1073,7 @@ import {
   getAccount,
 } from '@/lib/api/account';
 import { createPortalSession } from '@/lib/api/billing';
+import { openBillingUrl } from '@/lib/billing/external-url';
 import { canUsePasskeys } from '@/lib/api/auth';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { localNoteCount } from '@/utils/notes/local-note-count.js';
@@ -1325,40 +1326,7 @@ export default {
         storageUsedPercent.value >= QUOTA_WARN_PERCENT,
     );
 
-    const BILLING_HOSTS = new Set([
-      'checkout.stripe.com',
-      'billing.stripe.com',
-      'js.stripe.com',
-    ]);
-    function isAllowedBillingUrl(url) {
-      let parsed;
-      try {
-        parsed = new URL(url);
-      } catch {
-        return false;
-      }
-      if (parsed.protocol !== 'https:') return false;
-      if (BILLING_HOSTS.has(parsed.hostname)) return true;
-      try {
-        return parsed.hostname === new URL(accountStore.serverUrl).hostname;
-      } catch {
-        return false;
-      }
-    }
-    async function openBillingUrl(url) {
-      billingError.value = '';
-      if (!url) return;
-      if (!isAllowedBillingUrl(url)) {
-        billingError.value = 'Refusing to open an unexpected billing URL.';
-        return;
-      }
-      try {
-        const { openUrl } = await import('@tauri-apps/plugin-opener');
-        await openUrl(url);
-      } catch {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
-    }
+    
     async function handleManageBilling() {
       if (isMobile) {
         const { useIapBilling } = await import('@/composable/useIapBilling');
@@ -1372,8 +1340,10 @@ export default {
           baseUrl: accountStore.serverUrl,
         });
         const url = res?.url;
-        if (url) await openBillingUrl(url);
-        else throw new Error('No portal URL returned');
+        if (!(await openBillingUrl(url, accountStore.serverUrl))) {
+          billingError.value = 'Refusing to open an unexpected billing URL.';
+          return;
+        }
       } catch (e) {
         const msg = e?.message || 'Failed to open billing portal.';
         billingError.value = msg;

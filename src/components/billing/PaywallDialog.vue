@@ -404,6 +404,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { getPlans } from '@/lib/api/plans';
 import { createCheckoutSession } from '@/lib/api/billing';
 import { PLAN_NAMES, planFeatures, planLabel } from '@/lib/api/types';
+import { openBillingUrl } from '@/lib/billing/external-url';
 
 const WEBSITE_URL = 'https://www.beavernotes.com';
 const TERMS_URL = `${WEBSITE_URL}/terms`;
@@ -439,37 +440,7 @@ const REASON_COPY = {
   },
 };
 
-// Same trust rule Account.vue enforces: https-only, known billing hosts,
-// or the account's own sync server (passed per call so multi-account
-// switches are respected).
-const BILLING_HOSTS = [
-  'checkout.stripe.com',
-  'billing.stripe.com',
-  'js.stripe.com',
-];
-function isAllowedBillingUrl(url, serverUrl) {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:') return false;
-    try {
-      if (new URL(serverUrl).hostname === parsed.hostname) return true;
-    } catch {
-      /* no custom server configured */
-    }
-    return BILLING_HOSTS.includes(parsed.hostname);
-  } catch {
-    return false;
-  }
-}
-
-async function openBillingUrl(url) {
-  try {
-    const { openUrl } = await import('@tauri-apps/plugin-opener');
-    await openUrl(url);
-  } catch {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
-}
+// Same trust rule Account.vue enforces (shared module {@link '@/lib/billing/external-url'}).
 
 export default {
   name: 'PaywallDialog',
@@ -744,8 +715,7 @@ export default {
         const res = await createCheckoutSession(plan, interval.value, {
           baseUrl: accountStore.serverUrl,
         });
-        if (res?.url && isAllowedBillingUrl(res.url, accountStore.serverUrl)) {
-          await openBillingUrl(res.url);
+        if (res?.url && (await openBillingUrl(res.url, accountStore.serverUrl))) {
           setNotice(
             tr.value.checkoutOpened ||
               'Checkout opened in your browser. Complete your purchase there.',
