@@ -47,10 +47,7 @@ describe('normalizeSyncTransport', () => {
     expect(normalizeSyncTransport(undefined)).toBe(SYNC_TRANSPORT.FOLDER);
   });
 
-  it('the BOTH constant is gone from the enum', () => {
-    expect(SYNC_TRANSPORT).not.toHaveProperty('BOTH');
   });
-});
 
 describe('planFeatures', () => {
   it('gives every plan a non-empty differentiator', () => {

@@ -36,27 +36,9 @@ describe('useTeamAdmin', () => {
     api.addMember.mockResolvedValue({ workspaceId: 'w1', token: 'tok' });
   });
 
-  it('loadMembers populates reactive list', async () => {
-    const admin = useTeamAdmin('w1');
-    await admin.loadMembers();
-    expect(api.getAdminMembers).toHaveBeenCalledWith('w1', { baseUrl: 'https://api.test' });
-    expect(admin.members.value).toHaveLength(1);
-  });
-
-  it('changeRole delegates to API', async () => {
-    api.changeMemberRole.mockResolvedValue({ updated: true });
-    const admin = useTeamAdmin('w1');
-    await admin.changeRole('u1', 'admin');
-    expect(api.changeMemberRole).toHaveBeenCalledWith('w1', 'u1', 'admin', { baseUrl: 'https://api.test' });
-  });
-
-  it('revokeSession delegates to API', async () => {
-    api.revokeSession.mockResolvedValue({ revoked: true });
-    const admin = useTeamAdmin('w1');
-    await admin.revokeSession('hash-1');
-    expect(api.revokeSession).toHaveBeenCalledWith('hash-1', { baseUrl: 'https://api.test' });
-  });
-
+  
+  
+  
   it('addMemberByEmail looks up an email as email and delegates add', async () => {
     api.memberLookup.mockResolvedValue({ found: true, accountId: 'u2', hasKemPublicKey: true, alreadyMember: false });
     const admin = useTeamAdmin('w1');

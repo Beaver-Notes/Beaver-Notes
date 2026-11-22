@@ -223,6 +223,35 @@ describe('account store: several accounts at once', () => {
     expect(store.activeAccountId).toBe('p1');
     expect(store.accounts.map((a) => a.id)).toEqual(['p1']);
   });
+
+  it('fail-closed when subscription missing/undefined/error', () => {
+    const store = useAccountStore();
+    store.setStatus('authenticated');
+    store.setToken('tok');
+    store.accounts = [{ id: 'a1', organizations: [] }];
+    store.activeAccountId = 'a1';
+    store.subscription = null;
+    expect(store.plan).toBe('free');
+    expect(store.isPaidPlan).toBe(false);
+    expect(store.canUseCloudSync).toBe(false);
+    store.subscription = undefined;
+    expect(store.isPaidPlan).toBe(false);
+  });
+
+  it('fail-closed shows locked UI when API unreachable (no subscription)', () => {
+    const store = useAccountStore();
+    // Simulates failed profile fetch: status stays anonymous or subscription null
+    store.setStatus('authenticated');
+    store.setToken('tok');
+    store.accounts = [{ id: 'a1', organizations: [{ id: 'o1', subscription: null, workspaces: [] }] }];
+    store.activeAccountId = 'a1';
+    store.activeOrgId = 'o1';
+    expect(store.isPaidPlan).toBe(false);
+    expect(store.canUseCloudSync).toBe(false);
+    // unauthenticated also locked
+    store.setStatus('anonymous');
+    expect(store.canUseCloudSync).toBe(false);
+  });
 });
 
 describe('refreshPlanQuietly: sole-org auto-selection (residual 13)', () => {

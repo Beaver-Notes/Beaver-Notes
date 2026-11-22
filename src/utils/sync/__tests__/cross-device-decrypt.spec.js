@@ -188,7 +188,6 @@ vi.mock('@/utils/sync/path.js', () => ({
 
 vi.mock('@/lib/yjs/meta-doc.js', () => ({
   getWorkspaceDoc: () => new Y.Doc(),
-  onWorkspaceDocDestroy: vi.fn(),
 }));
 
 // This suite talks to a live sync backend, so it can skip for two independent

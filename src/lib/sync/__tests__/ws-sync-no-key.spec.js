@@ -38,7 +38,6 @@ vi.mock('y-protocols/awareness', () => ({
 }))
 vi.mock('@/lib/yjs/meta-doc', () => ({
   getWorkspaceDoc: vi.fn(() => ({ on: vi.fn(), off: vi.fn(), getMap: () => new Map() })),
-  onWorkspaceDocDestroy: vi.fn(),
 }))
 vi.mock('@/lib/yjs/shared', () => ({
   registerActiveDoc: vi.fn(),

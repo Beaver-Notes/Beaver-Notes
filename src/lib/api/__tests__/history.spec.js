@@ -37,17 +37,19 @@ vi.mock('@/utils/sync/crypto', () => ({
   }),
 }));
 
+let createCommit, getCommitSnapshot, listCommits, getApiClient;
+
 describe('history API', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     noteKeyCtl.key = null;
     // history.js resolves the account's serverUrl from the store.
     setActivePinia(createPinia());
+    ({ createCommit, getCommitSnapshot, listCommits } = await import('@/lib/api/history'));
+    ({ getApiClient } = await import('@/lib/api/client'));
   });
 
   it('createCommit encrypts and POSTs to /commits', async () => {
-    const { createCommit } = await import('@/lib/api/history');
-    const { getApiClient } = await import('@/lib/api/client');
 
     const mockPost = vi.fn().mockResolvedValue({ commitId: '123' });
     getApiClient.mockReturnValue({ get: vi.fn(), post: mockPost });
@@ -65,8 +67,6 @@ describe('history API', () => {
   });
 
   it('getCommitSnapshot decrypts the server response and binds noteId as AAD', async () => {
-    const { getCommitSnapshot } = await import('@/lib/api/history');
-    const { getApiClient } = await import('@/lib/api/client');
     const { decryptJSON } = await import('@/utils/sync/crypto');
 
     const envelope = JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' });
@@ -81,8 +81,6 @@ describe('history API', () => {
   });
 
   it('getCommitSnapshot returns null when decryption fails', async () => {
-    const { getCommitSnapshot } = await import('@/lib/api/history');
-    const { getApiClient } = await import('@/lib/api/client');
     const { decryptJSON } = await import('@/utils/sync/crypto');
 
     decryptJSON.mockRejectedValueOnce(new Error('KEY_LOCKED'));
@@ -98,8 +96,6 @@ describe('history API', () => {
   });
 
   it('getCommitSnapshot decrypts a v5 envelope string into the snapshot', async () => {
-    const { getCommitSnapshot } = await import('@/lib/api/history');
-    const { getApiClient } = await import('@/lib/api/client');
 
     const envelope = JSON.stringify({ v: 5, meta: {}, iv: 'x', enc: 'y' });
     getApiClient.mockReturnValue({
@@ -112,8 +108,6 @@ describe('history API', () => {
   });
 
   it('listCommits exposes commitId as hash', async () => {
-    const { listCommits } = await import('@/lib/api/history');
-    const { getApiClient } = await import('@/lib/api/client');
 
     getApiClient.mockReturnValue({
       get: vi.fn().mockResolvedValue({
@@ -127,8 +121,6 @@ describe('history API', () => {
   });
 
   it('createCommit encrypts with the shared note key (v6) when one exists', async () => {
-    const { createCommit } = await import('@/lib/api/history');
-    const { getApiClient } = await import('@/lib/api/client');
 
     noteKeyCtl.key = 'ab'.repeat(32);
     const mockPost = vi.fn().mockResolvedValue({ commitId: '123' });
@@ -146,8 +138,7 @@ describe('history API', () => {
   });
 
   it('getCommitSnapshot decrypts a v6 note-key envelope with the per-note key', async () => {
-    const { createCommit, getCommitSnapshot } = await import('@/lib/api/history');
-    const { getApiClient } = await import('@/lib/api/client');
+    
 
     noteKeyCtl.key = 'cd'.repeat(32);
     const mockPost = vi.fn().mockResolvedValue({ commitId: '123' });
@@ -162,8 +153,6 @@ describe('history API', () => {
   });
 
   it('getCommitSnapshot returns null for a v6 envelope when no note key is available', async () => {
-    const { getCommitSnapshot } = await import('@/lib/api/history');
-    const { getApiClient } = await import('@/lib/api/client');
 
     noteKeyCtl.key = null;
     const envelope = JSON.stringify({ v: 6, k: 'note', noteId: 'note-abc', data: 'AAAA' });

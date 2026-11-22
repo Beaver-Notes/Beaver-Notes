@@ -142,6 +142,14 @@ describe('persist guard – dirty-signature optimization', () => {
     return store;
   }
 
+  function bigContent(paragraphs: number) {
+    const content: any = { type: 'doc', content: [] };
+    for (let i = 0; i < paragraphs; i++) {
+      content.content.push({ type: 'paragraph', content: [{ type: 'text', text: 'line ' + i }] });
+    }
+    return content;
+  }
+
   it('first persist: burst skips derived work, flush does all of it', async () => {
     const content = { type: 'doc', content: [] };
     const store = createNote('note-block1', content, 'Test Note');
@@ -251,6 +259,38 @@ describe('persist guard – dirty-signature optimization', () => {
     expect(syncNoteMeta).toHaveBeenLastCalledWith(
       expect.objectContaining({ title: 'A much longer title' })
     );
+  });
+
+  it('updates preview/searchText/link-index/meta after the deferred flush', async () => {
+    const store = createNote('note-big', bigContent(2100), 'Big');
+
+    await store.persist('note-big');
+
+    // The persist burst must not pay for the full-document walks.
+    expect(buildNotePreview).not.toHaveBeenCalled();
+
+    // The deferred flush lands ~1.5s later on idle.
+    await vi.advanceTimersByTimeAsync(1600);
+
+    // Regression: derivedFlushOne used to delete the pending entry before
+    // reading it, so `store` was always undefined and derived data never
+    // updated for notes over the threshold.
+    expect(store.data['note-big'].preview).toBe('preview');
+    expect(store.data['note-big'].searchText).toBe('search text');
+    expect(rebuildLinkIndexForNote).toHaveBeenCalledWith('note-big', expect.anything());
+    expect(syncNoteMeta).toHaveBeenCalled();
+  });
+
+  it('leaves locked notes without derived data after the flush', async () => {
+    const store = createNote('note-locked', bigContent(2100), 'Locked');
+    store.data['note-locked'].isLocked = true;
+
+    await store.persist('note-locked');
+    await vi.advanceTimersByTimeAsync(1600);
+
+    // Derived data must never be fabricated for a locked note.
+    expect(store.data['note-locked'].preview).toBeUndefined();
+    expect(store.data['note-locked'].searchText).toBeUndefined();
   });
 });
 

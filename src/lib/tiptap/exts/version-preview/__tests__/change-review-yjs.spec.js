@@ -10,7 +10,6 @@ import VersionPreview, {
   revertReviewChange,
   versionPreviewKey,
 } from '../index.js';
-import { useChangeReview } from '@/composable/useChangeReview.js';
 
 const liveEditors = [];
 
@@ -50,11 +49,10 @@ describe('review mode read-only', () => {
     editor.commands.setContent('<p>Hello</p>');
     expect(editor.isEditable).toBe(true);
 
-    const review = useChangeReview();
-    review.start(editor, { content: '<p>Hello world</p>' });
+    editor.commands.setChangeReview('<p>Hello world</p>');
     expect(editor.isEditable).toBe(false);
 
-    review.exit(editor);
+    editor.commands.clearChangeReview();
     expect(editor.isEditable).toBe(true);
   });
 });

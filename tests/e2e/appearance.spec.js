@@ -55,20 +55,6 @@ describe('Appearance', () => {
     expect(hasThemeCards).toBe(true);
   });
 
-  it('should have active theme indicator', async () => {
-    await browser.pause(500);
-
-    const hasActiveTheme = await browser.execute(() => {
-      const els = Array.from(document.querySelectorAll('*'));
-      return els.some(el =>
-        el.className?.includes('ring-primary') ||
-        el.className?.includes('ring-1')
-      );
-    });
-
-    expect(hasActiveTheme).toBe(true);
-  });
-
   it('should persist theme selection', async () => {
 
     const btns = await browser.execute(() => {

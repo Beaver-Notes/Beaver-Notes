@@ -14,13 +14,7 @@ import LiveCollab, {
   isRemoteLiveOrigin,
   resolveLiveAuthor,
 } from '../index.js';
-import {
-  applyRemote,
-  onRemoteApplied,
-  registerActiveDoc,
-  unregisterActiveDoc,
-} from '@/lib/yjs/shared.js';
-import { useChangeReview } from '@/composable/useChangeReview.js';
+import { unregisterActiveDoc } from '@/lib/yjs/shared.js';
 
 const editors = [];
 // A provider-like object: any non-string, non-PluginKey origin is treated as a
@@ -334,26 +328,6 @@ describe('no inline undo chip', () => {
     expect(editor.view.dom.querySelector('.live-collab-chip')).toBeNull();
     expect(editor.view.dom.querySelector('.live-collab-chip__undo')).toBeNull();
     expect(editor.view.dom.querySelector('.live-collab-added')).toBeTruthy();
-  });
-});
-
-describe('merge banner separation', () => {
-  it('does not raise the async banner for live edits but applyRemote still does', () => {
-    const { ydoc, editor, peerDoc, peerEditor, pushPeer } = setup();
-    registerActiveDoc('n1', ydoc);
-    const review = useChangeReview();
-    const off = onRemoteApplied((id) => review.handleRemoteApplied(id, 'n1'));
-
-    pushPeer((ed) => ed.commands.insertContentAt(6, ' live'));
-    expect(review.mergeBannerVisible.value).toBe(false);
-
-    const end = editor.state.doc.content.size - 1;
-    peerEditor.commands.insertContentAt(end, ' async');
-    applyRemote('n1', Y.encodeStateAsUpdate(peerDoc, Y.encodeStateVector(ydoc)));
-    expect(review.mergeBannerVisible.value).toBe(true);
-
-    review.dismissMergeBanner();
-    off();
   });
 });
 

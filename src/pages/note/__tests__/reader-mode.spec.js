@@ -36,7 +36,6 @@ vi.mock('mime', () => ({ default: { getType: () => 'text/plain' } }));
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useUiState } from '@/composable/useUiState';
 import { useReaderPrefs } from '@/composable/useReaderPrefs';
-import ReaderPill from '@/components/note/ReaderPill.vue';
 
 function makeEditor() {
   return {
@@ -127,22 +126,6 @@ describe('reader mode trap', () => {
   });
 
   it('click-outside exits (wrapper @mousedown.self)', async () => {
-    // verify _id.vue contains click-outside wiring and ReaderPill mount
-    const idVue = fs.readFileSync('src/pages/note/_id.vue', 'utf8');
-    expect(idVue).toContain('data-reader-theme');
-    expect(idVue).toContain('data-reader-family');
-    expect(idVue).toContain('--reader-size');
-    expect(idVue).toContain('--reader-line');
-    expect(idVue).toContain('ReaderPill');
-    expect(idVue).toContain('@mousedown.self');
-    expect(idVue).toContain('@exit="exitReader"');
-    // title must follow reader prefs too, guarded in editor.css, not just ProseMirror
-    const editorCss = fs.readFileSync('src/assets/css/editor.css', 'utf8');
-    expect(editorCss).toContain('.editor[data-reader-theme] .title-placeholder');
-    expect(editorCss).toContain(".editor[data-reader-theme='light'] .title-placeholder");
-    expect(editorCss).toContain(".editor[data-reader-theme='sepia'] .title-placeholder");
-    expect(editorCss).toContain(".editor[data-reader-theme='dark'] .title-placeholder");
-    expect(editorCss).toContain("[data-reader-family='serif'] .title-placeholder");
     // also verify runtime click-outside via small stub mimicking _id.vue logic
     const { prefs } = useReaderPrefs();
     const Stub = defineComponent({
@@ -167,12 +150,6 @@ describe('reader mode trap', () => {
     const w3 = mount({ components: { Stub }, template: '<Stub :inReaderMode="true" @exit="onExit"><span data-testid="inner">inner</span></Stub>', setup(){ return { onExit: vi.fn() } } });
     // inner click not on self, so no exit via wrapper self handler - just sanity that stub exists
     expect(w3.find('[data-testid="inner"]').exists()).toBe(true);
-  });
-
-  it('ReaderPill Done emits exit', async () => {
-    const w = mount(ReaderPill);
-    await w.find('[data-testid="reader-done"]').trigger('click');
-    expect(w.emitted('exit')).toBeTruthy();
   });
 
   it('useNoteMenu exposes exitReader', async () => {

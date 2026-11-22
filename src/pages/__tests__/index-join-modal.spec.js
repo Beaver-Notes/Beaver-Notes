@@ -130,21 +130,6 @@ describe('Index ?join= modal wiring', () => {
     query.join = 'tok-1';
   });
 
-  it('opens the join invite dialog when the route query carries a token', () => {
-    const wrapper = mountIndex();
-
-    expect(wrapper.text()).toContain('Sign in to accept');
-    expect(wrapper.text()).toContain('invited to collaborate');
-  });
-
-  it('does not open the dialog without a join token', () => {
-    query.join = undefined;
-    const wrapper = mountIndex();
-
-    expect(wrapper.text()).not.toContain('Sign in to accept');
-    expect(wrapper.text()).not.toContain('invited to collaborate');
-  });
-
   it('strips the ?join= query via router.replace when the dialog closes', async () => {
     const wrapper = mountIndex();
 

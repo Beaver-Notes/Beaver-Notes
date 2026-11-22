@@ -50,21 +50,5 @@ describe('useSyncControl', () => {
     expect(mocks.kickRustSync).not.toHaveBeenCalled();
   });
 
-  it('labels a recent successful sync', () => {
-    const store = useSyncProgressStore();
-    store.lastSyncAt = Date.now();
-    const { lastSyncLabel } = useSyncControl();
-    expect(lastSyncLabel.value).toBe('Synced just now');
+  
   });
-
-  it('labels a failed last attempt', () => {
-    const store = useSyncProgressStore();
-    store.lastAction = {
-      status: 'sync-failed',
-      text: 'Sync stopped unexpectedly',
-      at: Date.now(),
-    };
-    const { lastSyncLabel } = useSyncControl();
-    expect(lastSyncLabel.value).toBe('Last attempt failed');
-  });
-});

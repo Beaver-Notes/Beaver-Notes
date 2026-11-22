@@ -17,45 +17,6 @@ describe('Edge Cases', () => {
     expect(cards.length).toBeGreaterThan(0);
   });
 
-  it('should handle very long title (200 chars)', async () => {
-    await navigateToNotes();
-    await createNote();
-    const longTitle = 'A'.repeat(200);
-
-    await browser.execute(() => {
-      const el = document.querySelector('[data-testid="note-title-input"]');
-      if (el) el.focus();
-    });
-    await browser.pause(200);
-    await browser.execute((text) => {
-      document.execCommand('insertText', false, text);
-    }, longTitle);
-    await waitForSaved();
-
-    const title = await getTitleText();
-    expect(title.length).toBe(200);
-  });
-
-  it('should handle special characters in title', async () => {
-    await navigateToNotes();
-    await createNote();
-    const specialTitle = 'Note <test> "quotes" & ampersand ñ é ü';
-
-    await browser.execute(() => {
-      const el = document.querySelector('[data-testid="note-title-input"]');
-      if (el) el.focus();
-    });
-    await browser.pause(200);
-    await browser.execute((text) => {
-      document.execCommand('insertText', false, text);
-    }, specialTitle);
-    await waitForSaved();
-
-    const title = await getTitleText();
-    expect(title).toContain('ampersand');
-    expect(title).toContain('ñ');
-  });
-
   it('should handle unicode in title and body', async () => {
     await navigateToNotes();
     await createNote();

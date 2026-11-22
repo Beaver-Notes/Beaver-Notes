@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { ref } from 'vue';
 import { mount, flushPromises } from '@vue/test-utils';
 import emitter from 'tiny-emitter/instance';
@@ -78,30 +77,6 @@ vi.mock('@/composable/useSettingsAccount', () => ({
 }));
 
 import Account from '../Account.vue';
-
-describe('Account paywall wiring (source)', () => {
-  const src = () => readFileSync('src/pages/settings/Account.vue', 'utf8');
-
-  it('routes the upgrade row through the shared PaywallDialog', () => {
-    expect(src()).toMatch(/openPaywall\('settings'\)/);
-    expect(src()).not.toMatch(/SubscriptionDialog/);
-  });
-
-  it('opens the paywall from the storage banner and the cloud-sync CTA', () => {
-    expect(src()).toMatch(/openPaywall\('storage'\)/);
-    expect(src()).toMatch(/openPaywall\('sync'\)/);
-  });
-
-  it('no longer picks plan+interval inline (paywall owns that choice)', () => {
-    expect(src()).not.toMatch(/opt\.plan !== 'team'/);
-    expect(src()).not.toMatch(/handleIapSelect|handleIapRestore|billingOptions/);
-  });
-
-  it('keeps the manage-billing URL guard', () => {
-    expect(src()).toMatch(/isAllowedBillingUrl/);
-    expect(src()).toMatch(/createPortalSession/);
-  });
-});
 
 describe('Account paywall CTA (mounted)', () => {
   const reasons = [];

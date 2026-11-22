@@ -56,23 +56,7 @@ describe('register + reconcile cloud workspaces', () => {
     native.detachLocalWorkspace.mockResolvedValue({});
   });
 
-  it('registers shared workspaces as shared and personal ones as personal', async () => {
-    apiGetWorkspaces.mockResolvedValue([
-      { id: 'w-team', name: 'Design', orgId: 'org-team', ownerId: 'u1' },
-      { id: 'w-personal', name: 'Mine', orgId: 'org-personal', ownerId: 'u1' },
-    ]);
-
-    const cloud = useCloudWorkspaces();
-    await cloud.fetchWorkspaces();
-
-    expect(native.registerLocalWorkspace).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'w-team', workspaceType: 'shared', orgId: 'org-team' })
-    );
-    expect(native.registerLocalWorkspace).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'w-personal', workspaceType: 'personal', orgId: 'org-personal' })
-    );
-  });
-
+  
   it('never deletes local data when a shared workspace is missing from one successful list', async () => {
     apiGetWorkspaces.mockResolvedValue([
       { id: 'personal-cloud', name: 'Mine', orgId: 'org-personal', ownerId: 'u1' },

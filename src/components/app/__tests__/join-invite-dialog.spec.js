@@ -208,6 +208,24 @@ describe('JoinInviteDialog', () => {
     expect(joinViaInviteLink).not.toHaveBeenCalled();
   });
 
+  it('shows the sign-out copy with the invite body when signed out', () => {
+    authed = false;
+    const wrapper = mountDialog();
+
+    expect(wrapper.text()).toContain('Sign in to accept');
+    expect(wrapper.text()).toContain('invited to collaborate');
+    expect(wrapper.findAll('button').some((b) => b.text().includes('Join Note'))).toBe(false);
+  });
+
+  it('never attempts a join without a token', async () => {
+    const wrapper = mountDialog('');
+
+    await clickButtonByText(wrapper, 'Join Note');
+    await flushPromises();
+
+    expect(joinViaInviteLink).not.toHaveBeenCalled();
+  });
+
   it('resets the state machine when reopened with a new token', async () => {
     joinViaInviteLink
       .mockResolvedValueOnce({ noteId: 'n1', role: 'editor' })

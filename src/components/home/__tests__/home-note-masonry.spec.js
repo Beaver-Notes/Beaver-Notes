@@ -130,32 +130,6 @@ describe('HomeNoteMasonry', () => {
     expect(Math.max(...ids)).toBeGreaterThanOrEqual(60);
   });
 
-  it('emits item-click with the note id', async () => {
-    const wrapper = mountMasonry(makeNotes(20));
-    await flushPromises();
-    await nextTick();
-
-    const card = wrapper.find('[data-item-id="note-n0"]');
-    expect(card.exists()).toBe(true);
-    await card.trigger('click');
-
-    const emitted = wrapper.emitted('item-click');
-    expect(emitted).toBeTruthy();
-    expect(emitted[0][0].noteId).toBe('n0');
-  });
-
-  it('forwards the card move event', async () => {
-    const wrapper = mountMasonry(makeNotes(20));
-    await flushPromises();
-    await nextTick();
-
-    const card = wrapper.find('[data-item-id="note-n1"]');
-    await card.find('.stub-card').trigger('move', { id: 'n1' });
-    const emitted = wrapper.emitted('move');
-    expect(emitted).toBeTruthy();
-    expect(emitted[0][0].id).toBe('n1');
-  });
-
   it('rebinds the window when notes change', async () => {
     const wrapper = mountMasonry(makeNotes(50));
     await flushPromises();

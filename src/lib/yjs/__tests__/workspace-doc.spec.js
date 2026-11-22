@@ -13,7 +13,6 @@ vi.mock('@/lib/yjs/shared.js', () => ({ registerActiveDoc: vi.fn() }));
 vi.mock('@/lib/yjs/meta-doc.js', () => ({
   getWorkspaceDoc: () => docHolder.doc,
   META_DOC_ID: 'meta',
-  onWorkspaceDocDestroy: vi.fn(),
   onWorkspaceDocCreate: vi.fn(),
 }));
 vi.mock('@/lib/yjs/helpers.js', () => ({

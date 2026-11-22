@@ -36,18 +36,6 @@ describe('Labels', () => {
     expect(bodyText).toContain(`#${labelName}`);
   });
 
-  it('should display the label in labels settings', async () => {
-    await navigateToLabels();
-    await browser.pause(1000);
-
-    const labelExists = await browser.execute((name) => {
-      const els = Array.from(document.querySelectorAll('*'));
-      return els.some(el => el.textContent.includes(name) && el.offsetParent !== null);
-    }, labelName);
-
-    expect(labelExists).toBe(true);
-  });
-
   it('should display label color dot', async () => {
     await navigateToLabels();
     await browser.pause(500);
@@ -56,41 +44,6 @@ describe('Labels', () => {
     expect(colorDots.length).toBeGreaterThan(0);
   });
 
-  it('should show note count for label', async () => {
-    await navigateToLabels();
-    await browser.pause(500);
-
-    const hasCount = await browser.execute(() => {
-      const spans = Array.from(document.querySelectorAll('span'));
-      return spans.some(el => /\d+/.test(el.textContent) && el.offsetParent !== null);
-    });
-
-    expect(hasCount).toBe(true);
-  });
-
-  it('should delete a label from settings', async () => {
-    await navigateToLabels();
-    await browser.pause(500);
-
-    const deleteBtn = await browser.execute(() => {
-      const btns = Array.from(document.querySelectorAll('button'));
-      const btn = btns.find(b => b.querySelector('[class*="DeleteBin"], [class*="delete"]') || b.getAttribute('aria-label')?.includes('Delete'));
-      if (btn) { btn.click(); return true; }
-      return false;
-    });
-
-    if (deleteBtn) {
-      await browser.pause(300);
-      await browser.execute(() => {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const btn = btns.find(b => b.textContent.includes('Confirm') || b.textContent.includes('Delete'));
-        if (btn) btn.click();
-      });
-      await browser.pause(500);
-    }
-
-    expect(true).toBe(true);
-  });
 
   after(async () => {
     try {

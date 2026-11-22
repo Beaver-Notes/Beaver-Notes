@@ -21,7 +21,7 @@ vi.mock('@/store/note/index', () => ({
   syncSearchIndex: vi.fn(),
   isSearchIndexCurrent: vi.fn(() => false),
 }));
-vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc, onWorkspaceDocDestroy: vi.fn() }));
+vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc }));
 
 import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
 

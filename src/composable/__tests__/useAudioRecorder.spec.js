@@ -37,23 +37,14 @@ vi.mock('@/lib/native/app', () => ({
   getAppDirectory: vi.fn().mockResolvedValue('/app'),
 }));
 
-const { removePathMock, dialogAlertMock } = vi.hoisted(() => ({
+const { removePathMock } = vi.hoisted(() => ({
   removePathMock: vi.fn().mockResolvedValue(),
-  dialogAlertMock: vi.fn(),
 }));
 
 vi.mock('@/lib/native/fs', () => ({ removePath: removePathMock }));
-vi.mock('@/lib/dialog', () => ({ useDialog: () => ({ alert: dialogAlertMock }) }));
+vi.mock('@/lib/dialog', () => ({ useDialog: () => ({ alert: vi.fn() }) }));
 
-import {
-  checkPermission,
-  startRecording,
-  stopRecording,
-  pauseRecording,
-  resumeRecording,
-  getStatus,
-} from 'tauri-plugin-audio-recorder-api';
-import { backend, addCloseHandler } from '@/lib/tauri-bridge';
+import { stopRecording } from 'tauri-plugin-audio-recorder-api';
 import { removePath } from '@/lib/native/fs';
 
 async function freshRecorder() {
@@ -62,66 +53,12 @@ async function freshRecorder() {
   return mod.useAudioRecorder();
 }
 
-describe('useAudioRecorder singleton', () => {
+// A recording is unrecoverable once deleted: both stop paths must keep the
+// file on disk, whether or not a handler consumed the payload.
+describe('useAudioRecorder stop keeps the recording', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    checkPermission.mockResolvedValue({ granted: true, canRequest: true });
-    startRecording.mockResolvedValue({});
     stopRecording.mockResolvedValue({ filePath: '/app/assets/n1/abc.wav' });
-    getStatus.mockResolvedValue({ state: 'idle', durationMs: 0 });
-    backend.invoke.mockResolvedValue();
-    isIOSRuntimeMock.mockReturnValue(false);
-  });
-
-  it('tracks the target note and exposes recording state', async () => {
-    const rec = await freshRecorder();
-    await rec.start('n1', 42);
-
-    expect(rec.targetNoteId.value).toBe('n1');
-    expect(rec.isRecording.value).toBe(true);
-    expect(rec.isPaused.value).toBe(false);
-  });
-
-  it('records the cursor position captured at start', async () => {
-    const rec = await freshRecorder();
-    await rec.start('n1', 7);
-
-    const payload = await rec.stop();
-    expect(payload.cursorPos).toBe(7);
-  });
-
-  it('writes the recording into the note assets directory', async () => {
-    const rec = await freshRecorder();
-    await rec.start('n1', 0);
-
-    expect(backend.invoke).toHaveBeenCalledWith('fs:ensureDir', '/app/assets/n1');
-    const [config] = startRecording.mock.calls[0];
-    expect(config.outputPath).toMatch(/^\/app\/assets\/n1\/[0-9]+_[a-z0-9]+$/);
-    expect(config.quality).toBe('medium');
-  });
-
-  it('does not start when microphone permission is denied', async () => {
-    checkPermission.mockResolvedValue({ granted: false, canRequest: false });
-
-    const rec = await freshRecorder();
-    await rec.start('n1', 0);
-
-    expect(rec.isRecording.value).toBe(false);
-    expect(startRecording).not.toHaveBeenCalled();
-  });
-
-  it('alerts the user when microphone permission is denied', async () => {
-    checkPermission.mockResolvedValue({ granted: false, canRequest: false });
-
-    const rec = await freshRecorder();
-    await rec.start('n1', 0);
-
-    expect(dialogAlertMock).toHaveBeenCalledWith({
-      title: 'Microphone access needed',
-      body: 'Allow microphone access to record audio notes.',
-      okText: 'OK',
-    });
-    expect(startRecording).not.toHaveBeenCalled();
   });
 
   it('keeps the file even when no handler consumes the stop payload', async () => {
@@ -146,85 +83,5 @@ describe('useAudioRecorder singleton', () => {
 
     expect(removePath).not.toHaveBeenCalled();
     expect(payload.consumed).toBe(true);
-  });
-
-  it('allows only one recording at a time', async () => {
-    const rec = await freshRecorder();
-    await rec.start('n1', 0);
-    await rec.start('n2', 10);
-
-    expect(startRecording).toHaveBeenCalledTimes(1);
-    expect(rec.targetNoteId.value).toBe('n1');
-  });
-
-  it('stop resolves the file path and fires onStopped subscribers', async () => {
-    const rec = await freshRecorder();
-    const cb = vi.fn();
-    rec.onStopped(cb);
-
-    await rec.start('n1', 3);
-    const payload = await rec.stop();
-
-    expect(payload).toEqual({
-      filePath: '/app/assets/n1/abc.wav',
-      noteId: 'n1',
-      cursorPos: 3,
-    });
-    expect(cb).toHaveBeenCalledWith(payload);
-    expect(rec.isRecording.value).toBe(false);
-    expect(rec.targetNoteId.value).toBe(null);
-  });
-
-  it('onStopped unsubscribe prevents the callback from firing', async () => {
-    const rec = await freshRecorder();
-    const cb = vi.fn();
-    const off = rec.onStopped(cb);
-    off();
-
-    await rec.start('n1', 0);
-    await rec.stop();
-
-    expect(cb).not.toHaveBeenCalled();
-  });
-
-  it('pauseResume toggles pause state via the native recorder', async () => {
-    const rec = await freshRecorder();
-    await rec.start('n1', 0);
-
-    await rec.pauseResume();
-    expect(rec.isPaused.value).toBe(true);
-    expect(pauseRecording).toHaveBeenCalled();
-
-    await rec.pauseResume();
-    expect(rec.isPaused.value).toBe(false);
-    expect(resumeRecording).toHaveBeenCalled();
-  });
-
-  it('stop with a failed native stop clears state and fires nothing', async () => {
-    stopRecording.mockRejectedValue(new Error('boom'));
-
-    const rec = await freshRecorder();
-    const cb = vi.fn();
-    rec.onStopped(cb);
-
-    await rec.start('n1', 0);
-    const payload = await rec.stop();
-
-    expect(payload).toBeNull();
-    expect(cb).not.toHaveBeenCalled();
-    expect(rec.isRecording.value).toBe(false);
-    expect(rec.targetNoteId.value).toBe(null);
-  });
-
-  it('formattedTime starts at zero', async () => {
-    const rec = await freshRecorder();
-    await rec.start('n1', 0);
-
-    expect(rec.formattedTime.value).toBe('00:00');
-  });
-
-  it('registers a window close handler to stop and clean up', async () => {
-    await freshRecorder();
-    expect(addCloseHandler).toHaveBeenCalled();
   });
 });

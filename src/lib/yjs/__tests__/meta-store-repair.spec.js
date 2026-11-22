@@ -15,7 +15,6 @@ vi.mock('@/lib/native/yjs.js', () => ({
 }));
 vi.mock('@/lib/yjs/meta-doc.js', () => ({
   getWorkspaceDoc: () => docHolder.doc,
-  onWorkspaceDocDestroy: vi.fn(),
 }));
 vi.mock('@/lib/yjs/helpers.js', () => ({
   getDeviceId: () => 'device',

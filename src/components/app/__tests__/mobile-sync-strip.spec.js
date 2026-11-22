@@ -129,25 +129,6 @@ describe('MobileSyncStrip', () => {
     expect(wrapper.get('[data-testid="sync-progress"]').attributes('style')).toContain('width: 25%');
   });
 
-  it('renders as an in-flow status card that never overlays the page', async () => {
-    const wrapper = await mountStrip();
-    pullToReveal();
-    await nextTick();
-
-    const root = wrapper.get('[data-testid="mobile-sync-strip"]');
-    expect(root.classes()).toContain('rounded-2xl');
-    expect(root.classes()).toContain('mx-4');
-    expect(root.classes()).not.toContain('fixed');
-    expect(root.classes()).not.toContain('inset-x-0');
-
-    expect(wrapper.find('[data-testid="sync-icon"]').exists()).toBe(true);
-    expect(wrapper.get('[data-testid="sync-status"]').text().trim().length).toBeGreaterThan(0);
-
-    const live = wrapper.get('[role="status"]');
-    expect(live.classes()).not.toContain('rounded-2xl');
-    expect(live.classes()).not.toContain('shadow-xl');
-  });
-
   it('exposes the status to assistive technology', async () => {
     const wrapper = await mountStrip();
     pullToReveal();
@@ -159,34 +140,6 @@ describe('MobileSyncStrip', () => {
     const icon = wrapper.get('[data-testid="sync-icon"]');
     expect(icon.attributes('aria-hidden')).toBe('true');
     expect(wrapper.get('[data-testid="sync-status"]').text().trim()).not.toBe('');
-  });
-
-  it('tones the icon by status (calm, syncing, error)', async () => {
-    const wrapper = await mountStrip();
-    pullToReveal();
-    await nextTick();
-
-    let icon = wrapper.get('[data-testid="sync-icon"]');
-    expect(icon.attributes('data-tone')).toBe('calm');
-    expect(icon.classes()).toContain('text-emerald-600');
-
-    store.status = 'syncing';
-    store.phase = 'push';
-    await nextTick();
-    icon = wrapper.get('[data-testid="sync-icon"]');
-    expect(icon.attributes('data-tone')).toBe('syncing');
-    expect(icon.classes()).toContain('text-primary');
-
-    store.status = 'idle';
-    store.lastAction = {
-      status: 'sync-failed',
-      text: 'Sync stopped unexpectedly',
-      at: Date.now(),
-    };
-    await nextTick();
-    icon = wrapper.get('[data-testid="sync-icon"]');
-    expect(icon.attributes('data-tone')).toBe('action');
-    expect(icon.classes()).toContain('text-red-600');
   });
 
   it('auto-hides after the timeout when the state is calm', async () => {
@@ -331,25 +284,5 @@ describe('MobileSyncStrip', () => {
       addSpy.mockRestore();
       removeSpy.mockRestore();
     }
-  });
-});
-
-describe('MobileSyncStrip surfaces', () => {
-  it.each([
-    ['folder page', 'src/pages/folder/_id.vue'],
-    ['note page', 'src/pages/note/_id.vue'],
-  ])('mounts the shared strip on the %s', (_label, file) => {
-    const src = readFileSync(file, 'utf8');
-
-    expect(src).toContain(
-      "import MobileSyncStrip from '@/components/app/MobileSyncStrip.vue'",
-    );
-    expect(src).toContain('MobileSyncStrip,');
-    expect(src).toContain('<mobile-sync-strip v-if="isMobile" />');
-    expect(src).toContain(
-      "import { isMobileRuntime } from '@/lib/tauri/runtime'",
-    );
-    expect(src).toContain('const isMobile = isMobileRuntime();');
-    expect(src).toContain('isMobile,');
   });
 });

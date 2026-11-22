@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
+import { mount } from '@vue/test-utils';
 
 const mobileFlag = vi.hoisted(() => ({ value: false }));
 const accountCtl = vi.hoisted(() => ({ authed: false, paid: false }));
@@ -168,7 +168,67 @@ vi.mock('@/lib/yjs/meta-store.js', () => ({
   seedWorkspaceDocFromData: vi.fn(async () => ({ seededFolders: 0 })),
 }));
 
+// Onboarding.vue's own collaborators (page-level stores and orchestration).
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(async () => {}) }),
+}));
+
+vi.mock('@/lib/storage', () => ({
+  useStorage: () => ({}),
+}));
+
+vi.mock('@/store', () => ({
+  useStore: () => ({}),
+}));
+
+vi.mock('@/store/note', () => ({
+  useNoteStore: () => ({}),
+}));
+
+vi.mock('@/store/folder', () => ({
+  useFolderStore: () => ({}),
+}));
+
+vi.mock('@/composable/useSounds', () => ({
+  useSounds: () => ({ play: vi.fn() }),
+}));
+
+const accountApi = vi.hoisted(() => () => ({
+  signInEmail: ref(''),
+  signInPassword: ref(''),
+  signUpUsername: ref(''),
+  passkeyEmail: ref(''),
+  quickConnectCode: ref(''),
+  quickConnectSecret: ref(''),
+  quickConnectExpiresAt: ref(null),
+  showPasswordAuth: ref(false),
+  showQuickConnect: ref(false),
+  showServerUrlEditor: ref(false),
+  draftServerUrl: ref('https://api.test'),
+  defaultServerUrl: 'https://api.test',
+  deletingAccount: ref(false),
+  deletePassword: ref(''),
+  saveServerUrl: vi.fn(),
+  resetServerUrl: vi.fn(),
+  handleSignInWithPassword: vi.fn(),
+  handleSignUpWithPassword: vi.fn(),
+  handleSignInWithPasskey: vi.fn(),
+  handleSignUpWithPasskey: vi.fn(),
+  startQuickConnect: vi.fn(),
+  pollQuickConnect: vi.fn(),
+  authorizeQuickConnect: vi.fn(),
+  handleSignOut: vi.fn(),
+  handleRevokeDevice: vi.fn(),
+  triggerSeed: vi.fn(),
+  clearError: vi.fn(),
+}));
+
+vi.mock('@/composable/useSettingsAccount', () => ({
+  useSettingsAccount: accountApi,
+}));
+
 import { useOnboardingFlow } from '../useOnboardingFlow.js';
+import Onboarding from '@/pages/Onboarding.vue';
 
 const makeFlow = () =>
   useOnboardingFlow({
@@ -177,35 +237,18 @@ const makeFlow = () =>
     runImportSource: vi.fn(async () => {}),
   });
 
-describe('onboarding wizard structure', () => {
-  it('registers Connect as the first card step, with no plans or customize step', () => {
-    const src = readFileSync('src/composable/useOnboardingFlow.js', 'utf8');
-    expect(src).toMatch(/WIZARD_STEPS = \['account', 'password', 'import'\]/);
-    expect(src).not.toMatch(/'plans'/);
-    expect(src).not.toMatch(/completeSyncStep|useOnboardingAppearance/);
-  });
+async function mountOnAccountStep() {
+  const wrapper = mount(Onboarding);
+  const welcome = wrapper.find('[data-testid="onboarding-welcome-continue"]');
+  expect(welcome.exists()).toBe(true);
+  await welcome.trigger('click');
+  await nextTick();
+  return wrapper;
+}
 
-  it('Onboarding renders no plans or customization templates', () => {
-    const vue = readFileSync('src/pages/Onboarding.vue', 'utf8');
-    expect(vue).not.toMatch(/step === 'plans'/);
-    expect(vue).not.toMatch(/step === 'customize'/);
-    expect(vue).not.toMatch(/SubscriptionPlans/);
-    expect(vue).not.toMatch(/useIapBilling/);
-  });
-
-  it('Connect footer offers a single continue/skip button', () => {
-    const vue = readFileSync('src/pages/Onboarding.vue', 'utf8');
-    expect(vue).toMatch(/onboarding-connect-continue/);
-    expect(vue).not.toMatch(/onboarding-connect-skip/);
-    expect(vue).toMatch(/flow\.completeAccountStep/);
-  });
-
-  it('exposes a folder-sync picker inside the Connect card', () => {
-    const vue = readFileSync('src/pages/Onboarding.vue', 'utf8');
-    expect(vue).toMatch(/showFolderSync/);
-    expect(vue).toMatch(/onboarding-sync-path/);
-  });
-});
+function connectButtons(wrapper) {
+  return wrapper.findAll('[data-testid^="onboarding-connect-"]');
+}
 
 describe('onboarding tracked steps', () => {
   it('is account → password → import regardless of account state', () => {
@@ -283,5 +326,33 @@ describe('completeAccountStep', () => {
 
     expect(flow.step.value).toBe('password');
     expect(syncPrefs.calls).toHaveLength(0);
+  });
+});
+
+// The rendered footer copy is the only page-level behavior the source greps
+// and flow tests above cannot cover: the labels and the button count.
+describe('onboarding connect footer rendering', () => {
+  beforeEach(() => {
+    vaultJoinCtl.detect = vi.fn(async () => false);
+    accountCtl.authed = false;
+    accountCtl.paid = false;
+    syncPrefs.calls = [];
+    setSettingCtl.sets = [];
+  });
+
+  it('renders exactly one primary button, reading Skip for now for guests and Continue once signed in', async () => {
+    const guest = await mountOnAccountStep();
+
+    const guestButtons = connectButtons(guest);
+    expect(guestButtons).toHaveLength(1);
+    expect(guestButtons[0].text()).toBe('Skip for now');
+
+    accountCtl.authed = true;
+    accountCtl.paid = false;
+    const authed = await mountOnAccountStep();
+
+    const authedButtons = connectButtons(authed);
+    expect(authedButtons).toHaveLength(1);
+    expect(authedButtons[0].text()).toBe('Continue');
   });
 });
