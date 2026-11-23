@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ref, nextTick } from 'vue';
 import { mount, flushPromises } from '@vue/test-utils';
 import emitter from 'tiny-emitter/instance';
-import { usePaywall } from '@/composable/usePaywall';
+import { usePaywall } from '@/utils/paywall';
 
 const ctl = vi.hoisted(() => ({
   isMobile: false,

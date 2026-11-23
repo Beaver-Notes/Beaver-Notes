@@ -419,7 +419,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useAccountStore } from '@/store/account';
-import { usePaywall } from '@/composable/usePaywall';
+import { usePaywall } from '@/utils/paywall';
 import HistoryPanel from '@/components/note/HistoryPanel.vue';
 import PresenceAvatars from '@/components/note/PresenceAvatars.vue';
 import ShareModal from '@/components/note/ShareModal.vue';

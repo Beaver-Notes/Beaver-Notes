@@ -1,6 +1,7 @@
 <template>
   <NodeViewWrapper
-    class="paper-node"
+    ref="wrapperRef"
+    class="paper-node select-none"
     :class="{ 'is-active': selected, 'is-editing': isEditing }"
     :contenteditable="false"
     tabindex="0"
@@ -9,10 +10,24 @@
     @keydown.esc="exitEditing"
     @click="enterEditing"
   >
+    <!-- Apple A12: a static preview covers the canvas while not editing, so
+         keystrokes elsewhere never repaint this drawing. Tapping edits inline:
+         drawings belong to the editor body, not a separate stage.
+         shortcut: a stored `preview` snapshot (none is written today) paints
+         its own colors, so it would not follow the theme swap. -->
+    <div v-if="!isEditing" class="paper-preview" @click="enterEditing">
+      <InkPreviewImage
+        :strokes="displayStrokes"
+        :preview="node.attrs.preview ?? null"
+        :width="surfaceWidth"
+        :height="node.attrs.height ?? 210"
+      />
+    </div>
+
     <PaperSurface
-      :strokes="strokes"
+      :strokes="displayStrokes"
       :focused="isEditing"
-      :tool="tool"
+      :tool="surfaceTool"
       :tool-settings="toolSettings"
       :height="node.attrs.height ?? 210"
       :paper-type="node.attrs.paperType ?? 'transparent'"
@@ -28,7 +43,7 @@
       v-if="isEditing && selected"
       :tools="tools"
       :tool="tool"
-      :paper-types="paperTypes"
+      :paper-types="PAPER_TYPES"
       :background="node.attrs.paperType ?? 'transparent'"
       :current-tool-color="currentToolColor"
       :current-tool-size="currentToolSize"
@@ -51,69 +66,60 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useTranslations } from '@/composable/useTranslations';
+import { resolvedDarkTheme } from '@/composable/theme';
 import {
-  setScribbleSuppressed,
-  clearScribbleSuppressed,
-} from '@/lib/native/scribble';
-import { setPaperEditing } from './helpers/paperEditing.js';
+  setPaperEditing,
+  attachKeyboardGuard,
+  selectMediaBlock,
+} from './helpers/paperEditing.js';
 import PaperSurface from './PaperSurface.vue';
+import InkPreviewImage from './InkPreviewImage.vue';
 import PaperToolbar from './PaperToolbar.vue';
+import { parseStrokes } from './ink/stroke-model.js';
 import {
-  TOOL_DEFAULTS,
-  parseStrokes,
-  serializeStrokes,
-  scaleStrokes,
-} from './ink/stroke-model.js';
-
-const PRESETS_KEY = 'beaver-paper-presets';
-const PRESET_COUNT = 5;
-const DEFAULT_PRESETS = {
-  pen: ['#1a1a1a', '#e53e3e', '#3182ce', '#38a169', '#805ad5'],
-  pencil: ['#4a4a4a', '#78716c', '#2563eb', '#b45309', '#15803d'],
-  fountain: ['#1a2744', '#0f172a', '#7f1d1d', '#065f46', '#4c1d95'],
-  marker: ['#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'],
-};
-const PRESET_TOOLS = Object.keys(DEFAULT_PRESETS);
-
-function loadPresets() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(PRESETS_KEY) ?? 'null');
-    if (stored && typeof stored === 'object') {
-      const merged = { ...DEFAULT_PRESETS };
-      for (const tool of PRESET_TOOLS) {
-        // "highlighter" is the legacy key of "marker"; keep user palettes.
-        const list = stored[tool] ?? (tool === 'marker' ? stored.highlighter : null);
-        if (Array.isArray(list) && list.length === PRESET_COUNT)
-          merged[tool] = list;
-      }
-      return merged;
-    }
-  } catch {}
-  return { ...DEFAULT_PRESETS };
-}
-function savePresetsFn(p) {
-  try {
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(p));
-  } catch {}
-}
+  displayStrokes as toDisplayStrokes,
+  inkDisplayColor,
+  setInkPaintMapper,
+} from './ink/inkTheme.js';
+import { PAPER_TYPES, useInkToolbar } from '@/composable/useInkToolbar.js';
 
 export default {
   name: 'PaperBlock',
-  components: { NodeViewWrapper, PaperSurface, PaperToolbar },
+  components: { NodeViewWrapper, PaperSurface, InkPreviewImage, PaperToolbar },
   props: nodeViewProps,
   setup(props) {
     const { translations } = useTranslations();
+    const {
+      tool,
+      toolSettings,
+      surfaceTool,
+      tools,
+      currentToolColor,
+      currentToolSize,
+      activePresets,
+      setTool,
+      setColor,
+      setSize,
+      savePreset,
+    } = useInkToolbar();
     const surfaceKey = `paper-${Math.random().toString(36).slice(2, 8)}`;
+    const wrapperRef = ref(null);
+    const surfaceWidth = ref(0);
+    let detachKeyboardGuard = null;
+    let previewRO = null;
     const isEditing = ref(false);
-    const tool = ref('pen');
-    const toolSettings = ref(
-      Object.fromEntries(
-        Object.entries(TOOL_DEFAULTS).map(([id, s]) => [id, { ...s }]),
-      ),
-    );
-    const presets = ref(loadPresets());
 
     const strokes = computed(() => parseStrokes(props.node.attrs.strokes));
+    // Monochrome ink follows the note surface: black ink flips to white in dark
+    // mode (white to black in light). Display-only — attrs/Yjs keep the stored
+    // color, so the same drawing reads correctly in both themes.
+    const isDark = computed(() => resolvedDarkTheme.value);
+    const displayStrokes = computed(() => toDisplayStrokes(strokes.value, isDark.value));
+    watch(
+      isDark,
+      (dark) => setInkPaintMapper((color) => inkDisplayColor(color, dark)),
+      { immediate: true },
+    );
     const hint = computed(
       () => translations.value.paperBlock?.startDrawing || 'Start drawing',
     );
@@ -121,51 +127,56 @@ export default {
     // Shared editor history: one stroke commit = one transaction, so
     // canUndo/canRedo come from the editor, not a private stack.
     const history = ref({ undo: false, redo: false });
+    let historyRaf = null;
     const syncHistory = () => {
       const ed = props.editor;
       if (!ed || ed.isDestroyed) return;
       history.value = { undo: ed.can().undo(), redo: ed.can().redo() };
     };
+    // can() probes the full history stack; every editor transaction elsewhere
+    // in the note fired it once per paper block. Coalesce to one probe per
+    // frame — a one-frame-late toolbar state is plenty for a drawing block.
+    const scheduleSyncHistory = () => {
+      if (historyRaf != null) return;
+      historyRaf = requestAnimationFrame(() => {
+        historyRaf = null;
+        syncHistory();
+      });
+    };
     onMounted(() => {
       syncHistory();
-      props.editor?.on?.('transaction', syncHistory);
+      props.editor?.on?.('transaction', scheduleSyncHistory);
+      const measure = () => {
+        surfaceWidth.value = Math.round(wrapperRef.value?.$el?.clientWidth || 0);
+      };
+      measure();
+      if (typeof ResizeObserver !== 'undefined' && wrapperRef.value?.$el) {
+        previewRO = new ResizeObserver(measure);
+        previewRO.observe(wrapperRef.value.$el);
+      }
+      // keyboard-less block: never let a tap summon the on-screen keyboard
+      detachKeyboardGuard = attachKeyboardGuard(
+        () => wrapperRef.value?.$el,
+        () => props.editor,
+      );
     });
-    onUnmounted(() => props.editor?.off?.('transaction', syncHistory));
+    onUnmounted(() => {
+      props.editor?.off?.('transaction', scheduleSyncHistory);
+      if (historyRaf != null) cancelAnimationFrame(historyRaf);
+      historyRaf = null;
+      previewRO?.disconnect();
+      previewRO = null;
+      detachKeyboardGuard?.();
+      detachKeyboardGuard = null;
+    });
     const canUndo = computed(() => history.value.undo);
     const canRedo = computed(() => history.value.redo);
 
-    const currentSettings = computed(
-      () => toolSettings.value[tool.value] ?? TOOL_DEFAULTS.pen,
-    );
-    const currentToolColor = computed(() => currentSettings.value.color);
-    const currentToolSize = computed(() => currentSettings.value.size);
-    const activePresets = computed(() => presets.value[tool.value] ?? DEFAULT_PRESETS.pen);
-
-    const tools = computed(() => {
-      const labels = translations.value.paperBlock ?? {};
-      const swatch = (id, label) => ({
-        id,
-        label,
-        hasSwatch: true,
-        _color: toolSettings.value[id]?.color ?? TOOL_DEFAULTS[id].color,
-      });
-      return [
-        swatch('pen', labels.pen || 'Pen'),
-        swatch('pencil', labels.pencil || 'Pencil'),
-        swatch('fountain', labels.fountainPen || 'Fountain pen'),
-        swatch('marker', labels.highlighter || 'Highlighter'),
-        { id: 'eraser', label: labels.eraser || 'Eraser', hasSwatch: false, _color: null },
-        { id: 'lasso', label: labels.lassoSelect || 'Lasso select', hasSwatch: false, _color: null },
-      ];
-    });
-    const paperTypes = ['transparent', 'plain', 'grid', 'ruled', 'dotted'];
-
     function enterEditing() {
       if (isEditing.value) return;
-      // ponytail: touch taps don't node-select like desktop clicks; select explicitly so the toolbar gate holds
-      try {
-        props.editor?.commands?.setNodeSelection?.(props.getPos?.());
-      } catch {}
+      // ponytail: touch taps don't node-select like desktop clicks; select
+      // explicitly (without keyboard focus) so the toolbar gate holds
+      selectMediaBlock(props.editor, props.getPos?.());
       isEditing.value = true;
     }
     function exitEditing() {
@@ -174,15 +185,16 @@ export default {
     watch(
       () => props.selected,
       (sel) => {
-        if (!sel) isEditing.value = false;
+        if (sel) enterEditing();
+        else isEditing.value = false;
       },
     );
+    // Scribble suppression is gesture-scoped in PaperSurface (useInkInput),
+    // never tied to focus — keep only the double-tap-insert guard.
     watch(isEditing, (editing) => {
-      setScribbleSuppressed(surfaceKey, editing);
       setPaperEditing(surfaceKey, editing);
     });
     onUnmounted(() => {
-      clearScribbleSuppressed(surfaceKey);
       setPaperEditing(surfaceKey, false);
     });
 
@@ -192,54 +204,31 @@ export default {
     function onUpdateStrokes(next) {
       props.updateAttributes({ strokes: next });
     }
+    // Resizing grows the canvas — it never zooms the ink. Stroke geometry is
+    // kept in note coordinates, so expanding just reveals more blank surface.
+    // The surface emits absolute heights, which are immune to attr lag during
+    // a rapid drag (no compounding scale factor).
     function onHeightChange(px) {
       const h = Math.max(60, Math.round(px));
-      const old = props.node.attrs.height || 210;
-      if (h === old) return;
-      // Resize scales the drawing (Apple-style), anchored at the top edge.
-      props.updateAttributes({
-        height: h,
-        strokes: scaleStrokes(parseStrokes(props.node.attrs.strokes), h / old),
-      });
-    }
-    function setTool(t) {
-      tool.value = t;
-    }
-    function setColor(color) {
-      toolSettings.value = {
-        ...toolSettings.value,
-        [tool.value]: { ...currentSettings.value, color },
-      };
-    }
-    function setSize(size) {
-      toolSettings.value = {
-        ...toolSettings.value,
-        [tool.value]: { ...currentSettings.value, size },
-      };
+      if (h === (props.node.attrs.height || 210)) return;
+      props.updateAttributes({ height: h });
     }
     function setBackground(bg) {
       props.updateAttributes({ paperType: bg });
-    }
-    function savePreset(color) {
-      if (!PRESET_TOOLS.includes(tool.value)) return;
-      const list = [...(presets.value[tool.value] ?? DEFAULT_PRESETS[tool.value])];
-      if (list.includes(color)) return;
-      // Newest colour goes last; the oldest one drops off the front.
-      list.shift();
-      list.push(color);
-      presets.value = { ...presets.value, [tool.value]: list };
-      savePresetsFn(presets.value);
     }
 
     return {
       isEditing,
       surfaceKey,
-      strokes,
+      wrapperRef,
+      surfaceWidth,
+      displayStrokes,
+      surfaceTool,
       hint,
       tool,
       toolSettings,
       tools,
-      paperTypes,
+      PAPER_TYPES,
       activePresets,
       currentToolColor,
       currentToolSize,
@@ -264,5 +253,16 @@ export default {
 .paper-node {
   position: relative;
   outline: none;
+}
+.paper-preview {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: text;
+}
+.paper-preview :deep(.ink-preview-image) {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 </style>

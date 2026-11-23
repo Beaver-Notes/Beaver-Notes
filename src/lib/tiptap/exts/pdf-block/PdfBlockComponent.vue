@@ -1,5 +1,5 @@
 <template>
-  <NodeViewWrapper class="pdf-block" data-pdf-block>
+  <NodeViewWrapper ref="rootRef" class="pdf-block select-none" data-pdf-block>
     <div v-if="pdfError" class="pdf-error">
       <v-remixicon name="riFilePdfLine" class="w-6 h-6" />
       <p>{{ t('pdfBlock.error', 'This PDF could not be displayed') }}</p>
@@ -18,7 +18,11 @@
           type="button"
           @click="showThumbs = !showThumbs"
         >
-          {{ t('pdfBlock.showThumbnails', 'Show Thumbnails') }}
+          {{
+            showThumbs
+              ? t('pdfBlock.hideThumbnails', 'Hide Thumbnails')
+              : t('pdfBlock.showThumbnails', 'Show Thumbnails')
+          }}
         </button>
         <button
           class="pdf-convert-back"
@@ -117,21 +121,21 @@
       :pages="pageDims"
       :doc="pdf"
       :initial-page="editorPage"
-        :strokes="markup"
-        :tool="tool"
-        :tool-settings="toolSettings"
-        :can-undo="canUndo"
-        :can-redo="canRedo"
-        @close="editorPage = null"
-        @commit="onEditorCommit"
-        @update-page="onEditorUpdatePage"
-        @undo="editor.commands.undo()"
-        @redo="editor.commands.redo()"
-        @tool="(value) => (tool = value)"
-        @color="onEditorColor"
-        @color-input="onEditorColor"
-        @size="setSize"
-      />
+      :strokes="markup"
+      :tool="tool"
+      :tool-settings="toolSettings"
+      :can-undo="canUndo"
+      :can-redo="canRedo"
+      @close="editorPage = null"
+      @commit="onEditorCommit"
+      @update-page="onEditorUpdatePage"
+      @undo="editor.commands.undo()"
+      @redo="editor.commands.redo()"
+      @tool="(value) => (tool = value)"
+      @color="onEditorColor"
+      @color-input="onEditorColor"
+      @size="setSize"
+    />
   </NodeViewWrapper>
 </template>
 
@@ -146,6 +150,7 @@ import {
   watch,
 } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
+import { useBlockVisibility } from '@/composable/useBlockVisibility';
 import PaperSurface from '../paper-block/PaperSurface.vue';
 import PaperToolbar from '../paper-block/PaperToolbar.vue';
 import InkPreview from '../paper-block/InkPreview.vue';
@@ -153,6 +158,11 @@ import MarkupEditor from './MarkupEditor.vue';
 import { openPdf } from './pdfSource.js';
 import { decodeDataUrl } from './dataUrl.js';
 import { fetchAssetBytes } from './assetBytes.js';
+import {
+  setPaperEditing,
+  attachKeyboardGuard,
+  selectMediaBlock,
+} from '../paper-block/helpers/paperEditing.js';
 import {
   RAIL_PAGE_GAP,
   railLayout,
@@ -179,6 +189,9 @@ const ready = ref(false);
 const showThumbs = ref(false);
 const editorPage = ref(null);
 const surfaceKey = `pdf-${Math.random().toString(36).slice(2, 8)}`;
+const rootRef = ref(null);
+const pdfVisible = useBlockVisibility(() => rootRef.value?.$el);
+let detachKeyboardGuard = null;
 
 const tool = ref('pen');
 const toolSettings = ref(
@@ -190,9 +203,32 @@ const toolSettings = ref(
   ),
 );
 
+// Shared editor history: one stroke commit = one transaction, so canUndo/
+// canRedo come from the editor, not a private stack.
+const history = ref({ undo: false, redo: false });
+let historyRaf = null;
+const syncHistory = () => {
+  const ed = props.editor;
+  if (!ed || ed.isDestroyed) return;
+  // real editor exposes can(); mocks may not — keep the probe optional
+  if (typeof ed.can !== 'function') return;
+  history.value = { undo: ed.can().undo(), redo: ed.can().redo() };
+};
+const scheduleSyncHistory = () => {
+  if (historyRaf != null) return;
+  historyRaf = requestAnimationFrame(() => {
+    historyRaf = null;
+    syncHistory();
+  });
+};
+const canUndo = computed(() => history.value.undo);
+const canRedo = computed(() => history.value.redo);
+
 const markup = computed(() => parseStrokes(props.node.attrs.markup));
 
-const railHeight = computed(() => Number(props.node.attrs.height) || RAIL_HEIGHT);
+const railHeight = computed(
+  () => Number(props.node.attrs.height) || RAIL_HEIGHT,
+);
 const pageDims = shallowRef([]);
 const railLayout_ = computed(() =>
   railLayout(pageDims.value, railHeight.value, RAIL_PAGE_GAP),
@@ -313,11 +349,18 @@ async function load() {
     pdfError.value = true;
     ready.value = false;
     loading.value = false;
-    console.warn('pdf-block: failed to load', String(props.node.attrs.src || ''), error);
+    console.warn(
+      'pdf-block: failed to load',
+      String(props.node.attrs.src || ''),
+      error,
+    );
   }
 }
 
 function openEditor(page) {
+  // opening the fullscreen editor must not leave focus (and thus the keyboard)
+  // on the note editor behind the overlay
+  selectMediaBlock(props.editor, props.getPos?.());
   editorPage.value = page;
 }
 
@@ -372,23 +415,49 @@ function convertBack() {
       fileName: props.node.attrs.fileName ?? null,
       markup: markup.value,
     });
-    view.dispatch(view.state.tr.replaceWith(pos, pos + (props.node.nodeSize ?? 0), next));
+    view.dispatch(
+      view.state.tr.replaceWith(pos, pos + (props.node.nodeSize ?? 0), next),
+    );
   } catch (error) {
     console.warn('pdf-block: convert back failed', error);
   }
 }
 
 function selectBlock() {
-  const pos = props.getPos?.();
-  if (typeof pos === 'number') props.editor.commands.setNodeSelection(pos);
+  // keyboard-less block: select it without focusing the editor (no keyboard)
+  selectMediaBlock(props.editor, props.getPos?.());
 }
+
+// While this block's drawing toolbar is up, the note toolbar must stand down
+// (both would otherwise pin to the bottom edge and overlap).
+watch(
+  () => props.selected && ready.value,
+  (editing) => setPaperEditing(surfaceKey, editing),
+  { immediate: true },
+);
 
 watch(
   () => props.node.attrs.src,
   () => {
-    if (props.node.attrs.src) load();
+    requestLoad();
   },
 );
+
+// Deferred-until-visible load: once the block scrolls near the viewport,
+// fetch and rasterize. requestLoad dedupes per src — the visible watch and
+// onMounted can both request the same src in the same tick, and a second
+// load() would reset ready mid-flight and cancel the first render.
+watch(pdfVisible, (visible) => {
+  if (visible) requestLoad();
+});
+
+let loadedSrc = null;
+function requestLoad() {
+  const src = props.node.attrs.src;
+  if (!src || loadedSrc === src) return;
+  loadedSrc = src;
+  load();
+}
 
 // Height changes re-layout the rail; page canvases must re-render at the new
 // scale or they stretch stale bitmaps (unreadable after resize).
@@ -396,9 +465,27 @@ watch(railHeight, () => {
   if (ready.value) renderPages();
 });
 
-onMounted(load);
+onMounted(() => {
+  // PDF parsing + page rasterization are deferred until the block approaches
+  // the viewport; documents with many PDF blocks no longer pay for all of
+  // them at mount time.
+  requestLoad();
+  // keyboard-less block: never let a tap summon the on-screen keyboard
+  detachKeyboardGuard = attachKeyboardGuard(
+    () => rootRef.value?.$el,
+    () => props.editor,
+  );
+  syncHistory();
+  props.editor?.on?.('transaction', scheduleSyncHistory);
+});
 onBeforeUnmount(() => {
   renderToken += 1;
+  props.editor?.off?.('transaction', scheduleSyncHistory);
+  if (historyRaf != null) cancelAnimationFrame(historyRaf);
+  historyRaf = null;
+  detachKeyboardGuard?.();
+  detachKeyboardGuard = null;
+  setPaperEditing(surfaceKey, false);
 });
 </script>
 
@@ -420,6 +507,12 @@ onBeforeUnmount(() => {
 }
 .pdf-thumb {
   @apply relative shrink-0 rounded border border-neutral-200 dark:border-neutral-700 overflow-hidden p-0;
+}
+/* Pin the display size to the fixed thumb box: canvases render dpr-scaled
+   bitmaps, and without an explicit CSS size HiDPI screens would show them
+   2-3x larger (the "growing thumbnails" bug). */
+.pdf-thumb canvas {
+  @apply block h-full w-full;
 }
 .pdf-thumb-ink {
   @apply absolute inset-0 pointer-events-none;

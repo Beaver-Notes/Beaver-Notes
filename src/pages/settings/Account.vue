@@ -1080,7 +1080,7 @@ import { localNoteCount } from '@/utils/notes/local-note-count.js';
 import { deviceDisplayName, devicePlatform } from '@/utils/device/device-label';
 import { getSyncDeviceId } from '@/utils/sync/sync-repository';
 import { whatUnlocksWhat } from '@/utils/i18n/secrets.js';
-import { usePaywall } from '@/composable/usePaywall';
+import { usePaywall } from '@/utils/paywall';
 import SettingsGroup from '@/components/settings/SettingsGroup.vue';
 import SettingsRow from '@/components/settings/SettingsRow.vue';
 import SettingsAlert from '@/components/settings/SettingsAlert.vue';

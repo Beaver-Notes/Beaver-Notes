@@ -693,7 +693,7 @@ import { computed, onMounted, ref, reactive, nextTick, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/lib/dialog';
-import { usePaywall } from '@/composable/usePaywall';
+import { usePaywall } from '@/utils/paywall';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/lib/storage';

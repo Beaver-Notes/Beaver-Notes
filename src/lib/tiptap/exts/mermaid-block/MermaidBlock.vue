@@ -51,7 +51,7 @@
 <script>
 import { ref, watch, onMounted } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { useBlockVisibility } from '../use-block-visibility';
+import { useBlockVisibility } from '@/composable/useBlockVisibility';
 import { useTranslations } from '@/composable/useTranslations';
 import ExpandCollapse from '@/components/ui/ExpandCollapse.vue';
 import MermaidComponent from './mermaid-renderer.vue';

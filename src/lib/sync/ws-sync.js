@@ -476,7 +476,7 @@ export async function ensureMetaRoomKey(workspaceId) {
   return workspaceKeyHex
 }
 
-export function useWsSync() {
+function createWsSync() {
   const workspaceStore = useWorkspaceStore()
 
   const activeProviders = new Map() // roomName -> WebsocketProvider
@@ -1016,7 +1016,7 @@ let wsSyncInstance = null
 
 export function getWsSync() {
   if (!wsSyncInstance) {
-    wsSyncInstance = useWsSync()
+    wsSyncInstance = createWsSync()
   }
   return wsSyncInstance
 }
