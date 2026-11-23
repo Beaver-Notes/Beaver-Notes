@@ -21,10 +21,29 @@ describe('strokeOutline', () => {
     }
   });
 
-  it('marker renders fatter than pen on identical points and size', () => {
-    const marker = pathBounds({ points: strokeOutline(stroke({ tool: 'marker', size: 8 })) });
+  it('marker renders fatter than pen on identical points', () => {
+    const marker = pathBounds({ points: strokeOutline(stroke({ tool: 'marker', size: 16 })) });
     const pen = pathBounds({ points: strokeOutline(stroke({ tool: 'pen', size: 8 })) });
-    expect(marker.maxX - marker.minX).toBeGreaterThan(pen.maxX - pen.minX);
+    expect(marker.maxY - marker.minY).toBeGreaterThan(pen.maxY - pen.minY);
+  });
+
+  it('marker stops at the stroke endpoints instead of rounding past them', () => {
+    const points = Array.from({ length: 24 }, (_, i) => [20 + i * 20, 50, 0.5]);
+    const bounds = pathBounds({ points: strokeOutline(stroke({ tool: 'marker', size: 16, points })) });
+    expect(bounds.minX).toBeGreaterThan(18);
+    expect(bounds.maxX).toBeLessThan(482);
+  });
+
+  it('pen outline width is identical regardless of point pressure', () => {
+    const low = stroke({ tool: 'pen', points: Array.from({ length: 10 }, (_, i) => [i * 10, i * 5, 0.1]) });
+    const high = stroke({ tool: 'pen', points: Array.from({ length: 10 }, (_, i) => [i * 10, i * 5, 0.9]) });
+    const a = strokeOutline(low);
+    const b = strokeOutline(high);
+    expect(a.length).toBe(b.length);
+    for (let i = 0; i < a.length; i++) {
+      expect(a[i][0]).toBe(b[i][0]);
+      expect(a[i][1]).toBe(b[i][1]);
+    }
   });
 
   it('returns an empty outline for empty and single-point strokes without throwing', () => {

@@ -338,4 +338,23 @@ describe('renderer tracking', () => {
     r.flush();
     expect(logic.__ctx.ops.filter((o) => o === 'fill').length).toBe(0);
   });
+
+  it('resizes carrying rescaled strokes repaint instead of blitting stale ink', () => {
+    const logic = fakeCanvas();
+    const live = fakeCanvas();
+    const r = new InkRenderer({ createCanvas: () => fakeCanvas() });
+    r.attach(logic, live, { dpr: 1, width: 100, height: 100 });
+    r.setStrokes([hStroke('h')]);
+    r.flush(); // paint acks the geometry revision
+    // the host rescales the same strokes (same ids) for the new height —
+    // the pending repaint must survive the resize, not be blitted over
+    r.setStrokes([
+      { ...hStroke('h'), size: 8, points: [[0, 100, 0.5], [200, 100, 0.5]] },
+    ]);
+    r.resize(100, 200, 1);
+    expect(logic.__ctx.ops).not.toContain('drawImage');
+    logic.__ctx.ops.length = 0;
+    r.flush();
+    expect(logic.__ctx.ops.filter((o) => o === 'fill').length).toBe(1);
+  });
 });

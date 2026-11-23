@@ -46,10 +46,13 @@ describe('strokesToRail / railStrokeToStored', () => {
     ]);
     const rail = strokesToRail([stored], layout);
     expect(rail[0].id).toBe('s1');
+    // widths scale with the geometry so ink keeps its proportion across zooms
+    expect(rail[0].size).toBeCloseTo(4 * layout[0].scale, 5);
     const back = railStrokeToStored(rail[0], layout);
     expect(back).toHaveLength(1);
     expect(back[0].id).toBe('s1');
     expect(back[0].page).toBe(0);
+    expect(back[0].size).toBeCloseTo(4, 5);
     expect(back[0].points[0][0]).toBeCloseTo(10, 5);
     expect(back[0].points[1][1]).toBeCloseTo(60, 5);
   });

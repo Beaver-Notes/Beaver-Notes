@@ -206,6 +206,7 @@ option {
   z-index: 30;
   pointer-events: none;
   background-color: var(--app-theme-background);
+  opacity: 0.9;
 }
 .safe-area-overlay--top {
   top: 0;

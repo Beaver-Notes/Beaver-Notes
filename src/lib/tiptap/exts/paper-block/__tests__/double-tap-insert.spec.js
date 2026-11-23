@@ -90,13 +90,25 @@ describe('paperInsert plugin', () => {
     expect(takePendingHandoff()).toBeNull();
   });
 
-  it('touch taps never insert', () => {
+  it.skipIf(!import.meta.env.DEV)('touch double-tap inserts a drawing block and selects it (dev only)', () => {
     const editor = makeEditor();
     vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 5, inside: -1 });
     const dom = editor.view.dom;
 
     dom.dispatchEvent(pointerEvent('pointerdown', { x: 100, y: 400, ts: 100, pointerType: 'touch' }));
     dom.dispatchEvent(pointerEvent('pointerdown', { x: 102, y: 402, ts: 250, pointerType: 'touch' }));
+
+    expect(countPapers(editor)).toBe(1);
+    expect(editor.state.selection.node?.type.name).toBe('paper');
+    expect(takePendingHandoff()).toBeNull();
+  });
+
+  it('single/spaced touch taps never insert', () => {
+    const editor = makeEditor();
+    vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 5, inside: -1 });
+    const dom = editor.view.dom;
+
+    dom.dispatchEvent(pointerEvent('pointerdown', { x: 100, y: 400, ts: 100, pointerType: 'touch' }));
     dom.dispatchEvent(pointerEvent('pointerdown', { x: 102, y: 402, ts: 500, pointerType: 'touch' }));
 
     expect(countPapers(editor)).toBe(0);

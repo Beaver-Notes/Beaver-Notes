@@ -53,7 +53,7 @@ vi.mock('@/lib/tiptap/exts/paper-block/PaperSurface.vue', async () => {
         nodeKey: { type: String, default: '' },
         hint: { type: String, default: '' },
       },
-      emits: ['commit', 'update-strokes', 'focus-request', 'height-change'],
+      emits: ['commit', 'update-strokes', 'focus-request', 'height-change', 'resize-start', 'resize-end'],
       template: '<div class="surface-stub" />',
     }),
   };
@@ -205,7 +205,7 @@ describe('Paper node view', () => {
     expect(editor.commands.undo).toHaveBeenCalledTimes(1);
   });
 
-  it('height-change rescales strokes to the new height', async () => {
+  it('height-change grows the canvas without zooming the ink', async () => {
     const { wrapper, updateAttributes } = mountPaper({
       attrs: {
         height: 210,
@@ -216,11 +216,33 @@ describe('Paper node view', () => {
       },
     });
     wrapper.findComponent({ name: "PaperSurfaceStub" }).vm.$emit('height-change', 420);
-    expect(updateAttributes).toHaveBeenCalledWith({
-      height: 420,
-      strokes: [
-        { id: 's1', tool: 'pen', color: '#000000', size: 4, opacity: 1, points: [[20, 40, 0.5]] },
-      ],
+    expect(updateAttributes).toHaveBeenCalledWith({ height: 420 });
+  });
+
+  it('a resize gesture grows the canvas with absolute heights, no attr-lag zoom', async () => {
+    const { wrapper, updateAttributes } = mountPaper({
+      attrs: {
+        height: 210,
+        paperType: 'transparent',
+        strokes: [
+          { id: 's1', tool: 'pen', color: '#000000', size: 4, opacity: 1, points: [[10, 20, 0.5]] },
+        ],
+      },
     });
+    const surface = wrapper.findComponent({ name: "PaperSurfaceStub" });
+    surface.vm.$emit('resize-start');
+    // rapid drag burst: node attrs never propagate between events (mocked
+    // updateAttributes), which used to compound the scale factor and make the
+    // ink jump past the target size on release
+    for (const h of [220, 240, 260, 280, 300, 320, 340, 360, 380, 420]) {
+      surface.vm.$emit('height-change', h);
+    }
+    const last = updateAttributes.mock.calls.at(-1)[0];
+    expect(last).toEqual({ height: 420 });
+    // shrinking also only changes the canvas — stroke geometry is untouched
+    surface.vm.$emit('resize-end');
+    surface.vm.$emit('height-change', 105);
+    const reset = updateAttributes.mock.calls.at(-1)[0];
+    expect(reset).toEqual({ height: 105 });
   });
 });

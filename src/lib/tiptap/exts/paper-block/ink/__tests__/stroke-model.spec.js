@@ -117,12 +117,13 @@ describe('v3 stroke model', () => {
     expect(TOOL_DEFAULTS.eraser).toEqual({ size: 20 });
   });
 
-  it('scales stroke geometry uniformly for resize', () => {
+  it('scales stroke geometry and width uniformly for resize', () => {
     const [scaled] = scaleStrokes([v3Stroke], 2);
     expect(scaled.points).toEqual([
       [20, 40, 0.5],
       [60, 80, 0.8],
     ]);
+    expect(scaled.size).toBe(8);
     expect(scaled.tool).toBe(v3Stroke.tool);
     expect(scaled.shape).toBe(v3Stroke.shape);
     expect(scaleStrokes(null, 2)).toEqual([]);
