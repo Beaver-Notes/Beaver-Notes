@@ -20,8 +20,6 @@
 
 ---
 
-> **You're on the `tauri` branch. The v5 rewrite.** This is where Beaver Notes is heading. The current stable release lives on [`development`](https://github.com/Beaver-Notes/Beaver-Notes/tree/development).
-
 Most note-taking apps make the same quiet trade: your convenience in exchange for access to your data. It's easy to miss in the onboarding flow, buried somewhere in a terms-of-service document most people never open.
 
 Beaver Notes starts from a different place. Your notes live on your device. They're not indexed, not processed, not readable by anyone but you. When you want to sync, you choose how, your own cloud storage, a self-hosted server, or BeaverSync (coming later this year) if you'd rather not think about it. No vendor lock-in either way.
@@ -36,27 +34,24 @@ Beaver Notes is a local-first, markdown-native notes app for macOS, Windows, Lin
 
 The things that make it worth switching to aren't features. It's the absence of things. Beaver has no telemetry in the editor, no account wall, no monthly fee to keep your notes accessible and no moment where you wonder who else can read what you're writing.
 
-## What's new in v5
+## What's in v5
 
-Version 5 is a rewrite, not an update. We moved from Electron to Tauri, which means meaningfully smaller binaries and better native behaviour on every platform. More importantly, mobile is no longer a separate app, Beaver Pocket is being folded into Beaver Notes itself, so the experience is consistent whether you're on a laptop in a coffee shop or on your phone at 2am.
+Version 5 is a rewrite, not an update. We moved from Electron to Tauri, which means meaningfully smaller binaries and better native behaviour on every platform. Mobile is no longer a separate app: Beaver Pocket is being folded into Beaver Notes itself, so the experience is consistent whether you're on a laptop in a coffee shop or on your phone at 2am.
 
 We're also adding things people have asked for since the early days: real-time collaboration, version history, backlinks, and a plugin system. These were hard to build correctly on the old architecture. On the new one, they're not.
 
 The [roadmap](https://github.com/orgs/Beaver-Notes/projects/5) is public if you want to follow along or push back on priorities.
 
-## Installing v5 (beta)
-
-> v5 is in active development. It will have rough edges. We'd genuinely love bug reports.
+## Getting started (development)
 
 ```bash
 git clone https://github.com/Beaver-Notes/Beaver-Notes.git
 cd Beaver-Notes
-git checkout tauri
 yarn install
 yarn tauri dev
 ```
 
-For stable builds, the [Downloads page](https://beavernotes.com/#/Download) has installers for every platform. Package managers (AUR, Flatpak, Scoop, Brew) will track stable once v5 ships.
+For packaged builds, see the [Downloads page](https://beavernotes.com/#/Download).
 
 ## Linux Installation
 
