@@ -318,6 +318,10 @@ import { useNoteYjs, flushAllNoteYjsPending } from '@/composable/useNoteYjs';
 import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
 import { useActivityLog } from '@/composable/useActivityLog';
+import {
+  clearScribbleSuppressed,
+  setScribbleSuppressed,
+} from '@/lib/native/scribble';
 import { getWsSync } from '@/lib/sync/ws-sync';
 import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
@@ -1152,7 +1156,11 @@ export default {
       removeEditorListeners = () => dom.removeEventListener('focusin', onFocus);
     });
 
+    const SCRIBBLE_SOURCE = 'note-page';
+    // shortcut: disable Scribble for the whole note page (editor, sidebar, chrome)
+    // while this view is mounted; Apple Notes suppresses Scribble in-editor.
     onMounted(() => {
+      setScribbleSuppressed(SCRIBBLE_SOURCE, true);
       removeGlobalShortcuts = bindGlobalShortcuts({
         'mod+f': () => {
           showSearch.value = true;
@@ -1178,6 +1186,7 @@ export default {
     });
 
     onUnmounted(() => {
+      clearScribbleSuppressed(SCRIBBLE_SOURCE);
       stopTitleObserver();
       stopRecorderListener();
       if (recorder.openNoteId.value === pageNoteId)

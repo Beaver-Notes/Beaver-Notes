@@ -5,7 +5,9 @@ import { backend } from '@/lib/tauri-bridge';
 import { getNativeDarkTheme } from '@/lib/native/app';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 const currentTheme = ref('');
-const resolvedDarkTheme = ref(
+/** Resolved theme, exported for consumers that only need to react to it
+ *  (editor blocks) without re-running loadTheme on every mount. */
+export const resolvedDarkTheme = ref(
   typeof document !== 'undefined' &&
     document.documentElement.classList.contains('dark')
 );
