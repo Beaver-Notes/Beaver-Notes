@@ -8,8 +8,6 @@
  * Stored model: each stroke carries `page` (0-based) and points in that
  * page's coordinate space; x may exceed [0, pageWidth] (margin spill).
  */
-import { strokeBounds } from '../paper-block/ink/stroke-model.js';
-
 export const RAIL_PAGE_GAP = 8;
 
 /** pages: [{width, height}] → [{page, x, width, height, scale}] */
@@ -39,6 +37,9 @@ export function strokesToRail(strokes, layout) {
     if (!entry) return stroke;
     return {
       ...stroke,
+      // widths live in the same space as points: scale them too so ink drawn
+      // at one zoom keeps its proportion at every other zoom
+      size: stroke.size * entry.scale,
       points: stroke.points.map(([x, y, p]) => [
         entry.x + x * entry.scale,
         y * entry.scale,
@@ -90,6 +91,8 @@ export function railStrokeToStored(railStroke, layout) {
       id: runs.length === 1 ? railStroke.id : `${railStroke.id}_p${run.page}`,
       ...(runs.length === 1 && shape ? { shape } : {}),
       page: run.page,
+      // normalize width back into the page space of the run
+      size: railStroke.size / layout[run.page].scale,
       points: run.points,
     }));
 }
@@ -105,21 +108,4 @@ export function offsetStrokes(strokes, dx) {
     ...stroke,
     points: stroke.points.map(([x, y, p]) => [x + dx, y, p]),
   }));
-}
-
-/** Union bounds of strokes, used for spill-aware canvas sizing. */
-export function strokesBounds(strokes) {
-  if (!strokes.length) return null;
-  return strokes.reduce(
-    (acc, stroke) => {
-      const b = strokeBounds(stroke);
-      return {
-        minX: Math.min(acc.minX, b.minX),
-        minY: Math.min(acc.minY, b.minY),
-        maxX: Math.max(acc.maxX, b.maxX),
-        maxY: Math.max(acc.maxY, b.maxY),
-      };
-    },
-    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity },
-  );
 }

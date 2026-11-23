@@ -98,13 +98,13 @@
           <!-- Mobile-only progress, pinned to the top of the sheet -->
           <div
             v-if="showStepProgress"
-            class="hidden mobile:block mb-3 shrink-0"
+            class="hidden mobile:block mb-3 shrink-0 flex"
           >
             <div
               class="flex items-center justify-between text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-1.5"
             >
-              <span>Step {{ currentStepNumber }} of {{ totalStepCount }}</span>
             </div>
+            {{ currentStepNumber }}
             <div
               class="h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
             >
@@ -113,6 +113,7 @@
                 :style="{ width: stepProgressPercent + '%' }"
               ></div>
             </div>
+            {{ totalStepCount }}
           </div>
 
           <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-1">
@@ -1038,7 +1039,9 @@
                       </div>
 
                       <!-- Manual Path Divider / Input -->
-                      <div class="relative flex items-center py-1 mobile:hidden">
+                      <div
+                        class="relative flex items-center py-1 mobile:hidden"
+                      >
                         <div
                           class="grow border-t border-neutral-200 dark:border-neutral-800"
                         ></div>
@@ -1613,7 +1616,8 @@ export default {
           // session (and the rotating refresh token, so the next expiry is a
           // silent refresh, not a hard sign-out), fetches profile/subscription
           // and re-arms realtime.
-          const { useAccountAuth } = await import('@/composable/useAccountAuth');
+          const { useAccountAuth } =
+            await import('@/composable/useAccountAuth');
           await useAccountAuth().performSignIn({
             token,
             refreshToken: res?.refreshToken || null,

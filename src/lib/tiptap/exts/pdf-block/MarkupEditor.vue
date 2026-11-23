@@ -41,7 +41,7 @@
             :chrome="false"
             :tool="tool"
             :tool-settings="toolSettings"
-            :height="pageHeight"
+            :height="overlayHeight"
             paper-type="transparent"
             media
             :node-key="`markup-${page}`"
@@ -49,6 +49,7 @@
             @update-strokes="
               (strokes) => $emit('update-page', { page, strokes: strokes.map(toStored) })
             "
+            @height-change="onHeightChange"
           />
         </div>
       </div>
@@ -142,6 +143,12 @@ const pageCanvases = new Map();
 const viewportW = ref(window.innerWidth);
 const viewportH = ref(window.innerHeight);
 
+// Auto-grow: the overlay's PaperSurface grew it after a committed stroke crossed
+// its bottom margin. Grows the overlay surface (canvas-only growth — ink keeps its
+// coordinates), mirroring the paper block's PaperSurface auto-grow. `null` → fit
+// to the page until a grow sets it.
+const grownHeight = ref(null);
+
 const pageScale = computed(() => {
   // fit page width into the viewport with side margins for spill
   const margin = Math.min(48, viewportW.value * 0.05);
@@ -154,10 +161,15 @@ const pageHeight = computed(() => {
   const first = props.pages[0] ?? { height: 792 };
   return Math.ceil(first.height * pageScale.value);
 });
+// Surface height in effect: grown past the fit-to-viewport pageHeight, else the page itself.
+const overlayHeight = computed(() => grownHeight.value ?? pageHeight.value);
 const offsetX = computed(() => {
   const first = props.pages[0] ?? { width: 612 };
   return Math.round((pageWidth.value - first.width * pageScale.value) / 2);
 });
+
+/** Minimum overlay surface height (mirrors PaperSurface's MIN_SURFACE_HEIGHT). */
+const MIN_OVERLAY_HEIGHT = 60;
 
 /** Only the page pair around the scroll position gets a live overlay. */
 const activePage = ref(props.initialPage);
@@ -220,6 +232,18 @@ function onScroll() {
     Math.max(0, Math.round(el.scrollLeft / pageWidth.value)),
   );
   renderVisible();
+}
+
+/**
+ * Surface height feedback from the fullscreen overlay's PaperSurface:
+ * auto-grow on a committed stroke that ran past the bottom margin, or manual
+ * resize. `grownHeight` is the effective surface height (null → fit to page).
+ */
+function onHeightChange(px, opts) {
+  const h = Math.max(MIN_OVERLAY_HEIGHT, Math.round(px));
+  // grow keeps the canvas-only growth (ink keeps page coords); manual resize
+  // just adopts the requested height
+  grownHeight.value = h;
 }
 
 onMounted(async () => {

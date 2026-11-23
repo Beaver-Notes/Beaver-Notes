@@ -1,18 +1,19 @@
 /**
- * paperInsert — stylus-first paper insertion.
+ * paperInsert — stylus/tap paper insertion.
  *
- * A pen pointerdown over blank note space inserts a paper block at that spot
- * and hands the in-flight stroke to the freshly mounted PaperSurface
- * (setPendingHandoff/takePendingHandoff). Touch never inserts. Also kills the
- * WebKit pencil double-tap zoom sentinel the way tldraw does: while a pen is
- * down, touchstart/touchend are preventDefault-ed.
+ * A pen pointerdown or touch double-tap over blank note space inserts a paper
+ * block at that spot. Pen inserts hand off the in-flight stroke to the freshly
+ * mounted PaperSurface (setPendingHandoff/takePendingHandoff); touch double-tap
+ * inserts and selects the block so drawing can start immediately. Also kills
+ * the WebKit pencil double-tap zoom sentinel the way tldraw does: while a pen
+ * is down, touchstart/touchend are preventDefault-ed.
  *
  * Listeners are attached in the plugin view hook, not via handleDOMEvents:
  * PM only wires handleDOMEvents during init/update and misses plugin props on
  * a freshly created editor.
  */
 import { Extension } from '@tiptap/core';
-import { Plugin, PluginKey } from 'prosemirror-state';
+import { Plugin, PluginKey, NodeSelection } from 'prosemirror-state';
 import { isPen, isPalm, isStylusEraser } from './ink/pointer.js';
 import { isPaperEditing } from './helpers/paperEditing.js';
 
@@ -45,8 +46,11 @@ export function pickInsertPos(state, coords, view) {
 }
 
 let lastInsertStamp = null; // double-dispatch guard (WebKit/happy-dom can run a target listener twice)
+let lastTouchTap = null;
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_SLOP = 36;
 
-function tryInsert(view, event) {
+function tryInsert(view, event, { handoff = true, select = false } = {}) {
   const stamp = `${event.pointerId ?? ''}:${event.timeStamp ?? ''}`;
   if (stamp === lastInsertStamp) return true;
   lastInsertStamp = stamp;
@@ -57,9 +61,27 @@ function tryInsert(view, event) {
   const type = view.state.schema.nodes.paper;
   if (!type) return false;
   const node = type.create({ strokes: [], height: 210, paperType: 'transparent' });
-  view.dispatch(view.state.tr.insert(pos, node));
-  setPendingHandoff({ x: event.clientX, y: event.clientY });
+  let tr = view.state.tr.insert(pos, node);
+  if (select) {
+    const $pos = tr.doc.resolve(pos);
+    if ($pos.nodeAfter?.type.name === 'paper') {
+      tr = tr.setSelection(NodeSelection.create(tr.doc, pos)).scrollIntoView();
+    }
+  }
+  view.dispatch(tr);
+  if (handoff) setPendingHandoff({ x: event.clientX, y: event.clientY });
   return true;
+}
+
+function isDoubleTap(event) {
+  if (event.pointerType !== 'touch') return false;
+  const ts = event.timeStamp ?? 0;
+  const prev = lastTouchTap;
+  lastTouchTap = { x: event.clientX, y: event.clientY, ts };
+  if (!prev) return false;
+  const dt = ts - prev.ts;
+  return dt > 0 && dt <= DOUBLE_TAP_MS
+    && Math.hypot(event.clientX - prev.x, event.clientY - prev.y) <= DOUBLE_TAP_SLOP;
 }
 
 export function createPaperInsertPlugin() {
@@ -76,7 +98,13 @@ export function createPaperInsertPlugin() {
         if (isPalm(event) || event.isPrimary === false) return;
         penSeen = isPen(event);
         if (isStylusEraser(event)) return;
-        if (isPen(event)) tryInsert(view, event);
+        if (isPen(event)) {
+          tryInsert(view, event, { handoff: true });
+          return;
+        }
+        if (import.meta.env.DEV && isDoubleTap(event) && tryInsert(view, event, { handoff: false, select: true })) {
+          event.preventDefault();
+        }
       };
       const onUp = () => {
         penSeen = false;

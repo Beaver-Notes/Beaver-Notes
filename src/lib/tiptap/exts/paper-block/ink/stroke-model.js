@@ -61,10 +61,14 @@ export function serializeStrokes(strokes) {
   return JSON.stringify(strokes ?? []);
 }
 
-/** Uniform scale of stroke geometry by `factor` (resize scales the drawing). */
+/**
+ * Uniform scale of stroke geometry by `factor` (resize scales the drawing).
+ * Widths scale with the geometry so ink stays proportional to the block.
+ */
 export function scaleStrokes(strokes, factor) {
   return (strokes ?? []).map((stroke) => ({
     ...stroke,
+    size: (stroke.size ?? 4) * factor,
     points: stroke.points.map(([x, y, p]) => [x * factor, y * factor, p]),
   }));
 }

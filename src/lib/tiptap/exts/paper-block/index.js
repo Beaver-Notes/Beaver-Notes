@@ -35,6 +35,13 @@ export default Node.create({
       },
       height: { default: 210 },
       paperType: { default: 'transparent' },
+      // Apple A12: lazily composited bitmap for the non-editing render.
+      // Stored in the note model/Yjs, never serialized to HTML.
+      preview: {
+        default: null,
+        parseHTML: () => null,
+        renderHTML: () => ({}),
+      },
       // Legacy stroke payloads: read-only so Yjs-backed notes (which bypass
       // parseHTML) surface their old attrs to PaperStrokesMigration. Never
       // rendered; nulled out by the migration.

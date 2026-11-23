@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="isVisible && selectionRect" ref="floatingRef" :style="overlayStyle" class="pointer-events-none z-[40]">
+    <div v-if="isVisible && selectionRect" ref="floatingRef" :style="overlayStyle" class="pointer-events-none z-10">
       <div
         :style="{
           width: selectionRect.width + 'px',
@@ -40,7 +40,7 @@ export default {
     const floatingRef = ref(null);
     let anchorCellPos = null;
     let rafId = null;
-    let trackRafId = null;
+    let updateRafId = null;
 
     const overlayStyle = computed(() => {
       const r = selectionRect.value;
@@ -59,8 +59,16 @@ export default {
       const { selection, doc } = props.editor.state;
       const view = props.editor.view;
       if (selection instanceof CellSelection) {
+        // If the selection's corner cells are not materialized (virtualized
+        // away), the walk below would union only the visible subset and draw
+        // a shrunken rect — hide instead until the next materialized update.
+        if (selection.$anchorCell && selection.$headCell &&
+            (!view.nodeDOM(selection.$anchorCell.pos) || !view.nodeDOM(selection.$headCell.pos))) {
+          return null;
+        }
         const cells = [];
         selection.forEachCell((node, pos) => {
+          if (node.attrs && node.attrs.hidden) return;
           const dom = view.nodeDOM(pos);
           if (dom) cells.push(dom);
         });
@@ -187,24 +195,24 @@ export default {
       document.addEventListener('pointercancel', onUp);
     }
 
-    function startTracking() {
-      if (trackRafId != null) return;
-      const loop = () => {
+    // Layout reads (getComputedStyle walk + getBoundingClientRect) must never
+    // run inside the input event: on a 47k-element document the first style
+    // read after ProseMirror's DOM writes costs ~20ms and blocked every
+    // keystroke. Coalesce to one read per frame instead.
+    function scheduleUpdate() {
+      if (updateRafId != null) return;
+      updateRafId = requestAnimationFrame(() => {
+        updateRafId = null;
         updateOverlay();
-        trackRafId = requestAnimationFrame(loop);
-      };
-      trackRafId = requestAnimationFrame(loop);
+      });
     }
 
-    function stopTracking() {
-      if (trackRafId != null) {
-        cancelAnimationFrame(trackRafId);
-        trackRafId = null;
-      }
+    function stopUpdates() {
+      if (updateRafId != null) { cancelAnimationFrame(updateRafId); updateRafId = null; }
     }
 
     function onSelectionUpdate() {
-      updateOverlay();
+      scheduleUpdate();
     }
 
     function onTransaction(payload) {
@@ -212,8 +220,17 @@ export default {
       if (!tr || !tr.getMeta) return;
       const meta = tr.getMeta(columnResizingPluginKey);
       if (meta && meta.setDragging != null) { startRAF(); }
-      if (meta && meta.setDragging == null) { stopRAF(); updateOverlay(); }
-      updateOverlay();
+      if (meta && meta.setDragging == null) { stopRAF(); }
+      scheduleUpdate();
+    }
+
+    // Scrolling moves fixed-positioned overlays without any transaction.
+    function onScroll() {
+      scheduleUpdate();
+    }
+
+    function onVisibilityChange() {
+      if (!document.hidden) scheduleUpdate();
     }
 
     function startRAF() {
@@ -235,7 +252,12 @@ export default {
       if (!props.editor) return;
       props.editor.on('selectionUpdate', onSelectionUpdate);
       props.editor.on('transaction', onTransaction);
-      startTracking();
+      // Captured so it also fires for the editor's inner scroll container.
+      document.addEventListener('scroll', onScroll, { passive: true, capture: true });
+      window.addEventListener('resize', onScroll);
+      // A hidden webview gets no animation frames, so the overlay would keep
+      // the geometry it had when it went to the background.
+      document.addEventListener('visibilitychange', onVisibilityChange);
       updateOverlay();
     });
 
@@ -244,8 +266,11 @@ export default {
         props.editor.off('selectionUpdate', onSelectionUpdate);
         props.editor.off('transaction', onTransaction);
       }
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onScroll);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       stopRAF();
-      stopTracking();
+      stopUpdates();
     });
 
     return {

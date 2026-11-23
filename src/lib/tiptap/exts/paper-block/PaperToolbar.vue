@@ -1,6 +1,7 @@
 <template>
   <div
     class="paper-toolbar fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-50 flex flex-col items-center max-w-[calc(100vw-16px)] select-none drop-shadow-xl"
+    :class="{ 'is-chrome-locked': inkStrokeActive }"
     role="toolbar"
     aria-label="Drawing tools"
   >
@@ -117,10 +118,15 @@
             </label>
           </div>
 
-          <span class="divider-v h-8 self-center" />
+          <span v-if="paperTypes.length" class="divider-v h-8 self-center" />
         </template>
 
-        <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Paper">
+        <div
+          v-if="paperTypes.length"
+          class="grid grid-cols-2 gap-1.5"
+          role="group"
+          aria-label="Paper"
+        >
           <button
             v-for="bg in paperTypes"
             :key="bg"
@@ -146,6 +152,7 @@
 
 <script>
 import { computed } from 'vue';
+import { inkStrokeActive } from './ink/uiLock.js';
 import penSvgRaw from './icons/Pen.svg?raw';
 import pencilSvgRaw from './icons/Pencil.svg?raw';
 import fountainSvgRaw from './icons/Funtain pen.svg?raw';
@@ -263,6 +270,7 @@ export default {
     }
 
     return {
+      inkStrokeActive,
       sizePresets,
       showColors,
       showSizes,
@@ -284,6 +292,12 @@ export default {
 </script>
 
 <style scoped>
+/* A7: while a stroke owns the pointer, the palette is inert — no accidental
+   tool switch mid-stroke. */
+.paper-toolbar.is-chrome-locked {
+  pointer-events: none;
+  opacity: 0.55;
+}
 .paper-tool-icon :deep(svg) {
   width: 28px;
   height: auto;

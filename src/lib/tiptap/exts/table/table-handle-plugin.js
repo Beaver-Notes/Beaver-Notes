@@ -34,6 +34,22 @@ const _EMPTY_STATE = {
   referencePosCell: undefined,
 };
 
+/**
+ * The handle state can only be reused while it still describes the table the
+ * pointer is over. A structural change (a moved column or row) replaces the
+ * table node in the document, so a state holding the previous node is stale.
+ */
+export function isTableHandleStateFresh(state, tableId, blockInfo, rowIndex, colIndex) {
+  return Boolean(
+    state?.show &&
+    state.block === blockInfo.node &&
+    state.blockPos === blockInfo.pos &&
+    tableId === blockInfo.node.attrs.id &&
+    state.rowIndex === rowIndex &&
+    state.colIndex === colIndex
+  );
+}
+
 function hideElements(selector, rootEl) {
   rootEl.querySelectorAll(selector).forEach((el) => {
     el.style.visibility = 'hidden';
@@ -224,6 +240,22 @@ export class TableHandleView {
     if (!blockInfo || blockInfo.node.type.name !== 'table') return;
 
     this.tableElement = this.editor.view.nodeDOM(blockInfo.pos);
+    if (!this.tableElement) {
+      this.tablePos = undefined;
+      this.tableId = undefined;
+      if (this.state?.show) {
+        this.state = {
+          ...this.state,
+          show: false,
+          showAddOrRemoveRowsButton: false,
+          showAddOrRemoveColumnsButton: false,
+          colIndex: undefined,
+          rowIndex: undefined,
+        };
+        this.emitUpdate();
+      }
+      return;
+    }
     this.tablePos = blockInfo.pos;
     this.tableId = blockInfo.node.attrs.id;
 
@@ -258,12 +290,7 @@ export class TableHandleView {
       const lastRowIndex = blockInfo.node.content.childCount - 1;
       const lastColIndex = (blockInfo.node.content.firstChild?.content.childCount ?? 0) - 1;
 
-      if (
-        this.state?.show &&
-        this.tableId === blockInfo.node.attrs.id &&
-        this.state.rowIndex === rowIndex &&
-        this.state.colIndex === colIndex
-      ) {
+      if (isTableHandleStateFresh(this.state, this.tableId, blockInfo, rowIndex, colIndex)) {
         return;
       }
 

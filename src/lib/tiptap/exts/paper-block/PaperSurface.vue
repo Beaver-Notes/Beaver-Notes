@@ -12,12 +12,10 @@
   >
     <canvas ref="logicRef" class="ink-canvas"></canvas>
     <canvas ref="liveRef" class="ink-canvas live"></canvas>
-    <div v-if="isDev" ref="hudRef" class="surface-hud" aria-hidden="true"></div>
 
     <div v-if="!focused && !strokes.length" class="surface-hint">{{ hint }}</div>
 
     <template v-if="focused && chrome">
-      <div class="surface-border" aria-hidden="true"></div>
       <div
         v-for="h in HANDLES"
         :key="h"
@@ -31,26 +29,10 @@
 </template>
 
 <script>
-import {
-  computed,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from 'vue';
-import {
-  TOOL_DEFAULTS,
-  strokeBounds,
-} from './ink/stroke-model.js';
-import { collectPoints, isPalm, isStylusEraser } from './ink/pointer.js';
-import { strokeOutline } from './ink/smoother.js';
-import { recognizeShape, shouldSnapshot } from './ink/recognizer.js';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { createInkPaper } from './inkPaper.js';
 import { takePendingHandoff } from './double-tap-insert.js';
-import { InkRenderer } from './ink/renderer.js';
-import {
-  setScribbleSuppressed,
-  clearScribbleSuppressed,
-} from '@/lib/native/scribble';
+import { inkStrokeActive } from './ink/uiLock.js';
 
 const HANDLES = ['top', 'bottom'];
 const AUTO_GROW_MARGIN = 20;
@@ -71,27 +53,11 @@ export default {
     nodeKey: { type: String, default: '' },
     hint: { type: String, default: 'Start drawing' },
   },
-  emits: ['commit', 'update-strokes', 'focus-request', 'height-change'],
+  emits: ['commit', 'update-strokes', 'focus-request', 'height-change', 'resize-start', 'resize-end'],
   setup(props, { emit }) {
-    const isDev = import.meta.env.DEV;
     const containerRef = ref(null);
-    const hudRef = ref(null);
     const logicRef = ref(null);
     const liveRef = ref(null);
-
-    const renderer = new InkRenderer();
-    let rafId = 0;
-    let dpr = 1;
-
-    // live gesture state
-    let gesture = null; // { kind: 'draw'|'erase'|'lasso'|'resize', ... }
-    let lastSample = null; // { x, y, t } client coords for pressure emulation
-    let moveEvents = []; // for shape hold detection
-    let penDownAt = -Infinity;
-    let focusRequestedAt = -Infinity;
-    let selectionIds = [];
-    let resizeStart = null;
-
     const width = ref(0);
 
     const backgroundClass = computed(() => {
@@ -101,50 +67,51 @@ export default {
         : '';
     });
 
+    let ink = null; // created in onMounted once the canvas refs exist
+    let dpr = 1;
+    let resizeRaf = 0;
+    let lastResize = { w: 0, h: 0 };
+
     function syncStrokes() {
-      renderer.setStrokes(props.strokes);
+      if (!ink) return;
+      ink.setStrokes(props.strokes);
     }
 
+    // Coalesce size syncs from the height watch and the ResizeObserver so a
+    // resize paints once (no double clear/repaint, no blank frame).
     function syncSize() {
+      if (!ink) return;
       const el = containerRef.value;
       if (!el) return;
       const w = el.clientWidth || 0;
+      const h = props.height;
+      if (w === lastResize.w && h === lastResize.h) return;
+      lastResize = { w, h };
       width.value = w;
       dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
-      renderer.resize(w, props.height, dpr);
-    }
-
-    function loop() {
-      if (import.meta.env.DEV) {
-        const t0 = performance.now();
-        renderer.flush();
-        hudSample(performance.now() - t0);
-      } else {
-        renderer.flush();
-      }
-      rafId = requestAnimationFrame(loop);
-    }
-
-    // Dev-only frame-time HUD (tldraw-style): fps + p95 flush cost, no dep.
-    let hudTimes = [];
-    function hudSample(ms) {
-      hudTimes.push(ms);
-      if (hudTimes.length < 120) return;
-      const el = hudRef.value;
-      if (el) {
-        const sorted = [...hudTimes].sort((a, b) => a - b);
-        const fps = Math.round(1000 / (sorted.reduce((s, v) => s + v, 0) / sorted.length));
-        const p95 = sorted[Math.floor(sorted.length * 0.95)].toFixed(2);
-        el.textContent = `${fps}fps p95 ${p95}ms`;
-      }
-      hudTimes = [];
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0;
+        ink.resize(w, props.height, dpr);
+      });
     }
 
     onMounted(() => {
-      renderer.attach(logicRef.value, liveRef.value, {
-        dpr: (typeof window !== 'undefined' && window.devicePixelRatio) || 1,
-        width: containerRef.value?.clientWidth || 0,
+      ink = createInkPaper({
+        container: containerRef.value,
+        drawing: logicRef.value,
+        live: liveRef.value,
+        tool: props.tool,
+        toolSettings: props.toolSettings,
         height: props.height,
+        focused: props.focused,
+        onCommit: (stroke) => emit('commit', stroke),
+        onUpdateStrokes: (next) => emit('update-strokes', next),
+        onHeightChange: (px, opts) => emit('height-change', px, opts),
+        onFocusRequest: () => emit('focus-request'),
+      });
+      watch(ink.strokeActive, (active) => {
+        inkStrokeActive.value = active; // A7: lock app chrome during a stroke
       });
       syncStrokes();
       syncSize();
@@ -153,233 +120,97 @@ export default {
         ro.observe(containerRef.value);
         onBeforeUnmount(() => ro.disconnect());
       }
-      rafId = requestAnimationFrame(loop);
+      // Handoff: the pen stroke that inserted this block keeps drawing into it.
+      // Attempt on mount, and retry whenever the surface becomes ready/edited so
+      // a mount-timing gap never silently drops the in-flight stroke.
       startHandoffStroke();
+      watch(
+        () => props.focused,
+        (f) => { if (f) startHandoffStroke(); },
+      );
     });
 
     onBeforeUnmount(() => {
-      cancelAnimationFrame(rafId);
-      if (props.focused) clearScribbleSuppressed(`paper:${props.nodeKey}`);
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      if (ink) ink.cleanup();
+      inkStrokeActive.value = false;
     });
 
     watch(() => props.strokes, syncStrokes);
+    watch(() => props.tool, (t) => { if (ink) ink.setTool(t); });
+    watch(() => props.toolSettings, (ts) => { if (ink) ink.setToolSettings(ts); }, { deep: true });
+    watch(() => props.focused, (f) => { if (ink) ink.setFocused(f); });
     watch(
       () => props.height,
-      (h) => renderer.resize(width.value, h, dpr)
-    );
-    watch(
-      () => props.focused,
-      (focused) => {
-        const source = `paper:${props.nodeKey}`;
-        if (focused) setScribbleSuppressed(source, true);
-        else clearScribbleSuppressed(source);
-      },
-      // media surfaces (pdf rail, markup pages, image overlay) mount focused:true
-      { immediate: true }
+      (h) => { if (ink) ink.setHeight(h); syncSize(); }
     );
 
     // A stroke begun by the stylus insert plugin continues into this fresh
     // surface. shortcut: y-bounds only (width unknown at mount in some hosts)
     function startHandoffStroke() {
+      if (!props.tool || !ink) return; // not ready yet — handoff stays pending
       const handoff = takePendingHandoff();
-      if (!handoff || !props.tool) return;
-      const rect = logicRef.value?.getBoundingClientRect();
-      const left = rect?.left ?? 0;
-      const top = rect?.top ?? 0;
+      if (!handoff) return;
+      const rect = logicRef.value?.getBoundingClientRect() ?? null;
+      // The plugin measured the text line before this node view existed; use
+      // that origin when the fresh canvas still reports 0,0 during mount.
+      const left = handoff.left ?? rect?.left ?? 0;
+      const top = handoff.top ?? rect?.top ?? 0;
       const localX = handoff.x - left;
       const localY = handoff.y - top;
       if (localX < 0 || localY < 0 || localY > props.height) return;
-      lastSample = { x: handoff.x, y: handoff.y, t: performance.now() };
-      moveEvents = [];
-      gesture = { kind: 'draw', tool: props.tool, points: [[localX, localY, 0.5]] };
-      paintLive();
-      const move = (e) => onPointerMove(e);
+      ink.onPointerDown({
+        pointerType: 'pen',
+        clientX: handoff.x,
+        clientY: handoff.y,
+        button: 0,
+        preventDefault: () => {},
+        currentTarget: { setPointerCapture: () => {} },
+        timeStamp: performance.now(),
+      });
+      const move = (e) => ink.onPointerMove(e);
       const up = (e) => {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
-        onPointerUp(e);
+        ink.onPointerUp(e);
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
     }
 
-    function localPoint(e) {
-      const rect = logicRef.value?.getBoundingClientRect();
-      const left = rect?.left ?? 0;
-      const top = rect?.top ?? 0;
-      return [e.clientX - left, e.clientY - top];
+    function capture(e) {
+      try {
+        e.currentTarget?.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* happy-dom */
+      }
     }
-
-    function nextStrokeId() {
-      return `stroke-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    }
+    function release() {}
 
     function onPointerDown(e) {
       // swallow text selection: the canvas is an inert surface, never a
       // text-selection start point (tap still focuses via focus-request)
       e.preventDefault?.();
-      if (isPalm(e)) return;
-      if (!props.tool) return; // surface disabled by the host (e.g. rail gating)
-      capture(e);
-
-      if (!props.focused) {
-        const now = performance.now();
-        if (e.pointerType === 'pen') {
-          if (now - penDownAt <= DOUBLE_TAP_MS && now - focusRequestedAt > DOUBLE_TAP_MS) {
-            focusRequestedAt = now;
-            emit('focus-request');
-          }
-          penDownAt = now;
-        }
-        // a plain tap also focuses (single or double, only one request)
-        if (e.pointerType !== 'pen' && now - focusRequestedAt > DOUBLE_TAP_MS) {
-          focusRequestedAt = now;
-          emit('focus-request');
-        }
-        return;
-      }
-
-      const [x, y] = localPoint(e);
-      lastSample = { x: e.clientX, y: e.clientY, t: e.timeStamp };
-      moveEvents = [];
-
-      if (props.tool === 'eraser' || isStylusEraser(e)) {
-        gesture = { kind: 'erase', radius: (props.toolSettings.eraser?.size ?? 20) / 2, touched: false };
-        return;
-      }
-      if (props.tool === 'lasso') {
-        gesture = { kind: 'lasso', polygon: [[x, y]], start: [x, y] };
-        return;
-      }
-      if (selectionIds.length) {
-        gesture = { kind: 'move-selection', start: [x, y], last: [x, y] };
-        return;
-      }
-      gesture = { kind: 'draw', tool: props.tool, points: [] };
-      appendDrawPoints(e, gesture);
-      paintLive();
-    }
-
-    function appendDrawPoints(e, g) {
-      const pts = collectPoints(e, localPoint, lastSample);
-      if (!pts.length) return;
-      lastSample = { x: e.clientX, y: e.clientY, t: e.timeStamp };
-      g.points.push(...pts);
+      ink.onPointerDown(e);
     }
 
     function onPointerMove(e) {
-      if (!gesture || isPalm(e)) return;
-      const [x, y] = localPoint(e);
-      if (gesture.kind === 'erase') {
-        const { splitStrokes } = renderer.eraseAt(x, y, gesture.radius);
-        gesture.touched = true;
-        gesture.result = splitStrokes;
-        renderer.setDirty({ minX: x - gesture.radius, minY: y - gesture.radius, maxX: x + gesture.radius, maxY: y + gesture.radius });
-        return;
-      }
-      if (gesture.kind === 'lasso') {
-        gesture.polygon.push([x, y]);
-        return;
-      }
-      if (gesture.kind === 'move-selection') {
-        const dx = x - gesture.last[0];
-        const dy = y - gesture.last[1];
-        gesture.last = [x, y];
-        gesture.moved = (gesture.moved || 0) + Math.abs(dx) + Math.abs(dy);
-        renderer.setStrokes(
-          renderer.committed.map((s) =>
-            selectionIds.includes(s.id)
-              ? { ...s, points: s.points.map(([px, py, pp]) => [px + dx, py + dy, pp]) }
-              : s
-          )
-        );
-        return;
-      }
-      // draw
-      moveEvents.push({ timeStamp: e.timeStamp, clientX: e.clientX, clientY: e.clientY });
-      appendDrawPoints(e, gesture);
-      paintLive();
+      ink.onPointerMove(e);
     }
 
     function onPointerUp(e) {
-      if (!gesture) return;
-      const g = gesture;
-      gesture = null;
-      release(e);
-
-      if (g.kind === 'erase') {
-        if (g.touched) emit('update-strokes', [...renderer.committed]);
-        return;
-      }
-      if (g.kind === 'lasso') {
-        selectionIds = pickInsidePolygon(g.polygon);
-        return;
-      }
-      if (g.kind === 'move-selection') {
-        if (g.moved) {
-          emit('update-strokes', [...renderer.committed]);
-          selectionIds = [];
-        }
-        return;
-      }
-      // draw commit
-      let points = g.points;
-      if (shouldSnapshot(points, moveEvents)) {
-        const rec = recognizeShape(points);
-        if (rec) {
-          return commitStroke({
-            ...buildStroke(g.tool, points),
-            shape: rec.shape,
-            points: rec.snapped,
-          });
-        }
-      }
-      commitStroke(buildStroke(g.tool, points));
-    }
-
-    function buildStroke(tool, points) {
-      const settings = props.toolSettings[tool] ?? {};
-      const def = TOOL_DEFAULTS[tool] ?? {};
-      return {
-        id: nextStrokeId(),
-        tool,
-        color: settings.color ?? def.color ?? '#1a1a1a',
-        size: settings.size ?? def.size ?? 4,
-        opacity: settings.opacity ?? def.opacity ?? 1,
-        points,
-      };
-    }
-
-    function commitStroke(stroke) {
-      renderer.commitStroke(stroke);
-      emit('commit', stroke);
-      const b = strokeBounds(stroke);
-      if (b.maxY > props.height - AUTO_GROW_MARGIN) {
-        emit('height-change', Math.ceil(b.maxY + AUTO_GROW_MARGIN));
-      }
-    }
-
-    function paintLive() {
-      if (!gesture || gesture.kind !== 'draw' || !gesture.points.length) return;
-      const live = buildStroke(gesture.tool, gesture.points);
-      // live preview uses the resolved outline; renderer redraws it per frame
-      renderer.paintStrokeLive(live.id, live);
-    }
-
-    function pickInsidePolygon(polygon) {
-      const inside = ([px, py]) => pointInPolygon(px, py, polygon);
-      return renderer.committed
-        .filter((s) => s.points.some(inside))
-        .map((s) => s.id);
+      ink.onPointerUp(e);
     }
 
     function onResizeStart(e) {
       const edge = e.currentTarget?.dataset?.handle === 'top' ? 'top' : 'bottom';
-      resizeStart = {
+      const resizeStart = {
         y: e.clientY,
         height: props.height,
         edge,
       };
+      // let the host snapshot its scaling base (settled attrs) for the gesture
+      emit('resize-start');
       capture(e);
       const move = (ev) => {
         if (!resizeStart) return;
@@ -393,7 +224,7 @@ export default {
         emit('height-change', Math.round(next));
       };
       const up = () => {
-        resizeStart = null;
+        emit('resize-end');
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
       };
@@ -401,23 +232,13 @@ export default {
       window.addEventListener('pointerup', up);
     }
 
-    function capture(e) {
-      try {
-        e.currentTarget.setPointerCapture?.(e.pointerId);
-      } catch {
-        /* happy-dom */
-      }
-    }
-    function release() {}
-
     return {
       containerRef,
-      hudRef,
-      isDev,
       logicRef,
       liveRef,
-      HANDLES,
+      width,
       backgroundClass,
+      HANDLES,
       onPointerDown,
       onPointerMove,
       onPointerUp,
@@ -436,12 +257,40 @@ export default {
   user-select: none;
   -webkit-user-select: none;
 }
-.paper-surface.focused .surface-border {
+/* Edge resize strips: an invisible, generous drag zone carrying a short
+   centered grab line — no surrounding border, Apple-notes style. */
+.surface-handle {
   position: absolute;
-  inset: -2px;
-  border: 2px dashed var(--paper-focus-color, #fbbf24);
-  border-radius: 8px;
-  pointer-events: none;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 180px;
+  max-width: 80%;
+  height: 22px;
+  touch-action: none;
+  cursor: ns-resize;
+}
+.surface-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 56px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.22);
+}
+:global(.dark) .surface-handle::after {
+  background: rgba(255, 255, 255, 0.28);
+}
+.surface-handle[data-handle='top'] { top: -11px; }
+.surface-handle[data-handle='bottom'] { bottom: -11px; }
+.surface-toolbar {
+  position: absolute;
+  bottom: -56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
 }
 .ink-canvas {
   position: absolute;
@@ -460,38 +309,6 @@ export default {
   font-size: 13px;
   pointer-events: none;
 }
-.surface-hud {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  font-size: 10px;
-  font-family: monospace;
-  color: #10b981;
-  pointer-events: none;
-  z-index: 5;
-}
-.surface-handle {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 48px;
-  height: 14px;
-  border-radius: 7px;
-  background: var(--paper-handle-bg, #fff);
-  border: 1.5px solid var(--paper-handle-border, #f59e0b);
-  touch-action: none;
-  cursor: ns-resize;
-}
-.surface-handle[data-handle='top'] { top: -7px; }
-.surface-handle[data-handle='bottom'] { bottom: -7px; }
-.surface-toolbar {
-  position: absolute;
-  bottom: -56px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
-}
-
 /* paper backgrounds (ported from DrawMode.vue) */
 .paper-surface.grid {
   background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"%3E%3Cpath fill="none" stroke="%23D1D5DB" stroke-width="0.5" d="M40 0v40H0"/%3E%3C/svg%3E');

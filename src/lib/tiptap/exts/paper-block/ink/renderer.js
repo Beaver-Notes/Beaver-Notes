@@ -29,6 +29,37 @@ export function computeDirtyRect(a, b) {
   };
 }
 
+// Same geometry: identical points + every field that changes pixels
+// (tool/color/size/opacity, and v3 shape/page — recognition attaches shape
+// after the fact). Ids are not compared: a replaced identical stroke needs
+// no repaint either.
+function sameStroke(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.tool !== b.tool || a.color !== b.color || a.size !== b.size) return false;
+  if (a.opacity !== b.opacity || a.shape !== b.shape || a.page !== b.page) return false;
+  const pa = a.points;
+  const pb = b.points;
+  if (!pa || !pb || pa.length !== pb.length) return false;
+  for (let i = 0; i < pa.length; i++) {
+    if (pa[i][0] !== pb[i][0] || pa[i][1] !== pb[i][1]) return false;
+  }
+  return true;
+}
+
+// The new list keeps the old one as an unchanged prefix and only appends:
+// the commit path pushes the stroke into the committed list before the attrs
+// echo back, so the round-trip is exactly this — anything else (edit,
+// rescale, removal, reorder) changed pixels the accumulated dirty rect
+// cannot know about.
+function isAppendOnly(prev, next) {
+  if (next.length < prev.length) return false;
+  for (let i = 0; i < prev.length; i++) {
+    if (!sameStroke(prev[i], next[i])) return false;
+  }
+  return true;
+}
+
 /**
  * Object eraser: removes points inside the eraser radius and cuts segments
  * that pass through it at the nearest point (interpolated, pressure carried).
@@ -129,6 +160,12 @@ export class InkRenderer {
     this.height = 0;
     this.cacheIds = new Set();
     this.cacheDirty = false;
+    // revision of the committed geometry: bumped by setStrokes, acked by
+    // flush after the committed layer is repainted. resize() uses it to tell
+    // "pure height change" (blit old pixels) from "rescaled strokes" (must
+    // repaint — a stale blit would freeze the ink until the next repaint).
+    this.strokesRev = 0;
+    this.paintedRev = 0;
     this.logicEl = null;
     this.liveEl = null;
     this.logicCtx = null;
@@ -143,15 +180,21 @@ export class InkRenderer {
     this.resize(width, height, dpr);
   }
 
-  setStrokes(strokes) {
+  setStrokes(strokes, dirty) {
+    const prev = this.committed;
     this.committed = strokes;
     this.bounds = strokes.map((s) => strokeBounds(s));
+    this.strokesRev += 1;
     const ids = new Set(strokes.map((s) => s.id));
     this.cacheDirty =
       this.cacheDirty || ids.size !== this.cacheIds.size ||
       strokes.some((s) => !this.cacheIds.has(s.id));
     this.cacheIds = ids;
-    this.dirty = this._fullRect();
+    // Append-only round-trips keep the tight dirty rect the caller
+    // accumulated (commitStroke / moveSelectionByIds); anything else
+    // repaints the surface.
+    if (dirty) this.setDirty(dirty);
+    else if (!isAppendOnly(prev, strokes)) this.dirty = this._fullRect();
   }
 
   setDirty(rect) {
@@ -183,18 +226,66 @@ export class InkRenderer {
     const next = [];
     const removedIds = [];
     let changed = false;
-    for (const stroke of this.committed) {
+    // Surviving pieces are segments of the original polyline, so they stay
+    // inside the stroke's old bounds: old bounds ∪ eraser circle cover every
+    // pixel the split can touch — no full-surface repaint per pointermove.
+    let touched = {
+      minX: x - radius,
+      minY: y - radius,
+      maxX: x + radius,
+      maxY: y + radius,
+    };
+    for (let i = 0; i < this.committed.length; i++) {
+      const stroke = this.committed[i];
       const parts = splitStrokeByEraser(stroke, x, y, radius);
       if (parts.length === 1 && parts[0] === stroke) {
         next.push(stroke);
         continue;
       }
       changed = true;
+      touched = computeDirtyRect(touched, this.bounds[i]);
       if (parts.length === 0) removedIds.push(stroke.id);
       else next.push(...parts);
     }
-    if (changed) this.setStrokes(next);
+    if (changed) {
+      this.committed = next;
+      this.bounds = next.map((s) => strokeBounds(s));
+      this.strokesRev += 1;
+      this.cacheIds = new Set(next.map((s) => s.id));
+      // geometry is fully covered by `touched` — the split pieces repaint
+      // from the updated list, so the dirty cache must not force full
+      this.cacheDirty = false;
+      this.setDirty(touched);
+    }
     return { splitStrokes: next, removedIds };
+  }
+
+  // Lasso move: same geometry update, dirty = pre-move pixels ∪ post-move
+  // bounds, accumulated across the gesture by setDirty.
+  moveSelectionByIds(ids, dx, dy) {
+    const idSet = new Set(ids);
+    const before = this.bounds;
+    const next = this.committed.map((s) =>
+      idSet.has(s.id)
+        ? { ...s, points: s.points.map(([px, py, pp]) => [px + dx, py + dy, pp]) }
+        : s
+    );
+    this.committed = next;
+    this.bounds = next.map((s) => strokeBounds(s));
+    this.strokesRev += 1;
+    let dirty = null;
+    next.forEach((s, i) => {
+      if (!idSet.has(s.id)) return;
+      const b = before[i];
+      dirty = computeDirtyRect(dirty, b);
+      dirty = computeDirtyRect(dirty, {
+        minX: b.minX + dx,
+        minY: b.minY + dy,
+        maxX: b.maxX + dx,
+        maxY: b.maxY + dy,
+      });
+    });
+    this.setDirty(dirty);
   }
 
   pick(x, y, radius) {
@@ -229,9 +320,6 @@ export class InkRenderer {
     const oldW = this.width;
     const oldH = this.height;
     const oldDpr = this.dpr;
-    // keep committed pixels across the resize (height drags fire per frame):
-    // blit the previous bitmap back instead of clearing + full repaint
-    const snap = this._snapshotLogic(oldW, oldH, oldDpr);
     this.width = width;
     this.height = height;
     this.dpr = dpr;
@@ -245,9 +333,18 @@ export class InkRenderer {
     for (const ctx of [this.logicCtx, this.liveCtx]) {
       if (ctx?.setTransform) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
-    if (snap) {
-      this.logicCtx.drawImage(snap, 0, 0, oldW, oldH);
-      this.dirty = null;
+    // Blit the previous bitmap only when the committed geometry is unchanged
+    // since the last paint (pure height change). When strokes were rescaled
+    // for this resize, the snapshot is stale ink — repainting it would freeze
+    // the drawing until the next repaint trigger, which then jumps.
+    if (this.strokesRev === this.paintedRev) {
+      const snap = this._snapshotLogic(oldW, oldH, oldDpr);
+      if (snap) {
+        this.logicCtx.drawImage(snap, 0, 0, oldW, oldH);
+        this.dirty = null;
+      } else {
+        this.dirty = this._fullRect();
+      }
     } else {
       this.dirty = this._fullRect();
     }
@@ -283,6 +380,7 @@ export class InkRenderer {
         this._drawStroke(this.logicCtx, this.committed[i]);
       }
       this.cacheDirty = false;
+      this.paintedRev = this.strokesRev;
     }
     this.dirty = null;
   }
