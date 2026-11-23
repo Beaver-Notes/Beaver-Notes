@@ -1,5 +1,4 @@
 <div align="center">
-<div align="center">
   <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 </div>
 
@@ -8,93 +7,63 @@
   <p><strong>The workspace that can't read your data</strong></p>
   <p>Your notes, your rules: on your device, your server, or ours.</p>
 
-[![All Contributors](https://img.shields.io/badge/all_contributors-8-orange.svg?style=flat)](#contributors-)
-![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat&color=orange)
-![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat)
-![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat)
-[![Translation status](https://translate.beavernotes.com/widget/beaver-notes/beaver-notes-translations/svg-badge.svg)](https://translate.beavernotes.com/engage/beaver-notes/)
+<p align="center">
+  <a href="https://beavernotes.com">Website</a> -
+  <a href="https://blog.beavernotes.com">Blog</a> -
+  <a href="https://docs.beavernotes.com">Docs</a> -
+  <a href="https://beavernotes.com/#/Download">Download</a> -
+  <a href="https://github.com/orgs/Beaver-Notes/projects/5">Roadmap</a>
+</p>
 
-[Website](https://beavernotes.com) · [Blog](https://blog.beavernotes.com) · [Docs](https://docs.beavernotes.com) · [Downloads](https://beavernotes.com/#/Download) · [Roadmap](https://github.com/orgs/Beaver-Notes/projects/5)
+<p align="center">
+  <a href="https://github.com/Beaver-Notes/Beaver-Notes/releases"><img src="https://img.shields.io/github/v/release/Beaver-Notes/Beaver-Notes?style=flat&color=E99B45" alt="Latest release" /></a>
+  <a href="https://github.com/Beaver-Notes/Beaver-Notes/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Beaver-Notes/Beaver-Notes?style=flat" alt="License" /></a>
+  <a href="https://github.com/Beaver-Notes/Beaver-Notes/stargazers"><img src="https://img.shields.io/github/stars/Beaver-Notes/Beaver-Notes?style=flat" alt="GitHub stars" /></a>
+</p>
 
-</div>
+## One workspace for all your ideas.
 
----
+Beaver Notes brings documents, notes, and knowledge together in one place. Write with a powerful rich-text editor, organize information your way, connect ideas, and collaborate through Beaver Sync. Inspired by the flexibility of modern productivity tools, but built around a different principle: **your data should remain yours.**
 
-Most note-taking apps make the same quiet trade: your convenience in exchange for access to your data. It's easy to miss in the onboarding flow, buried somewhere in a terms-of-service document most people never open.
+## Everything in one place.
 
-Beaver Notes starts from a different place. Your notes live on your device. They're not indexed, not processed, not readable by anyone but you. When you want to sync, you choose how, your own cloud storage, a self-hosted server, or BeaverSync (coming later this year) if you'd rather not think about it. No vendor lock-in either way.
+- **Rich editor**: An editor for structured documents, tables, drawings, code, math, and rich content.
+- **Markdown support**: Write, format, and organize notes using Markdown syntax.
+- **Knowledge management**: Organize with folders and labels, connect notes with links and backlinks, and find what you need.
+- **Encryption**: Protect your notes, files, and synchronized data with application-level encryption.
+- **Beaver Sync**: Encrypted cloud synchronization, with real-time collaboration and shared workspaces.
+- **Import and export**: Bring your existing notes from other apps and keep control of your data.
+- **Cross-platform**: Use Beaver Notes on desktop and mobile.
 
-We're rebuilding Beaver Notes from the ground up in Tauri for v5, faster, smaller, and properly cross-platform, including mobile, because we outgrew our original Electron foundation.
+## Private by design.
 
-![Beaver Notes demo](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/a7b38689-0363-49f0-8ed8-60e7358b1df6)
+Beaver Notes is local-first and open source. Your workspace lives on your device, and encryption protects your data when it is synchronized.
 
-## What it is
+Use your own storage or Beaver Sync. No account is needed to get started with the local application, and your notes aren't tied to a proprietary format.
 
-Beaver Notes is a local-first, markdown-native notes app for macOS, Windows, Linux, Android, and iOS. It has folders, tags, note linking, locked notes, and flexible sync. It starts fast. It works offline. It doesn't ask you to create an account to use it.
+## Built to grow.
 
-The things that make it worth switching to aren't features. It's the absence of things. Beaver has no telemetry in the editor, no account wall, no monthly fee to keep your notes accessible and no moment where you wonder who else can read what you're writing.
+Beaver Notes is more than a traditional note-taking app. We're building towards an extensible workspace with databases, plugins, integrations, and privacy-conscious AI.
 
-## What's in v5
+Follow the [blog](https://blog.beavernotes.com) and [public roadmap](https://github.com/orgs/Beaver-Notes/projects/5) to see what's next.
 
-Version 5 is a rewrite, not an update. We moved from Electron to Tauri, which means meaningfully smaller binaries and better native behaviour on every platform. Mobile is no longer a separate app: Beaver Pocket is being folded into Beaver Notes itself, so the experience is consistent whether you're on a laptop in a coffee shop or on your phone at 2am.
+## Get Beaver Notes.
 
-We're also adding things people have asked for since the early days: real-time collaboration, version history, backlinks, and a plugin system. These were hard to build correctly on the old architecture. On the new one, they're not.
+Available for **macOS, Windows, Linux, Android, and iOS**.
 
-The [roadmap](https://github.com/orgs/Beaver-Notes/projects/5) is public if you want to follow along or push back on priorities.
+<p align="center">
+  <a href="https://beavernotes.com/#/Download"><strong>Download Beaver Notes →</strong></a>
+  <br />
+  <sub>Need help? Visit the <a href="https://docs.beavernotes.com">documentation</a>.</sub>
+</p>
 
-## Getting started (development)
+## Open source, built together.
 
-```bash
-git clone https://github.com/Beaver-Notes/Beaver-Notes.git
-cd Beaver-Notes
-yarn install
-yarn tauri dev
-```
+Beaver Notes is shaped by its users and contributors. Bug reports, ideas, translations, documentation, and code contributions are all welcome.
 
-For packaged builds, see the [Downloads page](https://beavernotes.com/#/Download).
+[Contribute](https://docs.beavernotes.com/beaver%20notes%20(dev)/2025/01/03/How-to-contribute.html) · [Issues](https://github.com/Beaver-Notes/Beaver-Notes/issues) · [Discussions](https://github.com/Beaver-Notes/Beaver-Notes/discussions)
 
-## Linux Installation
-
-### Binary Tarball (Recommended)
-
-1. Download the appropriate tarball for your architecture:
-   - `Beaver-Notes-{version}-x86_64.tar.gz` for x86_64 systems
-   - `Beaver-Notes-{version}-aarch64.tar.gz` for ARM64 systems
-
-2. Extract and install:
-   ```bash
-   tar -xzf Beaver-Notes-*.tar.gz
-   sudo cp -r bin /usr/local/bin
-   sudo cp -r lib /usr/local/lib
-   sudo cp -r share /usr/local/share
-   ```
-
-3. Update desktop database:
-   ```bash
-   sudo update-desktop-database
-   ```
-
-### AppImage
-
-1. Download the AppImage for your architecture
-2. Make it executable: `chmod +x Beaver-Notes-*.AppImage`
-3. Run it: `./Beaver-Notes-*.AppImage`
-
-### Flatpak
-
-```bash
-flatpak install flathub com.beavernotes.beavernotes
-```
-
-## Contributing
-
-Beaver Notes exists because people decided to build something better and kept showing up. The contributors below translated strings, wrote code, caught bugs, improved docs, and packaged the app for platforms we'd have missed. That kind of work is what makes the difference between a project that goes somewhere and one that doesn't.
-
-If you want to get involved, whether that's code, translations, design, or just a well-written bug report, the [contributing guide](<https://docs.beavernotes.com/beaver%20notes%20(dev)/2025/01/03/How-to-contribute.html>) is a good place to start.
-
-The community is on [Reddit](https://www.reddit.com/r/BeaverNotes/), [Mastodon](https://mastodon.social/@Beavernotes), and [Bluesky](https://bsky.app/profile/beavernotes.com). For everything else: [danielerolli@beavernotes.com](mailto:danielerolli@beavernotes.com).
-
-## Contributors
+Join the community on [Reddit](https://www.reddit.com/r/BeaverNotes/), [Mastodon](https://mastodon.social/@Beavernotes), or [Bluesky](https://bsky.app/profile/beavernotes.com).
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -124,17 +93,10 @@ The community is on [Reddit](https://www.reddit.com/r/BeaverNotes/), [Mastodon](
 
 Also: Verthandii, [Mondstern](https://moooon.dresden.network/), Gabriel Soleil, and Rem, for translations and community work that rarely shows up in commit graphs but matters just as much.
 
-## Support
+## Support the project.
 
-Beaver Notes is free. It will stay free. If it's been useful to you, the most valuable things you can do are tell someone about it and file a bug when you find one.
+If Beaver Notes is part of your daily workflow, consider [supporting the project](https://www.buymeacoffee.com/beavernotes) or exploring [Beaver Sync](https://beavernotes.com/sync).
 
-If you'd like to contribute financially:
-
-<div align="center">
-  <a href="https://www.buymeacoffee.com/beavernotes">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="50" width="210" alt="Buy me a coffee" />
-  </a>
-  <a href="https://ko-fi.com/danielerollibeavernotes">
-    <img src="https://cdn.ko-fi.com/cdn/kofi3.png?v=3" height="50" width="210" alt="Support on Ko-Fi" />
-  </a>
-</div>
+<p align="center">
+  <sub>Made with care by the Beaver Notes team</sub>
+</p>
