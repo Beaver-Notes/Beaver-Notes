@@ -1,14 +1,15 @@
 <template>
   <div
-    class="fixed inset-x-0 z-40 flex justify-center px-2 transition-all duration-300 ease-[var(--ease-standard)] bottom-4 foldable:right-[var(--app-rail-width)]"
+    class="fixed inset-x-0 z-40 flex justify-center pointer-events-none transition-all duration-300 ease-[var(--ease-standard)] bottom-4 search-overlay"
+    :class="{ 'runtime-compact': runtimeCompact }"
     :style="wrapperStyle"
   >
     <div
-      class="relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
+      class="pointer-events-auto relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-lg overflow-hidden w-full max-w-full sm:w-fit sm:mx-auto"
     >
       <!-- Desktop Layout -->
       <div
-        class="flex flex-wrap items-center p-2 space-x-2 mobile:hidden foldable:hidden"
+        class="search-desktop flex flex-wrap items-center p-2 space-x-2"
       >
         <ui-button
           v-keep-focus
@@ -111,7 +112,7 @@
       </div>
 
       <!-- Mobile Layout -->
-      <div class="hidden mobile:block foldable:block">
+      <div class="search-compact">
         <!-- Search Row -->
         <div class="flex items-center p-2 space-x-2">
           <div class="relative flex-1">
@@ -254,8 +255,7 @@ import { shallowReactive, onMounted, onUnmounted, ref, nextTick, computed } from
 import { debounce } from '@/utils/helpers';
 import { centerPosInView } from '@/utils/ui/scroll';
 import { useTranslations } from '@/composable/useTranslations';
-import { useUiState } from '@/composable/useUiState';
-import { useSidebar } from '@/composable/useSidebar';
+import { useSidebarAwareOverlay } from '@/composable/useSidebarAwareOverlay';
 import { backend } from '@/lib/tauri-bridge';
 import { foldState } from '@/lib/foldable';
 import Mousetrap from '@/lib/mousetrap';
@@ -274,21 +274,19 @@ export default {
   emits: ['close'],
   setup(props) {
     const { translations } = useTranslations();
-    const uiState = useUiState();
-    const { expanded: sidebarExpanded } = useSidebar();
+    const { boundsStyle } = useSidebarAwareOverlay();
     const mobileSearchInput = ref(null);
 
     // Presentation, not user agent: the unfolded Duo is a regular-width canvas
     // and gets the single-row layout.
     const isMobile = backend.isMobileRuntime() && !foldState.isFoldable;
+    const runtimeCompact = computed(() => isMobile || foldState.isFoldable);
 
     const wrapperStyle = computed(() => {
-      if (isMobile) {
-        return { bottom: 'var(--app-keyboard-inset-bottom, 1rem)' };
-      }
-      if (uiState.inReaderMode) return {};
-      if (foldState.isFoldable) return { right: 'var(--app-rail-width)' };
-      return { paddingLeft: sidebarExpanded.value ? '16rem' : '4rem' };
+      return {
+        ...boundsStyle.value,
+        ...(isMobile ? { bottom: 'var(--app-keyboard-inset-bottom, 1rem)' } : {}),
+      };
     });
 
     const state = shallowReactive({
@@ -435,6 +433,8 @@ export default {
       state,
       translations,
       wrapperStyle,
+      isMobile,
+      runtimeCompact,
       mobileSearchInput,
       startSearch,
       replaceText,
@@ -448,3 +448,31 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.search-overlay {
+  container: search-overlay / inline-size;
+}
+
+.search-compact {
+  display: none;
+}
+
+.runtime-compact .search-desktop {
+  display: none;
+}
+
+.runtime-compact .search-compact {
+  display: block;
+}
+
+@container search-overlay (max-width: 42rem) {
+  .search-desktop {
+    display: none;
+  }
+
+  .search-compact {
+    display: block;
+  }
+}
+</style>

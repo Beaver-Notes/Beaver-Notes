@@ -1,7 +1,7 @@
 <template>
   <teleport to="body">
     <div
-      class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex tablet:flex foldable:right-[var(--app-rail-width)]"
+      class="fixed inset-x-0 z-20 print:hidden hidden justify-center transition-opacity duration-300 pointer-events-none mobile:flex tablet:flex"
       :class="
         isPaperEditing
           ? 'mobile:!hidden tablet:!hidden'
@@ -9,7 +9,7 @@
           ? 'opacity-0 hover:opacity-100 mobile:hidden tablet:hidden'
           : 'opacity-100'
       "
-      :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
+      :style="[boundsStyle, { bottom: 'var(--app-keyboard-inset-bottom)' }]"
     >
       <div
         class="pointer-events-auto relative h-14 max-w-full tablet:max-w-xl overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
@@ -812,6 +812,7 @@ import copyImage from '@/utils/assets/storage.js';
 import { assetFileName } from '@/utils/assets/storage.js';
 import { insertFileBlockOptimistic } from '@/lib/tiptap/exts/create-file-block.js';
 import { isPaperEditing } from '@/lib/tiptap/exts/paper-block/helpers/paperEditing.js';
+import { useSidebarAwareOverlay } from '@/composable/useSidebarAwareOverlay';
 
 export default {
   components: {
@@ -834,6 +835,7 @@ export default {
     const { container } = shared;
 
     const showMobileBlockPicker = ref(false);
+    const { boundsStyle } = useSidebarAwareOverlay();
     const isMobile = backend.isMobileRuntime();
     const toolbarInsertRef = ref(null);
 
@@ -1215,6 +1217,7 @@ export default {
       triggerVideoInput,
       triggerImageInput,
       showMobileBlockPicker,
+      boundsStyle,
       isPaperEditing,
       isMobile,
       // Link input

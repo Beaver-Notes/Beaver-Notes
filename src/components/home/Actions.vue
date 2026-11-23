@@ -3,19 +3,19 @@
     <div
       v-if="selectedItems.size > 0"
       data-selection-keep
-      class="mobile:hidden fixed inset-x-0 z-40 transition-[opacity,transform] duration-[var(--motion-slow)] ease-[var(--ease-standard)] mx-2 bottom-4"
-      :style="barOffsetStyle"
+      class="mobile:hidden fixed inset-x-0 z-40 pointer-events-none transition-[opacity,transform] duration-[var(--motion-slow)] ease-[var(--ease-standard)] bottom-4"
+      :style="boundsStyle"
     >
       <div
-        class="relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-xl overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
+        class="pointer-events-auto relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-xl overflow-hidden w-full max-w-3xl p-2 mx-auto"
       >
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-3 shrink-0">
             <span class="text-sm font-medium">
               {{ selectedItems.size }} items selected
             </span>
           </div>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2 [&>*]:shrink-0">
             <ui-button
               v-if="selectedNotes.length > 0 || selectedFolders.length > 0"
               v-tooltip.group="
@@ -71,7 +71,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import { useSidebar } from '@/composable/useSidebar';
+import { useSidebarAwareOverlay } from '@/composable/useSidebarAwareOverlay';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useUndoStore } from '@/store/undo';
@@ -90,11 +90,7 @@ const emit = defineEmits(['clear', 'delete', 'move']);
 const noteStore = useNoteStore();
 const folderStore = useFolderStore();
 const { translations } = useTranslations();
-const { expanded: sidebarExpanded } = useSidebar();
-
-const barOffsetStyle = computed(() => ({
-  paddingLeft: sidebarExpanded.value ? '16rem' : '4rem',
-}));
+const { boundsStyle } = useSidebarAwareOverlay();
 
 const selectedNotes = computed(() => {
   return Array.from(props.selectedItems)

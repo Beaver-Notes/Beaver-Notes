@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 ltr:border-r rtl:border-l border-neutral-200/40 dark:border-neutral-800/40 select-none pt-[var(--app-safe-area-top)]"
+    class="relative z-50 flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 ltr:border-r rtl:border-l border-neutral-200/40 dark:border-neutral-800/40 select-none pt-[var(--app-safe-area-top)]"
     :class="expanded ? 'w-64' : 'w-16'"
   >
     <div
