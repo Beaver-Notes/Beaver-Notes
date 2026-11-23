@@ -138,7 +138,10 @@ vi.mock('@/store/app', () => ({
 }));
 
 vi.mock('@/store/i18n', () => ({
-  useI18nStore: () => ({ setLanguage: vi.fn(async () => {}) }),
+  useI18nStore: () => ({
+    messages: { onboarding: {}, settings: {}, dialog: {} },
+    setLanguage: vi.fn(async () => {}),
+  }),
 }));
 
 vi.mock('@/utils/ui/globalShortcuts.js', () => ({
@@ -257,7 +260,7 @@ beforeEach(() => {
   encryptionIsConfiguredMock.mockResolvedValue(false);
   verifyPassphraseMock.mockResolvedValue({ ok: true });
   adoptVaultKeyMock.mockResolvedValue({ ok: true });
-  openDialogMock.mockResolvedValue({ canceled: true });
+  openDialogMock.mockReset().mockResolvedValue({ canceled: true });
   kickRustSyncMock.mockReturnValue(true);
   startRustSyncMock.mockResolvedValue(undefined);
   authCtl.triggerSeed.mockReset();
