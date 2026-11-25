@@ -359,7 +359,7 @@
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-[12px] text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
               aria-label="Remove highlight"
               @click="
-                editor.commands.unsetHighlight();
+                editor.chain().focus().unsetHighlight().run();
                 closeSub();
               "
             >

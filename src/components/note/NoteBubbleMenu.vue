@@ -39,6 +39,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { BubbleMenu } from '@tiptap/vue-3/menus';
+import { useUiState } from '@/composable/useUiState';
 import {
   computePosition,
   offset,
@@ -68,6 +69,7 @@ export default {
     note: { type: Object, required: true },
   },
   setup(props) {
+    const uiState = useUiState();
     const hoveredLinkEl = ref(null);
     const hoverMenuRef = ref(null);
     const hoverMenuStyles = ref({});
@@ -246,7 +248,8 @@ export default {
       return null;
     }
 
-    const shouldShowMenuFn = ({ state }) => classifySelection(state) !== null;
+    const shouldShowMenuFn = ({ state }) =>
+      !uiState.inReaderMode && classifySelection(state) !== null;
 
     const currentMenuComponent = computed(() => {
       if (!props.editor) return null;

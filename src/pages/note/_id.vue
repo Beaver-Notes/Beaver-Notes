@@ -70,23 +70,13 @@
       :style="
         uiState.inReaderMode
           ? {
-              // Same column as the editor unless the note is full-width:
-              // reader mode used to force 42rem and visibly collapse the page.
-              '--selected-width': note?.isFullWidth
-                ? '42rem'
-                : hingeSegmentWidth
-                  ? `min(54rem, ${hingeSegmentWidth}px)`
-                  : '54rem',
+              '--selected-width': note?.isFullWidth ? '60rem' : '60rem',
               'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
               '--reader-size': prefs.size + 'px',
               '--reader-line': prefs.line,
             }
           : {
-              '--selected-width': note?.isFullWidth
-                ? '100%'
-                : hingeSegmentWidth
-                  ? `min(54rem, ${hingeSegmentWidth}px)`
-                  : '54rem',
+              '--selected-width': note?.isFullWidth ? '100%' : '60rem',
               'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
             }
       "

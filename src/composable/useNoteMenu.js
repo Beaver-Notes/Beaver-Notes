@@ -542,10 +542,12 @@ export function useNoteMenu(props) {
   });
 
   function setHighlightColor(color) {
-    if (props.editor.isActive('highlight', { color })) {
-      props.editor.commands.unsetHighlight();
+    const e = props.editor;
+    if (!e) return;
+    if (e.isActive('highlight', { color })) {
+      e.chain().focus().unsetHighlight().run();
     } else {
-      props.editor.commands.setHighlight({ color });
+      e.chain().focus().setHighlight({ color }).run();
     }
   }
 
@@ -557,7 +559,7 @@ export function useNoteMenu(props) {
         .updateAttributes('textStyle', { color: null })
         .run();
     } else {
-      props.editor.commands.setColor(color);
+      props.editor.chain().focus().setColor(color).run();
     }
   }
 

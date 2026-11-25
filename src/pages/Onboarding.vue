@@ -98,22 +98,23 @@
           <!-- Mobile-only progress, pinned to the top of the sheet -->
           <div
             v-if="showStepProgress"
-            class="hidden mobile:block mb-3 shrink-0 flex"
+            class="hidden mobile:flex gap-1 mb-3 shrink-0"
+            role="progressbar"
+            aria-label="Onboarding progress"
+            :aria-valuenow="currentStepNumber"
+            :aria-valuemin="1"
+            :aria-valuemax="totalStepCount"
           >
             <div
-              class="flex items-center justify-between text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-1.5"
-            >
-            </div>
-            {{ currentStepNumber }}
-            <div
-              class="h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
+              v-for="seg in stepSegments"
+              :key="seg.n"
+              class="ob-seg h-1.5 flex-1 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
             >
               <div
-                class="h-full bg-primary rounded-full transition-all duration-300 ease-out"
-                :style="{ width: stepProgressPercent + '%' }"
+                class="ob-seg__fill h-full rounded-full bg-primary"
+                :style="{ width: seg.fill + '%' }"
               ></div>
             </div>
-            {{ totalStepCount }}
           </div>
 
           <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-1">
@@ -182,7 +183,7 @@
                             </h3>
                             <span
                               v-if="platform.badge"
-                              class="inline-flex items-center rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[0.65rem] font-bold font-bold tracking-wide px-2 py-0.5"
+                              class="inline-flex items-center rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[0.65rem] font-bold tracking-wide px-2 py-0.5"
                               >{{ platform.badge }}</span
                             >
                             <span
@@ -191,7 +192,7 @@
                                 migrationSourceBadge
                               "
                               :class="migrationSourceBadgeClass"
-                              class="inline-flex items-center rounded-full text-[0.65rem] font-bold font-bold tracking-wide px-2 py-0.5"
+                              class="inline-flex items-center rounded-full text-[0.65rem] font-bold tracking-wide px-2 py-0.5"
                               >{{ migrationSourceBadge }}</span
                             >
                           </div>
@@ -705,7 +706,7 @@
 
                           <div class="pt-3">
                             <button
-                              class="inline-flex items-center gap-1 text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                              class="inline-flex items-center gap-1 text-xs font-bold tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
                               @click="showMoreOptions = !showMoreOptions"
                             >
                               <v-remixicon
@@ -729,7 +730,7 @@
                             >
                               <div class="flex flex-col gap-2">
                                 <p
-                                  class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
+                                  class="text-xs font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
                                 >
                                   {{ translations.account?.server || 'Server' }}
                                 </p>
@@ -751,7 +752,7 @@
                           </div>
                           <div class="pt-3 flex flex-col gap-2">
                             <p
-                              class="text-xs font-semibold font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
+                              class="text-xs font-bold tracking-wide text-neutral-500 dark:text-neutral-400"
                             >
                               {{
                                 translations.account?.noAccountYet ||
@@ -1169,16 +1170,24 @@
               <v-remixicon name="riArrowLeftLine" /> {{ backLabel }}
             </ui-button>
 
+            <!-- Desktop progress: one segment per step, sitting between Back and the actions -->
             <div
               v-if="showStepProgress"
-              class="mobile:hidden min-w-[96px] max-w-[180px] flex-1 mx-2"
+              class="mobile:hidden min-w-[96px] max-w-[180px] flex-1 mx-2 flex gap-1"
+              role="progressbar"
+              aria-label="Onboarding progress"
+              :aria-valuenow="currentStepNumber"
+              :aria-valuemin="1"
+              :aria-valuemax="totalStepCount"
             >
               <div
-                class="h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
+                v-for="seg in stepSegments"
+                :key="seg.n"
+                class="ob-seg h-1.5 flex-1 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
               >
                 <div
-                  class="h-full bg-primary rounded-full transition-all duration-300 ease-out"
-                  :style="{ width: stepProgressPercent + '%' }"
+                  class="ob-seg__fill h-full rounded-full bg-primary"
+                  :style="{ width: seg.fill + '%' }"
                 ></div>
               </div>
             </div>
@@ -1296,7 +1305,7 @@
 </template>
 
 <script>
-import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, unref, watch, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStorage } from '@/lib/storage';
 import { useStore } from '@/store';
@@ -1320,7 +1329,7 @@ export default {
   setup() {
     const router = useRouter();
     const settingsStorage = useStorage('settings');
-    const store = useStore();
+    useStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
     const isMacOS = isMacOSRuntime();
@@ -1363,6 +1372,23 @@ export default {
       router,
       clipboard,
       runImportSource,
+    });
+
+    // Step progress, split into one segment per step.
+    // Reached steps are full, upcoming steps are empty.
+    const stepSegments = computed(() => {
+      const total = Math.max(
+        0,
+        Math.floor(Number(unref(flow.totalStepCount)) || 0),
+      );
+      const current = Math.min(
+        Math.max(Number(unref(flow.currentStepNumber)) || 0, 0),
+        total,
+      );
+      return Array.from({ length: total }, (_, i) => ({
+        n: i + 1,
+        fill: i + 1 <= current ? 100 : 0,
+      }));
     });
 
     // Keep <html> .dark class in sync with the onboarding's own isDark so
@@ -1937,6 +1963,7 @@ export default {
       retrySeed,
       logCopied,
       copyLogPath,
+      stepSegments,
     };
   },
 };
@@ -1985,6 +2012,11 @@ export default {
       1rem
     );
   }
+}
+
+/* Step progress: one track per step, fill grows as you reach it */
+.ob-seg__fill {
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Curtain colours (adapt to theme) */
@@ -2076,13 +2108,6 @@ export default {
   opacity: 1;
   transform: none;
 }
-.ob-eyebrow {
-  transform: translateY(110%);
-  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.ob-headline--in .ob-eyebrow {
-  transform: translateY(0);
-}
 .ob-title {
   transform: translateY(110%);
   transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1) 0.04s;
@@ -2112,12 +2137,6 @@ export default {
 .ob-finish--in {
   opacity: 1;
   transform: none;
-}
-
-.ob-squirkle {
-  background: #fae5b8;
-  border-radius: 28%;
-  overflow: hidden;
 }
 
 /* Wizard slide: forward enters from right, back from left. Applied inside modal frame. */
@@ -2200,10 +2219,10 @@ export default {
     animation-delay: 0ms !important;
   }
   .ob-logo,
-  .ob-eyebrow,
   .ob-title,
   .ob-below,
   .ob-finish,
+  .ob-seg__fill,
   .ob-slide-fwd-enter-active,
   .ob-slide-fwd-leave-active,
   .ob-slide-back-enter-active,

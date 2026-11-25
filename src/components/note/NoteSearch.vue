@@ -1,114 +1,114 @@
 <template>
   <div
-    class="fixed inset-x-0 z-40 flex justify-center pointer-events-none transition-all duration-300 ease-[var(--ease-standard)] bottom-4 search-overlay"
+    class="fixed inset-x-0 z-40 flex justify-center pointer-events-none transition-all duration-300 ease-[var(--ease-standard)] bottom-4 search-overlay px-2"
     :class="{ 'runtime-compact': runtimeCompact }"
     :style="wrapperStyle"
   >
     <div
-      class="pointer-events-auto relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-lg overflow-hidden w-full max-w-full sm:w-fit sm:mx-auto"
+      class="pointer-events-auto relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-lg overflow-hidden w-[min(100%,56rem)]"
     >
       <!-- Desktop Layout -->
-      <div
-        class="search-desktop flex flex-wrap items-center p-2 space-x-2"
-      >
-        <ui-button
-          v-keep-focus
-          v-tooltip="translations.search.useRegex"
-          icon
-          @click="toggleRegex"
-        >
-          <v-remixicon
-            name="mdiRegex"
-            :class="{ 'text-primary': state.useRegex }"
-          />
-        </ui-button>
-
-        <div class="relative flex-1">
-          <ui-input
-            v-model="state.query"
-            autofocus
-            prepend-icon="riSearchLine"
-            :placeholder="translations.search.searchPlaceholder"
-            class="w-full editor-search"
-            @keyup="startSearch"
-          />
-          <div
-            class="absolute right-2 rtl:left-2 top-1/2 transform -translate-y-1/2 text-sm opacity-40 font-medium"
+      <div class="search-desktop p-2 space-y-2">
+        <div class="flex items-center gap-2">
+          <ui-button
+            v-keep-focus
+            v-tooltip="translations.search.useRegex"
+            icon
+            class="shrink-0"
+            @click="toggleRegex"
           >
-            {{ props.editor?.storage?.searchAndReplace?.resultIndex + 1 || 0 }}
-            /
-            {{ props.editor?.storage?.searchAndReplace?.results?.length || 0 }}
+            <v-remixicon
+              name="mdiRegex"
+              :class="{ 'text-primary': state.useRegex }"
+            />
+          </ui-button>
+
+          <div class="relative flex-1 min-w-[10rem]">
+            <ui-input
+              v-model="state.query"
+              autofocus
+              prepend-icon="riSearchLine"
+              :placeholder="translations.search.searchPlaceholder"
+              class="w-full editor-search"
+              @keyup="startSearch"
+            />
+            <div
+              class="absolute right-2 rtl:left-2 top-1/2 -translate-y-1/2 text-xs opacity-50 font-medium tabular-nums pointer-events-none"
+            >
+              {{ props.editor?.storage?.searchAndReplace?.resultIndex + 1 || 0 }}/{{ props.editor?.storage?.searchAndReplace?.results?.length || 0 }}
+            </div>
           </div>
+
+          <ui-button
+            v-keep-focus
+            v-tooltip="translations.search.clear"
+            icon
+            class="shrink-0"
+            @click="clearSearch"
+          >
+            <v-remixicon name="riDeleteBackLine" />
+          </ui-button>
+
+          <ui-button
+            v-keep-focus
+            :class="{ 'text-primary': state.caseSensitive }"
+            icon
+            class="shrink-0"
+            @click="toggleCaseSensitive"
+          >
+            <v-remixicon name="riFontSize" />
+          </ui-button>
+
+          <div class="flex items-center shrink-0">
+            <ui-button
+              v-keep-focus
+              :disabled="!state.query"
+              icon
+              @click="findPreviousResult"
+            >
+              <v-remixicon name="riArrowUpLine" class="text-neutral-600 dark:text-neutral-200" />
+            </ui-button>
+            <ui-button
+              v-keep-focus
+              :disabled="!state.query"
+              icon
+              @click="findNextResult"
+            >
+              <v-remixicon name="riArrowDownLine" class="text-neutral-600 dark:text-neutral-200" />
+            </ui-button>
+          </div>
+
+          <ui-button v-keep-focus icon class="shrink-0" @click="$emit('close')">
+            <v-remixicon name="riCloseLine" class="text-neutral-600 dark:text-neutral-200" />
+          </ui-button>
         </div>
 
-        <ui-input
-          v-model="state.replaceWith"
-          :placeholder="translations.search.replacePlaceholder"
-          class="flex-1"
-          @keyup="startSearch"
-        />
-
-        <ui-button
-          v-keep-focus
-          v-tooltip="translations.search.clear"
-          icon
-          @click="clearSearch"
-        >
-          <v-remixicon name="riDeleteBackLine" />
-        </ui-button>
-
-        <ui-button
-          v-keep-focus
-          v-tooltip="translations.searchReplace?.altEnter || 'Alt+Enter'"
-          :disabled="!state.replaceWith"
-          @click="replaceText"
-        >
-          {{ translations.search.replace || 'Replace' }}
-        </ui-button>
-
-        <ui-button
-          v-keep-focus
-          v-tooltip="
-            translations.searchReplace?.ctrlAltEnter || 'Ctrl+Alt+Enter'
-          "
-          :disabled="!state.replaceWith"
-          @click="replaceAllText"
-        >
-          {{ translations.search.replaceAll || 'Replace All' }}
-        </ui-button>
-
-        <ui-button
-          v-keep-focus
-          :class="{ 'text-primary': state.caseSensitive }"
-          @click="toggleCaseSensitive"
-        >
-          <v-remixicon name="riFontSize" />
-        </ui-button>
-
-        <ui-button
-          v-keep-focus
-          :disabled="!state.query"
-          @click="findPreviousResult"
-        >
-          <v-remixicon
-            name="riArrowUpLine"
-            class="dark:text-neutral-200 text-neutral-600"
+        <div class="flex items-center gap-2">
+          <ui-input
+            v-model="state.replaceWith"
+            :placeholder="translations.search.replacePlaceholder"
+            class="flex-1 min-w-[10rem]"
+            @keyup="startSearch"
           />
-        </ui-button>
-
-        <ui-button v-keep-focus :disabled="!state.query" @click="findNextResult">
-          <v-remixicon
-            name="riArrowDownLine"
-            class="dark:text-neutral-200 text-neutral-600"
-          />
-        </ui-button>
-
-        <ui-button v-keep-focus @click="$emit('close')">
-          <v-remixicon
-            name="riCloseLine"
-            class="dark:text-neutral-200 text-neutral-600"
-          />
-        </ui-button>
+          <ui-button
+            v-keep-focus
+            v-tooltip="translations.searchReplace?.altEnter || 'Alt+Enter'"
+            :disabled="!state.replaceWith"
+            class="shrink-0"
+            @click="replaceText"
+          >
+            {{ translations.search.replace || 'Replace' }}
+          </ui-button>
+          <ui-button
+            v-keep-focus
+            v-tooltip="translations.searchReplace?.ctrlAltEnter || 'Ctrl+Alt+Enter'"
+            :disabled="!state.replaceWith"
+            class="shrink-0"
+            @click="replaceAllText"
+          >
+            {{ translations.search.replaceAll || 'Replace All' }}
+          </ui-button>
+        </div>
       </div>
 
       <!-- Mobile Layout -->
