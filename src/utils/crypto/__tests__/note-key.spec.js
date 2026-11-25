@@ -4,7 +4,14 @@ import {
   provisionNoteKey,
   wrapNoteKeyForRecipient,
   unwrapNoteKey,
+  recoverNoteKeyFromEnvelopes,
+  buildNoteKeyPayload,
+  parseNoteKeyPayload,
+  getPreviousNoteKeys,
+  getCachedNoteKey,
+  clearUnwrappedKeyCache,
 } from '@/utils/crypto/note-key';
+import { generateIdentity } from '@/utils/crypto/identity';
 
 async function hex(buf) { return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join(''); }
 
@@ -29,6 +36,154 @@ describe('note key recipient wrapping', () => {
     // serialized envelope round-trips
     expect(typeof envelope).toBe('string');
     expect(JSON.parse(envelope).kemCt).toBeTruthy();
+  });
+});
+
+describe('recoverNoteKeyFromEnvelopes (multi-device)', () => {
+  it('recovers this device\u2019s own envelope, skipping the legacy account envelope and other devices', async () => {
+    const deviceA = await makeKeypair();
+    const deviceB = await makeKeypair();
+    const legacyOwner = await makeKeypair();
+    const keyHex = '11'.repeat(32);
+
+    // Server lists own device first, then the legacy account-level envelope,
+    // then remaining devices — the second-device read path.
+    const envelopes = [
+      { deviceId: 'dev-b', wrappedKey: await wrapNoteKeyForRecipient(deviceB.pkHex, keyHex) },
+      { deviceId: null, wrappedKey: await wrapNoteKeyForRecipient(legacyOwner.pkHex, keyHex) },
+      { deviceId: 'dev-a', wrappedKey: await wrapNoteKeyForRecipient(deviceA.pkHex, keyHex) },
+    ];
+
+    const recovered = await recoverNoteKeyFromEnvelopes(envelopes, { privateKeyHex: deviceB.skHex });
+    expect(recovered).toBe(keyHex);
+  });
+
+  it('returns null when no envelope is wrapped to this device', async () => {
+    const deviceA = await makeKeypair();
+    const stranger = await makeKeypair();
+    const envelopes = [
+      { deviceId: 'dev-a', wrappedKey: await wrapNoteKeyForRecipient(deviceA.pkHex, '22'.repeat(32)) },
+    ];
+    expect(await recoverNoteKeyFromEnvelopes(envelopes, { privateKeyHex: stranger.skHex })).toBeNull();
+  });
+});
+
+describe('note-key keyring after a collaborator-removal rotation (L8)', () => {
+  it('recovers the current key and remembers the previous generation from a rotated envelope', async () => {
+    const device = await makeKeypair();
+    const oldKey = '11'.repeat(32);
+    const newKey = '22'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, buildNoteKeyPayload(newKey, [oldKey]));
+
+    clearUnwrappedKeyCache('note-rot');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-rot'
+    );
+
+    expect(recovered).toBe(newKey);
+    expect(getPreviousNoteKeys('note-rot')).toEqual([oldKey]);
+  });
+
+  it('parses legacy bare-hex envelopes and rejects junk', () => {
+    expect(parseNoteKeyPayload('ab'.repeat(32))).toEqual({ current: 'ab'.repeat(32), previous: [] });
+    expect(parseNoteKeyPayload('not-a-key')).toBeNull();
+    expect(parseNoteKeyPayload('')).toBeNull();
+  });
+});
+
+describe('SC-1-04: recovered keys are verified against durable content before adoption', () => {
+  it('rejects an envelope whose key fails verification even though it unwraps', async () => {
+    const device = await makeKeypair();
+    const forgedKey = 'ee'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, forgedKey);
+
+    clearUnwrappedKeyCache('note-evil');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-evil',
+      console,
+      async () => false, // verify: does not decrypt the note's durable rows
+    );
+
+    expect(recovered).toBeNull();
+    expect(getCachedNoteKey('note-evil')).toBeNull();
+  });
+
+  it('adopts an envelope whose key verifies against the note content', async () => {
+    const device = await makeKeypair();
+    const goodKey = 'cd'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, goodKey);
+    const verify = vi.fn(async (keyHex) => keyHex === goodKey);
+
+    clearUnwrappedKeyCache('note-ok');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-ok',
+      console,
+      verify,
+    );
+
+    expect(recovered).toBe(goodKey);
+    expect(getCachedNoteKey('note-ok')).toBe(goodKey);
+    // verify receives the candidate key plus the note id for context.
+    expect(verify).toHaveBeenCalledWith(goodKey, 'note-ok');
+  });
+
+  it('skips a failed candidate and adopts a later verifying envelope', async () => {
+    const device = await makeKeypair();
+    const forged = 'ee'.repeat(32);
+    const real = 'cd'.repeat(32);
+    const envelopes = [
+      { deviceId: 'd1', wrappedKey: await wrapNoteKeyForRecipient(device.pkHex, forged) },
+      { deviceId: 'd1', wrappedKey: await wrapNoteKeyForRecipient(device.pkHex, real) },
+    ];
+
+    clearUnwrappedKeyCache('note-two');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      envelopes,
+      { privateKeyHex: device.skHex },
+      'note-two',
+      console,
+      async (keyHex) => keyHex === real,
+    );
+
+    expect(recovered).toBe(real);
+  });
+
+  it('keeps the pre-verification behavior when nothing can verify (no commits yet)', async () => {
+    const device = await makeKeypair();
+    const keyHex = 'ab'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, keyHex);
+
+    clearUnwrappedKeyCache('note-fresh');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-fresh',
+      console,
+      async () => null, // nothing probative to verify against
+    );
+
+    expect(recovered).toBe(keyHex);
+  });
+
+  it('adopts without a verifier (backwards compatible call shape)', async () => {
+    const device = await makeKeypair();
+    const keyHex = 'ab'.repeat(32);
+    const envelope = await wrapNoteKeyForRecipient(device.pkHex, keyHex);
+
+    clearUnwrappedKeyCache('note-plain');
+    const recovered = await recoverNoteKeyFromEnvelopes(
+      [{ deviceId: 'd1', wrappedKey: envelope }],
+      { privateKeyHex: device.skHex },
+      'note-plain',
+    );
+
+    expect(recovered).toBe(keyHex);
   });
 });
 
@@ -131,5 +286,46 @@ describe('provisionNoteKey drift guard + provisioning', () => {
 
     expect(result).toBeNull();
     expect(storeRecipients).not.toHaveBeenCalled();
+  });
+});
+
+describe('provisionNoteKey fan-out', () => {
+  it('wraps the note key for every device key and stores per-deviceId', async () => {
+    // deviceA is the owner's device ('da'); its private key must unwrap its own envelope.
+    const deviceA = await generateIdentity();
+    const deviceB = await generateIdentity();
+
+    const identity = {
+      publicKeyHex: deviceA.publicKeyHex,
+      privateKeyHex: deviceA.privateKeyHex,
+    };
+
+    const recipients = [];
+    const noteKeyHex = await provisionNoteKey({
+      getKey: async () => ({ noteHasKey: false }),
+      listPublicKeys: async () => ({
+        collaborators: [
+          { userId: 'u1', deviceId: 'da', kemPublicKey: deviceA.publicKeyHex },
+          { userId: 'u1', deviceId: 'db', kemPublicKey: deviceB.publicKeyHex },
+        ],
+      }),
+      storeRecipients: async (rs) => {
+        recipients.push(...rs);
+        return { existing: false };
+      },
+      identity,
+      noteId: 'n1',
+      log: silentLog,
+    });
+
+    expect(noteKeyHex).toMatch(/^[0-9a-f]{64}$/i);
+    expect(recipients).toHaveLength(2);
+    expect(recipients.map((r) => r.deviceId).sort()).toEqual(['da', 'db']);
+
+    // the owner's own device can unwrap its envelope back to the note key
+    const mine = recipients.find((r) => r.deviceId === 'da');
+    expect(typeof mine.wrappedKey).toBe('string');
+    const unwrapped = await unwrapNoteKey(identity.privateKeyHex, mine.wrappedKey);
+    expect(unwrapped).toBe(noteKeyHex);
   });
 });

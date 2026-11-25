@@ -22,7 +22,18 @@ impl<R: Runtime> SafeAreaInsetsCss<R> {
         Ok(GetInsetResponse { inset: 0.0 })
     }
 
+    pub fn get_fold_state(&self) -> crate::Result<FoldState> {
+        Ok(FoldState::unknown())
+    }
+
     pub fn set_scribble_enabled(&self, _enabled: bool) -> crate::Result<()> {
+        Ok(())
+    }
+
+    pub fn set_scribble_targets(
+        &self,
+        _targets: Vec<ScribbleTargetRect>,
+    ) -> crate::Result<()> {
         Ok(())
     }
 }

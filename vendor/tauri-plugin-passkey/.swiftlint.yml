@@ -1,0 +1,23 @@
+# SwiftLint configuration
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - trailing_comma # Trailing commas are actually good practice in Swift
+  - type_body_length # Allow longer class/struct bodies for complex implementations
+  - file_length # Allow longer files for complex implementations
+  - function_body_length # Allow longer function bodies for complex functions
+  - function_parameter_count # The C-FFI export functions mirror WebAuthn's wide native API surface (domain, challenge, user fields, PRF salts, callback, ...) and can't be reasonably split
+
+opening_brace:
+  # SwiftFormat's wrapMultilineStatementBraces puts the opening brace of a wrapped
+  # multi-line condition on its own line. Without this, the two tools disagree and
+  # whichever runs last loses.
+  ignore_multiline_statement_conditions: true
+
+included:
+  - ios/Sources
+  - macos/Sources
+
+excluded:
+  - ios/Package.swift
+  - macos/Package.swift

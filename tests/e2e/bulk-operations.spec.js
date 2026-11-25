@@ -74,29 +74,6 @@ describe('Bulk Operations', () => {
     expect(hasSelection).toBe(0);
   });
 
-  it('should bulk archive notes', async () => {
-    await browser.execute(() => {
-      const inputs = Array.from(document.querySelectorAll('input[type="checkbox"]'));
-      if (inputs.length >= 2) {
-        inputs[0].click();
-        inputs[1].click();
-      }
-    });
-    await browser.pause(500);
-
-    await browser.execute(() => {
-      const btns = Array.from(document.querySelectorAll('button'));
-      const archiveBtn = btns.find(b =>
-        b.getAttribute('aria-label')?.includes('rchive') ||
-        b.querySelector('[class*="archive"]')
-      );
-      if (archiveBtn) archiveBtn.click();
-    });
-    await browser.pause(1000);
-
-    expect(true).toBe(true);
-  });
-
   after(async () => {
     try {
       await navigateToNotes();

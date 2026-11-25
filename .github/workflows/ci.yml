@@ -71,6 +71,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libasound2-dev \
+            libudev-dev \
             patchelf
 
       - name: Rust cache
@@ -85,3 +86,4 @@ jobs:
 
       - name: Run Rust unit tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
+

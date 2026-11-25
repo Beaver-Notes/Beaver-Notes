@@ -108,8 +108,9 @@ export function useNotesBrowserTouch({
 
     if (touchDragStarted) {
       event.preventDefault();
-      const didMove = finishTouchDrag();
-      if (didMove) clearSelection();
+      finishTouchDrag().then((didMove) => {
+        if (didMove) clearSelection();
+      });
       resetTouchInteraction();
       return;
     }

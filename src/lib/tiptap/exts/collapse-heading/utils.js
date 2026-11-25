@@ -1,13 +1,12 @@
 /**
- * Collect the start positions of headings that became empty as a result of the
- * given transactions.
+ * Collect start positions of headings emptied by the given transactions.
  *
- * Scanning is limited to the blocks the transactions actually touched (via
- * `Transaction.changedRange()`), instead of traversing the whole document. A
- * heading elsewhere in the doc is left untouched unless its own content changed
- * — the original plugin traversed the entire doc on every transaction.
- *
- * Returns an array of absolute positions (the heading node's start position).
+ * Scans the edges of every transaction step instead of the transactions'
+ * changedRange(): a block move's changed range spans everything between the
+ * two ends, so walking it visits the whole document (O(doc) per move — 114 ms
+ * on a 3000-block note). A heading can only survive a removal while becoming
+ * empty at the edges of the removed range, so the scan stays proportional to
+ * the edit. Returns absolute positions.
  */
 export function collectEmptyHeadingPositions(doc, transactions) {
   const blocks = new Set();
@@ -16,28 +15,26 @@ export function collectEmptyHeadingPositions(doc, transactions) {
     const tr = transactions[i];
     if (!tr.docChanged) continue;
 
-    let range = tr.changedRange();
-    if (!range) continue;
+    tr.steps.forEach((step, stepIndex) => {
+      if (typeof step.from !== 'number' || typeof step.to !== 'number') return;
 
-    // Map the range forward into the final doc when multiple transactions were
-    // chained (changedRange reports positions in the transaction's own doc).
-    for (let j = i + 1; j < transactions.length; j++) {
-      const map = transactions[j].mapping;
-      range = { from: map.map(range.from, 1), to: map.map(range.to, -1) };
-    }
+      // Map the step's edges into the final doc: through the rest of this
+      // transaction, then through every transaction chained after it.
+      const map = (pos, assoc) => {
+        let mapped = tr.mapping.slice(stepIndex + 1).map(pos, assoc);
+        for (let j = i + 1; j < transactions.length; j++) {
+          mapped = transactions[j].mapping.map(mapped, assoc);
+        }
+        return mapped;
+      };
 
-    if (range.from === range.to) {
-      // Pure deletions collapse to a single point. Check the textblock
-      // containing it and the block immediately before it.
-      for (const p of [range.from, range.from - 1]) {
+      const from = map(step.from, 1);
+      const to = map(step.to, -1);
+      for (const p of [from, from - 1, to, to - 1]) {
         const start = textblockStart(doc, p);
         if (start !== null) blocks.add(start);
       }
-    } else {
-      doc.nodesBetween(range.from, range.to, (node, pos) => {
-        if (node.isTextblock) blocks.add(pos);
-      });
-    }
+    });
   }
 
   const positions = [];

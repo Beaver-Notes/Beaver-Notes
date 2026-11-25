@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- .bea holds 100MB+ JSON; declaring it via fileAssociations alone leaves the
+	     system with a dynamic UTI that QuickLook can treat as text. Export a proper
+	     non-text UTI so Finder/Quick Look never parse the file body. -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.beavernotes.bea</string>
+			<key>UTTypeDescription</key>
+			<string>Beaver Notes File</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>bea</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-beaver-notes</string>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>

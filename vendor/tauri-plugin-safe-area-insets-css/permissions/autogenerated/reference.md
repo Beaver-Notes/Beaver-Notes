@@ -6,7 +6,9 @@ Default permissions for the plugin
 
 - `allow-get-bottom-inset`
 - `allow-get-top-inset`
+- `allow-get-fold-state`
 - `allow-set-scribble-enabled`
+- `allow-set-scribble-targets`
 - `allow-registerListener`
 - `allow-unregister-listener`
 
@@ -41,6 +43,32 @@ Enables the get_bottom_inset command without any pre-configured scope.
 <td>
 
 Denies the get_bottom_inset command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`safe-area-insets-css:allow-get-fold-state`
+
+</td>
+<td>
+
+Enables the get_fold_state command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`safe-area-insets-css:deny-get-fold-state`
+
+</td>
+<td>
+
+Denies the get_fold_state command without any pre-configured scope.
 
 </td>
 </tr>
@@ -171,6 +199,32 @@ Enables the set_scribble_enabled command without any pre-configured scope.
 <td>
 
 Denies the set_scribble_enabled command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`safe-area-insets-css:allow-set-scribble-targets`
+
+</td>
+<td>
+
+Enables the set_scribble_targets command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`safe-area-insets-css:deny-set-scribble-targets`
+
+</td>
+<td>
+
+Denies the set_scribble_targets command without any pre-configured scope.
 
 </td>
 </tr>

@@ -1,111 +1,192 @@
 <template>
   <div v-if="note" class="flex flex-col">
+    <mobile-sync-strip v-if="isMobile" />
+
     <template v-if="editor && !isLocked">
       <div
-        class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4"
+        class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4 foldable:hidden"
       >
-        <div
-          v-if="previousNote && !uiState.inReaderMode"
-          class="bg-white dark:bg-neutral-900 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
-        >
-          <button
-            class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300 mobile:hidden"
-            :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
-            @click="goToPrevious"
+        <!-- On a foldable this rides the app rail instead: icon only, no card. -->
+        <teleport to="#app-rail-top" :disabled="!isFoldableDevice">
+          <div
+            v-if="backTarget && !uiState.inReaderMode"
+            class="shadow-sm flex items-center"
+            :class="
+              isFoldableDevice
+                ? 'py-1'
+                : 'bg-white dark:bg-neutral-900 border p-1 rounded-xl w-fit max-w-content'
+            "
           >
-            <v-remixicon name="riArrowLeftLine" class="flex-shrink-0" />
-            <span class="truncate max-w-[16rem]">
-              {{
-                previousNote.title ||
-                translations.editor.untitledNote ||
-                'Untitled'
-              }}
-            </span>
-          </button>
-        </div>
+            <button
+              class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300"
+              :class="{ 'mobile:hidden': !isFoldableDevice }"
+              :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
+              @click="goToPrevious"
+            >
+              <v-remixicon name="riArrowLeftLine" class="flex-shrink-0" />
+              <span v-if="!isFoldableDevice" class="truncate max-w-[16rem]">
+                {{
+                  backTarget.title ||
+                  translations.editor.untitledNote ||
+                  'Untitled'
+                }}
+              </span>
+            </button>
+          </div>
+        </teleport>
         <div class="flex-1"></div>
         <note-actions
-          v-bind="{ editor, id, note, showSearch, goBack, peers: presence.peers, localColor: presence.localColor?.value, localName: accountStore.profile?.username || 'Anonymous', showHistory, showComments, isShared }"
+          v-bind="{
+            editor,
+            id,
+            note,
+            showSearch,
+            goBack,
+            peers: presence.peers.value,
+            localColor: presence.localColor?.value,
+            localName: presence.localName.value,
+            showHistory,
+            showComments,
+          }"
           @toggle-search="showSearch = !showSearch"
           @toggle-history="showHistory = !showHistory"
           @toggle-comments="toggleComments"
+          @restore="handleRestore"
+          @preview="enterVersionPreview"
         />
       </div>
     </template>
 
     <div
-      class="editor note-editor-page self-center w-full mobile:px-4 px-12 lg:px-0 mobile:pt-0 pt-20"
-      :class="{ 'mobile-search-open': showSearch }"
-      :style="{
-        '--selected-width': note?.isFullWidth ? '100%' : '54rem',
-        'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
-        ...(note?.isFullWidth
-          ? { 'padding-left': '5rem', 'padding-right': '5rem' }
-          : {}),
+      class="editor note-editor-page self-center w-full px-10 pt-10"
+      :class="{
+        'mobile-search-open': showSearch,
+        'mobile:pt-0': !uiState.inReaderMode,
+        'mobile:pt-6': uiState.inReaderMode,
       }"
+      :data-reader-theme="uiState.inReaderMode ? prefs.theme : null"
+      :data-reader-family="prefs.family"
+      :data-full-width="note?.isFullWidth ? 'true' : null"
+      :style="
+        uiState.inReaderMode
+          ? {
+              '--selected-width': note?.isFullWidth ? '60rem' : '60rem',
+              'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
+              '--reader-size': prefs.size + 'px',
+              '--reader-line': prefs.line,
+            }
+          : {
+              '--selected-width': note?.isFullWidth ? '100%' : '60rem',
+              'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
+            }
+      "
+      @mousedown.self="uiState.inReaderMode && exitReader()"
     >
       <template v-if="editor && !isLocked">
-        <transition
-          v-if="showSearch"
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="opacity-0 translate-y-4"
-          enter-to-class="opacity-0 translate-y-0"
-          leave-active-class="transition duration-150 ease-out"
-          leave-from-class="opacity-0 translate-y-0"
-          leave-to-class="opacity-0 translate-y-4"
+        <div
+          :style="{
+            paddingInlineStart: 'var(--drag-handle-gutter, 0px)',
+            paddingInlineEnd: 'var(--drag-handle-gutter, 0px)',
+          }"
         >
-          <note-search
-            v-bind="{ editor }"
-            @close="closeSearch"
-            @keyup.esc="closeSearch"
-          />
-        </transition>
-        <note-toolbar v-else v-bind="{ editor, id, note, showSearch }" />
+          <transition
+            v-if="showSearch"
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0 translate-y-4"
+            enter-to-class="opacity-0 translate-y-0"
+            leave-active-class="transition duration-150 ease-out"
+            leave-from-class="opacity-0 translate-y-0"
+            leave-to-class="opacity-0 translate-y-4"
+          >
+            <note-search
+              v-bind="{ editor }"
+              @close="closeSearch"
+              @keyup.esc="closeSearch"
+            />
+          </transition>
+          <note-toolbar v-else v-bind="{ editor, id, note, showSearch }" />
+        </div>
       </template>
       <div
-        v-if="!isLocked"
-        ref="titleDiv"
-        data-testid="note-title-input"
-        contenteditable="true"
-        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder leading-tight"
-        :class="editor ? '' : 'invisible'"
-        :data-placeholder="translations.editor.untitledNote"
-        @input="handleTitleInput"
-        @keydown="disallowedEnter"
-      ></div>
-      <div v-else class="flex flex-col items-center justify-center h-screen">
-        <v-remixicon
-          class="w-24 h-auto text-gray-600 dark:text-white"
-          name="riLockLine"
-        />
-        <p class="text-center pb-2 text-gray-600 dark:text-gray-200">
-          {{
-            appEncryptedLocked
-              ? translations.settings?.unlockAppEncryption ||
-                'This note is encrypted at rest. Enter your password to unlock it.'
-              : translations.card.unlockToEdit
-          }}
-        </p>
-        <div class="pb-2">
-          <button
-            class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
-            @click="
-              appEncryptedLocked ? unlockAppEncryption() : noteStore.unlockNote(note.id)
-            "
-          >
-            {{
-              appEncryptedLocked
-                ? translations.settings?.unlock || 'Unlock'
-                : translations.card.unlock
-            }}
-          </button>
-        </div>
-        <router-link
-          class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
-          :to="`/`"
+        v-if="yjsError"
+        class="flex flex-col items-center gap-3 mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-sm text-red-600 dark:text-red-400"
+      >
+        <span>{{ yjsError }}</span>
+        <button
+          class="px-3 py-1 rounded bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-700 transition"
+          @click="
+            yjsError = null;
+            yjsLoad(id, note?.content).catch((e) => {
+              yjsError = e?.message || 'Retry failed';
+            });
+          "
         >
-          {{ translations.index.close }}
-        </router-link>
+          {{ translations.common?.retry || 'Retry' }}
+        </button>
+      </div>
+      <div
+        v-if="!isLocked"
+        class="editor prose dark:prose-invert max-w-none w-full mb-6 mobile:mb-6"
+      >
+        <h1
+          ref="titleDiv"
+          data-testid="note-title-input"
+          :contenteditable="canEdit(noteRole) && !uiState.inReaderMode"
+          class="outline-none bg-transparent cursor-text title-placeholder"
+          :data-placeholder="translations.editor.untitledNote"
+          :style="{
+            paddingInlineStart: 'var(--drag-handle-gutter, 0px)',
+            paddingInlineEnd: 'var(--drag-handle-gutter, 0px)',
+          }"
+          @input="(event) => handleTitleInput(event, id)"
+          @keydown="disallowedEnter"
+        ></h1>
+      </div>
+      <div
+        v-else
+        class="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] py-12 w-full"
+      >
+        <unlock-card
+          :title="
+            translations.settings?.unlockAppEncryptionTitle ||
+            'Unlock to continue'
+          "
+          :body="
+            appEncryptedLocked
+              ? translations.settings?.unlockAppEncryptionBody ||
+                'Your notes are encrypted. Enter your vault key to unlock the app.'
+              : translations.card.unlockToEdit ||
+                'This note is locked. Enter your vault key or use biometrics to unlock it.'
+          "
+          :hint="'Encryption is always active: your notes and assets are protected at rest.'"
+          :password="lockedPassword"
+          :placeholder="
+            translations.settings?.vaultKeyPlaceholder || 'Vault key'
+          "
+          :error="lockedError"
+          :busy="lockedBusy"
+          :biometric-busy="lockedBiometricBusy"
+          :biometric-available="lockedBiometricAvailable"
+          :biometric-label="
+            translations.settings?.unlockWithBiometrics ||
+            'Unlock with Touch ID'
+          "
+          :unlock-label="translations.settings?.unlock || 'Unlock'"
+          :require-password="true"
+          show-close
+          :close-label="translations.index.close || 'Close'"
+          @update:password="lockedPassword = $event"
+          @unlock="
+            appEncryptedLocked
+              ? handleEncryptedPasswordUnlock()
+              : handleIsLockedPasswordUnlock()
+          "
+          @unlock-biometrics="
+            appEncryptedLocked
+              ? handleEncryptedBiometricUnlock()
+              : handleIsLockedUnlock()
+          "
+        />
       </div>
 
       <div v-if="!isLocked" class="relative editor-skeleton-wrapper">
@@ -113,12 +194,13 @@
           v-if="yjsReady"
           :id="$route.params.id"
           ref="noteEditor"
-          :key="$route.params.id"
+          :key="`${$route.params.id}-${ydoc?.clientID ?? 'no-doc'}-${awareness?.clientID ?? 'no-aw'}`"
           :ydoc="ydoc"
           :awareness="awareness"
-          :user-name="accountStore.profile?.username || 'Anonymous'"
+          :user-name="presence.localName.value"
+          :user-id="accountStore.profile?.id || ''"
           :note="note"
-          :role="roomRole"
+          :role="noteRole"
           :cursor-position="note.lastCursorPosition"
           @update="
             autoScroll();
@@ -127,11 +209,9 @@
           @init="editor = $event"
           @keyup.down="autoScroll"
           @comment-activated="onCommentActivated"
+          @activity="handleActivity"
         />
-        <div
-          v-if="yjsReady && !editor"
-          class="editor-skeleton"
-        >
+        <div v-if="yjsReady && !editor" class="editor-skeleton">
           <div class="space-y-4 animate-pulse">
             <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
             <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2" />
@@ -149,15 +229,30 @@
         </div>
       </div>
       <note-backlinks v-if="!isLocked" />
+      <comment-inline-popover v-if="!isLocked" :note-id="id" />
     </div>
+    <ReaderPill
+      v-if="uiState.inReaderMode"
+      @exit="exitReader"
+      @change="() => {}"
+    />
+
     <note-headings-progress
       v-if="editor"
       :editor="editor"
-      class="mobile:hidden ipad:hidden"
+      class="mobile:hidden tablet:hidden"
     />
-    <comment-sidebar
-      v-if="showComments && isShared"
+    <word-count-pill
+      v-if="editor && !isLocked && note.showWordCount"
+      :editor="editor"
+      :note="note"
+      class="mobile:hidden tablet:hidden"
+    />
+    <!-- Floating card on md and up, bottom sheet below md; the panel picks. -->
+    <comment-panel
+      v-if="showComments"
       :note-id="id"
+      :editor="editor"
       @close="closeComments"
     />
   </div>
@@ -177,31 +272,60 @@ import { debounce } from '@/utils/helpers/index.js';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
+import { useFolderStore } from '@/store/folder';
+import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 import { useUiState } from '@/composable/useUiState';
+import { useSidebar } from '@/composable/useSidebar';
 import { useStore } from '@/store';
-import { addCloseHandler } from '@/lib/tauri-bridge';
+import { addCloseHandler, path } from '@/lib/tauri-bridge';
 import { useNotePersistence } from '@/utils/note/persistence';
 import { useNoteEncryption } from '@/utils/crypto/note-encryption';
+import { useAudioRecorder } from '@/composable/useAudioRecorder';
+import { insertAudioIntoClosedNote } from '@/utils/assets/audioInsert';
 import NoteToolbar from '@/components/note/NoteToolbar.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
+import WordCountPill from '@/components/note/WordCountPill.vue';
 import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
 import { useAppStore } from '../../store/app';
 import { useAccountStore } from '@/store/account';
-import { isEncryptedContent } from '@/utils/crypto/encryption.js';
+import {
+  isEncryptedContent,
+  verifyPassphrase,
+  tryRestoreKeyFromSafeStorage,
+} from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
+import {
+  isBiometricAvailable,
+  authenticateWithBiometrics,
+} from '@/lib/native/biometric.js';
+import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
-import { useNoteYjs } from '@/composable/useNoteYjs';
+import { useNoteYjs, flushAllNoteYjsPending } from '@/composable/useNoteYjs';
 import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
-import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
+import { useActivityLog } from '@/composable/useActivityLog';
+import {
+  clearScribbleSuppressed,
+  setScribbleSuppressed,
+} from '@/lib/native/scribble';
+import { getWsSync } from '@/lib/sync/ws-sync';
 import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
 import { useCommentStore } from '@/store/comment';
-import CommentSidebar from '@/components/note/CommentSidebar.vue';
+import CommentPanel from '@/components/note/CommentPanel.vue';
+import CommentInlinePopover from '@/components/note/CommentInlinePopover.vue';
+import UnlockCard from '@/components/app/UnlockCard.vue';
+import { canEdit } from '@/utils/permissions';
+import { displayName } from '@/utils/displayName';
+import ReaderPill from '@/components/note/ReaderPill.vue';
+import { useReaderPrefs } from '@/composable/useReaderPrefs';
+import MobileSyncStrip from '@/components/app/MobileSyncStrip.vue';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { foldState } from '@/lib/foldable';
 
 export default {
   components: {
@@ -210,43 +334,142 @@ export default {
     NoteSearch,
     NoteToolbar,
     NoteHeadingsProgress,
+    WordCountPill,
     NoteBacklinks,
-    CommentSidebar,
+    CommentPanel,
+    CommentInlinePopover,
+    UnlockCard,
+    ReaderPill,
+    MobileSyncStrip,
   },
   inheritAttrs: false,
   setup() {
     const uiState = useUiState();
+    const { prefs } = useReaderPrefs();
+    const { expanded: sidebarExpanded } = useSidebar();
     const route = useRoute();
     const store = useStore();
     const router = useRouter();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
+    const folderStore = useFolderStore();
     const appStore = useAppStore();
+    const isMobile = isMobileRuntime();
+    const isFoldableDevice = computed(() => foldState.isFoldable);
 
     const editor = shallowRef(null);
+    function exitReader() {
+      uiState.inReaderMode = false;
+      try {
+        if (document.fullscreenElement) document.exitFullscreen();
+      } catch {}
+      editor.value?.setOptions?.({ editable: true });
+      document.documentElement.removeAttribute('data-reader-theme-legacy');
+    }
     const noteEditor = ref();
     const showSearch = shallowRef(false);
     const showHistory = ref(false);
     const showComments = ref(false);
     const commentStore = useCommentStore();
+    // ponytail: hinge = division region (Apple 111463) — cap readable content to one segment, never span the crease
+    const hingeSegmentWidth = ref(null);
+    const updateHingeSegments = () => {
+      const segments = window.getViewportSegments?.();
+      hingeSegmentWidth.value =
+        segments?.length === 2 ? Math.min(segments[0].width, segments[1].width) : null;
+    };
+    onMounted(() => {
+      updateHingeSegments();
+      window.addEventListener('resize', updateHingeSegments);
+    });
+    onUnmounted(() => {
+      window.removeEventListener('resize', updateHingeSegments);
+    });
     const titleDiv = ref(null);
     const noteHistory = useNoteHistory();
     const sharing = useNoteSharing();
+    const activityLog = useActivityLog();
+    function handleActivity(payload) {
+      activityLog.record(payload);
+    }
 
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
     const appEncryptedLocked = computed(
-      () => !!note.value && isEncryptedContent(note.value.content)
+      () => !!note.value && isEncryptedContent(note.value.content),
     );
     const isLocked = computed(
-      () => !!note.value && (note.value.isLocked || appEncryptedLocked.value)
+      () => !!note.value && (note.value.isLocked || appEncryptedLocked.value),
     );
     const { translations } = useTranslations();
 
-    const hocuspocus = getHocuspocusSync();
-    const roomRole = computed(() => hocuspocus.getRoomRole(id.value));
+    const recorder = useAudioRecorder();
+    // The page's own id, captured once: `id` reads the live route param, which
+    // already points elsewhere by the time this page unmounts. Comparing
+    // against the live value left `openNoteId` stale after leaving for a
+    // non-note route, so the pill deferred to a page that was gone and the
+    // finished recording was never inserted.
+    const pageNoteId = id.value;
 
-    // Yjs document management for note content
+    function handleRecordingStopped(payload) {
+      const { filePath, noteId, cursorPos } = payload;
+      if (noteId !== id.value) return;
+      payload.markConsumed();
+      if (note.value && editor.value) {
+        const filename = path.basename(filePath);
+        const src = `assets://${noteId}/${filename}`;
+        const pos = cursorPos ?? editor.value.state.selection.from;
+        editor.value.commands.setTextSelection(pos);
+        editor.value.commands.setAudio(src, filename);
+      } else {
+        void insertAudioIntoClosedNote(
+          noteId,
+          filePath,
+          noteStore,
+          cursorPos,
+        ).catch((error) => {
+          console.error('Failed to insert recording into note:', error);
+        });
+      }
+    }
+    const stopRecorderListener = recorder.onStopped(handleRecordingStopped);
+
+    recorder.openNoteId.value = pageNoteId;
+
+    const pushNoteMenuContext = () => {
+      pushMenuContext(
+        buildMenuContext({
+          routeName: 'Note',
+          noteEditable: !isLocked.value,
+          noteLocked: isLocked.value,
+          inReaderMode: uiState.inReaderMode,
+        }),
+      );
+    };
+
+    watch(
+      () => [id.value, isLocked.value, uiState.inReaderMode],
+      () => pushNoteMenuContext(),
+      { immediate: true },
+    );
+
+    const accountStore = useAccountStore();
+    const wsSync = getWsSync();
+    const noteRole = ref(wsSync.getRoomRole(id.value));
+    watch(
+      () => sharing.collaborators.value,
+      (list) => {
+        if (!list?.length || !accountStore.profile?.id) return;
+        const self = list.find(
+          (c) =>
+            c.userId === accountStore.profile.id ||
+            c.username === accountStore.profile.username,
+        );
+        if (self?.role) noteRole.value = self.role;
+      },
+      { immediate: true },
+    );
+
     const {
       doc: ydoc,
       ready: yjsReady,
@@ -256,36 +479,106 @@ export default {
       observeTitle: yjsObserveTitle,
     } = useNoteYjs();
 
-    // Presence
-    const awareness = ydoc.value ? new Awareness(ydoc.value) : null;
-    const accountStore = useAccountStore();
+    // Show "syncing" state when yjs is ready but the doc has no content yet
+    // (content arrives via sync after metadata). Prevents blank editor flash.
+    const yjsError = ref(null);
+
+    const awareness = shallowRef(null);
+    // The note id the current Awareness was built for, and the doc instance it
+    // wraps. A repeated ydoc emission for the same note must not rebuild either.
+    let awarenessNoteId = null;
+    let awarenessDoc = null;
+    // Load epoch: an in-flight load whose epoch was superseded (or whose page
+    // unmounted) must not continue, otherwise a second concurrent load for the
+    // same note tears down the live provider the first load installed.
+    let loadEpoch = 0;
+
+    function displayNameForPresence() {
+      return displayName(accountStore.profile);
+    }
     const presence = usePresence(
       awareness,
-      accountStore.profile?.id || 'anonymous',
-      accountStore.profile?.username || 'Anonymous'
+      () => accountStore.profile?.id || 'anonymous',
+      () => displayNameForPresence(),
     );
 
-    onMounted(() => {
-      presence.init();
-    });
-
-    // Update presence when profile loads (profile may arrive after init)
+    // Create/destroy Awareness only when the doc for this note really changed;
+    // a repeat emission for the same doc would destroy the live provider.
     watch(
-      () => accountStore.profile?.username,
-      (name) => {
-        if (name && awareness) {
-          presence.setLocalState({ name });
+      ydoc,
+      (doc, oldDoc) => {
+        const noteId = id.value;
+        if (!doc) {
+          awarenessNoteId = null;
+          awarenessDoc = null;
+          if (awareness.value) {
+            try {
+              awareness.value.setLocalState(null);
+            } catch {}
+            presence.destroy();
+            awareness.value = null;
+          }
+          return;
+        }
+        if (awareness.value && noteId && noteId === awarenessNoteId && doc === awarenessDoc) {
+          return;
+        }
+        if (awareness.value) {
+          try {
+            awareness.value.setLocalState(null);
+          } catch {}
+          presence.destroy();
+          awareness.value = null;
+        }
+        const aw = new Awareness(doc);
+        awareness.value = aw;
+        awarenessNoteId = noteId || null;
+        awarenessDoc = doc;
+        // set initial local user state (usePresence.init does this, but ensure)
+        presence.init();
+        // pass this awareness to ws-sync so provider reuses same instance (per-doc guard)
+        // joinNoteRoom is idempotent; if provider already exists for this doc it is skipped
+        if (noteId) {
+          const wsSyncAny = getWsSync();
+          // if provider for this note already created without external awareness, we need to re-wire:
+          // leave and re-join with correct awareness
+          // detection: provider exists but its awareness !== aw
+          Promise.resolve(wsSyncAny.joinNoteRoom?.(noteId, doc, aw)).catch((err) => {
+            console.warn('[note] joinNoteRoom failed:', noteId, err?.message || err);
+          });
         }
       },
-      { immediate: true }
+      { immediate: true },
+    );
+
+    // Re-advertise when identity resolves late (profile loads async): the id
+    // getter is fresh, so re-setting pushes the real account id to peers.
+    watch(
+      () => [
+        accountStore.profile?.id,
+        accountStore.profile?.username,
+        accountStore.profile?.email,
+      ],
+      () => {
+        if (awareness.value) {
+          presence.setLocalState({ name: displayNameForPresence() });
+        }
+      },
     );
 
     onUnmounted(() => {
+      // Retire in-flight loads from this page: without this they resume against
+      // a destroyed view and register a second doc for the note.
+      loadEpoch++;
       presence.destroy();
+      if (awareness.value) {
+        try {
+          awareness.value.setLocalState(null);
+        } catch {}
+        awareness.value = null;
+      }
     });
 
-    // Sharing — fetch collaborators to determine if note is shared
-    const isShared = computed(() => sharing.collaborators.value.length > 0);
     watch(
       id,
       async (newId) => {
@@ -297,29 +590,21 @@ export default {
           }
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
 
-    // Comments — toggle sidebar + fetch threads when note becomes shared
     function toggleComments() {
       showComments.value = !showComments.value;
-      if (showComments.value && isShared.value) {
-        commentStore.fetchThreads(id.value, { baseUrl: accountStore.serverUrl });
+      if (showComments.value) {
+        commentStore.fetchThreads(id.value, {
+          baseUrl: accountStore.serverUrl,
+        });
       }
     }
     function closeComments() {
       showComments.value = false;
       commentStore.closeSidebar();
     }
-    watch(
-      () => [isShared.value, id.value],
-      async ([shared, noteId]) => {
-        if (shared && noteId && accountStore.isAuthenticated) {
-          commentStore.fetchThreads(noteId, { baseUrl: accountStore.serverUrl });
-        }
-      },
-      { immediate: true }
-    );
     onUnmounted(() => {
       commentStore.reset();
     });
@@ -328,22 +613,111 @@ export default {
       commentStore.setActiveThread(commentId);
       showComments.value = true;
     }
+    // Desktop fine-pointer hover: peek a thread from its note mark without
+    // touching activeThreadId (that stays the click/selection path).
+    const hoverOpenTimer = ref(null);
+    const hoverCloseTimer = ref(null);
+    function cancelHoverOpen() {
+      if (hoverOpenTimer.value) {
+        clearTimeout(hoverOpenTimer.value);
+        hoverOpenTimer.value = null;
+      }
+    }
+    function cancelHoverClose() {
+      if (hoverCloseTimer.value) {
+        clearTimeout(hoverCloseTimer.value);
+        hoverCloseTimer.value = null;
+      }
+    }
+    function closeHoverSoon() {
+      cancelHoverOpen();
+      cancelHoverClose();
+      hoverCloseTimer.value = setTimeout(() => {
+        hoverCloseTimer.value = null;
+        commentStore.setHoverThread?.(null);
+      }, 200);
+    }
+    function commentIdFromEvent(e) {
+      const el = e.target instanceof Element ? e.target : null;
+      return el?.closest?.('[data-comment-id]')?.dataset?.commentId || null;
+    }
+    function onDocMouseOver(e) {
+      const id = commentIdFromEvent(e);
+      if (id) {
+        cancelHoverClose();
+        cancelHoverOpen();
+        hoverOpenTimer.value = setTimeout(() => {
+          hoverOpenTimer.value = null;
+          commentStore.setHoverThread?.(id);
+        }, 150);
+        return;
+      }
+      // Keep the popover open while the pointer is inside it.
+      const pop = e.target instanceof Element && e.target.closest?.('[data-testid="inline-popover"]');
+      if (pop) {
+        cancelHoverClose();
+        return;
+      }
+      closeHoverSoon();
+    }
+    function onDocMouseOut(e) {
+      const from = e.target instanceof Element ? e.target : null;
+      const to = e.relatedTarget instanceof Element ? e.relatedTarget : null;
+      if (!from || !to) return;
+      if (from.closest('[data-comment-id]') && from.closest('[data-comment-id]').contains(to)) return;
+      if (from.closest('[data-comment-id]') || from.closest('[data-testid="inline-popover"]')) {
+        closeHoverSoon();
+      }
+    }
+    function onDocFocusIn(e) {
+      const id = commentIdFromEvent(e);
+      if (id) {
+        cancelHoverClose();
+        commentStore.setHoverThread?.(id);
+      }
+    }
+    function onDocKeyDown(e) {
+      if (e.key === 'Escape' && commentStore.hoverThreadId) {
+        commentStore.setHoverThread?.(null);
+      }
+    }
+    const hoverQuery =
+      typeof window !== 'undefined'
+        ? window.matchMedia('(hover: hover) and (pointer: fine)')
+        : null;
+    function onHoverCapableChange() {
+      if (!hoverQuery?.matches) commentStore.setHoverThread?.(null);
+    }
+    if (hoverQuery?.matches) {
+      document.addEventListener('mouseover', onDocMouseOver);
+      document.addEventListener('mouseout', onDocMouseOut);
+      document.addEventListener('focusin', onDocFocusIn);
+      document.addEventListener('keydown', onDocKeyDown);
+      hoverQuery.addEventListener?.('change', onHoverCapableChange);
+    }
+    onUnmounted(() => {
+      cancelHoverOpen();
+      cancelHoverClose();
+      commentStore.setHoverThread?.(null);
+      document.removeEventListener('mouseover', onDocMouseOver);
+      document.removeEventListener('mouseout', onDocMouseOut);
+      document.removeEventListener('focusin', onDocFocusIn);
+      document.removeEventListener('keydown', onDocKeyDown);
+      hoverQuery?.removeEventListener?.('change', onHoverCapableChange);
+    });
     watch(
       () => commentStore.showSidebar,
       (open) => {
         if (open) showComments.value = true;
-      }
+      },
     );
 
-    // Persistence
-    const { updateNote, persistCurrentNote, flushScheduledPersist } =
-      useNotePersistence({
+    const { updateNote, persistCurrentNote } = useNotePersistence({
         noteStore,
         labelStore,
         appEncryptedLocked,
       });
 
-    // Navigation
     const showBack = computed(() => {
       const back = router.options.history.state.back;
       if (!back) return false;
@@ -354,6 +728,23 @@ export default {
       const fromId = route.query.from;
       if (!fromId) return null;
       return noteStore.getById(fromId) || null;
+    });
+    // A note opened from a folder has no `from` note, but the folder is the
+    // place to go back to. History state is all the router keeps of it.
+    const backTarget = computed(() => {
+      if (previousNote.value) return { title: previousNote.value.title };
+      const back = router.options.history.state.back;
+      const folderId = typeof back === 'string'
+        ? back.match(/\/folder\/([^/?#]+)/)?.[1]
+        : null;
+      if (!folderId) return null;
+      const folder = folderStore.getById(folderId);
+      return {
+        title:
+          folder?.name ||
+          translations.value.index?.untitledFolder ||
+          'Folder',
+      };
     });
     function goBack() {
       const from = router.options.history.state.back;
@@ -382,12 +773,120 @@ export default {
       goBack();
     }
 
-    // Encryption
     const { unlockAppEncryption } = useNoteEncryption({
       noteId: id,
     });
 
-    // Auto-scroll
+    // locked-note inline unlock state (encrypted + isLocked)
+    const lockedPassword = ref('');
+    const lockedError = ref('');
+    const lockedBusy = ref(false);
+    const lockedBiometricBusy = ref(false);
+    const lockedBiometricAvailable = ref(false);
+    onMounted(async () => {
+      try {
+        lockedBiometricAvailable.value = await isBiometricAvailable();
+      } catch {
+        lockedBiometricAvailable.value = false;
+      }
+    });
+    watch(isLocked, (locked) => {
+      if (!locked) {
+        lockedError.value = '';
+        lockedPassword.value = '';
+      }
+    });
+
+    async function handleIsLockedUnlock() {
+      lockedError.value = '';
+      if (lockedBiometricAvailable.value) {
+        lockedBusy.value = true;
+        try {
+          await authenticateWithBiometrics('Unlock note');
+        } catch (e) {
+          const msg = String(e?.message || '');
+          if (/cancel/i.test(msg) || /User canceled/i.test(msg)) {
+            lockedBusy.value = false;
+            return;
+          }
+          lockedError.value = msg || 'Authentication failed.';
+          lockedBusy.value = false;
+          return;
+        }
+        lockedBusy.value = false;
+      }
+      try {
+        await noteStore.unlockNote(note.value.id);
+      } catch (e) {
+        lockedError.value = e?.message || 'Failed to unlock.';
+      }
+    }
+    async function handleIsLockedPasswordUnlock() {
+      if (!lockedPassword.value?.trim() || lockedBusy.value) return;
+      lockedBusy.value = true;
+      lockedError.value = '';
+      try {
+        const res = await verifyPassphrase(lockedPassword.value);
+        if (!res.ok) {
+          lockedError.value = res.error || 'Wrong vault key.';
+          return;
+        }
+        lockedPassword.value = '';
+        await noteStore.unlockNote(note.value.id);
+      } catch (e) {
+        lockedError.value = e?.message || 'Wrong vault key.';
+      } finally {
+        lockedBusy.value = false;
+      }
+    }
+    async function handleEncryptedPasswordUnlock() {
+      if (!lockedPassword.value?.trim() || lockedBusy.value) return;
+      lockedBusy.value = true;
+      lockedError.value = '';
+      try {
+        const res = await verifyPassphrase(lockedPassword.value);
+        if (!res.ok) {
+          lockedError.value = res.error || 'Wrong vault key.';
+          return;
+        }
+        lockedPassword.value = '';
+        const current = noteStore.getById(id.value);
+        if (current && isEncryptedContent(current.content)) {
+          const decrypted = await decryptNoteForMemory(current);
+          if (decrypted !== current)
+            noteStore.data[id.value] = hydrateNote(decrypted);
+        }
+      } catch (e) {
+        lockedError.value = e?.message || 'Wrong vault key.';
+      } finally {
+        lockedBusy.value = false;
+      }
+    }
+    async function handleEncryptedBiometricUnlock() {
+      lockedBiometricBusy.value = true;
+      lockedError.value = '';
+      try {
+        await authenticateWithBiometrics('Unlock note');
+        const ok = await tryRestoreKeyFromSafeStorage();
+        if (!ok) {
+          lockedError.value = 'Failed to retrieve the stored vault key.';
+          return;
+        }
+        const current = noteStore.getById(id.value);
+        if (current && isEncryptedContent(current.content)) {
+          const decrypted = await decryptNoteForMemory(current);
+          if (decrypted !== current)
+            noteStore.data[id.value] = hydrateNote(decrypted);
+        }
+      } catch (e) {
+        const msg = String(e?.message || '');
+        if (/cancel/i.test(msg) || /User canceled/i.test(msg)) return;
+        lockedError.value = msg || 'Biometric authentication failed.';
+      } finally {
+        lockedBiometricBusy.value = false;
+      }
+    }
+
     const autoScroll = debounce(() => {
       if (!noteEditor.value) return;
       const lastChild =
@@ -412,7 +911,6 @@ export default {
       else if (offset < lineHeight) lastChild.scrollIntoView();
     }, 50);
 
-    // Watch note ID for decryption and heading conversion
     watch(
       id,
       async (n) => {
@@ -427,26 +925,107 @@ export default {
           noteStore.convertNote(n);
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
 
-    // Title / content handlers
     let titleInitialized = false;
 
-    const handleTitleInput = debounce((event) => {
+    const handleTitleInput = debounce((event, noteId) => {
       if (!titleInitialized) return;
+      // The debounce survives note→note navigation (this page is reused):
+      // only write if the note is still the one that received the input,
+      // else A's trailing title lands in B's Yjs doc.
+      if (noteId !== id.value) return;
       const text = event.target.textContent || '';
       yjsSetTitle(text);
       autoResizeTitle();
-      // Keep the store title current immediately. Relying on the Yjs observer
-      // alone left a window where the workspace-doc round-trip reset the
-      // contenteditable title mid-typing (caret jump).
+      // Update the store title immediately: relying on the Yjs observer alone
+      // let the workspace-doc round-trip reset the contenteditable mid-typing
+      // (caret jump).
       return updateNote(id.value, { title: text });
     }, 150);
 
+    let isComposing = false;
+    function onCompositionStart() {
+      isComposing = true;
+    }
+    function onCompositionEnd(e) {
+      isComposing = false;
+      handleTitleInput(e, id.value);
+    }
+    watch(
+      titleDiv,
+      (el, oldEl) => {
+        oldEl?.removeEventListener('compositionstart', onCompositionStart);
+        oldEl?.removeEventListener('compositionend', onCompositionEnd);
+        el?.addEventListener('compositionstart', onCompositionStart);
+        el?.addEventListener('compositionend', onCompositionEnd);
+      },
+      { immediate: true },
+    );
+
     function handleContentUpdate(content) {
-      if (ydoc.value) return; // Yjs manages content persistence
+      if (!content) return;
       return updateNote(id.value, { content });
+    }
+
+    let previewActive = false;
+    let previewWasEditable = true;
+    function formatVersionLabel(createdAt) {
+      const older =
+        translations.value.editor?.viewingOlderVersion ||
+        'Viewing an older version';
+      if (!createdAt) return older;
+      const when = new Date(createdAt).toLocaleString();
+      return Number.isNaN(new Date(createdAt).getTime())
+        ? older
+        : (
+            translations.value.editor?.viewingVersionFrom ||
+            'Viewing version from {when}'
+          ).replace('{when}', when);
+    }
+
+    function enterVersionPreview(payload) {
+      if (!editor.value) return;
+      if (!payload?.content) {
+        exitVersionPreview();
+        return;
+      }
+      if (!previewActive) previewWasEditable = editor.value.isEditable;
+      editor.value.commands.setVersionPreview(payload.content, {
+        content: payload.content,
+        title: payload.title,
+        label: formatVersionLabel(payload.createdAt),
+      });
+      editor.value.setEditable(false, false);
+      previewActive = true;
+    }
+
+    function exitVersionPreview() {
+      if (!editor.value || !previewActive) return;
+      previewActive = false;
+      editor.value.commands.clearVersionPreview();
+      editor.value.setEditable(previewWasEditable, false);
+    }
+
+    async function handleRestore(payload) {
+      const content = payload?.content;
+      const title = payload?.title;
+      if (typeof content !== 'string') return;
+      exitVersionPreview();
+      // Replace the live editor content: the Collaboration extension writes the
+      // change into the note's Y.Doc, so it syncs and persists like a normal edit.
+      if (editor.value) {
+        editor.value.commands.setContent(content);
+      }
+      if (typeof title === 'string') {
+        yjsSetTitle(title);
+        if (titleDiv.value) titleDiv.value.textContent = title;
+        autoResizeTitle();
+        await updateNote(id.value, { title });
+      }
+      // Panel stays open (reference behavior): the restore spinner/checkmark
+      // runs in HistoryPanel, which then jumps back to Latest itself.
     }
 
     function closeSearch() {
@@ -456,13 +1035,22 @@ export default {
     // Route watcher for persist-on-leave
     watch(
       () => route.params.id,
-      (noteId, oldNoteId) => {
-        if (oldNoteId && noteId && noteStore.getById(oldNoteId)) {
+      async (noteId, oldNoteId) => {
+        previewActive = false;
+        // Flush on ANY leave (note-to-note AND note-to-home) so home never
+        // renders a pre-edit preview while the debounced persist is pending.
+        if (oldNoteId && noteStore.getById(oldNoteId)) {
+          // A read-only visit must not bump updatedAt (sort order + no-op
+          // meta write): pass the existing timestamp through the patch.
           noteStore.patchLocal(oldNoteId, {
             lastCursorPosition: editor.value?.state.selection.to,
+            updatedAt: noteStore.getById(oldNoteId).updatedAt,
           });
-          void flushScheduledPersist(oldNoteId).catch((error) => {
-            console.error('Error persisting previous note:', error);
+          // The Yjs-mode emit is throttled: flush from the live editor so
+          // the last keystrokes are not lost to a pending debounce.
+          persistCurrentNote(editor.value, titleDiv.value, oldNoteId, {
+            wait: false,
+            keepUpdatedAt: true,
           });
         }
 
@@ -470,28 +1058,61 @@ export default {
 
         // Check the Pinia note store (source of truth) instead of the legacy
         // KV table which post-migration / synced notes never write to.
-        const currentNote = noteStore.getById(noteId);
+        // Boot race: notes hydrate from the workspace meta doc AFTER this
+        // watcher's immediate fire, and an instant redirect here bounced
+        // freshly booted users off their note. Wait (bounded) for either the
+        // note to appear or the store to prove hydration finished without it.
+        let currentNote = noteStore.getById(noteId);
+        if (!currentNote || !currentNote.id) {
+          const started = Date.now();
+          while (!currentNote) {
+            const waited = Date.now() - started;
+            const hydrated = Object.keys(noteStore.data).length > 0;
+            if ((hydrated && waited > 2000) || waited > 8000) break;
+            await new Promise((resolve) => setTimeout(resolve, 120));
+            currentNote = noteStore.getById(noteId);
+          }
+        }
         if (!currentNote || !currentNote.id) {
           router.push('/');
-        } else {
-          store.activeNoteId = currentNote.id;
-          localStorage.setItem('lastNoteEdit', noteId);
+          return;
         }
+        store.activeNoteId = currentNote.id;
+        localStorage.setItem('lastNoteEdit', noteId);
+        // Restoring the note needs its workspace too, or boot reopens it under
+        // whichever workspace came back first (F26).
+        localStorage.setItem('lastNoteWorkspace', useCloudWorkspaces().activeId.value || '');
 
-        const seedContent = currentNote?.content;
-        const seedTitle = currentNote?.title || '';
-        yjsLoad(noteId, seedContent, seedTitle).catch((err) => {
+        // Read content at call time: decrypt watcher may have updated store since fire.
+        const currentForLoad = noteStore.getById(noteId);
+        const seedContent = currentForLoad?.content;
+        yjsError.value = null;
+        const epoch = ++loadEpoch;
+        yjsLoad(noteId, seedContent).catch((err) => {
           console.error('[yjs] Failed to load note:', err);
+          // Superseded or unmounted: do not stamp an error onto a note that is
+          // no longer the one being shown.
+          if (epoch !== loadEpoch) return;
+          yjsError.value = err?.message || 'Failed to load note';
         });
       },
-      { immediate: true }
+      { immediate: true },
     );
 
-    // Lifecycle
     const handleBeforeUnload = () => {
-      void persistCurrentNote(editor.value, titleDiv.value, route.params.id);
+      // Yjs buffered deltas flush via the pagehide hook; a Tauri quit may not
+      // fire pagehide, so flush them on this path too (best-effort async).
+      void flushAllNoteYjsPending().catch((err) => {
+        console.error('[note] yjs flush on unload failed:', err);
+      });
+      void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
+        keepUpdatedAt: true,
+      })?.catch((err) => {
+        console.error('[note] final persist failed:', err);
+      });
     };
     let removeGlobalShortcuts = () => {};
+    let removeCloseHandler = () => {};
 
     const scrollTitleIntoView = () => {
       const titleEl = titleDiv.value;
@@ -514,6 +1135,7 @@ export default {
       let isFirstFocus = true;
 
       const onFocus = () => {
+        pushNoteMenuContext();
         if (window.innerWidth >= 768) return;
         if (!isFirstFocus) return;
         isFirstFocus = false;
@@ -524,7 +1146,11 @@ export default {
       removeEditorListeners = () => dom.removeEventListener('focusin', onFocus);
     });
 
+    const SCRIBBLE_SOURCE = 'note-page';
+    // shortcut: disable Scribble for the whole note page (editor, sidebar, chrome)
+    // while this view is mounted; Apple Notes suppresses Scribble in-editor.
     onMounted(() => {
+      setScribbleSuppressed(SCRIBBLE_SOURCE, true);
       removeGlobalShortcuts = bindGlobalShortcuts({
         'mod+f': () => {
           showSearch.value = true;
@@ -541,30 +1167,51 @@ export default {
         if (titleText) {
           titleDiv.value.textContent = titleText;
           autoResizeTitle();
+        } else {
+          // Clear stray <br>/whitespace from contenteditable so :empty placeholder shows
+          titleDiv.value.innerHTML = '';
         }
         titleInitialized = true;
       }
     });
 
     onUnmounted(() => {
+      clearScribbleSuppressed(SCRIBBLE_SOURCE);
       stopTitleObserver();
+      stopRecorderListener();
+      if (recorder.openNoteId.value === pageNoteId)
+        recorder.openNoteId.value = null;
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      removeCloseHandler?.();
       removeGlobalShortcuts();
       removeEditorListeners();
     });
 
-    onBeforeRouteLeave(() => {
+    onBeforeRouteLeave((to) => {
+      // Leave the native menu on a neutral screen while the next route is
+      // being resolved; the app-shell watcher repaints it on arrival.
+      pushMenuContext(buildMenuContext({ routeName: to.name }));
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
         wait: false,
+        keepUpdatedAt: true,
       });
       removeGlobalShortcuts();
     });
 
-    addCloseHandler(async () => {
-      await persistCurrentNote(editor.value, titleDiv.value, route.params.id);
+    removeCloseHandler = addCloseHandler(async () => {
+      // bindCloseHandlers only wraps fn() in a synchronous try/catch, so an
+      // async persist rejection escapes it: catch here instead. Yjs buffered
+      // deltas flush too — a Tauri quit may not fire pagehide.
+      try {
+        await flushAllNoteYjsPending();
+        await persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
+          keepUpdatedAt: true,
+        });
+      } catch (err) {
+        console.error('[note] final persist failed:', err);
+      }
     });
 
-    // Editor focus helpers
     const focusEditor = () => {
       if (editor.value?.commands?.focus) {
         editor.value.commands.focus(undefined, { scrollIntoView: false });
@@ -603,23 +1250,35 @@ export default {
         if (!n) {
           focusEditor();
         }
-      }
+      },
     );
+
+    function isTitleFocused(titleEl) {
+      if (!titleEl) return false;
+      return document.activeElement === titleEl;
+    }
 
     watch(
       () => note.value,
       async (newNote) => {
         await nextTick();
         if (!titleDiv.value) return;
-        // Prefer store title, fall back to Yjs title, then empty
+        if (isTitleFocused(titleDiv.value) || isComposing) {
+          titleInitialized = true;
+          autoResizeTitle();
+          return;
+        }
         const stored = newNote?.title || yjsGetTitle() || '';
-        if (titleDiv.value.textContent !== stored) {
+        if (
+          titleDiv.value.textContent !== stored ||
+          (stored === '' && titleDiv.value.innerHTML !== '')
+        ) {
           titleDiv.value.textContent = stored;
         }
         autoResizeTitle();
         titleInitialized = true;
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     // Sync remote Yjs title changes back to the store and to the div
@@ -630,23 +1289,34 @@ export default {
         stopTitleObserver();
         if (!newDoc) return;
         stopTitleObserver = yjsObserveTitle((title) => {
-          if (note.value && note.value.title !== title) {
+          if (
+            note.value &&
+            note.value.title !== title &&
+            !(note.value.title && title === '')
+          ) {
             updateNote(id.value, { title });
           }
-          // Sync to div if it doesn't match
-          if (titleDiv.value && titleDiv.value.textContent !== title) {
+          if (isTitleFocused(titleDiv.value) || isComposing) return;
+          if (
+            titleDiv.value &&
+            (titleDiv.value.textContent !== title ||
+              (title === '' && titleDiv.value.innerHTML !== ''))
+          ) {
             titleDiv.value.textContent = title;
             autoResizeTitle();
           }
         });
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     return {
       id,
+      isMobile,
+      isFoldableDevice,
       showBack,
       previousNote,
+      backTarget,
       titleDiv,
       goBack,
       goToPrevious,
@@ -654,13 +1324,27 @@ export default {
       note,
       translations,
       uiState,
+      sidebarExpanded,
       unlockAppEncryption,
       appEncryptedLocked,
+      lockedPassword,
+      lockedError,
+      lockedBusy,
+      lockedBiometricBusy,
+      lockedBiometricAvailable,
+      handleIsLockedUnlock,
+      handleIsLockedPasswordUnlock,
+      handleEncryptedPasswordUnlock,
+      handleEncryptedBiometricUnlock,
       editor,
       showSearch,
       showHistory,
       handleTitleInput,
       handleContentUpdate,
+      handleRestore,
+      handleActivity,
+      enterVersionPreview,
+      exitVersionPreview,
       closeSearch,
       disallowedEnter,
       autoResizeTitle,
@@ -670,13 +1354,18 @@ export default {
       ydoc,
       awareness,
       presence,
-      isShared,
       accountStore,
       showComments,
+      hingeSegmentWidth,
       toggleComments,
+      closeComments,
       commentStore,
       onCommentActivated,
-      roomRole,
+      noteRole,
+      canEdit,
+      yjsError,
+      prefs,
+      exitReader,
     };
   },
 };
@@ -696,10 +1385,13 @@ export default {
 
 .editor {
   max-width: var(--selected-width);
+  transition:
+    max-width 200ms var(--ease-standard),
+    width 200ms var(--ease-standard);
 }
 
 .editor-skeleton-wrapper {
-  min-height: calc(100dvh - 16rem);
+  min-height: 240px;
 }
 
 .editor-skeleton {

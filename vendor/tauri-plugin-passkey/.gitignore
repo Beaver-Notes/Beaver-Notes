@@ -1,0 +1,30 @@
+/.vs
+.DS_Store
+.Thumbs.db
+*.sublime*
+.idea/
+debug.log
+package-lock.json
+.vscode/settings.json
+yarn.lock
+
+/.tauri
+**/.tauri
+/target
+Cargo.lock
+node_modules/
+
+dist-js
+dist
+
+
+# Android build artifacts
+android/build/
+android/.gradle/
+android/local.properties
+
+# iOS build artifacts
+ios/build/
+ios/.build/
+ios/Package.resolved
+ios/.swiftpm/
