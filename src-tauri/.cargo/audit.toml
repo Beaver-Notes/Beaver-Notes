@@ -1,0 +1,35 @@
+[advisories]
+ignore = [
+  "RUSTSEC-2024-0370", # serde_cbor unmaintained; transitive tauri/linux dep, no fixed upgrade
+  "RUSTSEC-2024-0384", # instant unmaintained; transitive
+  "RUSTSEC-2024-0388", # derivative unmaintained; transitive
+  "RUSTSEC-2024-0429", # glib 0.18.x unsound VariantStrIter; transitive tauri/wry gtk stack
+  "RUSTSEC-2024-0436", # paste unmaintained; transitive
+  "RUSTSEC-2024-0441", # gtk-rs GTK3 bindings unmaintained; transitive tauri linux stack
+  "RUSTSEC-2025-0057", # fxhash unmaintained; transitive
+  "RUSTSEC-2025-0075", # unic-char-range unmaintained; transitive tauri/urlpattern
+  "RUSTSEC-2025-0080", # unic-common unmaintained; transitive tauri/urlpattern
+  "RUSTSEC-2025-0081", # unic-char-property unmaintained; transitive tauri/urlpattern
+  "RUSTSEC-2025-0098", # unic-ucd-version unmaintained; transitive tauri/urlpattern
+  "RUSTSEC-2025-0100", # unic-ucd-ident unmaintained; transitive tauri/urlpattern
+  "RUSTSEC-2026-0097", # rand unsound custom logger; remaining 0.7/0.8 are tauri build/transitive deps
+  "RUSTSEC-2026-0110", # filetime unsoundness; transitive
+  "RUSTSEC-2026-0151", # sha1 collision resistance; transitive
+  "RUSTSEC-2026-0187", # bytes panic in BytesMut::reserve; transitive
+  "RUSTSEC-2026-0215", # smallstr unmaintained; transitive
+  "RUSTSEC-2026-0253", # lru 0.18.x pop panic UAF; no fixed semver-compatible release available
+  "RUSTSEC-2026-0354", # wry linux webkit gesture; transitive tauri stack
+  "RUSTSEC-2026-0359", # wry unsoundness; transitive tauri stack
+  "RUSTSEC-2026-0362", # glib unsoundness; transitive gtk stack
+  "RUSTSEC-2026-0367", # zip SUID/SGID extraction; transitive via tauri-plugin-updater 2.x
+  "RUSTSEC-2026-0368", # zip symlink extraction; transitive via tauri-plugin-updater 2.x
+  "RUSTSEC-2026-0369", # zbus unsoundness; transitive linux stack
+  "RUSTSEC-2026-0370", # zvariant unmaintained; transitive linux stack
+  "RUSTSEC-2026-0371", # zbus_names unmaintained; transitive linux stack
+  "RUSTSEC-2026-0372", # zvariant_derive unmaintained; transitive linux stack
+  "RUSTSEC-2026-0429", # zip extract symlink large size; transitive via tauri-plugin-updater 2.x
+  "RUSTSEC-2026-0441", # pin-utils unmaintained; transitive
+  "RUSTSEC-2026-0459", # libsqlite3-sys bundled SQLite CVE; rusqlite major bump required, defer
+  "RUSTSEC-2026-0545", # zip AES auth code; transitive via tauri-plugin-updater 2.x
+  "RUSTSEC-2026-0548", # zip ZipStreamReader name mismatch; transitive via tauri-plugin-updater 2.x
+]
