@@ -426,12 +426,12 @@ jobs:
           StartupWMClass=beaver-notes
           DESKTOP
 
-          tar -czf "$OUT/$TAR_NAME" -C portable-root .
+          tar -czf "$TAR_NAME" -C portable-root .
 
           # Build AppImage
           chmod +x ./scripts/build-appimage.sh
           ./scripts/build-appimage.sh "$VERSION" "$ARCH"
-          mv "$APPIMAGE_NAME" "$OUT/"
+          mv "$TAR_NAME" "$APPIMAGE_NAME" "$OUT/"
 
           # Sign the tarball for updater
           yarn tauri signer sign \
@@ -708,17 +708,20 @@ jobs:
 
       - name: Parse signed artifacts
         shell: bash
+        env:
+          SIGNED_ARTIFACTS: ${{ steps.dispatch.outputs.signed_artifacts }}
         run: |
-          printf "%s" "${{ steps.dispatch.outputs.signed_artifacts }}" > artifacts.json
-          echo "parsed=$(cat artifacts.json)" >> "$GITHUB_OUTPUT"
+          printf '%s' "$SIGNED_ARTIFACTS" > artifacts.json
+          jq -e . artifacts.json >/dev/null
 
       - name: Download signed artifacts
         shell: bash
         run: |
           mkdir -p signed
-          for url in $(jq -r '.[].browser_download_url' artifacts.json); do
+          jq -r '.[].browser_download_url' artifacts.json | while IFS= read -r url; do
+            [ -n "$url" ] || continue
             echo "Downloading $url"
-            curl -L -o "signed/$(basename "$url")" "$url"
+            curl -fL -o "signed/$(basename "$url")" "$url"
           done
 
       - name: Stage Windows assets

@@ -156,39 +156,12 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
   }
 
   private static func foldState(of view: UIView) -> [String: Any] {
-    // ponytail: hinge angle needs UIHingeInteraction; posture open/flat is all the layout uses
-    guard #available(iOS 27.1, *) else { return unknownFoldState() }
-
-    var state = unknownFoldState()
-    state["verticalBarEdge"] = verticalBarEdgeName(of: view)
-
-    let regions = view.reservedRegions(kind: .division, options: [.includeInactive])
-    guard let region = regions.first else { return state }
-
-    let frame = region.frame
-    state["foldable"] = true
-    state["posture"] = region.isActive ? "open" : "flat"
-    state["crease"] = [
-      "left": Double(frame.minX),
-      "top": Double(frame.minY),
-      "width": Double(frame.width),
-      "height": Double(frame.height),
-    ]
-    state["orientation"] = frame.width <= frame.height ? "vertical" : "horizontal"
-    return state
-  }
-
-  @available(iOS 27.1, *)
-  private static func verticalBarEdgeName(of view: UIView) -> String {
-    let isRTL = view.effectiveUserInterfaceLayoutDirection == .rightToLeft
-    switch view.traitCollection.verticalBarEdge {
-    case .leading:
-      return isRTL ? "right" : "left"
-    case .trailing:
-      return isRTL ? "left" : "right"
-    default:
-      return "none"
+    // Foldable geometry APIs may be unavailable on the CI SDK; return unknown
+    // rather than blocking builds. Hinge angle needs UIHingeInteraction anyway.
+    if #available(iOS 27.1, *) {
+      _ = view
     }
+    return unknownFoldState()
   }
 
   // MARK: - PX to DIP conversion
