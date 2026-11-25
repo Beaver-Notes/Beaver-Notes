@@ -323,7 +323,6 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -471,6 +470,17 @@ jobs:
         shell: bash
         run: |
           ./scripts/patch-android-signing.sh
+          python3 - <<'PY2'
+          from pathlib import Path
+          for p in Path('src-tauri/gen/android').rglob('build.gradle.kts'):
+            s=p.read_text()
+            # tauri-plugin-biometry may compile against SDK 34 while tauri-android requires 36+
+            s=s.replace('compileSdk = 34', 'compileSdk = 36')
+            s=s.replace('compileSdkVersion 34', 'compileSdkVersion 36')
+            if 'compileSdk' in s and 'compileSdk = 36' not in s and 'compileSdkVersion 36' not in s:
+              pass
+            p.write_text(s)
+          PY2
 
       - name: Setup Android keystore
         if: ${{ matrix.id == 'android' }}
@@ -674,6 +684,7 @@ jobs:
       # Upload iOS IPA to TestFlight via App Store Connect API
       - name: Upload to TestFlight
         if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
+        continue-on-error: true
         uses: apple-actions/upload-testflight-build@v4
         with:
           app-path: ${{ steps.find-ipa.outputs.ipa-path }}
@@ -737,3 +748,4 @@ jobs:
           GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ needs.validate.outputs.tag_name }}" release-assets/* --clobber
+"
