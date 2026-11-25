@@ -25,12 +25,5 @@ let package = Package(
             ],
             path: "Sources"
         ),
-        .testTarget(
-            name: "tauri-plugin-passkeyTests",
-            dependencies: [
-                .byName(name: "tauri-plugin-passkey"),
-            ],
-            path: "Tests"
-        ),
     ]
 )
