@@ -10,7 +10,7 @@ export const liveCollabKey = new PluginKey('liveCollab');
 
 export const LIVE_COLLAB_FADE_MS = 4000;
 export const LIVE_COLLAB_COALESCE_MS = 250;
-export const LIVE_COLLAB_ACTIVITY_DEBOUNCE_MS = LIVE_COLLAB_COALESCE_MS;
+export const LIVE_COLLAB_ACTIVITY_DEBOUNCE_MS = 250;
 export const LIVE_COLLAB_NEUTRAL_COLOR = '#9ca3af';
 export const LIVE_COLLAB_FALLBACK_NAME = 'someone';
 export const LIVE_COLLAB_DELETION_FALLBACK_NAME = 'a collaborator';

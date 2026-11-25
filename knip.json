@@ -12,10 +12,13 @@
   "ignoreDependencies": [
     "@wdio/cli",
     "@wdio/local-runner",
-    "@wdio/mocha-framework",
-    "@wdio/spec-reporter",
     "lint-staged",
-    "lib0"
+    "lib0",
+    "@tiptap/extension-bullet-list",
+    "@tiptap/extension-paragraph",
+    "@sereneinserenade/tiptap-search-and-replace",
+    "@speed-highlight/core",
+    "beaver-pm-view"
   ],
   "ignoreBinaries": [
     "audit"
