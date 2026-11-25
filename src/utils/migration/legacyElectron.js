@@ -6,7 +6,7 @@ import {
   probeMigrationPath,
   readLegacyData,
 } from '@/lib/native/app';
-import { bufToHex, hexToBuf } from '@/utils/crypto/codec.js';
+import { base64ToBuf, bufToHex, hexToBuf } from '@/utils/crypto/codec.js';
 import { findLegacyLockedNotes, unwrapLegacyData } from '@/utils/platform/legacyLock';
 import {
   decryptLegacyCryptoJSNote,

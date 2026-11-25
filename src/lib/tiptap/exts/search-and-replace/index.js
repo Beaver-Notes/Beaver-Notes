@@ -142,9 +142,10 @@ const SearchAndReplace = Extension.create({
     return {
       setSearchTerm:
         (searchTerm) =>
-        ({ editor }) => {
+        ({ editor, tr, dispatch }) => {
           editor.storage.searchAndReplace.searchTerm = searchTerm;
-          return false;
+          if (dispatch) dispatch(tr.setMeta(BASE_KEY, { rescan: true }));
+          return true;
         },
       setReplaceTerm:
         (replaceTerm) =>
@@ -154,34 +155,40 @@ const SearchAndReplace = Extension.create({
         },
       setCaseSensitive:
         (caseSensitive) =>
-        ({ editor }) => {
+        ({ editor, tr, dispatch }) => {
           editor.storage.searchAndReplace.caseSensitive = caseSensitive;
-          return false;
+          if (dispatch) dispatch(tr.setMeta(BASE_KEY, { rescan: true }));
+          return true;
         },
       resetIndex:
         () =>
-        ({ editor }) => {
+        ({ editor, tr, dispatch }) => {
           editor.storage.searchAndReplace.resultIndex = 0;
-          return false;
+          if (dispatch) dispatch(tr);
+          return true;
         },
       nextSearchResult:
         () =>
-        ({ editor }) => {
+        ({ editor, tr, dispatch }) => {
           const { results, resultIndex } = editor.storage.searchAndReplace;
+          if (!results.length) return false;
           const nextIndex = resultIndex + 1;
           editor.storage.searchAndReplace.resultIndex = results[nextIndex]
             ? nextIndex
             : 0;
-          return false;
+          if (dispatch) dispatch(tr);
+          return true;
         },
       previousSearchResult:
         () =>
-        ({ editor }) => {
+        ({ editor, tr, dispatch }) => {
           const { results, resultIndex } = editor.storage.searchAndReplace;
+          if (!results.length) return false;
           const prevIndex = resultIndex - 1;
           editor.storage.searchAndReplace.resultIndex =
             prevIndex >= 0 ? prevIndex : results.length - 1;
-          return false;
+          if (dispatch) dispatch(tr);
+          return true;
         },
       replace:
         () =>

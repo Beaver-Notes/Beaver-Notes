@@ -351,24 +351,20 @@ export default {
 
       props.editor.commands.setTextSelection(position);
 
-      // Two-phase navigation (virtual-scroller pattern): the first glide uses
-      // placeholder-based geometry on a content-visibility page, so re-settle
-      // once the destination block has rendered to avoid landing on a blank
-      // region or the wrong offset.
-      const settle = () => {
+      // Let ProseMirror/virtualization materialize the target, then glide to it.
+      requestAnimationFrame(() => {
         if (props.editor.isDestroyed) return;
         try {
           props.editor.commands.setTextSelection(position);
-          centerPosInView(props.editor, position);
-        } catch { /* position shifted between phases */ }
-      };
-      try {
-        if (!centerPosInView(props.editor, position, { onDone: settle })) {
-          props.editor.commands.scrollIntoView();
+          if (!centerPosInView(props.editor, position)) {
+            props.editor.commands.scrollIntoView();
+          }
+        } catch {
+          try {
+            props.editor.commands.scrollIntoView();
+          } catch { /* editor destroyed or position invalid */ }
         }
-      } catch {
-        props.editor.commands.scrollIntoView();
-      }
+      });
     }
 
     function replaceText() {
