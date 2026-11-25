@@ -39,7 +39,9 @@
     "selectCodeFont": "Chọn mã phông chữ",
     "selectFont": "Chọn phông chữ",
     "system": "Hệ thống",
-    "wide": "Rộng"
+    "wide": "Rộng",
+    "appIcon": "Biểu tượng ứng dụng",
+    "font": "Phông chữ"
   },
   "card": {
     "archive": "Lưu trữ",
@@ -84,7 +86,9 @@
     "searchEmojis": "Tìm biểu tượng cảm xúc",
     "wrongPasswd": "Mật khẩu không chính xác. Ghi chú không thể mở khoá được.",
     "conflictCopy": "Bản sao xung đột. Hãy xem lại và xoá một phiên bản.",
-    "sharedNote": "Được chia sẻ với tôi"
+    "sharedNote": "Được chia sẻ với tôi",
+    "needsExtraction": "Cần trích xuất",
+    "retrying": "Đang thử lại…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "Gõ",
@@ -93,7 +97,9 @@
     "noResults": "Không có kết quả cho \"{query}\"",
     "openHint": "mở",
     "placeholder": "Tìm kiếm tệp hoặc gõ '>' để tìm kiếm lệnh",
-    "untitledNote": "Ghi chú không có tiêu đề"
+    "untitledNote": "Ghi chú không có tiêu đề",
+    "foldersOnly": "Chỉ thư mục",
+    "titleOnly": "Chỉ tiêu đề"
   },
   "commands": {
     "darkTheme": "Áp dụng chủ đề tối",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "Viết nội dung nào đó... hoặc gõ \"/\" để nhận lệnh.",
     "untitledNote": "Ghi chú không có tiêu đề",
     "viewingOlderVersion": "Đang xem phiên bản cũ hơn",
-    "viewingVersionFrom": "Đang xem phiên bản từ {when}"
+    "viewingVersionFrom": "Đang xem phiên bản từ {when}",
+    "backShortcutTitle": "Quay lại (Alt+Left)",
+    "backToNotes": "Quay lại ghi chú",
+    "backlinks": "Liên kết ngược",
+    "copyTextFromImage": "Sao chép văn bản từ hình ảnh",
+    "downloadImage": "Tải hình ảnh xuống",
+    "editLink": "Chỉnh sửa liên kết",
+    "keepImageOnOwnLine": "Giữ hình ảnh trên một dòng riêng",
+    "keepVideoOnOwnLine": "Giữ video trên một dòng riêng",
+    "linkedReferences": "Tham chiếu liên kết",
+    "noMatchingNotes": "Không có ghi chú phù hợp",
+    "removeLink": "Xóa liên kết",
+    "wrapLeft": "Bọc trái",
+    "wrapRight": "Bọc phải"
   },
   "filter": {
     "alphabetical": "Theo bảng chữ cái",
@@ -263,7 +282,8 @@
     "videoDescription": "Chèn video",
     "videoUrl": "Url video",
     "yellowCallout": "Chú thích màu vàng",
-    "yellowCalloutDescription": "Khối chú thích màu vàng"
+    "yellowCalloutDescription": "Khối chú thích màu vàng",
+    "searchBlocks": "Tìm khối"
   },
   "paper": {
     "dotted": "Chấm",
@@ -430,7 +450,25 @@
     "selectEnexFile": "Chọn tệp ENEX",
     "selectSimplenoteExport": "Chọn notes.json",
     "selectMarkdownFolder": "Chọn thư mục Markdown",
-    "markdownBased": "Dựa trên Markdown"
+    "markdownBased": "Dựa trên Markdown",
+    "advanced": "Nâng cao",
+    "behavior": "Hành vi",
+    "changePassphrase": "Đổi cụm mật khẩu",
+    "cloudSync": "Đồng bộ đám mây",
+    "copyLogPath": "Sao chép đường dẫn nhật ký",
+    "details": "Chi tiết",
+    "encryptionAlwaysOn": "Mã hóa luôn bật",
+    "encryptionDesc": "Ghi chú của bạn được mã hóa trước khi rời khỏi thiết bị này.",
+    "logPathCopied": "Đã sao chép đường dẫn nhật ký",
+    "noResults": "Không tìm thấy cài đặt",
+    "recoverWithCode": "Khôi phục bằng mã",
+    "search": "Tìm cài đặt",
+    "showRecoveryCode": "Hiện mã khôi phục",
+    "syncNow": "Đồng bộ ngay",
+    "syncing": "Đang đồng bộ…",
+    "unlockAppEncryptionBody": "Mở khóa mã hóa ứng dụng để tiếp tục.",
+    "unlockAppEncryptionTitle": "Mở khóa mã hóa",
+    "unlockWithBiometrics": "Mở khóa bằng sinh trắc học"
   },
   "shortcuts": {
     "arrowLeft": "Mũi tên trái",
@@ -481,7 +519,12 @@
     "emptyPrefix": "Chưa có nhãn nào. Gõ",
     "emptySuffix": "để bắt đầu.",
     "title": "Nhãn",
-    "total": "tổng"
+    "total": "tổng",
+    "hint": "Dùng nhãn để sắp xếp ghi chú của bạn.",
+    "noResults": "Không tìm thấy nhãn",
+    "search": "Tìm nhãn",
+    "sortAlpha": "Sắp xếp theo bảng chữ cái",
+    "sortCount": "Sắp xếp theo số lượng"
   },
   "emptyState": {
     "chipCapture": "Ghi lại ý tưởng",
@@ -491,7 +534,8 @@
     "heading": "Bất cứ khi nào bạn sẵn sàng",
     "shortcutNewFolder": "Thư mục mới",
     "shortcutNewNote": "Ghi chú mới",
-    "subheading": "Tạo một ghi chú để bắt đầu."
+    "subheading": "Tạo một ghi chú để bắt đầu.",
+    "cta": "Tạo ghi chú"
   },
   "toolbarCustomizer": {
     "divider": "phân cách",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "Thiếu các trường ghi chú thiết yếu trong tệp được nhập.",
     "invalidAssetsStructure": "Cấu trúc tệp đính kèm không hợp lệ trong ghi chú được nhập.",
     "exportedNoteAndAssetsTo": "Đã xuất ghi chú và tệp đính kèm đến \"{path}\"",
-    "exportedHtmlToFolder": "Đã xuất HTML vào thư mục: {path}"
+    "exportedHtmlToFolder": "Đã xuất HTML vào thư mục: {path}",
+    "importNoteDialogTitle": "Nhập ghi chú",
+    "linkOff": "Chia sẻ liên kết đang tắt",
+    "noCollaborators": "Chưa có cộng tác viên",
+    "resetLink": "Đặt lại liên kết",
+    "viaWorkspace": "Qua không gian làm việc"
   },
   "app": {
     "dismiss": "Đóng",
@@ -608,7 +657,10 @@
     "locatePortableData": "Tìm thư mục dữ liệu di động của Beaver Notes",
     "chooseSyncFolder": "Chọn thư mục đồng bộ",
     "copyToClipboard": "Sao chép vào bảng nhớ tạm",
-    "recoverAccount": "Khôi phục tài khoản"
+    "recoverAccount": "Khôi phục tài khoản",
+    "confirmPassword": "Xác nhận mật khẩu",
+    "passwordDescription": "Tạo mật khẩu để bảo vệ ghi chú của bạn.",
+    "passwordWarning": "Nếu bạn quên mật khẩu này, các ghi chú đã khóa sẽ không thể khôi phục."
   },
   "tray": {
     "noRecentItems": "Không có mục nào gần đây",
@@ -645,7 +697,8 @@
     "words": "từ",
     "wordLimit": "Giới hạn từ",
     "setLimit": "Đặt",
-    "clearLimit": "Xoá sạch"
+    "clearLimit": "Xoá sạch",
+    "historyLocked": "Lịch sử không khả dụng cho ghi chú đã khóa"
   },
   "toolbar": {
     "active": "Đang hoạt động",
@@ -894,7 +947,52 @@
     "exportData": "Xuất dữ liệu tài khoản",
     "exportDataBody": "Tải xuống bản sao thông tin tài khoản của bạn.",
     "export": "Xuất",
-    "inboxHint": "Không tìm thấy email? Hãy kiểm tra hộp thư đến và thư mục spam của bạn."
+    "inboxHint": "Không tìm thấy email? Hãy kiểm tra hộp thư đến và thư mục spam của bạn.",
+    "accounts": "Tài khoản",
+    "addAccount": "Thêm tài khoản",
+    "back": "Quay lại",
+    "backToSignIn": "Quay lại đăng nhập",
+    "cancel": "Hủy",
+    "cantSignIn": "Không thể đăng nhập?",
+    "cloudSyncCtaBody": "Đồng bộ ghi chú của bạn trên các thiết bị với Beaver Cloud.",
+    "cloudSyncCtaHeading": "Đồng bộ với Beaver Cloud",
+    "confirmPasswordPlaceholder": "Xác nhận mật khẩu",
+    "continueWithPasskey": "Tiếp tục với khóa truy cập",
+    "createAccount": "Tạo tài khoản",
+    "createAccountTitle": "Tạo tài khoản của bạn",
+    "createWithPasskey": "Tạo bằng khóa truy cập",
+    "currentPlan": "Gói hiện tại",
+    "deleteAccount": "Xóa tài khoản",
+    "deleteAccountBody": "Thao tác này sẽ xóa vĩnh viễn tài khoản và dữ liệu đám mây của bạn.",
+    "deleteAccountConfirm": "Xóa tài khoản",
+    "edit": "Chỉnh sửa",
+    "editUsername": "Chỉnh sửa tên người dùng",
+    "emailPlaceholder": "Email",
+    "importVault": "Nhập kho lưu trữ",
+    "later": "Để sau",
+    "managePlan": "Quản lý gói",
+    "memberSince": "Thành viên từ",
+    "moreSignInOptions": "Thêm tùy chọn đăng nhập",
+    "noAccountYet": "Chưa có tài khoản?",
+    "onboardingBody": "Đăng nhập để đồng bộ ghi chú và cài đặt của bạn.",
+    "onboardingTitle": "Thiết lập tài khoản",
+    "passwordPlaceholder": "Mật khẩu",
+    "plan": "Gói",
+    "security": "Bảo mật",
+    "server": "Máy chủ",
+    "serverHint": "Dùng máy chủ Beaver mặc định hoặc nhập máy chủ của riêng bạn.",
+    "signIn": "Đăng nhập",
+    "signInWithPassword": "Đăng nhập bằng mật khẩu",
+    "signOut": "Đăng xuất",
+    "signOutEverywhere": "Đăng xuất khỏi mọi nơi",
+    "signOutEverywhereBody": "Đăng xuất tài khoản này trên tất cả thiết bị.",
+    "signOutEverywhereTitle": "Đăng xuất khỏi mọi nơi",
+    "signedInAs": "Đã đăng nhập với tên",
+    "storage": "Dung lượng lưu trữ",
+    "thisDevice": "Thiết bị này",
+    "useDefault": "Dùng mặc định",
+    "usernameHint": "Tên này hiển thị với cộng tác viên.",
+    "vaultDetectedBody": "Đã tìm thấy một kho lưu trữ hiện có. Nhập kho để tiếp tục."
   },
   "dataView": {
     "export": "Xuất",
@@ -973,5 +1071,19 @@
     "openNote": "Mở ghi chú",
     "failed": "Tham gia thất bại. Liên kết có thể không hợp lệ hoặc đã hết hạn.",
     "goToHome": "Về trang chủ"
+  },
+  "common": {
+    "cancel": "Hủy",
+    "justNow": "Vừa xong",
+    "retry": "Thử lại",
+    "save": "Lưu"
+  },
+  "pdfBlock": {
+    "convertBack": "Chuyển lại thành PDF",
+    "done": "Xong",
+    "error": "Không thể tải PDF",
+    "hideThumbnails": "Ẩn hình thu nhỏ",
+    "showThumbnails": "Hiện hình thu nhỏ",
+    "title": "PDF"
   }
 }

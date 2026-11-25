@@ -39,7 +39,9 @@
     "selectCodeFont": "Kod için yazı tipi seçin",
     "selectFont": "Yazı tipi seç",
     "system": "Sistem",
-    "wide": "Geniş"
+    "wide": "Geniş",
+    "appIcon": "Uygulama simgesi",
+    "font": "Yazı tipi"
   },
   "card": {
     "archive": "Arşiv",
@@ -84,7 +86,9 @@
     "searchEmojis": "Emoji ara",
     "wrongPasswd": "Yanlış şifre. Not kilidi açılamadı.",
     "conflictCopy": "Çakışma kopyası. Bir sürümü inceleyip silin.",
-    "sharedNote": "Benimle paylaşıldı"
+    "sharedNote": "Benimle paylaşıldı",
+    "needsExtraction": "Çıkarılması gerekiyor",
+    "retrying": "Yeniden deneniyor…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "Komutlar için",
@@ -93,7 +97,9 @@
     "noResults": "\"{query}\" için sonuç yok",
     "openHint": "aç",
     "placeholder": "Dosya ara ya da '>' yazarak komutları arayabilirsiniz",
-    "untitledNote": "İsimlendirilmemiş not"
+    "untitledNote": "İsimlendirilmemiş not",
+    "foldersOnly": "Yalnızca klasörler",
+    "titleOnly": "Yalnızca başlık"
   },
   "commands": {
     "darkTheme": "Karanlık temayı uygula",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "Bir şeyler yazın...",
     "untitledNote": "İsimsiz not",
     "viewingOlderVersion": "Daha eski bir sürüm görüntüleniyor",
-    "viewingVersionFrom": "{when} tarihli sürüm görüntüleniyor"
+    "viewingVersionFrom": "{when} tarihli sürüm görüntüleniyor",
+    "backShortcutTitle": "Geri (Alt+Left)",
+    "backToNotes": "Notlara dön",
+    "backlinks": "Geri bağlantılar",
+    "copyTextFromImage": "Görseldeki metni kopyala",
+    "downloadImage": "Görseli indir",
+    "editLink": "Bağlantıyı düzenle",
+    "keepImageOnOwnLine": "Görseli kendi satırında tut",
+    "keepVideoOnOwnLine": "Videoyu kendi satırında tut",
+    "linkedReferences": "Bağlantılı referanslar",
+    "noMatchingNotes": "Eşleşen not yok",
+    "removeLink": "Bağlantıyı kaldır",
+    "wrapLeft": "Sola yasla",
+    "wrapRight": "Sağa yasla"
   },
   "filter": {
     "alphabetical": "Alfabetik",
@@ -263,7 +282,8 @@
     "videoDescription": "Video ekle",
     "videoUrl": "Video adresi(url)",
     "yellowCallout": "Sarı callout",
-    "yellowCalloutDescription": "Sarı callout bloğu"
+    "yellowCalloutDescription": "Sarı callout bloğu",
+    "searchBlocks": "Bloklarda ara"
   },
   "paper": {
     "dotted": "Noktalı",
@@ -430,7 +450,25 @@
     "selectEnexFile": "ENEX dosyasını seçin",
     "selectSimplenoteExport": "notes.json dosyasını seçin",
     "selectMarkdownFolder": "Markdown klasörünü seçin",
-    "markdownBased": "Markdown tabanlı"
+    "markdownBased": "Markdown tabanlı",
+    "advanced": "Gelişmiş",
+    "behavior": "Davranış",
+    "changePassphrase": "Parolayı değiştir",
+    "cloudSync": "Bulut senkronizasyonu",
+    "copyLogPath": "Günlük yolunu kopyala",
+    "details": "Ayrıntılar",
+    "encryptionAlwaysOn": "Şifreleme her zaman açık",
+    "encryptionDesc": "Notlarınız bu cihazdan çıkmadan önce şifrelenir.",
+    "logPathCopied": "Günlük yolu kopyalandı",
+    "noResults": "Ayar bulunamadı",
+    "recoverWithCode": "Kodla kurtar",
+    "search": "Ayarlarda ara",
+    "showRecoveryCode": "Kurtarma kodunu göster",
+    "syncNow": "Şimdi senkronize et",
+    "syncing": "Senkronize ediliyor…",
+    "unlockAppEncryptionBody": "Devam etmek için uygulama şifrelemesinin kilidini açın.",
+    "unlockAppEncryptionTitle": "Şifrelemenin kilidini aç",
+    "unlockWithBiometrics": "Biyometri ile kilidi aç"
   },
   "shortcuts": {
     "arrowLeft": "Sol Ok",
@@ -481,7 +519,12 @@
     "emptyPrefix": "Henüz etiket yok. Başlamak için",
     "emptySuffix": "yazın.",
     "title": "Etiketler",
-    "total": "toplam"
+    "total": "toplam",
+    "hint": "Notlarınızı düzenlemek için etiketleri kullanın.",
+    "noResults": "Etiket bulunamadı",
+    "search": "Etiket ara",
+    "sortAlpha": "Alfabetik sırala",
+    "sortCount": "Sayıya göre sırala"
   },
   "emptyState": {
     "chipCapture": "Fikirleri not edin",
@@ -491,7 +534,8 @@
     "heading": "Hazırsanız başlayalım",
     "shortcutNewFolder": "Yeni klasör",
     "shortcutNewNote": "Yeni not",
-    "subheading": "Başlamak için bir not oluşturun."
+    "subheading": "Başlamak için bir not oluşturun.",
+    "cta": "Not oluştur"
   },
   "toolbarCustomizer": {
     "divider": "ayraç",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "İçe aktarılan dosyada temel not alanları eksik.",
     "invalidAssetsStructure": "İçe aktarılan notta geçersiz ek yapısı.",
     "exportedNoteAndAssetsTo": "Not ve ekler \"{path}\" yoluna dışa aktarıldı",
-    "exportedHtmlToFolder": "HTML şu klasöre dışa aktarıldı: {path}"
+    "exportedHtmlToFolder": "HTML şu klasöre dışa aktarıldı: {path}",
+    "importNoteDialogTitle": "Notu içe aktar",
+    "linkOff": "Bağlantı paylaşımı kapalı",
+    "noCollaborators": "Henüz işbirlikçi yok",
+    "resetLink": "Bağlantıyı sıfırla",
+    "viaWorkspace": "Çalışma alanı üzerinden"
   },
   "app": {
     "dismiss": "Kapat",
@@ -608,7 +657,10 @@
     "locatePortableData": "Beaver Notes taşınabilir veri klasörünü bul",
     "chooseSyncFolder": "Senkronizasyon klasörü seç",
     "copyToClipboard": "Panoya kopyala",
-    "recoverAccount": "Hesabı kurtar"
+    "recoverAccount": "Hesabı kurtar",
+    "confirmPassword": "Parolayı onayla",
+    "passwordDescription": "Notlarınızı korumak için bir parola oluşturun.",
+    "passwordWarning": "Bu parolayı unutursanız, kilitli notlarınız kurtarılamaz."
   },
   "tray": {
     "noRecentItems": "Yakın zamanda öğe yok",
@@ -645,7 +697,8 @@
     "words": "kelime",
     "wordLimit": "Kelime sınırı",
     "setLimit": "Ayarla",
-    "clearLimit": "Temizle"
+    "clearLimit": "Temizle",
+    "historyLocked": "Kilitli notlar için geçmiş kullanılamaz"
   },
   "toolbar": {
     "active": "Etkin",
@@ -894,7 +947,52 @@
     "exportData": "Hesap verilerini dışa aktar",
     "exportDataBody": "Hesap bilgilerinizin bir kopyasını indirin.",
     "export": "Dışa aktar",
-    "inboxHint": "E-postayı bulamıyor musunuz? Gelen kutunuzu ve spam klasörünüzü kontrol edin."
+    "inboxHint": "E-postayı bulamıyor musunuz? Gelen kutunuzu ve spam klasörünüzü kontrol edin.",
+    "accounts": "Hesaplar",
+    "addAccount": "Hesap ekle",
+    "back": "Geri",
+    "backToSignIn": "Girişe dön",
+    "cancel": "İptal",
+    "cantSignIn": "Giriş yapamıyor musunuz?",
+    "cloudSyncCtaBody": "Notlarınızı Beaver Cloud ile cihazlar arasında senkronize edin.",
+    "cloudSyncCtaHeading": "Beaver Cloud ile senkronize et",
+    "confirmPasswordPlaceholder": "Parolayı onayla",
+    "continueWithPasskey": "Geçiş anahtarıyla devam et",
+    "createAccount": "Hesap oluştur",
+    "createAccountTitle": "Hesabınızı oluşturun",
+    "createWithPasskey": "Geçiş anahtarıyla oluştur",
+    "currentPlan": "Mevcut plan",
+    "deleteAccount": "Hesabı sil",
+    "deleteAccountBody": "Bu işlem hesabınızı ve bulut verilerinizi kalıcı olarak siler.",
+    "deleteAccountConfirm": "Hesabı sil",
+    "edit": "Düzenle",
+    "editUsername": "Kullanıcı adını düzenle",
+    "emailPlaceholder": "E-posta",
+    "importVault": "Kasayı içe aktar",
+    "later": "Daha sonra",
+    "managePlan": "Planı yönet",
+    "memberSince": "Üyelik başlangıcı",
+    "moreSignInOptions": "Diğer giriş seçenekleri",
+    "noAccountYet": "Henüz hesabınız yok mu?",
+    "onboardingBody": "Notlarınızı ve ayarlarınızı senkronize etmek için giriş yapın.",
+    "onboardingTitle": "Hesabınızı ayarlayın",
+    "passwordPlaceholder": "Parola",
+    "plan": "Plan",
+    "security": "Güvenlik",
+    "server": "Sunucu",
+    "serverHint": "Varsayılan Beaver sunucusunu kullanın veya kendinizinkini girin.",
+    "signIn": "Giriş yap",
+    "signInWithPassword": "Parolayla giriş yap",
+    "signOut": "Çıkış yap",
+    "signOutEverywhere": "Tüm cihazlardan çıkış yap",
+    "signOutEverywhereBody": "Bu hesaptan tüm cihazlarda çıkış yapın.",
+    "signOutEverywhereTitle": "Tüm cihazlardan çıkış yap",
+    "signedInAs": "Giriş yapılan hesap",
+    "storage": "Depolama",
+    "thisDevice": "Bu cihaz",
+    "useDefault": "Varsayılanı kullan",
+    "usernameHint": "Bu ad işbirlikçiler tarafından görülebilir.",
+    "vaultDetectedBody": "Mevcut bir kasa bulundu. Devam etmek için içe aktarın."
   },
   "dataView": {
     "export": "Dışa aktar",
@@ -973,5 +1071,19 @@
     "openNote": "Notu aç",
     "failed": "Katılım başarısız oldu. Bağlantı geçersiz veya süresi dolmuş olabilir.",
     "goToHome": "Ana sayfaya git"
+  },
+  "common": {
+    "cancel": "İptal",
+    "justNow": "Az önce",
+    "retry": "Yeniden dene",
+    "save": "Kaydet"
+  },
+  "pdfBlock": {
+    "convertBack": "PDF'e geri dönüştür",
+    "done": "Tamam",
+    "error": "PDF yüklenemedi",
+    "hideThumbnails": "Küçük resimleri gizle",
+    "showThumbnails": "Küçük resimleri göster",
+    "title": "PDF"
   }
 }

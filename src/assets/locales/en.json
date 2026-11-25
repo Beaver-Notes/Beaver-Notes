@@ -39,7 +39,9 @@
     "wide": "Wide",
     "accessibility": "Accessibility",
     "reducedMotion": "Reduced Motion",
-    "highContrast": "High Contrast"
+    "highContrast": "High Contrast",
+    "appIcon": "App icon",
+    "font": "Font"
   },
   "card": {
     "archive": "Archive",
@@ -84,7 +86,9 @@
     "searchEmojis": "Search emojis",
     "wrongPasswd": "Incorrect vault key. Note cannot be unlocked.",
     "conflictCopy": "Conflict copy. Review and delete one version.",
-    "sharedNote": "Shared with me"
+    "sharedNote": "Shared with me",
+    "needsExtraction": "Needs extraction",
+    "retrying": "Retrying…"
   },
   "commandPrompt": {
     "placeholder": "Search file or type '>' to search commands",
@@ -93,7 +97,9 @@
     "navigateHint": "navigate",
     "openHint": "open",
     "commandsHintPrefix": "Type",
-    "commandsHintSuffix": "for commands"
+    "commandsHintSuffix": "for commands",
+    "foldersOnly": "Folders only",
+    "titleOnly": "Title only"
   },
   "commands": {
     "darkTheme": "Apply dark theme",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "Write something… or type \"/\" for commands.",
     "untitledNote": "Untitled note",
     "viewingOlderVersion": "Viewing an older version",
-    "viewingVersionFrom": "Viewing version from {when}"
+    "viewingVersionFrom": "Viewing version from {when}",
+    "backShortcutTitle": "Back (Alt+Left)",
+    "backToNotes": "Back to notes",
+    "backlinks": "Backlinks",
+    "copyTextFromImage": "Copy text from image",
+    "downloadImage": "Download image",
+    "editLink": "Edit link",
+    "keepImageOnOwnLine": "Keep image on its own line",
+    "keepVideoOnOwnLine": "Keep video on its own line",
+    "linkedReferences": "Linked references",
+    "noMatchingNotes": "No matching notes",
+    "removeLink": "Remove link",
+    "wrapLeft": "Wrap left",
+    "wrapRight": "Wrap right"
   },
   "filter": {
     "alphabetical": "Alphabetical",
@@ -263,7 +282,8 @@
     "audioDescription": "Insert an audio file",
     "todayDateDescription": "Insert today's date",
     "currentTimeDescription": "Insert current time",
-    "columnsDescription": "Create multiple columns"
+    "columnsDescription": "Create multiple columns",
+    "searchBlocks": "Search blocks"
   },
   "paper": {
     "dotted": "Dotted",
@@ -430,7 +450,25 @@
     "selectEnexFile": "Select ENEX File",
     "selectSimplenoteExport": "Select notes.json",
     "selectMarkdownFolder": "Select Markdown Folder",
-    "markdownBased": "Markdown-based"
+    "markdownBased": "Markdown-based",
+    "advanced": "Advanced",
+    "behavior": "Behavior",
+    "changePassphrase": "Change passphrase",
+    "cloudSync": "Cloud sync",
+    "copyLogPath": "Copy log path",
+    "details": "Details",
+    "encryptionAlwaysOn": "Encryption is always on",
+    "encryptionDesc": "Your notes are encrypted before they leave this device.",
+    "logPathCopied": "Log path copied",
+    "noResults": "No settings found",
+    "recoverWithCode": "Recover with code",
+    "search": "Search settings",
+    "showRecoveryCode": "Show recovery code",
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "unlockAppEncryptionBody": "Unlock app encryption to continue.",
+    "unlockAppEncryptionTitle": "Unlock encryption",
+    "unlockWithBiometrics": "Unlock with biometrics"
   },
   "shortcuts": {
     "arrowLeft": "Arrow Left",
@@ -481,7 +519,12 @@
     "total": "total",
     "emptyPrefix": "No labels yet. Type",
     "emptySuffix": "to start.",
-    "deleteConfirm": "Delete label \"#{name}\"?"
+    "deleteConfirm": "Delete label \"#{name}\"?",
+    "hint": "Use labels to organize your notes.",
+    "noResults": "No labels found",
+    "search": "Search labels",
+    "sortAlpha": "Sort alphabetically",
+    "sortCount": "Sort by count"
   },
   "emptyState": {
     "heading": "Ready when you are",
@@ -491,7 +534,8 @@
     "chipCapture": "Capture ideas",
     "chipMeeting": "Meeting notes",
     "shortcutNewNote": "New note",
-    "shortcutNewFolder": "New folder"
+    "shortcutNewFolder": "New folder",
+    "cta": "Create a note"
   },
   "toolbarCustomizer": {
     "title": "Customize Toolbar",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "Missing essential note fields in the imported file.",
     "invalidAssetsStructure": "Invalid assets structure in the imported note.",
     "exportedNoteAndAssetsTo": "Exported note and assets to \"{path}\"",
-    "exportedHtmlToFolder": "Exported HTML to folder: {path}"
+    "exportedHtmlToFolder": "Exported HTML to folder: {path}",
+    "importNoteDialogTitle": "Import note",
+    "linkOff": "Link sharing off",
+    "noCollaborators": "No collaborators yet",
+    "resetLink": "Reset link",
+    "viaWorkspace": "Via workspace"
   },
   "app": {
     "syncLockContent": "Sync is locked on this device. Open Settings to unlock. Your data stays encrypted.",
@@ -608,7 +657,10 @@
     "locatePortableData": "Locate Beaver Notes portable data folder",
     "chooseSyncFolder": "Choose a sync folder",
     "copyToClipboard": "Copy to clipboard",
-    "recoverAccount": "Recover account"
+    "recoverAccount": "Recover account",
+    "confirmPassword": "Confirm password",
+    "passwordDescription": "Create a password to protect your notes.",
+    "passwordWarning": "If you forget this password, your locked notes cannot be recovered."
   },
   "tray": {
     "noRecentItems": "No recent items",
@@ -645,7 +697,8 @@
     "copied": "Copied!",
     "copyContent": "Copy content",
     "searchHeadings": "Search headings…",
-    "noHeadingsFound": "No headings found"
+    "noHeadingsFound": "No headings found",
+    "historyLocked": "History is unavailable for locked notes"
   },
   "toolbar": {
     "align": "Align",
@@ -894,7 +947,52 @@
     "exportData": "Export account data",
     "exportDataBody": "Download a copy of your account information.",
     "export": "Export",
-    "inboxHint": "Can't find the email? Check your inbox and spam folder."
+    "inboxHint": "Can't find the email? Check your inbox and spam folder.",
+    "accounts": "Accounts",
+    "addAccount": "Add account",
+    "back": "Back",
+    "backToSignIn": "Back to sign in",
+    "cancel": "Cancel",
+    "cantSignIn": "Can’t sign in?",
+    "cloudSyncCtaBody": "Sync your notes across devices with Beaver Cloud.",
+    "cloudSyncCtaHeading": "Sync with Beaver Cloud",
+    "confirmPasswordPlaceholder": "Confirm password",
+    "continueWithPasskey": "Continue with passkey",
+    "createAccount": "Create account",
+    "createAccountTitle": "Create your account",
+    "createWithPasskey": "Create with passkey",
+    "currentPlan": "Current plan",
+    "deleteAccount": "Delete account",
+    "deleteAccountBody": "This will permanently delete your account and cloud data.",
+    "deleteAccountConfirm": "Delete account",
+    "edit": "Edit",
+    "editUsername": "Edit username",
+    "emailPlaceholder": "Email",
+    "importVault": "Import vault",
+    "later": "Later",
+    "managePlan": "Manage plan",
+    "memberSince": "Member since",
+    "moreSignInOptions": "More sign-in options",
+    "noAccountYet": "No account yet?",
+    "onboardingBody": "Sign in to sync your notes and settings.",
+    "onboardingTitle": "Set up your account",
+    "passwordPlaceholder": "Password",
+    "plan": "Plan",
+    "security": "Security",
+    "server": "Server",
+    "serverHint": "Use the default Beaver server or enter your own.",
+    "signIn": "Sign in",
+    "signInWithPassword": "Sign in with password",
+    "signOut": "Sign out",
+    "signOutEverywhere": "Sign out everywhere",
+    "signOutEverywhereBody": "Sign out of this account on all devices.",
+    "signOutEverywhereTitle": "Sign out everywhere",
+    "signedInAs": "Signed in as",
+    "storage": "Storage",
+    "thisDevice": "This device",
+    "useDefault": "Use default",
+    "usernameHint": "This name is visible to collaborators.",
+    "vaultDetectedBody": "An existing vault was found. Import it to continue."
   },
   "dataView": {
     "export": "Export",
@@ -973,5 +1071,19 @@
     "openNote": "Open Note",
     "failed": "Failed to join. The link may be invalid or expired.",
     "goToHome": "Go to home"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "justNow": "Just now",
+    "retry": "Retry",
+    "save": "Save"
+  },
+  "pdfBlock": {
+    "convertBack": "Convert back to PDF",
+    "done": "Done",
+    "error": "Could not load PDF",
+    "hideThumbnails": "Hide thumbnails",
+    "showThumbnails": "Show thumbnails",
+    "title": "PDF"
   }
 }

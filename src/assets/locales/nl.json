@@ -39,7 +39,9 @@
     "selectCodeFont": "Selecteer het code-lettertype",
     "selectFont": "Selecteer lettertype",
     "system": "Systeem",
-    "wide": "Breed"
+    "wide": "Breed",
+    "appIcon": "App-pictogram",
+    "font": "Lettertype"
   },
   "card": {
     "archive": "Archiveren",
@@ -84,7 +86,9 @@
     "searchEmojis": "Emoji's zoeken",
     "wrongPasswd": "Onjuist wachtwoord. Notitie kan niet worden ontgrendeld.",
     "conflictCopy": "Conflictkopie. Controleer en verwijder één versie.",
-    "sharedNote": "Met mij gedeeld"
+    "sharedNote": "Met mij gedeeld",
+    "needsExtraction": "Extractie nodig",
+    "retrying": "Opnieuw proberen…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "Typ",
@@ -93,7 +97,9 @@
     "noResults": "Geen resultaten voor \"{query}\"",
     "openHint": "openen",
     "placeholder": "Bestand zoeken of typ '>' om opdrachten te zoeken",
-    "untitledNote": "Notitie zonder titel"
+    "untitledNote": "Notitie zonder titel",
+    "foldersOnly": "Alleen mappen",
+    "titleOnly": "Alleen titel"
   },
   "commands": {
     "darkTheme": "Donker thema toepassen",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "Schrijf iets... of typ \"/\" voor opdrachten.",
     "untitledNote": "Notitie zonder titel",
     "viewingOlderVersion": "Je bekijkt een oudere versie",
-    "viewingVersionFrom": "Je bekijkt de versie van {when}"
+    "viewingVersionFrom": "Je bekijkt de versie van {when}",
+    "backShortcutTitle": "Terug (Alt+Links)",
+    "backToNotes": "Terug naar notities",
+    "backlinks": "Terugverwijzingen",
+    "copyTextFromImage": "Tekst uit afbeelding kopiëren",
+    "downloadImage": "Afbeelding downloaden",
+    "editLink": "Link bewerken",
+    "keepImageOnOwnLine": "Afbeelding op eigen regel houden",
+    "keepVideoOnOwnLine": "Video op eigen regel houden",
+    "linkedReferences": "Gekoppelde verwijzingen",
+    "noMatchingNotes": "Geen overeenkomende notities",
+    "removeLink": "Link verwijderen",
+    "wrapLeft": "Links uitlijnen",
+    "wrapRight": "Rechts uitlijnen"
   },
   "filter": {
     "alphabetical": "Alfabetisch",
@@ -263,7 +282,8 @@
     "videoDescription": "Een video invoegen",
     "videoUrl": "Video-URL",
     "yellowCallout": "Gele callout",
-    "yellowCalloutDescription": "Gele callout"
+    "yellowCalloutDescription": "Gele callout",
+    "searchBlocks": "Blokken zoeken"
   },
   "paper": {
     "dotted": "Gestippeld",
@@ -430,7 +450,25 @@
     "selectEnexFile": "Selecteer ENEX-bestand",
     "selectSimplenoteExport": "Selecteer notes.json",
     "selectMarkdownFolder": "Selecteer Markdown-map",
-    "markdownBased": "Markdown-gebaseerd"
+    "markdownBased": "Markdown-gebaseerd",
+    "advanced": "Geavanceerd",
+    "behavior": "Gedrag",
+    "changePassphrase": "Wachtwoordzin wijzigen",
+    "cloudSync": "Cloudsynchronisatie",
+    "copyLogPath": "Logpad kopiëren",
+    "details": "Details",
+    "encryptionAlwaysOn": "Versleuteling staat altijd aan",
+    "encryptionDesc": "Je notities worden versleuteld voordat ze dit apparaat verlaten.",
+    "logPathCopied": "Logpad gekopieerd",
+    "noResults": "Geen instellingen gevonden",
+    "recoverWithCode": "Herstellen met code",
+    "search": "Instellingen doorzoeken",
+    "showRecoveryCode": "Herstelcode tonen",
+    "syncNow": "Nu synchroniseren",
+    "syncing": "Synchroniseren…",
+    "unlockAppEncryptionBody": "Ontgrendel de app-versleuteling om door te gaan.",
+    "unlockAppEncryptionTitle": "Versleuteling ontgrendelen",
+    "unlockWithBiometrics": "Ontgrendelen met biometrie"
   },
   "shortcuts": {
     "arrowLeft": "Linkerpijl",
@@ -481,7 +519,12 @@
     "emptyPrefix": "Nog geen labels. Typ",
     "emptySuffix": "om te beginnen.",
     "title": "Labels",
-    "total": "totaal"
+    "total": "totaal",
+    "hint": "Gebruik labels om je notities te organiseren.",
+    "noResults": "Geen labels gevonden",
+    "search": "Labels zoeken",
+    "sortAlpha": "Alfabetisch sorteren",
+    "sortCount": "Sorteren op aantal"
   },
   "emptyState": {
     "chipCapture": "Ideeën vastleggen",
@@ -491,7 +534,8 @@
     "heading": "Klaar wanneer jij het bent",
     "shortcutNewFolder": "Nieuwe map",
     "shortcutNewNote": "Nieuwe notitie",
-    "subheading": "Maak een notitie om te beginnen."
+    "subheading": "Maak een notitie om te beginnen.",
+    "cta": "Een notitie maken"
   },
   "toolbarCustomizer": {
     "divider": "scheiding",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "Ontbrekende essentiële notitievelden in het geïmporteerde bestand.",
     "invalidAssetsStructure": "Ongeldige assets-structuur in de geïmporteerde notitie.",
     "exportedNoteAndAssetsTo": "Notitie en assets geëxporteerd naar \"{path}\"",
-    "exportedHtmlToFolder": "HTML geëxporteerd naar map: {path}"
+    "exportedHtmlToFolder": "HTML geëxporteerd naar map: {path}",
+    "importNoteDialogTitle": "Notitie importeren",
+    "linkOff": "Linkdelen uitgeschakeld",
+    "noCollaborators": "Nog geen samenwerkers",
+    "resetLink": "Link opnieuw instellen",
+    "viaWorkspace": "Via werkruimte"
   },
   "app": {
     "dismiss": "Sluiten",
@@ -608,7 +657,10 @@
     "locatePortableData": "Zoek de portable datamap van Beaver Notes",
     "chooseSyncFolder": "Kies een synchronisatiemap",
     "copyToClipboard": "Kopiëren naar klembord",
-    "recoverAccount": "Account herstellen"
+    "recoverAccount": "Account herstellen",
+    "confirmPassword": "Wachtwoord bevestigen",
+    "passwordDescription": "Maak een wachtwoord om je notities te beschermen.",
+    "passwordWarning": "Als je dit wachtwoord vergeet, kunnen je vergrendelde notities niet worden hersteld."
   },
   "tray": {
     "noRecentItems": "Geen recente items",
@@ -645,7 +697,8 @@
     "words": "woorden",
     "wordLimit": "Woordlimiet",
     "setLimit": "Instellen",
-    "clearLimit": "Wissen"
+    "clearLimit": "Wissen",
+    "historyLocked": "Geschiedenis is niet beschikbaar voor vergrendelde notities"
   },
   "toolbar": {
     "active": "Actief",
@@ -894,7 +947,52 @@
     "exportData": "Accountgegevens exporteren",
     "exportDataBody": "Download een kopie van je accountgegevens.",
     "export": "Exporteren",
-    "inboxHint": "De e-mail niet gevonden? Controleer je inbox en spammap."
+    "inboxHint": "De e-mail niet gevonden? Controleer je inbox en spammap.",
+    "accounts": "Accounts",
+    "addAccount": "Account toevoegen",
+    "back": "Terug",
+    "backToSignIn": "Terug naar aanmelden",
+    "cancel": "Annuleren",
+    "cantSignIn": "Kun je niet aanmelden?",
+    "cloudSyncCtaBody": "Synchroniseer je notities tussen apparaten met Beaver Cloud.",
+    "cloudSyncCtaHeading": "Synchroniseren met Beaver Cloud",
+    "confirmPasswordPlaceholder": "Wachtwoord bevestigen",
+    "continueWithPasskey": "Doorgaan met passkey",
+    "createAccount": "Account aanmaken",
+    "createAccountTitle": "Maak je account aan",
+    "createWithPasskey": "Aanmaken met passkey",
+    "currentPlan": "Huidig abonnement",
+    "deleteAccount": "Account verwijderen",
+    "deleteAccountBody": "Dit verwijdert je account en cloudgegevens permanent.",
+    "deleteAccountConfirm": "Account verwijderen",
+    "edit": "Bewerken",
+    "editUsername": "Gebruikersnaam bewerken",
+    "emailPlaceholder": "E-mail",
+    "importVault": "Vault importeren",
+    "later": "Later",
+    "managePlan": "Abonnement beheren",
+    "memberSince": "Lid sinds",
+    "moreSignInOptions": "Meer aanmeldopties",
+    "noAccountYet": "Nog geen account?",
+    "onboardingBody": "Meld je aan om je notities en instellingen te synchroniseren.",
+    "onboardingTitle": "Stel je account in",
+    "passwordPlaceholder": "Wachtwoord",
+    "plan": "Abonnement",
+    "security": "Beveiliging",
+    "server": "Server",
+    "serverHint": "Gebruik de standaard Beaver-server of voer je eigen server in.",
+    "signIn": "Aanmelden",
+    "signInWithPassword": "Aanmelden met wachtwoord",
+    "signOut": "Afmelden",
+    "signOutEverywhere": "Overal afmelden",
+    "signOutEverywhereBody": "Meld dit account af op alle apparaten.",
+    "signOutEverywhereTitle": "Overal afmelden",
+    "signedInAs": "Aangemeld als",
+    "storage": "Opslag",
+    "thisDevice": "Dit apparaat",
+    "useDefault": "Standaard gebruiken",
+    "usernameHint": "Deze naam is zichtbaar voor samenwerkers.",
+    "vaultDetectedBody": "Er is een bestaande vault gevonden. Importeer deze om door te gaan."
   },
   "dataView": {
     "export": "Exporteren",
@@ -973,5 +1071,19 @@
     "openNote": "Notitie openen",
     "failed": "Deelnemen is mislukt. De link is mogelijk ongeldig of verlopen.",
     "goToHome": "Ga naar startpagina"
+  },
+  "common": {
+    "cancel": "Annuleren",
+    "justNow": "Zojuist",
+    "retry": "Opnieuw proberen",
+    "save": "Opslaan"
+  },
+  "pdfBlock": {
+    "convertBack": "Terugzetten naar PDF",
+    "done": "Gereed",
+    "error": "Kan PDF niet laden",
+    "hideThumbnails": "Miniaturen verbergen",
+    "showThumbnails": "Miniaturen tonen",
+    "title": "PDF"
   }
 }

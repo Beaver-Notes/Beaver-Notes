@@ -39,7 +39,9 @@
     "selectCodeFont": "Вибрати шрифт коду",
     "selectFont": "Вибрати шрифт",
     "system": "Системна",
-    "wide": "Широкий"
+    "wide": "Широкий",
+    "appIcon": "Іконка застосунку",
+    "font": "Шрифт"
   },
   "card": {
     "archive": "Архівувати",
@@ -84,7 +86,9 @@
     "searchEmojis": "Пошук емодзі",
     "wrongPasswd": "Неправильний пароль. Нотатку не вдалося розблокувати.",
     "conflictCopy": "Копія з конфліктом. Перегляньте та видаліть одну з версій.",
-    "sharedNote": "Поділилися зі мною"
+    "sharedNote": "Поділилися зі мною",
+    "needsExtraction": "Потрібне вилучення",
+    "retrying": "Повторна спроба…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "Введіть",
@@ -93,7 +97,9 @@
     "noResults": "Немає результатів для \"{query}\"",
     "openHint": "відкрити",
     "placeholder": "Пошук файлів або введіть '>' для пошуку команд",
-    "untitledNote": "Нотатка без назви"
+    "untitledNote": "Нотатка без назви",
+    "foldersOnly": "Лише папки",
+    "titleOnly": "Лише заголовок"
   },
   "commands": {
     "darkTheme": "Застосувати темну тему",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "Напишіть щось… або введіть \"/\" для команд.",
     "untitledNote": "Нотатка без назви",
     "viewingOlderVersion": "Перегляд ранішої версії",
-    "viewingVersionFrom": "Перегляд версії від {when}"
+    "viewingVersionFrom": "Перегляд версії від {when}",
+    "backShortcutTitle": "Назад (Alt+Left)",
+    "backToNotes": "Назад до нотаток",
+    "backlinks": "Зворотні посилання",
+    "copyTextFromImage": "Копіювати текст із зображення",
+    "downloadImage": "Завантажити зображення",
+    "editLink": "Редагувати посилання",
+    "keepImageOnOwnLine": "Залишати зображення в окремому рядку",
+    "keepVideoOnOwnLine": "Залишати відео в окремому рядку",
+    "linkedReferences": "Пов’язані згадки",
+    "noMatchingNotes": "Немає відповідних нотаток",
+    "removeLink": "Видалити посилання",
+    "wrapLeft": "Обтікання ліворуч",
+    "wrapRight": "Обтікання праворуч"
   },
   "filter": {
     "alphabetical": "За алфавітом",
@@ -263,7 +282,8 @@
     "videoDescription": "Вставити відео",
     "videoUrl": "URL відео",
     "yellowCallout": "Жовтий блок",
-    "yellowCalloutDescription": "Жовтий блок"
+    "yellowCalloutDescription": "Жовтий блок",
+    "searchBlocks": "Пошук блоків"
   },
   "paper": {
     "dotted": "У крапку",
@@ -430,7 +450,25 @@
     "selectEnexFile": "Виберіть файл ENEX",
     "selectSimplenoteExport": "Виберіть notes.json",
     "selectMarkdownFolder": "Виберіть папку Markdown",
-    "markdownBased": "На основі Markdown"
+    "markdownBased": "На основі Markdown",
+    "advanced": "Розширені",
+    "behavior": "Поведінка",
+    "changePassphrase": "Змінити парольну фразу",
+    "cloudSync": "Хмарна синхронізація",
+    "copyLogPath": "Копіювати шлях до журналу",
+    "details": "Подробиці",
+    "encryptionAlwaysOn": "Шифрування завжди ввімкнено",
+    "encryptionDesc": "Ваші нотатки шифруються, перш ніж покинути цей пристрій.",
+    "logPathCopied": "Шлях до журналу скопійовано",
+    "noResults": "Налаштувань не знайдено",
+    "recoverWithCode": "Відновити за допомогою коду",
+    "search": "Пошук налаштувань",
+    "showRecoveryCode": "Показати код відновлення",
+    "syncNow": "Синхронізувати зараз",
+    "syncing": "Синхронізація…",
+    "unlockAppEncryptionBody": "Розблокуйте шифрування застосунку, щоб продовжити.",
+    "unlockAppEncryptionTitle": "Розблокувати шифрування",
+    "unlockWithBiometrics": "Розблокувати біометрією"
   },
   "shortcuts": {
     "arrowLeft": "Стрілка вліво",
@@ -481,7 +519,12 @@
     "emptyPrefix": "Міток ще немає. Введіть",
     "emptySuffix": "щоб почати.",
     "title": "Мітки",
-    "total": "усього"
+    "total": "усього",
+    "hint": "Використовуйте мітки, щоб упорядкувати нотатки.",
+    "noResults": "Міток не знайдено",
+    "search": "Пошук міток",
+    "sortAlpha": "Сортувати за алфавітом",
+    "sortCount": "Сортувати за кількістю"
   },
   "emptyState": {
     "chipCapture": "Фіксуйте ідеї",
@@ -491,7 +534,8 @@
     "heading": "Усе готово до роботи",
     "shortcutNewFolder": "Нова папка",
     "shortcutNewNote": "Нова нотатка",
-    "subheading": "Створіть нотатку, щоб почати."
+    "subheading": "Створіть нотатку, щоб почати.",
+    "cta": "Створити нотатку"
   },
   "toolbarCustomizer": {
     "divider": "роздільник",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "У імпортованому файлі відсутні обов’язкові поля нотатки.",
     "invalidAssetsStructure": "Неправильна структура вкладень в імпортованій нотатці.",
     "exportedNoteAndAssetsTo": "Нотатку та вкладення експортовано в \"{path}\"",
-    "exportedHtmlToFolder": "HTML експортовано в папку: {path}"
+    "exportedHtmlToFolder": "HTML експортовано в папку: {path}",
+    "importNoteDialogTitle": "Імпортувати нотатку",
+    "linkOff": "Спільний доступ за посиланням вимкнено",
+    "noCollaborators": "Співавторів поки немає",
+    "resetLink": "Скинути посилання",
+    "viaWorkspace": "Через робочий простір"
   },
   "app": {
     "dismiss": "Приховати",
@@ -608,7 +657,10 @@
     "locatePortableData": "Вкажіть папку з даними портативної версії Beaver Notes",
     "chooseSyncFolder": "Виберіть папку синхронізації",
     "copyToClipboard": "Копіювати в буфер обміну",
-    "recoverAccount": "Відновити обліковий запис"
+    "recoverAccount": "Відновити обліковий запис",
+    "confirmPassword": "Підтвердьте пароль",
+    "passwordDescription": "Створіть пароль для захисту ваших нотаток.",
+    "passwordWarning": "Якщо ви забудете цей пароль, заблоковані нотатки неможливо буде відновити."
   },
   "tray": {
     "noRecentItems": "Немає нещодавніх елементів",
@@ -645,7 +697,8 @@
     "words": "слів",
     "wordLimit": "Ліміт слів",
     "setLimit": "Встановити",
-    "clearLimit": "Очистити"
+    "clearLimit": "Очистити",
+    "historyLocked": "Історія недоступна для заблокованих нотаток"
   },
   "toolbar": {
     "active": "Активно",
@@ -894,7 +947,52 @@
     "exportData": "Експортувати дані облікового запису",
     "exportDataBody": "Завантажте копію відомостей про ваш обліковий запис.",
     "export": "Експорт",
-    "inboxHint": "Не знайшли листа? Перевірте папки \"Вхідні\" та \"Спам\"."
+    "inboxHint": "Не знайшли листа? Перевірте папки \"Вхідні\" та \"Спам\".",
+    "accounts": "Облікові записи",
+    "addAccount": "Додати обліковий запис",
+    "back": "Назад",
+    "backToSignIn": "Назад до входу",
+    "cancel": "Скасувати",
+    "cantSignIn": "Не вдається увійти?",
+    "cloudSyncCtaBody": "Синхронізуйте нотатки між пристроями за допомогою Beaver Cloud.",
+    "cloudSyncCtaHeading": "Синхронізація з Beaver Cloud",
+    "confirmPasswordPlaceholder": "Підтвердьте пароль",
+    "continueWithPasskey": "Продовжити з ключем доступу",
+    "createAccount": "Створити обліковий запис",
+    "createAccountTitle": "Створіть обліковий запис",
+    "createWithPasskey": "Створити з ключем доступу",
+    "currentPlan": "Поточний план",
+    "deleteAccount": "Видалити обліковий запис",
+    "deleteAccountBody": "Це назавжди видалить ваш обліковий запис і хмарні дані.",
+    "deleteAccountConfirm": "Видалити обліковий запис",
+    "edit": "Редагувати",
+    "editUsername": "Редагувати ім’я користувача",
+    "emailPlaceholder": "Ел. пошта",
+    "importVault": "Імпортувати сховище",
+    "later": "Пізніше",
+    "managePlan": "Керувати планом",
+    "memberSince": "Учасник з",
+    "moreSignInOptions": "Більше способів входу",
+    "noAccountYet": "Ще немає облікового запису?",
+    "onboardingBody": "Увійдіть, щоб синхронізувати нотатки та налаштування.",
+    "onboardingTitle": "Налаштуйте обліковий запис",
+    "passwordPlaceholder": "Пароль",
+    "plan": "План",
+    "security": "Безпека",
+    "server": "Сервер",
+    "serverHint": "Використовуйте типовий сервер Beaver або введіть власний.",
+    "signIn": "Увійти",
+    "signInWithPassword": "Увійти з паролем",
+    "signOut": "Вийти",
+    "signOutEverywhere": "Вийти на всіх пристроях",
+    "signOutEverywhereBody": "Вийти з цього облікового запису на всіх пристроях.",
+    "signOutEverywhereTitle": "Вийти на всіх пристроях",
+    "signedInAs": "Ви увійшли як",
+    "storage": "Сховище",
+    "thisDevice": "Цей пристрій",
+    "useDefault": "Використовувати типовий",
+    "usernameHint": "Це ім’я бачать співавтори.",
+    "vaultDetectedBody": "Знайдено наявне сховище. Імпортуйте його, щоб продовжити."
   },
   "dataView": {
     "export": "Експорт",
@@ -973,5 +1071,19 @@
     "openNote": "Відкрити нотатку",
     "failed": "Не вдалося приєднатися. Можливо, посилання недійсне або термін його дії минув.",
     "goToHome": "На головну"
+  },
+  "common": {
+    "cancel": "Скасувати",
+    "justNow": "Щойно",
+    "retry": "Повторити",
+    "save": "Зберегти"
+  },
+  "pdfBlock": {
+    "convertBack": "Перетворити назад у PDF",
+    "done": "Готово",
+    "error": "Не вдалося завантажити PDF",
+    "hideThumbnails": "Сховати мініатюри",
+    "showThumbnails": "Показати мініатюри",
+    "title": "PDF"
   }
 }

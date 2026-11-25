@@ -39,7 +39,9 @@
     "selectCodeFont": "اختر خط الكود",
     "selectFont": "اختر الخط",
     "system": "النظام",
-    "wide": "واسع"
+    "wide": "واسع",
+    "appIcon": "أيقونة التطبيق",
+    "font": "الخط"
   },
   "card": {
     "archive": "أرشيف",
@@ -84,7 +86,9 @@
     "searchEmojis": "البحث في الرموز التعبيرية",
     "wrongPasswd": "كلمة المرور غير صحيحة. لا يمكن فتح الملاحظة.",
     "conflictCopy": "نسخة متعارضة. راجعها واحذف أحد الإصدارين.",
-    "sharedNote": "مُشاركة معي"
+    "sharedNote": "مُشاركة معي",
+    "needsExtraction": "بحاجة إلى استخراج",
+    "retrying": "جارٍ إعادة المحاولة…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "اكتب",
@@ -93,7 +97,9 @@
     "noResults": "لا توجد نتائج لـ \"{query}\"",
     "openHint": "فتح",
     "placeholder": "ابحث في الملف أو اكتب '>' للبحث في الأوامر",
-    "untitledNote": "ملاحظة بدون عنوان"
+    "untitledNote": "ملاحظة بدون عنوان",
+    "foldersOnly": "المجلدات فقط",
+    "titleOnly": "العنوان فقط"
   },
   "commands": {
     "darkTheme": "تطبيق الوضع الداكن",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "اكتب شيئًا... أو اكتب \"/\" للأوامر.",
     "untitledNote": "ملاحظة بدون عنوان",
     "viewingOlderVersion": "عرض إصدار أقدم",
-    "viewingVersionFrom": "عرض إصدار من {when}"
+    "viewingVersionFrom": "عرض إصدار من {when}",
+    "backShortcutTitle": "رجوع (Alt+Left)",
+    "backToNotes": "العودة إلى الملاحظات",
+    "backlinks": "الروابط الخلفية",
+    "copyTextFromImage": "نسخ النص من الصورة",
+    "downloadImage": "تنزيل الصورة",
+    "editLink": "تعديل الرابط",
+    "keepImageOnOwnLine": "إبقاء الصورة في سطر مستقل",
+    "keepVideoOnOwnLine": "إبقاء الفيديو في سطر مستقل",
+    "linkedReferences": "المراجع المرتبطة",
+    "noMatchingNotes": "لا توجد ملاحظات مطابقة",
+    "removeLink": "إزالة الرابط",
+    "wrapLeft": "التفاف لليسار",
+    "wrapRight": "التفاف لليمين"
   },
   "filter": {
     "alphabetical": "أبجديًا",
@@ -263,7 +282,8 @@
     "videoDescription": "أدرج فيديو",
     "videoUrl": "رابط الفيديو",
     "yellowCallout": "تنبيه أصفر",
-    "yellowCalloutDescription": "كتلة تنبيه صفراء"
+    "yellowCalloutDescription": "كتلة تنبيه صفراء",
+    "searchBlocks": "البحث في الكتل"
   },
   "paper": {
     "dotted": "منقط",
@@ -430,7 +450,25 @@
     "selectEnexFile": "اختر ملف ENEX",
     "selectSimplenoteExport": "اختر notes.json",
     "selectMarkdownFolder": "اختر مجلد Markdown",
-    "markdownBased": "قائم على Markdown"
+    "markdownBased": "قائم على Markdown",
+    "advanced": "متقدم",
+    "behavior": "السلوك",
+    "changePassphrase": "تغيير عبارة المرور",
+    "cloudSync": "المزامنة السحابية",
+    "copyLogPath": "نسخ مسار السجل",
+    "details": "التفاصيل",
+    "encryptionAlwaysOn": "التشفير مفعّل دائمًا",
+    "encryptionDesc": "تُشفَّر ملاحظاتك قبل مغادرتها لهذا الجهاز.",
+    "logPathCopied": "تم نسخ مسار السجل",
+    "noResults": "لم يتم العثور على إعدادات",
+    "recoverWithCode": "الاسترداد باستخدام رمز",
+    "search": "البحث في الإعدادات",
+    "showRecoveryCode": "إظهار رمز الاسترداد",
+    "syncNow": "زامن الآن",
+    "syncing": "جارٍ المزامنة…",
+    "unlockAppEncryptionBody": "افتح قفل تشفير التطبيق للمتابعة.",
+    "unlockAppEncryptionTitle": "فتح قفل التشفير",
+    "unlockWithBiometrics": "فتح القفل بالبصمة الحيوية"
   },
   "shortcuts": {
     "arrowLeft": "السهم الأيسر",
@@ -481,7 +519,12 @@
     "emptyPrefix": "لا توجد تصنيفات بعد. اكتب",
     "emptySuffix": "للبدء.",
     "title": "التصنيفات",
-    "total": "إجمالي"
+    "total": "إجمالي",
+    "hint": "استخدم التصنيفات لتنظيم ملاحظاتك.",
+    "noResults": "لم يتم العثور على تصنيفات",
+    "search": "البحث في التصنيفات",
+    "sortAlpha": "الترتيب أبجديًا",
+    "sortCount": "الترتيب حسب العدد"
   },
   "emptyState": {
     "chipCapture": "التقط الأفكار",
@@ -491,7 +534,8 @@
     "heading": "كل شيء جاهز متى شئت",
     "shortcutNewFolder": "مجلد جديد",
     "shortcutNewNote": "ملاحظة جديدة",
-    "subheading": "أنشئ ملاحظة لتبدأ."
+    "subheading": "أنشئ ملاحظة لتبدأ.",
+    "cta": "إنشاء ملاحظة"
   },
   "toolbarCustomizer": {
     "divider": "فاصل",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "الحقول الأساسية للملاحظة ناقصة في الملف المستورد.",
     "invalidAssetsStructure": "بنية المرفقات غير صالحة في الملاحظة المستوردة.",
     "exportedNoteAndAssetsTo": "تم تصدير الملاحظة والمرفقات إلى \"{path}\"",
-    "exportedHtmlToFolder": "تم تصدير HTML إلى المجلد: {path}"
+    "exportedHtmlToFolder": "تم تصدير HTML إلى المجلد: {path}",
+    "importNoteDialogTitle": "استيراد ملاحظة",
+    "linkOff": "مشاركة الرابط متوقفة",
+    "noCollaborators": "لا يوجد متعاونون بعد",
+    "resetLink": "إعادة تعيين الرابط",
+    "viaWorkspace": "عبر مساحة العمل"
   },
   "app": {
     "dismiss": "تجاهل",
@@ -608,7 +657,10 @@
     "locatePortableData": "حدّد موقع مجلد بيانات Beaver Notes المحمول",
     "chooseSyncFolder": "اختر مجلد مزامنة",
     "copyToClipboard": "نسخ إلى الحافظة",
-    "recoverAccount": "استعادة الحساب"
+    "recoverAccount": "استعادة الحساب",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "passwordDescription": "أنشئ كلمة مرور لحماية ملاحظاتك.",
+    "passwordWarning": "إذا نسيت كلمة المرور هذه، فلن تتمكن من استعادة ملاحظاتك المقفلة."
   },
   "tray": {
     "noRecentItems": "لا توجد عناصر حديثة",
@@ -645,7 +697,8 @@
     "words": "كلمات",
     "wordLimit": "حد الكلمات",
     "setLimit": "تعيين",
-    "clearLimit": "مسح"
+    "clearLimit": "مسح",
+    "historyLocked": "السجل غير متاح للملاحظات المقفلة"
   },
   "toolbar": {
     "active": "نشط",
@@ -894,7 +947,52 @@
     "exportData": "تصدير بيانات الحساب",
     "exportDataBody": "تنزيل نسخة من معلومات حسابك.",
     "export": "تصدير",
-    "inboxHint": "لا تجد البريد الإلكتروني؟ تحقق من صندوق الوارد ومجلد البريد غير المرغوب."
+    "inboxHint": "لا تجد البريد الإلكتروني؟ تحقق من صندوق الوارد ومجلد البريد غير المرغوب.",
+    "accounts": "الحسابات",
+    "addAccount": "إضافة حساب",
+    "back": "رجوع",
+    "backToSignIn": "العودة إلى تسجيل الدخول",
+    "cancel": "إلغاء",
+    "cantSignIn": "لا تستطيع تسجيل الدخول؟",
+    "cloudSyncCtaBody": "زامن ملاحظاتك عبر الأجهزة باستخدام Beaver Cloud.",
+    "cloudSyncCtaHeading": "المزامنة مع Beaver Cloud",
+    "confirmPasswordPlaceholder": "تأكيد كلمة المرور",
+    "continueWithPasskey": "المتابعة باستخدام مفتاح مرور",
+    "createAccount": "إنشاء حساب",
+    "createAccountTitle": "أنشئ حسابك",
+    "createWithPasskey": "إنشاء باستخدام مفتاح مرور",
+    "currentPlan": "الخطة الحالية",
+    "deleteAccount": "حذف الحساب",
+    "deleteAccountBody": "سيؤدي هذا إلى حذف حسابك وبياناتك السحابية نهائيًا.",
+    "deleteAccountConfirm": "حذف الحساب",
+    "edit": "تعديل",
+    "editUsername": "تعديل اسم المستخدم",
+    "emailPlaceholder": "البريد الإلكتروني",
+    "importVault": "استيراد الخزنة",
+    "later": "لاحقًا",
+    "managePlan": "إدارة الخطة",
+    "memberSince": "عضو منذ",
+    "moreSignInOptions": "خيارات تسجيل دخول أخرى",
+    "noAccountYet": "ليس لديك حساب بعد؟",
+    "onboardingBody": "سجّل الدخول لمزامنة ملاحظاتك وإعداداتك.",
+    "onboardingTitle": "إعداد حسابك",
+    "passwordPlaceholder": "كلمة المرور",
+    "plan": "الخطة",
+    "security": "الأمان",
+    "server": "الخادم",
+    "serverHint": "استخدم خادم Beaver الافتراضي أو أدخل خادمك الخاص.",
+    "signIn": "تسجيل الدخول",
+    "signInWithPassword": "تسجيل الدخول بكلمة المرور",
+    "signOut": "تسجيل الخروج",
+    "signOutEverywhere": "تسجيل الخروج من كل الأجهزة",
+    "signOutEverywhereBody": "سجّل الخروج من هذا الحساب على جميع الأجهزة.",
+    "signOutEverywhereTitle": "تسجيل الخروج من كل الأجهزة",
+    "signedInAs": "مسجّل الدخول باسم",
+    "storage": "التخزين",
+    "thisDevice": "هذا الجهاز",
+    "useDefault": "استخدام الافتراضي",
+    "usernameHint": "هذا الاسم مرئي للمتعاونين.",
+    "vaultDetectedBody": "تم العثور على خزنة موجودة. استوردها للمتابعة."
   },
   "dataView": {
     "export": "تصدير",
@@ -973,5 +1071,19 @@
     "openNote": "فتح الملاحظة",
     "failed": "فشل الانضمام. قد يكون الرابط غير صالح أو منتهي الصلاحية.",
     "goToHome": "الانتقال إلى الرئيسية"
+  },
+  "common": {
+    "cancel": "إلغاء",
+    "justNow": "الآن",
+    "retry": "إعادة المحاولة",
+    "save": "حفظ"
+  },
+  "pdfBlock": {
+    "convertBack": "التحويل مرة أخرى إلى PDF",
+    "done": "تم",
+    "error": "تعذّر تحميل ملف PDF",
+    "hideThumbnails": "إخفاء الصور المصغرة",
+    "showThumbnails": "إظهار الصور المصغرة",
+    "title": "PDF"
   }
 }

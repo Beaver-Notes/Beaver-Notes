@@ -39,7 +39,9 @@
     "selectCodeFont": "选择代码字体",
     "selectFont": "选择字体",
     "system": "系统",
-    "wide": "宽的"
+    "wide": "宽的",
+    "appIcon": "应用图标",
+    "font": "字体"
   },
   "card": {
     "archive": "归档",
@@ -84,7 +86,9 @@
     "searchEmojis": "搜索表情符号",
     "wrongPasswd": "密码错误，笔记无法被解锁。",
     "conflictCopy": "存在冲突副本。请查看并删除其中一个版本。",
-    "sharedNote": "与我共享"
+    "sharedNote": "与我共享",
+    "needsExtraction": "需要提取",
+    "retrying": "正在重试…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "输入",
@@ -93,7 +97,9 @@
     "noResults": "没有找到“{query}”的相关结果",
     "openHint": "打开",
     "placeholder": "搜索文件或者键入 '>' 进行命令搜索",
-    "untitledNote": "无标题笔记"
+    "untitledNote": "无标题笔记",
+    "foldersOnly": "仅文件夹",
+    "titleOnly": "仅标题"
   },
   "commands": {
     "darkTheme": "应用深色主题",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "写点什么...",
     "untitledNote": "无标题笔记",
     "viewingOlderVersion": "正在查看旧版本",
-    "viewingVersionFrom": "正在查看 {when} 的版本"
+    "viewingVersionFrom": "正在查看 {when} 的版本",
+    "backShortcutTitle": "返回 (Alt+Left)",
+    "backToNotes": "返回笔记",
+    "backlinks": "反向链接",
+    "copyTextFromImage": "从图片复制文字",
+    "downloadImage": "下载图片",
+    "editLink": "编辑链接",
+    "keepImageOnOwnLine": "图片单独成行",
+    "keepVideoOnOwnLine": "视频单独成行",
+    "linkedReferences": "链接引用",
+    "noMatchingNotes": "没有匹配的笔记",
+    "removeLink": "移除链接",
+    "wrapLeft": "左侧环绕",
+    "wrapRight": "右侧环绕"
   },
   "filter": {
     "alphabetical": "按字母顺序",
@@ -263,7 +282,8 @@
     "videoDescription": "插入视频",
     "videoUrl": "视频链接",
     "yellowCallout": "黄色标注",
-    "yellowCalloutDescription": "黄色标注块"
+    "yellowCalloutDescription": "黄色标注块",
+    "searchBlocks": "搜索块"
   },
   "paper": {
     "dotted": "点状",
@@ -430,7 +450,25 @@
     "selectEnexFile": "选择 ENEX 文件",
     "selectSimplenoteExport": "选择 notes.json",
     "selectMarkdownFolder": "选择 Markdown 文件夹",
-    "markdownBased": "基于 Markdown"
+    "markdownBased": "基于 Markdown",
+    "advanced": "高级",
+    "behavior": "行为",
+    "changePassphrase": "更改密码短语",
+    "cloudSync": "云同步",
+    "copyLogPath": "复制日志路径",
+    "details": "详细信息",
+    "encryptionAlwaysOn": "加密始终开启",
+    "encryptionDesc": "您的笔记在离开此设备前会被加密。",
+    "logPathCopied": "日志路径已复制",
+    "noResults": "未找到设置",
+    "recoverWithCode": "使用恢复码恢复",
+    "search": "搜索设置",
+    "showRecoveryCode": "显示恢复码",
+    "syncNow": "立即同步",
+    "syncing": "正在同步…",
+    "unlockAppEncryptionBody": "解锁应用加密以继续。",
+    "unlockAppEncryptionTitle": "解锁加密",
+    "unlockWithBiometrics": "使用生物识别解锁"
   },
   "shortcuts": {
     "arrowLeft": "方向键左",
@@ -481,7 +519,12 @@
     "emptyPrefix": "暂无标签。输入",
     "emptySuffix": "即可开始。",
     "title": "标签",
-    "total": "个"
+    "total": "个",
+    "hint": "使用标签来整理您的笔记。",
+    "noResults": "未找到标签",
+    "search": "搜索标签",
+    "sortAlpha": "按字母排序",
+    "sortCount": "按数量排序"
   },
   "emptyState": {
     "chipCapture": "记录灵感",
@@ -491,7 +534,8 @@
     "heading": "一切就绪，随时开始",
     "shortcutNewFolder": "新建文件夹",
     "shortcutNewNote": "新建笔记",
-    "subheading": "创建一条笔记，开始使用。"
+    "subheading": "创建一条笔记，开始使用。",
+    "cta": "创建笔记"
   },
   "toolbarCustomizer": {
     "divider": "分隔线",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "导入的文件中缺少必要的笔记字段。",
     "invalidAssetsStructure": "导入的笔记中附件结构无效。",
     "exportedNoteAndAssetsTo": "已将笔记和附件导出至“{path}”",
-    "exportedHtmlToFolder": "HTML 已导出至文件夹：{path}"
+    "exportedHtmlToFolder": "HTML 已导出至文件夹：{path}",
+    "importNoteDialogTitle": "导入笔记",
+    "linkOff": "链接分享已关闭",
+    "noCollaborators": "暂无协作者",
+    "resetLink": "重置链接",
+    "viaWorkspace": "通过工作区"
   },
   "app": {
     "dismiss": "忽略",
@@ -608,7 +657,10 @@
     "locatePortableData": "查找 Beaver Notes 便携版数据文件夹",
     "chooseSyncFolder": "选择同步文件夹",
     "copyToClipboard": "复制到剪贴板",
-    "recoverAccount": "恢复账号"
+    "recoverAccount": "恢复账号",
+    "confirmPassword": "确认密码",
+    "passwordDescription": "创建密码以保护您的笔记。",
+    "passwordWarning": "如果您忘记此密码，已锁定的笔记将无法恢复。"
   },
   "tray": {
     "noRecentItems": "暂无最近项目",
@@ -645,7 +697,8 @@
     "words": "字",
     "wordLimit": "字数上限",
     "setLimit": "设置",
-    "clearLimit": "清除"
+    "clearLimit": "清除",
+    "historyLocked": "已锁定笔记的历史记录不可用"
   },
   "toolbar": {
     "active": "活跃",
@@ -894,7 +947,52 @@
     "exportData": "导出账号数据",
     "exportDataBody": "下载您的账号信息副本。",
     "export": "导出",
-    "inboxHint": "没有找到邮件？请检查收件箱和垃圾邮件文件夹。"
+    "inboxHint": "没有找到邮件？请检查收件箱和垃圾邮件文件夹。",
+    "accounts": "账号",
+    "addAccount": "添加账号",
+    "back": "返回",
+    "backToSignIn": "返回登录",
+    "cancel": "取消",
+    "cantSignIn": "无法登录？",
+    "cloudSyncCtaBody": "使用 Beaver Cloud 在设备间同步您的笔记。",
+    "cloudSyncCtaHeading": "使用 Beaver Cloud 同步",
+    "confirmPasswordPlaceholder": "确认密码",
+    "continueWithPasskey": "使用通行密钥继续",
+    "createAccount": "创建账号",
+    "createAccountTitle": "创建您的账号",
+    "createWithPasskey": "使用通行密钥创建",
+    "currentPlan": "当前方案",
+    "deleteAccount": "删除账号",
+    "deleteAccountBody": "这将永久删除您的账号和云端数据。",
+    "deleteAccountConfirm": "删除账号",
+    "edit": "编辑",
+    "editUsername": "编辑用户名",
+    "emailPlaceholder": "邮箱",
+    "importVault": "导入保险库",
+    "later": "稍后",
+    "managePlan": "管理方案",
+    "memberSince": "加入时间",
+    "moreSignInOptions": "更多登录选项",
+    "noAccountYet": "还没有账号？",
+    "onboardingBody": "登录以同步您的笔记和设置。",
+    "onboardingTitle": "设置您的账号",
+    "passwordPlaceholder": "密码",
+    "plan": "方案",
+    "security": "安全",
+    "server": "服务器",
+    "serverHint": "使用默认 Beaver 服务器或输入您自己的服务器。",
+    "signIn": "登录",
+    "signInWithPassword": "使用密码登录",
+    "signOut": "退出登录",
+    "signOutEverywhere": "在所有设备上退出登录",
+    "signOutEverywhereBody": "在所有设备上退出此账号。",
+    "signOutEverywhereTitle": "在所有设备上退出登录",
+    "signedInAs": "当前登录为",
+    "storage": "存储空间",
+    "thisDevice": "此设备",
+    "useDefault": "使用默认值",
+    "usernameHint": "协作者可以看到此名称。",
+    "vaultDetectedBody": "检测到现有保险库。导入它以继续。"
   },
   "dataView": {
     "export": "导出",
@@ -973,5 +1071,19 @@
     "openNote": "打开笔记",
     "failed": "加入失败。链接可能无效或已过期。",
     "goToHome": "返回主页"
+  },
+  "common": {
+    "cancel": "取消",
+    "justNow": "刚刚",
+    "retry": "重试",
+    "save": "保存"
+  },
+  "pdfBlock": {
+    "convertBack": "转换回 PDF",
+    "done": "完成",
+    "error": "无法加载 PDF",
+    "hideThumbnails": "隐藏缩略图",
+    "showThumbnails": "显示缩略图",
+    "title": "PDF"
   }
 }

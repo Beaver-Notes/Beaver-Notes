@@ -39,7 +39,9 @@
     "selectCodeFont": "Code-Schriftart auswählen",
     "selectFont": "Schriftart auswählen",
     "system": "System",
-    "wide": "Breit"
+    "wide": "Breit",
+    "appIcon": "App-Symbol",
+    "font": "Schriftart"
   },
   "card": {
     "archive": "Archiv",
@@ -84,7 +86,9 @@
     "searchEmojis": "Emojis durchsuchen",
     "wrongPasswd": "Falsches Passwort. Notiz kann nicht entsperrt werden.",
     "conflictCopy": "Konfliktkopie. Prüfen und löschen Sie eine der Versionen.",
-    "sharedNote": "Mit mir geteilt"
+    "sharedNote": "Mit mir geteilt",
+    "needsExtraction": "Extraktion erforderlich",
+    "retrying": "Wird erneut versucht…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "Geben Sie",
@@ -93,7 +97,9 @@
     "noResults": "Keine Ergebnisse für \"{query}\"",
     "openHint": "öffnen",
     "placeholder": "Datei suchen oder '>' eingeben, um Befehle zu suchen",
-    "untitledNote": "Unbenannte Notiz"
+    "untitledNote": "Unbenannte Notiz",
+    "foldersOnly": "Nur Ordner",
+    "titleOnly": "Nur Titel"
   },
   "commands": {
     "darkTheme": "Dunkles Thema anwenden",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "Schreibe etwas... oder tippe \"/\" für Befehle.",
     "untitledNote": "Unbenannte Notiz",
     "viewingOlderVersion": "Ältere Version wird angezeigt",
-    "viewingVersionFrom": "Version vom {when} wird angezeigt"
+    "viewingVersionFrom": "Version vom {when} wird angezeigt",
+    "backShortcutTitle": "Zurück (Alt+Links)",
+    "backToNotes": "Zurück zu Notizen",
+    "backlinks": "Backlinks",
+    "copyTextFromImage": "Text aus Bild kopieren",
+    "downloadImage": "Bild herunterladen",
+    "editLink": "Link bearbeiten",
+    "keepImageOnOwnLine": "Bild in eigener Zeile halten",
+    "keepVideoOnOwnLine": "Video in eigener Zeile halten",
+    "linkedReferences": "Verknüpfte Referenzen",
+    "noMatchingNotes": "Keine passenden Notizen",
+    "removeLink": "Link entfernen",
+    "wrapLeft": "Links umfließen",
+    "wrapRight": "Rechts umfließen"
   },
   "filter": {
     "alphabetical": "Alphabetisch",
@@ -263,7 +282,8 @@
     "videoDescription": "Video einfügen",
     "videoUrl": "Video-URL",
     "yellowCallout": "Gelber Hinweis",
-    "yellowCalloutDescription": "Gelber Hinweisblock"
+    "yellowCalloutDescription": "Gelber Hinweisblock",
+    "searchBlocks": "Blöcke durchsuchen"
   },
   "paper": {
     "dotted": "Gepunktet",
@@ -430,7 +450,25 @@
     "selectEnexFile": "ENEX-Datei auswählen",
     "selectSimplenoteExport": "notes.json auswählen",
     "selectMarkdownFolder": "Markdown-Ordner auswählen",
-    "markdownBased": "Markdown-basiert"
+    "markdownBased": "Markdown-basiert",
+    "advanced": "Erweitert",
+    "behavior": "Verhalten",
+    "changePassphrase": "Passphrase ändern",
+    "cloudSync": "Cloud-Synchronisation",
+    "copyLogPath": "Log-Pfad kopieren",
+    "details": "Details",
+    "encryptionAlwaysOn": "Verschlüsselung ist immer aktiv",
+    "encryptionDesc": "Deine Notizen werden verschlüsselt, bevor sie dieses Gerät verlassen.",
+    "logPathCopied": "Log-Pfad kopiert",
+    "noResults": "Keine Einstellungen gefunden",
+    "recoverWithCode": "Mit Code wiederherstellen",
+    "search": "Einstellungen durchsuchen",
+    "showRecoveryCode": "Wiederherstellungscode anzeigen",
+    "syncNow": "Jetzt synchronisieren",
+    "syncing": "Wird synchronisiert…",
+    "unlockAppEncryptionBody": "Entsperre die App-Verschlüsselung, um fortzufahren.",
+    "unlockAppEncryptionTitle": "Verschlüsselung entsperren",
+    "unlockWithBiometrics": "Mit Biometrie entsperren"
   },
   "shortcuts": {
     "arrowLeft": "Pfeil links",
@@ -481,7 +519,12 @@
     "emptyPrefix": "Noch keine Labels. Geben Sie",
     "emptySuffix": "ein, um zu starten.",
     "title": "Labels",
-    "total": "gesamt"
+    "total": "gesamt",
+    "hint": "Verwende Labels, um deine Notizen zu organisieren.",
+    "noResults": "Keine Labels gefunden",
+    "search": "Labels durchsuchen",
+    "sortAlpha": "Alphabetisch sortieren",
+    "sortCount": "Nach Anzahl sortieren"
   },
   "emptyState": {
     "chipCapture": "Ideen festhalten",
@@ -491,7 +534,8 @@
     "heading": "Bereit, wenn Sie es sind",
     "shortcutNewFolder": "Neuer Ordner",
     "shortcutNewNote": "Neue Notiz",
-    "subheading": "Erstellen Sie eine Notiz, um loszulegen."
+    "subheading": "Erstellen Sie eine Notiz, um loszulegen.",
+    "cta": "Notiz erstellen"
   },
   "toolbarCustomizer": {
     "divider": "Trennlinie",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "Essenzielle Notizfelder fehlen in der importierten Datei.",
     "invalidAssetsStructure": "Ungültige Anhangsstruktur in der importierten Notiz.",
     "exportedNoteAndAssetsTo": "Notiz und Anhänge nach \"{path}\" exportiert",
-    "exportedHtmlToFolder": "HTML in Ordner exportiert: {path}"
+    "exportedHtmlToFolder": "HTML in Ordner exportiert: {path}",
+    "importNoteDialogTitle": "Notiz importieren",
+    "linkOff": "Linkfreigabe aus",
+    "noCollaborators": "Noch keine Mitwirkenden",
+    "resetLink": "Link zurücksetzen",
+    "viaWorkspace": "Über Workspace"
   },
   "app": {
     "dismiss": "Ausblenden",
@@ -608,7 +657,10 @@
     "locatePortableData": "Beaver Notes Portable-Datenordner suchen",
     "chooseSyncFolder": "Synchronisationsordner auswählen",
     "copyToClipboard": "In die Zwischenablage kopieren",
-    "recoverAccount": "Konto wiederherstellen"
+    "recoverAccount": "Konto wiederherstellen",
+    "confirmPassword": "Passwort bestätigen",
+    "passwordDescription": "Erstelle ein Passwort, um deine Notizen zu schützen.",
+    "passwordWarning": "Wenn du dieses Passwort vergisst, können deine gesperrten Notizen nicht wiederhergestellt werden."
   },
   "tray": {
     "noRecentItems": "Keine aktuellen Einträge",
@@ -645,7 +697,8 @@
     "words": "Wörter",
     "wordLimit": "Wortlimit",
     "setLimit": "Setzen",
-    "clearLimit": "Löschen"
+    "clearLimit": "Löschen",
+    "historyLocked": "Verlauf ist für gesperrte Notizen nicht verfügbar"
   },
   "toolbar": {
     "active": "Aktiv",
@@ -894,7 +947,52 @@
     "exportData": "Kontodaten exportieren",
     "exportDataBody": "Laden Sie eine Kopie Ihrer Kontoinformationen herunter.",
     "export": "Exportieren",
-    "inboxHint": "E-Mail nicht gefunden? Sehen Sie in Ihrem Posteingang und Spam-Ordner nach."
+    "inboxHint": "E-Mail nicht gefunden? Sehen Sie in Ihrem Posteingang und Spam-Ordner nach.",
+    "accounts": "Konten",
+    "addAccount": "Konto hinzufügen",
+    "back": "Zurück",
+    "backToSignIn": "Zurück zur Anmeldung",
+    "cancel": "Abbrechen",
+    "cantSignIn": "Anmeldung nicht möglich?",
+    "cloudSyncCtaBody": "Synchronisiere deine Notizen geräteübergreifend mit Beaver Cloud.",
+    "cloudSyncCtaHeading": "Mit Beaver Cloud synchronisieren",
+    "confirmPasswordPlaceholder": "Passwort bestätigen",
+    "continueWithPasskey": "Mit Passkey fortfahren",
+    "createAccount": "Konto erstellen",
+    "createAccountTitle": "Erstelle dein Konto",
+    "createWithPasskey": "Mit Passkey erstellen",
+    "currentPlan": "Aktueller Plan",
+    "deleteAccount": "Konto löschen",
+    "deleteAccountBody": "Dadurch werden dein Konto und deine Cloud-Daten dauerhaft gelöscht.",
+    "deleteAccountConfirm": "Konto löschen",
+    "edit": "Bearbeiten",
+    "editUsername": "Benutzernamen bearbeiten",
+    "emailPlaceholder": "E-Mail",
+    "importVault": "Tresor importieren",
+    "later": "Später",
+    "managePlan": "Plan verwalten",
+    "memberSince": "Mitglied seit",
+    "moreSignInOptions": "Weitere Anmeldeoptionen",
+    "noAccountYet": "Noch kein Konto?",
+    "onboardingBody": "Melde dich an, um deine Notizen und Einstellungen zu synchronisieren.",
+    "onboardingTitle": "Richte dein Konto ein",
+    "passwordPlaceholder": "Passwort",
+    "plan": "Plan",
+    "security": "Sicherheit",
+    "server": "Server",
+    "serverHint": "Verwende den Standard-Beaver-Server oder gib deinen eigenen ein.",
+    "signIn": "Anmelden",
+    "signInWithPassword": "Mit Passwort anmelden",
+    "signOut": "Abmelden",
+    "signOutEverywhere": "Überall abmelden",
+    "signOutEverywhereBody": "Melde dieses Konto auf allen Geräten ab.",
+    "signOutEverywhereTitle": "Überall abmelden",
+    "signedInAs": "Angemeldet als",
+    "storage": "Speicher",
+    "thisDevice": "Dieses Gerät",
+    "useDefault": "Standard verwenden",
+    "usernameHint": "Dieser Name ist für Mitwirkende sichtbar.",
+    "vaultDetectedBody": "Ein vorhandener Tresor wurde gefunden. Importiere ihn, um fortzufahren."
   },
   "dataView": {
     "export": "Exportieren",
@@ -973,5 +1071,19 @@
     "openNote": "Notiz öffnen",
     "failed": "Beitritt fehlgeschlagen. Der Link ist möglicherweise ungültig oder abgelaufen.",
     "goToHome": "Zur Startseite"
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "justNow": "Gerade eben",
+    "retry": "Erneut versuchen",
+    "save": "Speichern"
+  },
+  "pdfBlock": {
+    "convertBack": "Zurück in PDF umwandeln",
+    "done": "Fertig",
+    "error": "PDF konnte nicht geladen werden",
+    "hideThumbnails": "Miniaturansichten ausblenden",
+    "showThumbnails": "Miniaturansichten anzeigen",
+    "title": "PDF"
   }
 }

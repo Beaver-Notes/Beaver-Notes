@@ -39,7 +39,9 @@
     "selectCodeFont": "Выбрать шрифт для кода",
     "selectFont": "Выберите шрифт",
     "system": "Система",
-    "wide": "Широкий"
+    "wide": "Широкий",
+    "appIcon": "Значок приложения",
+    "font": "Шрифт"
   },
   "card": {
     "archive": "Архивировать",
@@ -84,7 +86,9 @@
     "searchEmojis": "Поиск эмодзи",
     "wrongPasswd": "Неверный пароль. Заметка не может быть разблокирована.",
     "conflictCopy": "Копия с конфликтом. Проверьте и удалите одну из версий.",
-    "sharedNote": "Поделились со мной"
+    "sharedNote": "Поделились со мной",
+    "needsExtraction": "Требуется извлечение",
+    "retrying": "Повторная попытка…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "Введите",
@@ -93,7 +97,9 @@
     "noResults": "Нет результатов для \"{query}\"",
     "openHint": "открыть",
     "placeholder": "Поиск файла или введите '>' для поиска команд",
-    "untitledNote": "Без названия"
+    "untitledNote": "Без названия",
+    "foldersOnly": "Только папки",
+    "titleOnly": "Только заголовок"
   },
   "commands": {
     "darkTheme": "Применить темную тему",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "Напишите что-нибудь...",
     "untitledNote": "Безымянная заметка",
     "viewingOlderVersion": "Просмотр более ранней версии",
-    "viewingVersionFrom": "Просмотр версии от {when}"
+    "viewingVersionFrom": "Просмотр версии от {when}",
+    "backShortcutTitle": "Назад (Alt+Left)",
+    "backToNotes": "Назад к заметкам",
+    "backlinks": "Обратные ссылки",
+    "copyTextFromImage": "Копировать текст с изображения",
+    "downloadImage": "Скачать изображение",
+    "editLink": "Изменить ссылку",
+    "keepImageOnOwnLine": "Оставить изображение на отдельной строке",
+    "keepVideoOnOwnLine": "Оставить видео на отдельной строке",
+    "linkedReferences": "Связанные упоминания",
+    "noMatchingNotes": "Нет подходящих заметок",
+    "removeLink": "Удалить ссылку",
+    "wrapLeft": "Обтекание справа",
+    "wrapRight": "Обтекание слева"
   },
   "filter": {
     "alphabetical": "Алфавитный порядок",
@@ -263,7 +282,8 @@
     "videoDescription": "Вставить видео",
     "videoUrl": "URL видео",
     "yellowCallout": "Жёлтый блок",
-    "yellowCalloutDescription": "Жёлтый блок"
+    "yellowCalloutDescription": "Жёлтый блок",
+    "searchBlocks": "Поиск блоков"
   },
   "paper": {
     "dotted": "Пунктирный",
@@ -430,7 +450,25 @@
     "selectEnexFile": "Выберите файл ENEX",
     "selectSimplenoteExport": "Выберите notes.json",
     "selectMarkdownFolder": "Выберите папку Markdown",
-    "markdownBased": "На основе Markdown"
+    "markdownBased": "На основе Markdown",
+    "advanced": "Дополнительно",
+    "behavior": "Поведение",
+    "changePassphrase": "Изменить парольную фразу",
+    "cloudSync": "Облачная синхронизация",
+    "copyLogPath": "Копировать путь к журналу",
+    "details": "Подробности",
+    "encryptionAlwaysOn": "Шифрование всегда включено",
+    "encryptionDesc": "Ваши заметки шифруются, прежде чем покинуть это устройство.",
+    "logPathCopied": "Путь к журналу скопирован",
+    "noResults": "Настройки не найдены",
+    "recoverWithCode": "Восстановить с помощью кода",
+    "search": "Поиск настроек",
+    "showRecoveryCode": "Показать код восстановления",
+    "syncNow": "Синхронизировать сейчас",
+    "syncing": "Синхронизация…",
+    "unlockAppEncryptionBody": "Разблокируйте шифрование приложения, чтобы продолжить.",
+    "unlockAppEncryptionTitle": "Разблокировать шифрование",
+    "unlockWithBiometrics": "Разблокировать с помощью биометрии"
   },
   "shortcuts": {
     "arrowLeft": "Стрелка влево",
@@ -481,7 +519,12 @@
     "emptyPrefix": "Пока нет меток. Введите",
     "emptySuffix": "чтобы начать.",
     "title": "Метки",
-    "total": "всего"
+    "total": "всего",
+    "hint": "Используйте метки для организации заметок.",
+    "noResults": "Метки не найдены",
+    "search": "Поиск меток",
+    "sortAlpha": "Сортировать по алфавиту",
+    "sortCount": "Сортировать по количеству"
   },
   "emptyState": {
     "chipCapture": "Сохраняйте идеи",
@@ -491,7 +534,8 @@
     "heading": "Всё готово к работе",
     "shortcutNewFolder": "Новая папка",
     "shortcutNewNote": "Новая заметка",
-    "subheading": "Создайте заметку, чтобы начать."
+    "subheading": "Создайте заметку, чтобы начать.",
+    "cta": "Создать заметку"
   },
   "toolbarCustomizer": {
     "divider": "разделитель",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "В импортированном файле отсутствуют обязательные поля заметки.",
     "invalidAssetsStructure": "Неверная структура вложений в импортированной заметке.",
     "exportedNoteAndAssetsTo": "Заметка и вложения экспортированы в \"{path}\"",
-    "exportedHtmlToFolder": "HTML экспортирован в папку: {path}"
+    "exportedHtmlToFolder": "HTML экспортирован в папку: {path}",
+    "importNoteDialogTitle": "Импортировать заметку",
+    "linkOff": "Доступ по ссылке отключён",
+    "noCollaborators": "Соавторов пока нет",
+    "resetLink": "Сбросить ссылку",
+    "viaWorkspace": "Через рабочее пространство"
   },
   "app": {
     "dismiss": "Скрыть",
@@ -608,7 +657,10 @@
     "locatePortableData": "Укажите папку с данными портативной версии Beaver Notes",
     "chooseSyncFolder": "Выберите папку синхронизации",
     "copyToClipboard": "Копировать в буфер обмена",
-    "recoverAccount": "Восстановить аккаунт"
+    "recoverAccount": "Восстановить аккаунт",
+    "confirmPassword": "Подтвердите пароль",
+    "passwordDescription": "Создайте пароль для защиты ваших заметок.",
+    "passwordWarning": "Если вы забудете этот пароль, заблокированные заметки невозможно будет восстановить."
   },
   "tray": {
     "noRecentItems": "Нет недавних элементов",
@@ -645,7 +697,8 @@
     "words": "слов",
     "wordLimit": "Лимит слов",
     "setLimit": "Установить",
-    "clearLimit": "Очистить"
+    "clearLimit": "Очистить",
+    "historyLocked": "История недоступна для заблокированных заметок"
   },
   "toolbar": {
     "active": "Активно",
@@ -894,7 +947,52 @@
     "exportData": "Экспортировать данные аккаунта",
     "exportDataBody": "Скачайте копию сведений о вашем аккаунте.",
     "export": "Экспорт",
-    "inboxHint": "Не нашли письмо? Проверьте папки \"Входящие\" и \"Спам\"."
+    "inboxHint": "Не нашли письмо? Проверьте папки \"Входящие\" и \"Спам\".",
+    "accounts": "Аккаунты",
+    "addAccount": "Добавить аккаунт",
+    "back": "Назад",
+    "backToSignIn": "Назад ко входу",
+    "cancel": "Отмена",
+    "cantSignIn": "Не удаётся войти?",
+    "cloudSyncCtaBody": "Синхронизируйте заметки между устройствами с Beaver Cloud.",
+    "cloudSyncCtaHeading": "Синхронизация с Beaver Cloud",
+    "confirmPasswordPlaceholder": "Подтвердите пароль",
+    "continueWithPasskey": "Продолжить с ключом доступа",
+    "createAccount": "Создать аккаунт",
+    "createAccountTitle": "Создайте аккаунт",
+    "createWithPasskey": "Создать с ключом доступа",
+    "currentPlan": "Текущий план",
+    "deleteAccount": "Удалить аккаунт",
+    "deleteAccountBody": "Это навсегда удалит ваш аккаунт и облачные данные.",
+    "deleteAccountConfirm": "Удалить аккаунт",
+    "edit": "Изменить",
+    "editUsername": "Изменить имя пользователя",
+    "emailPlaceholder": "Email",
+    "importVault": "Импортировать хранилище",
+    "later": "Позже",
+    "managePlan": "Управлять планом",
+    "memberSince": "Участник с",
+    "moreSignInOptions": "Другие способы входа",
+    "noAccountYet": "Ещё нет аккаунта?",
+    "onboardingBody": "Войдите, чтобы синхронизировать заметки и настройки.",
+    "onboardingTitle": "Настройте аккаунт",
+    "passwordPlaceholder": "Пароль",
+    "plan": "План",
+    "security": "Безопасность",
+    "server": "Сервер",
+    "serverHint": "Используйте сервер Beaver по умолчанию или укажите свой.",
+    "signIn": "Войти",
+    "signInWithPassword": "Войти с паролем",
+    "signOut": "Выйти",
+    "signOutEverywhere": "Выйти на всех устройствах",
+    "signOutEverywhereBody": "Выйти из этого аккаунта на всех устройствах.",
+    "signOutEverywhereTitle": "Выйти на всех устройствах",
+    "signedInAs": "Вы вошли как",
+    "storage": "Хранилище",
+    "thisDevice": "Это устройство",
+    "useDefault": "Использовать по умолчанию",
+    "usernameHint": "Это имя видно соавторам.",
+    "vaultDetectedBody": "Найдено существующее хранилище. Импортируйте его, чтобы продолжить."
   },
   "dataView": {
     "export": "Экспорт",
@@ -973,5 +1071,19 @@
     "openNote": "Открыть заметку",
     "failed": "Не удалось присоединиться. Возможно, ссылка недействительна или её срок истёк.",
     "goToHome": "На главную"
+  },
+  "common": {
+    "cancel": "Отмена",
+    "justNow": "Только что",
+    "retry": "Повторить",
+    "save": "Сохранить"
+  },
+  "pdfBlock": {
+    "convertBack": "Преобразовать обратно в PDF",
+    "done": "Готово",
+    "error": "Не удалось загрузить PDF",
+    "hideThumbnails": "Скрыть миниатюры",
+    "showThumbnails": "Показать миниатюры",
+    "title": "PDF"
   }
 }

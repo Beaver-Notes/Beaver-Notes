@@ -39,7 +39,9 @@
     "selectCodeFont": "Seleccionar fuente de código",
     "selectFont": "Seleccionar fuente",
     "system": "Sistema",
-    "wide": "Ancho"
+    "wide": "Ancho",
+    "appIcon": "Icono de la app",
+    "font": "Fuente"
   },
   "card": {
     "archive": "Archivar",
@@ -84,7 +86,9 @@
     "searchEmojis": "Buscar emojis",
     "wrongPasswd": "Contraseña incorrecta. No se pudo desbloquear la nota.",
     "conflictCopy": "Copia en conflicto. Revisa y elimina una de las versiones.",
-    "sharedNote": "Compartida conmigo"
+    "sharedNote": "Compartida conmigo",
+    "needsExtraction": "Necesita extracción",
+    "retrying": "Reintentando…"
   },
   "commandPrompt": {
     "commandsHintPrefix": "Escribe",
@@ -93,7 +97,9 @@
     "noResults": "Sin resultados para \"{query}\"",
     "openHint": "abrir",
     "placeholder": "Busca una nota o escribe '>' para comandos",
-    "untitledNote": "Nota sin título"
+    "untitledNote": "Nota sin título",
+    "foldersOnly": "Solo carpetas",
+    "titleOnly": "Solo título"
   },
   "commands": {
     "darkTheme": "Aplicar tema oscuro",
@@ -124,7 +130,20 @@
     "tiptapPlaceholder": "Escribe algo...",
     "untitledNote": "Nota sin título",
     "viewingOlderVersion": "Viendo una versión anterior",
-    "viewingVersionFrom": "Viendo la versión del {when}"
+    "viewingVersionFrom": "Viendo la versión del {when}",
+    "backShortcutTitle": "Atrás (Alt+Izquierda)",
+    "backToNotes": "Volver a las notas",
+    "backlinks": "Retroenlaces",
+    "copyTextFromImage": "Copiar texto de la imagen",
+    "downloadImage": "Descargar imagen",
+    "editLink": "Editar enlace",
+    "keepImageOnOwnLine": "Mantener la imagen en su propia línea",
+    "keepVideoOnOwnLine": "Mantener el video en su propia línea",
+    "linkedReferences": "Referencias vinculadas",
+    "noMatchingNotes": "No hay notas coincidentes",
+    "removeLink": "Quitar enlace",
+    "wrapLeft": "Ajustar a la izquierda",
+    "wrapRight": "Ajustar a la derecha"
   },
   "filter": {
     "alphabetical": "Alfabético",
@@ -263,7 +282,8 @@
     "videoDescription": "Insertar un vídeo",
     "videoUrl": "Ruta del vídeo",
     "yellowCallout": "Callout amarillo",
-    "yellowCalloutDescription": "Bloque de callout amarillo"
+    "yellowCalloutDescription": "Bloque de callout amarillo",
+    "searchBlocks": "Buscar bloques"
   },
   "paper": {
     "dotted": "Punteado",
@@ -430,7 +450,25 @@
     "selectEnexFile": "Seleccionar archivo ENEX",
     "selectSimplenoteExport": "Seleccionar notes.json",
     "selectMarkdownFolder": "Seleccionar carpeta de Markdown",
-    "markdownBased": "Basado en Markdown"
+    "markdownBased": "Basado en Markdown",
+    "advanced": "Avanzado",
+    "behavior": "Comportamiento",
+    "changePassphrase": "Cambiar frase de contraseña",
+    "cloudSync": "Sincronización en la nube",
+    "copyLogPath": "Copiar ruta del registro",
+    "details": "Detalles",
+    "encryptionAlwaysOn": "El cifrado siempre está activado",
+    "encryptionDesc": "Tus notas se cifran antes de salir de este dispositivo.",
+    "logPathCopied": "Ruta del registro copiada",
+    "noResults": "No se encontraron ajustes",
+    "recoverWithCode": "Recuperar con código",
+    "search": "Buscar ajustes",
+    "showRecoveryCode": "Mostrar código de recuperación",
+    "syncNow": "Sincronizar ahora",
+    "syncing": "Sincronizando…",
+    "unlockAppEncryptionBody": "Desbloquea el cifrado de la app para continuar.",
+    "unlockAppEncryptionTitle": "Desbloquear cifrado",
+    "unlockWithBiometrics": "Desbloquear con biometría"
   },
   "shortcuts": {
     "arrowLeft": "Flecha izquierda",
@@ -481,7 +519,12 @@
     "emptyPrefix": "Aún no hay etiquetas. Escribe",
     "emptySuffix": "para empezar.",
     "title": "Etiquetas",
-    "total": "en total"
+    "total": "en total",
+    "hint": "Usa etiquetas para organizar tus notas.",
+    "noResults": "No se encontraron etiquetas",
+    "search": "Buscar etiquetas",
+    "sortAlpha": "Ordenar alfabéticamente",
+    "sortCount": "Ordenar por cantidad"
   },
   "emptyState": {
     "chipCapture": "Captura ideas",
@@ -491,7 +534,8 @@
     "heading": "Todo listo cuando quieras",
     "shortcutNewFolder": "Nueva carpeta",
     "shortcutNewNote": "Nueva nota",
-    "subheading": "Crea una nota para empezar."
+    "subheading": "Crea una nota para empezar.",
+    "cta": "Crear una nota"
   },
   "toolbarCustomizer": {
     "divider": "separador",
@@ -538,7 +582,12 @@
     "missingEssentialFields": "Faltan campos esenciales de la nota en el archivo importado.",
     "invalidAssetsStructure": "Estructura de adjuntos no válida en la nota importada.",
     "exportedNoteAndAssetsTo": "Nota y adjuntos exportados a \"{path}\"",
-    "exportedHtmlToFolder": "HTML exportado a la carpeta: {path}"
+    "exportedHtmlToFolder": "HTML exportado a la carpeta: {path}",
+    "importNoteDialogTitle": "Importar nota",
+    "linkOff": "Uso compartido por enlace desactivado",
+    "noCollaborators": "Aún no hay colaboradores",
+    "resetLink": "Restablecer enlace",
+    "viaWorkspace": "A través del espacio de trabajo"
   },
   "app": {
     "dismiss": "Descartar",
@@ -608,7 +657,10 @@
     "locatePortableData": "Localizar la carpeta de datos portátiles de Beaver Notes",
     "chooseSyncFolder": "Elige una carpeta de sincronización",
     "copyToClipboard": "Copiar al portapapeles",
-    "recoverAccount": "Recuperar cuenta"
+    "recoverAccount": "Recuperar cuenta",
+    "confirmPassword": "Confirmar contraseña",
+    "passwordDescription": "Crea una contraseña para proteger tus notas.",
+    "passwordWarning": "Si olvidas esta contraseña, no podrás recuperar tus notas bloqueadas."
   },
   "tray": {
     "noRecentItems": "No hay elementos recientes",
@@ -645,7 +697,8 @@
     "words": "palabras",
     "wordLimit": "Límite de palabras",
     "setLimit": "Establecer",
-    "clearLimit": "Quitar"
+    "clearLimit": "Quitar",
+    "historyLocked": "El historial no está disponible para notas bloqueadas"
   },
   "toolbar": {
     "active": "Activo",
@@ -894,7 +947,52 @@
     "exportData": "Exportar datos de la cuenta",
     "exportDataBody": "Descarga una copia de la información de tu cuenta.",
     "export": "Exportar",
-    "inboxHint": "¿No encuentras el correo? Revisa tu bandeja de entrada y la carpeta de spam."
+    "inboxHint": "¿No encuentras el correo? Revisa tu bandeja de entrada y la carpeta de spam.",
+    "accounts": "Cuentas",
+    "addAccount": "Añadir cuenta",
+    "back": "Atrás",
+    "backToSignIn": "Volver a iniciar sesión",
+    "cancel": "Cancelar",
+    "cantSignIn": "¿No puedes iniciar sesión?",
+    "cloudSyncCtaBody": "Sincroniza tus notas entre dispositivos con Beaver Cloud.",
+    "cloudSyncCtaHeading": "Sincroniza con Beaver Cloud",
+    "confirmPasswordPlaceholder": "Confirmar contraseña",
+    "continueWithPasskey": "Continuar con clave de acceso",
+    "createAccount": "Crear cuenta",
+    "createAccountTitle": "Crea tu cuenta",
+    "createWithPasskey": "Crear con clave de acceso",
+    "currentPlan": "Plan actual",
+    "deleteAccount": "Eliminar cuenta",
+    "deleteAccountBody": "Esto eliminará permanentemente tu cuenta y tus datos en la nube.",
+    "deleteAccountConfirm": "Eliminar cuenta",
+    "edit": "Editar",
+    "editUsername": "Editar nombre de usuario",
+    "emailPlaceholder": "Correo electrónico",
+    "importVault": "Importar bóveda",
+    "later": "Más tarde",
+    "managePlan": "Gestionar plan",
+    "memberSince": "Miembro desde",
+    "moreSignInOptions": "Más opciones de inicio de sesión",
+    "noAccountYet": "¿Aún no tienes cuenta?",
+    "onboardingBody": "Inicia sesión para sincronizar tus notas y ajustes.",
+    "onboardingTitle": "Configura tu cuenta",
+    "passwordPlaceholder": "Contraseña",
+    "plan": "Plan",
+    "security": "Seguridad",
+    "server": "Servidor",
+    "serverHint": "Usa el servidor predeterminado de Beaver o introduce el tuyo.",
+    "signIn": "Iniciar sesión",
+    "signInWithPassword": "Iniciar sesión con contraseña",
+    "signOut": "Cerrar sesión",
+    "signOutEverywhere": "Cerrar sesión en todas partes",
+    "signOutEverywhereBody": "Cierra sesión de esta cuenta en todos los dispositivos.",
+    "signOutEverywhereTitle": "Cerrar sesión en todas partes",
+    "signedInAs": "Sesión iniciada como",
+    "storage": "Almacenamiento",
+    "thisDevice": "Este dispositivo",
+    "useDefault": "Usar predeterminado",
+    "usernameHint": "Este nombre es visible para los colaboradores.",
+    "vaultDetectedBody": "Se encontró una bóveda existente. Impórtala para continuar."
   },
   "dataView": {
     "export": "Exportar",
@@ -973,5 +1071,19 @@
     "openNote": "Abrir nota",
     "failed": "No se pudo unir. El enlace puede ser inválido o haber caducado.",
     "goToHome": "Ir al inicio"
+  },
+  "common": {
+    "cancel": "Cancelar",
+    "justNow": "Justo ahora",
+    "retry": "Reintentar",
+    "save": "Guardar"
+  },
+  "pdfBlock": {
+    "convertBack": "Volver a convertir a PDF",
+    "done": "Listo",
+    "error": "No se pudo cargar el PDF",
+    "hideThumbnails": "Ocultar miniaturas",
+    "showThumbnails": "Mostrar miniaturas",
+    "title": "PDF"
   }
 }
