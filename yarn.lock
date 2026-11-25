@@ -2264,7 +2264,7 @@ baseline-browser-mapping@^2.11.20:
 
 "beautiful-mermaid@git+https://github.com/Daniele-rolli/beautiful-mermaid.git#v1.2.0":
   version "1.1.3"
-  resolved "git+ssh://git@github.com/Daniele-rolli/beautiful-mermaid.git#1a2037d3bb618af5d432a94ae3818de17d6dec82"
+  resolved "git+https://github.com/Daniele-rolli/beautiful-mermaid.git#1a2037d3bb618af5d432a94ae3818de17d6dec82"
   dependencies:
     elkjs "^0.11.0"
     entities "^7.0.1"
