@@ -449,6 +449,8 @@ jobs:
       - name: Install Android SDK
         if: ${{ matrix.id == 'android' }}
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
       - name: Regenerate Android project for CI
         if: ${{ matrix.id == 'android' }}
