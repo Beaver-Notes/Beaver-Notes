@@ -96,7 +96,7 @@
             </span>
 
             <span
-              v-if="accountPlan(acct)"
+              v-if="paidFeaturesEnabled && accountPlan(acct)"
               class="shrink-0 text-xs leading-none px-1.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 font-medium"
             >
               {{ accountPlan(acct) }}
@@ -200,7 +200,7 @@
           </div>
         </div>
 
-        <template v-if="archived.length">
+        <template v-if="paidFeaturesEnabled && archived.length">
           <div
             class="px-2.5 pb-1.5 pt-2 text-xs font-semibold font-bold text-neutral-500 dark:text-neutral-400 select-none"
           >
@@ -228,7 +228,7 @@
           </div>
         </template>
 
-        <template v-if="pendingRequests.length">
+        <template v-if="paidFeaturesEnabled && pendingRequests.length">
           <div
             class="px-2.5 pb-1.5 pt-2 text-xs font-semibold font-bold text-neutral-500 dark:text-neutral-400 select-none"
           >
@@ -264,7 +264,7 @@
         </button>
 
         <button
-          v-if="isPaid"
+          v-if="paidFeaturesEnabled && isPaid"
           class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="promptJoin"
         >
@@ -277,6 +277,7 @@
         </button>
 
         <button
+          v-if="paidFeaturesEnabled"
           data-testid="add-account"
           class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 mobile:py-3.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
           @click="addAccount"
@@ -334,6 +335,7 @@ import {
 import { signOutAccount, switchAccount } from '@/composable/useAccountAuth';
 import { isPhoneRuntime } from '@/lib/tauri/runtime';
 import { foldState } from '@/lib/foldable';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 import WorkspaceFormDialog from './WorkspaceFormDialog.vue';
 
 export default {
@@ -371,8 +373,9 @@ export default {
     const activeName = computed(() => activeWs.value?.name ?? 'Default');
     const activeEmoji = computed(() => activeWs.value?.emoji ?? '');
     const activeColor = computed(() => activeWs.value?.color ?? '#64748b');
+    const paidFeaturesEnabled = PAID_FEATURES_ENABLED;
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
-    const isPaid = computed(() => accountStore.isPaidPlan);
+    const isPaid = computed(() => paidFeaturesEnabled && accountStore.isPaidPlan);
     const accounts = computed(() => listAccounts());
     const activeAccountId = computed(() => getActiveAccountId());
     const activeAccount = computed(
@@ -382,6 +385,7 @@ export default {
     // workspaces. Starter and pro get exactly one workspace, so they may still
     // create it when they currently have none and the count is known.
     const canCreateWorkspace = computed(() => {
+      if (!paidFeaturesEnabled) return false;
       if (accountStore.planLimits?.flags?.teamWorkspaces === true) return true;
       if (!isPaid.value) return false;
       const list = workspaces.value.filter((w) => !w.local);
@@ -406,10 +410,12 @@ export default {
     }
 
     const canManageWorkspace = (ws) =>
+      paidFeaturesEnabled &&
       accountStore.planLimits?.flags?.dashboard === true &&
       (ws.role === 'owner' || ws.role === 'admin');
     const canCustomizeWorkspace = (ws) =>
-      ws.local || ws.role === 'owner' || ws.role === 'admin';
+      ws.local ||
+      (paidFeaturesEnabled && (ws.role === 'owner' || ws.role === 'admin'));
 
     // Deleted local workspaces whose files are still kept: restoring is just a
     // move back, so the list is read on every open instead of being cached.
@@ -439,7 +445,7 @@ export default {
 
     onMounted(async () => {
       await workspaceStore.retrieve();
-      if (accountStore.isAuthenticated) {
+      if (paidFeaturesEnabled && accountStore.isAuthenticated) {
         cloud.fetchMyPendingRequests().catch(() => {
           /* pending list is non-critical */
         });
@@ -449,7 +455,8 @@ export default {
     });
 
     watch(popoverOpen, (open) => {
-      if (open && accountStore.isAuthenticated) loadArchived();
+      if (paidFeaturesEnabled && open && accountStore.isAuthenticated)
+        loadArchived();
     });
 
     // Switching is in place now: the leaving workspace is flushed and the
@@ -471,6 +478,7 @@ export default {
     }
 
     async function addAccount() {
+      if (!paidFeaturesEnabled) return;
       popoverOpen.value = false;
       router.push({ path: '/settings/account', query: { addAccount: '1' } });
     }
@@ -559,6 +567,7 @@ export default {
     // Team settings manages the workspace it was opened for: if that isn't the
     // active one, switch first so the settings page shows the right team.
     async function goToTeamSettings(ws) {
+      if (!paidFeaturesEnabled) return;
       if (ws && ws.id !== activeId.value) {
         await switchAccount({
           accountId: activeAccountId.value,
@@ -571,6 +580,7 @@ export default {
     }
 
     function promptJoin() {
+      if (!paidFeaturesEnabled) return;
       emitter.emit('show-dialog', 'prompt', {
         title: 'Join Workspace',
         placeholder: 'Paste invite link or token',
@@ -616,6 +626,7 @@ export default {
       activeColor,
       isAuthenticated,
       isPaid,
+      paidFeaturesEnabled,
       accounts,
       activeAccountId,
       activeAccount,

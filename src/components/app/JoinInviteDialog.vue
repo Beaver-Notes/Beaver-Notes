@@ -116,6 +116,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { joinViaInviteLink } from '@/lib/api/collaboration';
 import { useAccountStore } from '@/store/account';
 import { triggerInteractionHaptic } from '@/lib/native/haptics';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 
 export default {
   name: 'JoinInviteDialog',
@@ -182,6 +183,7 @@ export default {
     // token. The account settings surface honours `returnTo` after sign-in,
     // and returning to the Index with `?join=` reopens this modal.
     function goToSignIn() {
+      if (!PAID_FEATURES_ENABLED) return;
       router.push({
         name: 'Settings-Account',
         query: { returnTo: `/?join=${props.token}` },

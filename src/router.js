@@ -9,6 +9,7 @@ import SettingsAbout from './pages/settings/About.vue';
 import SettingsLabels from './pages/settings/Labels.vue';
 import SettingsAccount from './pages/settings/Account.vue';
 import SettingsTeamAdmin from './pages/settings/TeamAdmin.vue';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 import VerifyEmail from './pages/VerifyEmail.vue';
 import ResetPassword from './pages/ResetPassword.vue';
 import Home from './pages/Index.vue';
@@ -66,16 +67,20 @@ const routes = [
         name: 'Settings-Appearance',
         component: SettingsAppearance,
       },
-      {
-        path: 'account',
-        name: 'Settings-Account',
-        component: SettingsAccount,
-      },
-      {
-        path: 'workspace',
-        name: 'Settings-Workspace',
-        component: SettingsTeamAdmin,
-      },
+      ...(PAID_FEATURES_ENABLED
+        ? [
+            {
+              path: 'account',
+              name: 'Settings-Account',
+              component: SettingsAccount,
+            },
+            {
+              path: 'workspace',
+              name: 'Settings-Workspace',
+              component: SettingsTeamAdmin,
+            },
+          ]
+        : []),
       {
         path: 'shortcuts',
         name: 'Settings-Shortcuts',

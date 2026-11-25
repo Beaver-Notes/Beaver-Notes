@@ -5,14 +5,22 @@ import { useSyncProgressStore } from '@/store/sync-progress';
 import { getSyncPath } from './path.js';
 import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types';
 import { logger } from '@/utils/logger';
+import { backend } from '@/lib/tauri-bridge';
+import { isIOSNetworkUnlocked, unlockIOSNetwork } from '@/lib/sync/ws-sync.js';
 
 /**
  * Start Rust-owned sync: the progress store and the Rust scheduler, kicked
  * once when a sync target (folder path or authenticated cloud account) is
  * configured. Rust owns the cadence; a cycle without a target is a no-op.
+ *
+ * On iOS, auto-start on launch is deferred until a user-initiated network
+ * action (sign-in, manual sync) to avoid the system network permission prompt
+ * at startup. Pass { userInitiated: true } for explicit actions.
  */
-export async function initAppSync() {
+export async function initAppSync({ userInitiated = false } = {}) {
   useSyncProgressStore().startListening();
+  if (backend.isIOSRuntime() && !userInitiated && !isIOSNetworkUnlocked()) return;
+  if (userInitiated) unlockIOSNetwork();
 
   const syncPath = await getSyncPath();
   // A paid account syncs to the cloud whatever the stored transport says:

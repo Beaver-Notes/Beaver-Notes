@@ -128,6 +128,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 
 const { translations } = useTranslations();
 const accountStore = useAccountStore();
@@ -170,13 +171,17 @@ const settings = computed(() => {
         'accessibility',
       ],
     },
-    'Settings-Account': {
-      name: t.settings.account || 'Account',
-      icon: 'riUserLine',
-      path: '/settings/account',
-      keywords: [t.settings.account?.toLowerCase() || 'account'],
-    },
-    ...(hasTeamPlan.value
+    ...(PAID_FEATURES_ENABLED
+      ? {
+          'Settings-Account': {
+            name: t.settings.account || 'Account',
+            icon: 'riUserLine',
+            path: '/settings/account',
+            keywords: [t.settings.account?.toLowerCase() || 'account'],
+          },
+        }
+      : {}),
+    ...(PAID_FEATURES_ENABLED && hasTeamPlan.value
       ? {
           'Settings-Workspace': {
             name: t.settings.workspace || 'Workspace',

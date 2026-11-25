@@ -1,7 +1,11 @@
 import { computed } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSyncProgressStore } from '@/store/sync-progress';
+import { useAccountStore } from '@/store/account';
 import { kickRustSync } from '@/utils/sync/rust-shim.js';
+import { initAppSync } from '@/utils/sync/app-sync.js';
+import { getWsSync, isIOSNetworkUnlocked, unlockIOSNetwork } from '@/lib/sync/ws-sync.js';
+import { backend } from '@/lib/tauri-bridge';
 
 export function useSyncControl() {
   const { translations } = useTranslations();
@@ -28,8 +32,21 @@ export function useSyncControl() {
     return new Date(lastSyncAt.value).toLocaleString();
   });
 
-  function syncNow() {
+  async function syncNow() {
     if (syncProgressStore.isSyncing) return;
+    const firstUnlock = backend.isIOSRuntime() && !isIOSNetworkUnlocked();
+    try {
+      getWsSync().start({ userInitiated: true });
+    } catch {}
+    await initAppSync({ userInitiated: true }).catch(() => {});
+    if (firstUnlock) {
+      unlockIOSNetwork();
+      const accountStore = useAccountStore();
+      if (accountStore.isAuthenticated) {
+        const { useCloudWorkspaces } = await import('@/composable/useCloudWorkspaces');
+        useCloudWorkspaces().fetchWorkspaces().catch(() => {});
+      }
+    }
     kickRustSync();
   }
 

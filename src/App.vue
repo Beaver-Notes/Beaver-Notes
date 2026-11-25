@@ -111,7 +111,7 @@
   <ui-dialog />
 
   <!-- Paid plans are hidden this release; no purchase path in prod builds -->
-  <paywall-dialog v-if="devMode" />
+  <paywall-dialog v-if="paidFeaturesEnabled" />
 
   <ui-toast-host />
 
@@ -147,7 +147,7 @@ import UndoBanner from './components/app/UndoBanner.vue';
 import AppEncryptionGate from './components/app/AppEncryptionGate.vue';
 import RecordingPill from './components/note/RecordingPill.vue';
 import { useAppShell } from './composable/useAppShell';
-import { getWsSync } from '@/lib/sync/ws-sync';
+import { getWsSync, isIOSNetworkUnlocked } from '@/lib/sync/ws-sync';
 import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import { useDevicePasswordSetup } from './lib/device-password-setup';
@@ -156,6 +156,8 @@ import AppRail from './components/app/AppRail.vue';
 import { foldState } from '@/lib/foldable';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
+import { backend } from '@/lib/tauri-bridge';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 
 export default {
   components: {
@@ -174,7 +176,7 @@ export default {
     useIncomingShare();
     useShareExtensionSync();
     const { translations } = useTranslations();
-    const devMode = import.meta.env.DEV;
+    const paidFeaturesEnabled = PAID_FEATURES_ENABLED;
     const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));
     const shell = useAppShell(onboardingCompleted.value);
     const mainRef = ref(null);
@@ -187,6 +189,8 @@ export default {
       () => accountStore.isAuthenticated,
       async (authenticated) => {
         if (authenticated) {
+          // iOS: defer network until explicit user action to avoid launch prompt.
+          if (backend.isIOSRuntime() && !isIOSNetworkUnlocked()) return;
           await cloudWorkspaces.fetchWorkspaces();
           // Auth is restored asynchronously by `shell.initializeWorkspace()`
           // (loadSessionToken), so `onMounted` runs `start()` before the token
@@ -220,7 +224,12 @@ export default {
           console.error('[app] workspace init after onboarding failed:', err);
         }
         const wsSync = getWsSync();
-        wsSync.start();
+        // Completing onboarding is a user action; on iOS this unlocks network.
+        wsSync.start({ userInitiated: true });
+        if (backend.isIOSRuntime()) {
+          void cloudWorkspaces.fetchWorkspaces().catch(() => {});
+          setTimeout(() => void retryPendingExtractions(), 3000);
+        }
       }
     });
 
@@ -236,12 +245,16 @@ export default {
 
     onMounted(() => {
       if (onboardingCompleted.value) {
-        const wsSync = getWsSync();
-        wsSync.start();
+        if (!backend.isIOSRuntime() || isIOSNetworkUnlocked()) {
+          getWsSync().start();
+        }
       }
       maybePromptDevicePassword();
       // Delayed so initial hydration/sync wins the race; failures stay flagged for next launch.
-      setTimeout(() => void retryPendingExtractions(), 3000);
+      // Skip on iOS before network unlock to avoid launch permission prompt.
+      if (!backend.isIOSRuntime() || isIOSNetworkUnlocked()) {
+        setTimeout(() => void retryPendingExtractions(), 3000);
+      }
       // Safety net: drops outside the editor's own handler (title, toolbar,
       // sidebar, home) must never navigate the webview like a browser would.
       // Editor insertion still works — ProseMirror handles the event first.
@@ -258,7 +271,7 @@ export default {
 
     return {
       ...shell,
-      devMode,
+      paidFeaturesEnabled,
       mainRef,
       skipToMain,
       onboardingCompleted,

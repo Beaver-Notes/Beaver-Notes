@@ -123,7 +123,7 @@
       <!-- History is part of a paid plan; paid plans are hidden this release,
            so the locked teaser only exists in dev builds -->
       <button
-        v-else-if="devMode"
+        v-else-if="paidFeaturesEnabled"
         v-tooltip.group="translations.noteActions?.historyLocked || 'Note history is part of a paid plan'"
         :aria-label="translations.noteActions?.historyLocked || 'Note history is part of a paid plan'"
         data-testid="history-locked"
@@ -420,6 +420,7 @@ import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useAccountStore } from '@/store/account';
 import { usePaywall } from '@/utils/paywall';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 import HistoryPanel from '@/components/note/HistoryPanel.vue';
 import PresenceAvatars from '@/components/note/PresenceAvatars.vue';
 import ShareModal from '@/components/note/ShareModal.vue';
@@ -471,9 +472,11 @@ export default {
     const { copyState, copyToClipboard } = useClipboard();
 
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
-    const canUseHistory = computed(() => accountStore.canUseHistory);
+    const paidFeaturesEnabled = PAID_FEATURES_ENABLED;
+    const canUseHistory = computed(
+      () => paidFeaturesEnabled && accountStore.canUseHistory,
+    );
     const paywallOpen = usePaywall().open;
-    const devMode = import.meta.env.DEV;
     // ponytail: anonymous users keep the app fully usable — the lock only opens
     // the paywall, never blocks the editor itself.
     const hasOnlinePeers = computed(() => {
@@ -588,7 +591,7 @@ export default {
       showShareModal,
       isAuthenticated,
       canUseHistory,
-      devMode,
+      paidFeaturesEnabled,
       paywallOpen,
       showCollaboration,
       mobile,

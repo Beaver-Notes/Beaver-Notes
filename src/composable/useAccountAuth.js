@@ -625,7 +625,7 @@ export function useAccountAuth() {
     // provider. Without this, rooms stay dead until an app restart (L7).
     try {
       const { getWsSync } = await import('@/lib/sync/ws-sync.js');
-      getWsSync().start();
+      getWsSync().start({ userInitiated: true });
     } catch (err) {
       console.warn('[auth] ws re-arm failed:', err?.message || err);
     }
@@ -1012,7 +1012,7 @@ export function useAccountAuth() {
       const { startRustSync, kickRustSync } = await import(
         '@/utils/sync/rust-shim.js'
       );
-      await initAppSync();
+      await initAppSync({ userInitiated: true });
       // initAppSync may skip when no target is configured; seed always has a
       // cloud target, so start the scheduler explicitly to reset its guards.
       await startRustSync();

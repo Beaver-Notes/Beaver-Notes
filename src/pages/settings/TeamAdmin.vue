@@ -934,6 +934,7 @@ export default {
     // Reuse the Account billing flow, preselecting Team so the gate leads
     // straight to the plan that unlocks this dashboard.
     function goToUpgrade() {
+      if (!import.meta.env.DEV) return;
       router.push({ path: '/settings/account', query: { upgrade: 'team' } });
     }
 

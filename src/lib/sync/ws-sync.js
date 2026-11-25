@@ -1,6 +1,6 @@
 import { WebsocketProvider } from 'y-websocket'
 import * as awarenessProtocol from 'y-protocols/awareness'
-import { shallowRef } from 'vue'
+import { shallowRef, ref } from 'vue'
 import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
 import { useCollaboratorStore } from '@/store/collaborator'
@@ -22,9 +22,19 @@ import { registerSharedSyncKey, clearSharedSyncKeys, registerWsKeyForNotes, setA
 import { resolveNoteWorkspaceId } from '@/utils/sync/shared-notes.js'
 import { ROLES, canEdit } from '@/utils/permissions'
 import { createEncryptedWebSocket } from './encrypted-websocket.js'
+import { backend } from '@/lib/tauri-bridge'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
+const iosNetworkUnlockedRef = ref(false)
+
+export function isIOSNetworkUnlocked() {
+  return iosNetworkUnlockedRef.value
+}
+
+export function unlockIOSNetwork() {
+  iosNetworkUnlockedRef.value = true
+}
 
 // Workspace meta-room awareness (one workspace at a time), for workspace-scope
 // presence. Set when the meta room joins, cleared on disconnect/workspace switch.
@@ -892,7 +902,12 @@ function createWsSync() {
     void clearSharedSyncKeys()
   }
 
-  function start() {
+  function start({ userInitiated = false } = {}) {
+    // On iOS, avoid triggering the local-network prompt on cold launch.
+    // Auto-start is deferred until the user performs a network action (sign-in,
+    // manual sync, account settings) or an explicit opt-in has occurred.
+    if (backend.isIOSRuntime() && !userInitiated && !iosNetworkUnlockedRef.value) return
+    if (userInitiated) iosNetworkUnlockedRef.value = true
     if (!isAuthenticated()) return
     const workspaceId = getActiveWorkspaceId()
     connect()

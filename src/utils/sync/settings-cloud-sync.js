@@ -1,6 +1,7 @@
 import { useAccountStore } from '@/store/account';
 import { useSyncTransport } from '@/composable/useSyncTransport';
 import { PLAN_NAMES, SYNC_TRANSPORT, planLabel } from '@/lib/api/types.js';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 
 const TRANSPORT_OPTIONS = [
   {
@@ -65,7 +66,11 @@ export function useSettingsCloudSync() {
     get isPaid() { return accountStore.isPaidPlan; },
     get plan() { return accountStore.subscription?.plan ?? null; },
     get description() { return transport.description; },
-    get options() { return TRANSPORT_OPTIONS; },
+    get options() {
+      return PAID_FEATURES_ENABLED
+        ? TRANSPORT_OPTIONS
+        : TRANSPORT_OPTIONS.filter((opt) => opt.value === SYNC_TRANSPORT.FOLDER);
+    },
     selectTransport,
   };
 }

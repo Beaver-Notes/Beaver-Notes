@@ -262,7 +262,7 @@
       </div>
 
       <div
-        v-if="cloudSync.isAuthenticated"
+        v-if="paidFeaturesEnabled && cloudSync.isAuthenticated"
         class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
       >
         <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
@@ -375,10 +375,13 @@
         </div>
       </div>
 
-      <sync-provisioning-notice />
+      <sync-provisioning-notice v-if="paidFeaturesEnabled" />
 
       <div
-        v-if="state.syncPath || (cloudSync.isAuthenticated && cloudSync.isPaid)"
+        v-if="
+          state.syncPath ||
+          (paidFeaturesEnabled && cloudSync.isAuthenticated && cloudSync.isPaid)
+        "
         class="border-t border-neutral-200 dark:border-neutral-700 flex items-center justify-between gap-3 px-4 py-3.5"
       >
         <p class="text-xs text-neutral-500 dark:text-neutral-400">
@@ -694,6 +697,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/lib/dialog';
 import { usePaywall } from '@/utils/paywall';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/lib/storage';
@@ -746,6 +750,7 @@ export default {
     const cloudSync = useSettingsCloudSync();
     const paywall = usePaywall();
     const devMode = import.meta.env.DEV;
+    const paidFeaturesEnabled = PAID_FEATURES_ENABLED;
     const isMacOS = computed(() => isMacOSRuntime());
     const route = useRoute();
     const router = useRouter();
@@ -792,7 +797,7 @@ export default {
         ...unmet,
         onClick:
           unmet.kind === 'plan'
-            ? devMode
+            ? paidFeaturesEnabled
               ? () => paywall.open('sync')
               : null // no purchase path this release
             : dataSettings.chooseDefaultPath,
@@ -803,14 +808,16 @@ export default {
       const status = syncProgressStore.attention?.status;
       if (status === 'plan-upgrade-required')
         // Paid plans are hidden this release: no upgrade action in prod.
-        return devMode
+        return paidFeaturesEnabled
           ? { label: 'Upgrade', onClick: () => paywall.open('sync') }
           : null;
       if (status === 'authorization-failed')
-        return {
-          label: 'Sign in again',
-          onClick: () => router.push('/settings/account'),
-        };
+        return paidFeaturesEnabled
+          ? {
+              label: 'Sign in again',
+              onClick: () => router.push('/settings/account'),
+            }
+          : null;
       if (status === 'unlock-required')
         return { label: 'Unlock', onClick: focusPassphrasePrompt };
       if (status === 'decrypt-failed' || status === 'workspace-reset')
@@ -1190,6 +1197,7 @@ export default {
       copyLogPath,
       attentionPrimary,
       devMode,
+      paidFeaturesEnabled,
       keyLoaded,
       encryptionBusy,
       encryptionProgress,

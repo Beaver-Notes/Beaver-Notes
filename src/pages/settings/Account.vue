@@ -1300,6 +1300,7 @@ export default {
     const isMobile = isMobileRuntime();
     const { open: openPaywall } = usePaywall();
     const devMode = import.meta.env.DEV;
+    const paidFeaturesEnabled = devMode;
     const upgradeDescription = computed(() =>
       isMobile
         ? translations.value?.account?.upgradeDescriptionMobile ||
@@ -1400,7 +1401,7 @@ export default {
       // hidden this release, so prod ignores the query.
       const requestedPlan = route.query?.upgrade;
       if (
-        devMode &&
+        paidFeaturesEnabled &&
         typeof requestedPlan === 'string' &&
         Object.values(PLAN_NAMES).includes(requestedPlan)
       ) {

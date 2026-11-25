@@ -71,7 +71,7 @@ export function useSettingsAccount({ dialog, translations }) {
       .then(() => {
         const wsSync = getWsSync();
         wsSync.stop();
-        wsSync.start();
+        wsSync.start({ userInitiated: true });
       })
       .catch((e) => logger.warn('[settings] relay reconnect failed:', e));
   }
