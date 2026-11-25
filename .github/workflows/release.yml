@@ -123,6 +123,7 @@ jobs:
             libasound2-dev \
             libfreetype-dev \
             libfontconfig-dev \
+            libudev-dev \
             patchelf \
             xdg-utils \
             gnupg
@@ -282,6 +283,7 @@ jobs:
             libasound2-dev \
             libfreetype-dev \
             libfontconfig-dev \
+            libudev-dev \
             patchelf \
             xdg-utils \
             gnupg
