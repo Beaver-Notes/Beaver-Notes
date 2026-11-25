@@ -17,11 +17,13 @@ let package = Package(
     targets: [
         .target(
             name: "WebauthnBridge",
-            dependencies: []
+            dependencies: [],
+            path: "Sources/WebauthnBridge"
         ),
         .testTarget(
             name: "WebauthnBridgeTests",
-            dependencies: ["WebauthnBridge"]
+            dependencies: ["WebauthnBridge"],
+            path: "Tests/WebauthnBridgeTests"
         ),
     ]
 )

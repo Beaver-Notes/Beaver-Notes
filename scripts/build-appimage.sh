@@ -37,8 +37,12 @@ cp -r "$TEMP_DIR"/share/* AppDir/usr/share/
 
 rm -rf "$TEMP_DIR"
 
-# Create symlink for bin
-ln -sf ../../lib/beaver-notes/beaver-notes AppDir/usr/bin/beaver-notes
+# Ensure launcher is a regular executable script (linuxdeploy dislikes symlink Exec targets)
+cat > AppDir/usr/bin/beaver-notes << 'WRAPPER'
+#!/bin/bash
+exec "$(dirname "$0")/../lib/beaver-notes/beaver-notes" "$@"
+WRAPPER
+chmod +x AppDir/usr/bin/beaver-notes
 
 # Build AppImage
 echo "Building AppImage..."
