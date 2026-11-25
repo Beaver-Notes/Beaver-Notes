@@ -59,6 +59,20 @@ export const useUndoStore = defineStore('undo', () => {
   let _batch: UndoAction[] | null = null;
   const lastAction = ref<UndoAction | null>(null);
 
+  function discardBulkDeleteAssets(action: UndoAction | undefined) {
+    if (!action || action.type !== 'bulk-delete') return;
+    for (const item of action.items || []) {
+      const dir = (item.data as Record<string, unknown>)._undoAssetsTrashDir;
+      if (typeof dir === 'string' && dir) {
+        void import('@/utils/note/assetTrash.js')
+          .then(({ discardStashedAssets }) => discardStashedAssets(dir))
+          .catch((error) => {
+            console.warn('[undo] failed to discard stashed assets', dir, error);
+          });
+      }
+    }
+  }
+
   function push(action: UndoAction) {
     if (_batch) {
       _batch.push(action);
@@ -74,6 +88,7 @@ export const useUndoStore = defineStore('undo', () => {
     ) {
       const dropped = stack.shift() as PinnedAction | undefined;
       pinnedBytes -= dropped?._bytes ?? 0;
+      discardBulkDeleteAssets(dropped);
     }
     lastAction.value = action;
   }
@@ -93,7 +108,9 @@ export const useUndoStore = defineStore('undo', () => {
   }
 
   function cancelBatch() {
+    const dropped = _batch;
     _batch = _batchStack.pop() ?? null;
+    for (const action of dropped || []) discardBulkDeleteAssets(action);
   }
 
   function clearLastAction() {
@@ -147,7 +164,17 @@ export const useUndoStore = defineStore('undo', () => {
           }
           for (const item of notes) {
             item.data.isLocked = false;
+            const assetsTrashDir = item.data._undoAssetsTrashDir as string | undefined;
+            if (assetsTrashDir) delete item.data._undoAssetsTrashDir;
             await noteStore.add(item.data);
+            if (assetsTrashDir) {
+              try {
+                const { restoreNoteAssets } = await import('@/utils/note/assetTrash.js');
+                await restoreNoteAssets(item.data.id as string, assetsTrashDir);
+              } catch (error) {
+                console.warn('[undo] failed to restore note assets', item.data.id, error);
+              }
+            }
           }
 
           for (const { id, prevFolderId } of action.notes ?? []) {

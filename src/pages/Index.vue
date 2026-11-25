@@ -136,7 +136,9 @@
 
       <empty-state
         v-if="
-          noteStore.notes.length === 0 && folderStore.rootFolders.length === 0
+          uiState.workspaceReady &&
+          noteStore.notes.length === 0 &&
+          folderStore.rootFolders.length === 0
         "
         class="flex items-center justify-center min-h-[calc(100vh-250px)] mobile:min-h-[calc(100vh-250px-var(--app-mobile-content-offset))]"
       />
@@ -155,6 +157,7 @@
       @clear="clearSelection"
     />
     <join-invite-dialog
+      v-if="paidFeaturesEnabled"
       :show="showJoinDialog"
       :token="joinToken"
       @close="closeJoinDialog"
@@ -170,6 +173,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useDialog } from '@/lib/dialog';
+import { useUiState } from '@/composable/useUiState';
 import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
@@ -189,6 +193,7 @@ import JoinInviteDialog from '../components/app/JoinInviteDialog.vue';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { foldState } from '@/lib/foldable';
 import { useSelectionBar } from '@/composable/useSelectionBar';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 
 export default {
   components: {
@@ -212,6 +217,7 @@ export default {
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
     const dialog = useDialog();
+    const uiState = useUiState();
     const state = reactive({
       query: '',
       activeLabel: '',
@@ -386,14 +392,17 @@ export default {
     const showCustomizeModal = ref(false);
     const customizeFolder = ref(null);
 
+    const paidFeaturesEnabled = PAID_FEATURES_ENABLED;
     const showJoinDialog = ref(false);
     const joinToken = ref('');
     watch(
       () => route.query.join,
       (token) => {
-        if (typeof token === 'string' && token) {
+        if (paidFeaturesEnabled && typeof token === 'string' && token) {
           joinToken.value = token;
           showJoinDialog.value = true;
+        } else if (token) {
+          router.replace({ query: { ...route.query, join: undefined } });
         }
       },
       { immediate: true }
@@ -433,9 +442,11 @@ export default {
       showCustomizeModal,
       customizeFolder,
       openCustomizeFor,
+      paidFeaturesEnabled,
       showJoinDialog,
       joinToken,
       closeJoinDialog,
+      uiState,
       ...noteMove,
       resolveMoveModalParams,
       ...pageController,

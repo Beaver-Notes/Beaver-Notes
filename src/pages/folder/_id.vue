@@ -188,7 +188,11 @@
 
       <empty-state
         v-if="
-          noteStore.notes.length === 0 && folderStore.rootFolders.length === 0
+          uiState.workspaceReady &&
+          notes.all.length === 0 &&
+          notes.bookmarked.length === 0 &&
+          notes.archived.length === 0 &&
+          folders.all.length === 0
         "
         class="flex items-center justify-center min-h-[calc(100vh-250px)]"
       />
@@ -240,6 +244,7 @@ import { useSelectionBar } from '@/composable/useSelectionBar';
 import EmptyState from '@/components/app/EmptyState.vue';
 import MobileSyncStrip from '@/components/app/MobileSyncStrip.vue';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { useUiState } from '@/composable/useUiState';
 
 export default {
   components: {
@@ -261,6 +266,7 @@ export default {
     const folderStore = useFolderStore();
     const labelStore = useLabelStore();
     const dialog = useDialog();
+    const uiState = useUiState();
     const state = reactive({
       query: '',
       activeLabel: '',
@@ -460,6 +466,7 @@ export default {
       notesInFolder,
       folderPath,
       isMobile,
+      uiState,
       ...noteMove,
       resolveMoveModalParams,
       ...pageController,

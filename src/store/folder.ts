@@ -297,8 +297,31 @@ export const useFolderStore = defineStore('folder', {
       if (deleteContents) {
         setSkipUndo(true);
         try {
+          const { readNoteContents } = await import('@/lib/yjs/meta-store.js');
+          const contents = await readNoteContents(noteIds).catch((error) => {
+            console.warn('[folder] failed to snapshot note contents for undo', error);
+            return {} as Record<string, unknown>;
+          });
           for (const noteId of noteIds) {
-            const snapshot = JSON.parse(JSON.stringify(noteStore.data[noteId]));
+            const note = noteStore.data[noteId];
+            if (!note) continue;
+
+            let assetsTrashDir: string | null = null;
+            try {
+              const { stashNoteAssets } = await import('@/utils/note/assetTrash.js');
+              assetsTrashDir = await stashNoteAssets(noteId);
+            } catch (error) {
+              console.warn('[folder] failed to stash assets for undo', noteId, error);
+            }
+
+            const snapshot = JSON.parse(JSON.stringify(note));
+            const content = (contents as Record<string, unknown>)?.[noteId];
+            if (snapshot && content && typeof content === 'object') {
+              snapshot.content = content;
+            }
+            if (assetsTrashDir) {
+              snapshot._undoAssetsTrashDir = assetsTrashDir;
+            }
             await noteStore.delete(noteId);
             acc.items.push({ type: 'note', data: snapshot });
           }

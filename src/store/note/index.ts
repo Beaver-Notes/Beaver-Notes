@@ -607,10 +607,9 @@ export async function persistMeta(this: NoteStoreThis, id: string): Promise<Note
 
 export async function deleteNote(this: NoteStoreThis, id: string): Promise<string> {
   try {
-    const snapshot =
-      !_skipUndo.value && this.data[id]
-        ? JSON.parse(JSON.stringify(this.data[id]))
-        : null;
+    const snapshot = !_skipUndo.value && this.data[id]
+      ? await snapshotNoteForUndo(this.data[id])
+      : null;
 
     const lastEditedNote = localStorage.getItem('lastNoteEdit');
     if (lastEditedNote === id) localStorage.removeItem('lastNoteEdit');
@@ -623,9 +622,12 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     removeNoteFromLinkIndex(id);
 
     // Content lives per-note in Yjs: wipe it, Yjs delete is tombstone.
-    deleteUpdates(id).catch((error) => {
+    // Await so undo restore cannot race an in-flight wipe.
+    try {
+      await deleteUpdates(id);
+    } catch (error) {
       console.warn('[note] failed to delete Yjs updates for', id, error);
-    });
+    }
 
     lastIndexState.delete(id);
     removeSearchEntry(id);
@@ -634,22 +636,36 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
 
     removeNoteMeta(id);
 
-    // Best-effort cleanup of asset files on disk
+    // Best-effort cleanup of asset files on disk. For undoable deletes, stash
+    // so CMD+Z can restore files; otherwise remove permanently.
+    let assetsTrashDir: string | null = null;
     try {
-      const appDirectory = await getAppDirectory();
-      if (appDirectory) {
-        const assetDir = path.join(appDirectory, 'assets', id);
-        await removePath(assetDir);
+      if (snapshot) {
+        const { stashNoteAssets } = await import('@/utils/note/assetTrash.js');
+        assetsTrashDir = await stashNoteAssets(id);
+      } else {
+        const appDirectory = await getAppDirectory();
+        if (appDirectory) {
+          const assetDir = path.join(appDirectory, 'assets', id);
+          await removePath(assetDir);
+        }
       }
     } catch (fileError) {
-      console.warn('Error removing note files:', fileError);
+      console.warn('Error handling note asset files:', fileError);
     }
 
     if (snapshot) {
+      const snapshotData = snapshot as unknown as Record<string, unknown>;
+      if (assetsTrashDir) {
+        snapshotData._undoAssetsTrashDir = assetsTrashDir;
+      }
       useUndoStore().push({
         type: 'bulk-delete',
-        items: [{ type: 'note', data: snapshot }],
+        items: [{ type: 'note', data: snapshotData }],
       });
+    } else if (assetsTrashDir) {
+      const { discardStashedAssets } = await import('@/utils/note/assetTrash.js');
+      await discardStashedAssets(assetsTrashDir);
     }
 
     return id;
@@ -817,6 +833,23 @@ function scheduleSharedNotePush(id: string): void {
 export async function saveNote(id: string, noteData: NoteData): Promise<void> {
   syncSearchIndex(noteData);
   indexNoteForSpotlight(noteData);
+}
+
+async function snapshotNoteForUndo(note: NoteData): Promise<NoteData> {
+  const snapshot = JSON.parse(JSON.stringify(note)) as NoteData;
+  if (!snapshot?.id) return Promise.resolve(snapshot);
+
+  return import('@/lib/yjs/meta-store.js')
+    .then(({ readNoteContents }) => readNoteContents([snapshot.id]))
+    .then((contents) => {
+      const content = (contents as Record<string, unknown>)?.[snapshot.id];
+      if (content && typeof content === 'object') snapshot.content = content;
+      return snapshot;
+    })
+    .catch((error) => {
+      console.warn('[note] failed to snapshot content for undo', snapshot.id, error);
+      return snapshot;
+    });
 }
 
 async function resolveFolderId(folderId: string | null | undefined): Promise<string | null> {

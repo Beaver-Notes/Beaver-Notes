@@ -73,25 +73,38 @@ export { buildMenuContext };
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
 
-// Dev-only startup instrumentation. esbuild strips console.log in prod builds.
 function logStartupTiming() {
-  const entries = performance.getEntriesByType('mark');
+  const entries = performance
+    .getEntriesByType('mark')
+    .filter((entry) => entry.name.startsWith('init:'));
+  if (entries.length < 2) return;
+
   const measures = [];
   for (let i = 1; i < entries.length; i++) {
-    measures.push(
-      `${entries[i].name}: ${Math.round(
-        entries[i].startTime - entries[i - 1].startTime,
-      )}ms`,
-    );
+    const name = `${entries[i - 1].name}->${entries[i].name}`;
+    const duration = Math.round(entries[i].startTime - entries[i - 1].startTime);
+    measures.push({ name, duration });
+    try {
+      performance.measure(name, entries[i - 1].name, entries[i].name);
+    } catch {
+      // Ignore duplicate/invalid marks.
+    }
   }
-  // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
-  console.log('[perf] Startup timeline:', measures.join(' → '));
-  // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
-  console.log(
-    '[perf] Total startup:',
-    Math.round(entries[entries.length - 1].startTime - entries[0].startTime) +
-      'ms',
+
+  const total = Math.round(
+    entries[entries.length - 1].startTime - entries[0].startTime,
   );
+  const summary = { total, measures, at: Date.now() };
+  try {
+    window.__beaverStartupPerf = summary;
+    localStorage.setItem('beaver:startup-perf', JSON.stringify(summary));
+  } catch {
+    // Ignore storage failures; perf is diagnostic only.
+  }
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console -- dev-only startup instrumentation
+    console.info('[perf] Startup timeline:', summary);
+  }
 }
 
 function applyDocumentSettings() {
@@ -568,6 +581,7 @@ export function useAppShell(onboardingCompleted = true) {
 
   const initializeWorkspace = async () => {
     performance.mark('init:start');
+    uiState.workspaceReady = false;
 
     // Credentials became per-account slots; a pre-existing single-account install
     // is adopted into the account index before anything reads a credential, and
@@ -603,6 +617,7 @@ export function useAppShell(onboardingCompleted = true) {
       void initAppSync().catch((err) =>
         logger.warn('[sync] init failed:', err?.message || err),
       );
+      uiState.workspaceReady = true;
       performance.mark('init:done');
       logStartupTiming();
       if (route.name !== ONBOARDING_ROUTE_NAME) {
@@ -815,6 +830,7 @@ export function useAppShell(onboardingCompleted = true) {
     window.addEventListener('focus', refreshSharedNotesQuietly);
     window.addEventListener('focus', refreshPlanQuietly);
 
+    uiState.workspaceReady = true;
     performance.mark('init:done');
     logStartupTiming();
   };
@@ -1016,6 +1032,7 @@ export function useAppShell(onboardingCompleted = true) {
         ]);
         if (!hasData && !onboardingCompleted) {
           retrieved.value = true;
+          uiState.workspaceReady = true;
           await router.replace('/onboarding');
           return;
         }
@@ -1023,6 +1040,7 @@ export function useAppShell(onboardingCompleted = true) {
         console.error('Fallback onboarding check failed:', innerError);
       }
       retrieved.value = true;
+      uiState.workspaceReady = true;
     } finally {
       // No await: let it settle in background.
       void nativeReady;
