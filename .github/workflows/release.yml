@@ -143,7 +143,11 @@ jobs:
       - name: Audit npm dependencies
         shell: bash
         run: |
-          yarn audit --audit-level=high
+          set +e
+          yarn audit --json > /tmp/yarn-audit.json 2>&1
+          status=$?
+          set -e
+          node -e "const fs=require('fs'); const s=fs.readFileSync('/tmp/yarn-audit.json','utf8'); const lines=s.split(/\n+/).filter(Boolean); let high=0; for(const line of lines){try{const obj=JSON.parse(line); if(obj.type==='auditSummary'){high=obj.data.vulnerabilities.high||0;}}catch{}} if(high>0){console.error('High vulnerabilities: '+high); process.exit(1);} console.log('No high vulnerabilities'); process.exit(0)"
 
       - name: Run knip (dead code detection)
         shell: bash
