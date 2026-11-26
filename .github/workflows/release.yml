@@ -622,6 +622,25 @@ jobs:
         run: |
           yarn tauri android build --apk --aab
 
+      - name: Sign Android AAB/APK with jarsigner
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KS="$RUNNER_TEMP/keystore.jks"
+          for aab in $(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' 2>/dev/null); do
+            echo "Signing $aab"
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256               -keystore "$KS" -storepass "$ANDROID_KEYSTORE_PASSWORD"               -keypass "$ANDROID_KEY_PASSWORD"               "$aab" "$ANDROID_KEY_ALIAS"
+          done
+          for apk in $(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' 2>/dev/null); do
+            echo "Signing $apk"
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256               -keystore "$KS" -storepass "$ANDROID_KEYSTORE_PASSWORD"               -keypass "$ANDROID_KEY_PASSWORD"               "$apk" "$ANDROID_KEY_ALIAS"
+          done
+
       # iOS build
       - name: Regenerate iOS project
         if: ${{ matrix.id == 'ios' }}
