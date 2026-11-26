@@ -602,12 +602,15 @@ jobs:
             exit 1
           fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
-          cat > src-tauri/gen/android/keystore.properties <<EOF
-storeFile=$RUNNER_TEMP/keystore.jks
-storePassword=$ANDROID_KEYSTORE_PASSWORD
-keyAlias=$ANDROID_KEY_ALIAS
-keyPassword=$ANDROID_KEY_PASSWORD
-EOF
+          python3 - "$RUNNER_TEMP/keystore.jks" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" <<'PYEOF'
+          import sys
+          path = "src-tauri/gen/android/keystore.properties"
+          with open(path, "w") as f:
+              f.write(f"storeFile={sys.argv[1]}\n")
+              f.write(f"storePassword={sys.argv[2]}\n")
+              f.write(f"keyAlias={sys.argv[3]}\n")
+              f.write(f"keyPassword={sys.argv[4]}\n")
+          PYEOF
 
       - name: Build Android app
         if: ${{ matrix.id == 'android' }}
