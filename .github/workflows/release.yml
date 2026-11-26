@@ -228,7 +228,7 @@ jobs:
 
   desktop:
     name: Build ${{ matrix.id }}
-    if: ${{ needs.validate.outputs.version_match == 'true' && needs.targets.outputs[matrix.id] == 'true' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' && needs.targets.outputs.matrix != '[]' }}
     needs:
       - validate
       - create-release
@@ -238,40 +238,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Universal mac build
-          - id: macos-universal
-            runner: macos-latest
-            rust_targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-            tauri_target: 'universal-apple-darwin'
-            bundle_args: '--bundles app,dmg'
-            asset_suffix: 'macos-universal'
-
-          # Linux x64 binary only (packaged as portable tar.gz)
-          - id: linux-x64
-            runner: ubuntu-24.04
-            rust_targets: 'x86_64-unknown-linux-gnu'
-            tauri_target: 'x86_64-unknown-linux-gnu'
-            asset_suffix: 'linux-x64'
-
-          # Linux ARM64 binary only
-          - id: linux-arm64
-            runner: ubuntu-24.04-arm
-            rust_targets: 'aarch64-unknown-linux-gnu'
-            tauri_target: 'aarch64-unknown-linux-gnu'
-            asset_suffix: 'linux-arm64'
-
-          # Android build (APK + AAB)
-          - id: android
-            runner: ubuntu-24.04
-            rust_targets: 'aarch64-linux-android,x86_64-linux-android'
-            asset_suffix: 'android'
-
-          # iOS build
-          - id: ios
-            runner: macos-latest
-            rust_targets: 'aarch64-apple-ios'
-            asset_suffix: 'ios'
+        include: ${{ fromJson(needs.targets.outputs.matrix) }}
 
     steps:
       # Pull source
