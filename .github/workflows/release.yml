@@ -583,10 +583,14 @@ jobs:
         if: ${{ matrix.id == 'ios' }}
         shell: bash
         run: |
+          set -euo pipefail
           VERSION="$(node -p "require('./package.json').version.replace(/-.*$/, '')")"
+          BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
           sed -i '' "s/CFBundleShortVersionString: '.*'/CFBundleShortVersionString: '$VERSION'/" \
             src-tauri/gen/apple/project.yml
-          sed -i '' "s/CFBundleVersion: '.*'/CFBundleVersion: '$VERSION'/" \
+          sed -i '' "s/CFBundleVersion: '.*'/CFBundleVersion: '$BUILD_NUMBER'/" \
+            src-tauri/gen/apple/project.yml
+          sed -i '' "s/CURRENT_PROJECT_VERSION: \".*\"/CURRENT_PROJECT_VERSION: \"$BUILD_NUMBER\"/" \
             src-tauri/gen/apple/project.yml
 
       - name: Set iOS development team
@@ -701,6 +705,35 @@ jobs:
           yarn tauri ios build --export-method app-store-connect
 
       # Android release assets: APK and AAB
+      - name: Verify Android signing
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          aabs=(src-tauri/gen/android/app/build/outputs/bundle/*/*.aab src-tauri/gen/android/app/build/outputs/bundle/**/*.aab)
+          apks=(src-tauri/gen/android/app/build/outputs/apk/*/*.apk src-tauri/gen/android/app/build/outputs/apk/**/*.apk)
+          if [ ${#aabs[@]} -eq 0 ] && [ ${#apks[@]} -eq 0 ]; then
+            echo "::error::No Android AAB/APK outputs found"
+            exit 1
+          fi
+          for aab in "${aabs[@]}"; do
+            echo "Verifying AAB: $aab"
+            if ! jarsigner -verify "$aab" | tee /tmp/aab-verify.txt | grep -q "jar verified"; then
+              echo "::error::AAB is not signed: $aab"
+              cat /tmp/aab-verify.txt || true
+              exit 1
+            fi
+          done
+          for apk in "${apks[@]}"; do
+            echo "Verifying APK: $apk"
+            if ! jarsigner -verify "$apk" | tee /tmp/apk-verify.txt | grep -q "jar verified"; then
+              echo "::error::APK is not signed: $apk"
+              cat /tmp/apk-verify.txt || true
+              exit 1
+            fi
+          done
+
       - name: Stage Android assets
         if: ${{ matrix.id == 'android' }}
         shell: bash
@@ -727,12 +760,23 @@ jobs:
             echo "::warning::No .ipa file found"
           fi
 
-      - name: Stage iOS assets
+      - name: Verify and stage iOS assets
         if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
         shell: bash
         run: |
+          set -euo pipefail
+          IPA="${{ steps.find-ipa.outputs.ipa-path }}"
+          TMP="$(mktemp -d /tmp/ipa-check.XXXXXX)"
+          unzip -q "$IPA" -d "$TMP"
+          APP="$(find "$TMP/Payload" -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$APP" ]; then
+            echo "::error::No .app found inside IPA: $IPA"
+            exit 1
+          fi
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          security cms -D -i "$APP/embedded.mobileprovision" >/dev/null
           mkdir -p release-assets
-          cp "${{ steps.find-ipa.outputs.ipa-path }}" release-assets/
+          cp "$IPA" release-assets/
 
       # Upload iOS IPA to TestFlight via App Store Connect API
       - name: Upload to TestFlight
