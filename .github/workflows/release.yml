@@ -190,6 +190,7 @@ jobs:
       linux-x64: ${{ steps.t.outputs.linux-x64 }}
       linux-arm64: ${{ steps.t.outputs.linux-arm64 }}
       windows: ${{ steps.t.outputs.windows }}
+      matrix: ${{ steps.t.outputs.matrix }}
     steps:
       - id: t
         shell: bash
@@ -197,13 +198,21 @@ jobs:
           TARGET: ${{ github.event.inputs.target || 'all' }}
         run: |
           set -euo pipefail
-          for id in android ios macos-universal linux-x64 linux-arm64 windows; do
-            if [ "$TARGET" = "all" ] || [ "$TARGET" = "$id" ]; then
-              echo "$id=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "$id=false" >> "$GITHUB_OUTPUT"
-            fi
-          done
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          target = os.environ.get("TARGET", "all")
+          items = [
+            {"id":"macos-universal","runner":"macos-latest","rust_targets":"aarch64-apple-darwin,x86_64-apple-darwin","tauri_target":"universal-apple-darwin","bundle_args":"--bundles app,dmg","asset_suffix":"macos-universal"},
+            {"id":"linux-x64","runner":"ubuntu-24.04","rust_targets":"x86_64-unknown-linux-gnu","tauri_target":"x86_64-unknown-linux-gnu","asset_suffix":"linux-x64"},
+            {"id":"linux-arm64","runner":"ubuntu-24.04-arm","rust_targets":"aarch64-unknown-linux-gnu","tauri_target":"aarch64-unknown-linux-gnu","asset_suffix":"linux-arm64"},
+            {"id":"android","runner":"ubuntu-24.04","rust_targets":"aarch64-linux-android,x86_64-linux-android","asset_suffix":"android"},
+            {"id":"ios","runner":"macos-latest","rust_targets":"aarch64-apple-ios","asset_suffix":"ios"},
+          ]
+          selected = [i for i in items if target in ("all", i["id"])]
+          for id in ["android","ios","macos-universal","linux-x64","linux-arm64","windows"]:
+            print(f"{id}={'true' if target in ('all', id) else 'false'}")
+          print("matrix=" + json.dumps(selected, separators=(",", ":")))
+          PY
 
   create-release:
     name: Create draft release
