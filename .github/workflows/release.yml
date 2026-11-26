@@ -898,7 +898,6 @@ jobs:
         run: |
           set -euo pipefail
           : "${IOS_CERTIFICATE_BASE64:?APPLE_IOS_SIGNING_CERTIFICATE_BASE64 is not set}"
-          : "${IOS_CERTIFICATE_PASSWORD:?APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD is not set}"
           : "${IOS_MOBILE_PROVISION_BASE64:?APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE is not set}"
           : "${KEYCHAIN_PASSWORD:?KEYCHAIN_PASSWORD is not set}"
           CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
