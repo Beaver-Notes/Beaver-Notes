@@ -386,16 +386,27 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE: ${{ secrets.APPLE_MACOS_PROVISIONING_PROFILE_BASE64 }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          test -n "${MACOS_PROVISIONING_PROFILE:-}" || { echo "::error::APPLE_MACOS_PROVISIONING_PROFILE_BASE64 is empty"; exit 1; }
+          PROFILE="$RUNNER_TEMP/embedded.provisionprofile"
+          CONFIG="$RUNNER_TEMP/tauri.macOS.conf.json"
+          printf '%s' "$MACOS_PROVISIONING_PROFILE" | base64 -d > "$PROFILE"
+          test -s "$PROFILE"
+          python3 -c 'import json,sys; json.dump({"bundle":{"macOS":{"files":{"embedded.provisionprofile":sys.argv[1]}}}},open(sys.argv[2],"w"))' "$PROFILE" "$CONFIG"
           echo "==> Build start: $(date -u +%FT%TZ)"
           yarn tauri build \
             --config src-tauri/tauri.beta.conf.json \
+            --config "$CONFIG" \
             --target "${{ matrix.tauri_target }}" \
             ${{ matrix.bundle_args }} \
             --ci
           echo "==> Build end: $(date -u +%FT%TZ)"
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Beaver Notes.app"
+          test -f "$APP/Contents/embedded.provisionprofile" || { echo "::error::embedded.provisionprofile missing from app bundle"; exit 1; }
 
       - name: Build Linux beta binary
         if: ${{ startsWith(matrix.id, 'linux-') }}
