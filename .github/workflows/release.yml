@@ -493,6 +493,17 @@ jobs:
           from pathlib import Path
           import os, re
 
+          def ensure_maven_central(p):
+            s=p.read_text()
+            if 'mavenCentral()' in s or 'repositories' not in s:
+              return False
+            s2=re.sub(r'(repositories\s*\{)', r'\1\n        mavenCentral()', s, count=1)
+            if s2!=s:
+              p.write_text(s2)
+              print(f'added mavenCentral to {p}')
+              return True
+            return False
+
           def patch_file(p):
             s=p.read_text()
             s2=s.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
@@ -500,8 +511,7 @@ jobs:
             if s2!=s:
               print(f'patched {p}')
               p.write_text(s2)
-              return True
-            return False
+            ensure_maven_central(p)
 
           root = Path('src-tauri/gen/android')
           for p in root.rglob('build.gradle*'):
