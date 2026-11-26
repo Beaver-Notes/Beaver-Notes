@@ -644,33 +644,80 @@ jobs:
           path = "src-tauri/gen/apple/project.yml"
           text = open(path).read()
 
-          # Replace CFBundleShortVersionString (any quote style)
-          text = re.sub(
-              r"CFBundleShortVersionString:\s*['\"]?[^'\"\n]*['\"]?",
-              f"CFBundleShortVersionString: '{version}'",
-              text,
-          )
-          # Replace CFBundleVersion (any quote style)
-          text = re.sub(
-              r"CFBundleVersion:\s*['\"]?[^'\"\n]*['\"]?",
-              f"CFBundleVersion: '{build}'",
-              text,
-          )
-          # Replace CURRENT_PROJECT_VERSION (any quote style)
-          text = re.sub(
-              r"CURRENT_PROJECT_VERSION:\s*['\"]?[^'\"\n]*['\"]?",
-              f'CURRENT_PROJECT_VERSION: "{build}"',
-              text,
-          )
+          # Replace CFBundleShortVersionString (any quote style) or add it
+          if re.search(r"CFBundleShortVersionString:", text):
+              text = re.sub(
+                  r"CFBundleShortVersionString:\s*['\"]?[^'\"\n]*['\"]?",
+                  f"CFBundleShortVersionString: '{version}'",
+                  text,
+              )
+          else:
+              # Add after MARKETING_VERSION if present
+              text = re.sub(
+                  r"(MARKETING_VERSION:\s*['\"]?[^'\"\n]*['\"]?\n)",
+                  rf"\1        CFBundleShortVersionString: '{version}'\n",
+                  text,
+                  count=1,
+              )
+
+          # Replace CFBundleVersion (any quote style) or add it
+          if re.search(r"CFBundleVersion:", text):
+              text = re.sub(
+                  r"CFBundleVersion:\s*['\"]?[^'\"\n]*['\"]?",
+                  f"CFBundleVersion: '{build}'",
+                  text,
+              )
+          else:
+              text = re.sub(
+                  r"(CFBundleShortVersionString:\s*['\"]?[^'\"\n]*['\"]?\n)",
+                  rf"\1        CFBundleVersion: '{build}'\n",
+                  text,
+                  count=1,
+              )
+
+          # Replace CURRENT_PROJECT_VERSION (any quote style) or add it
+          if re.search(r"CURRENT_PROJECT_VERSION:", text):
+              text = re.sub(
+                  r"CURRENT_PROJECT_VERSION:\s*['\"]?[^'\"\n]*['\"]?",
+                  f'CURRENT_PROJECT_VERSION: "{build}"',
+                  text,
+              )
+          else:
+              # Try after MARKETING_VERSION
+              if re.search(r"MARKETING_VERSION:", text):
+                  text = re.sub(
+                      r"(MARKETING_VERSION:\s*['\"]?[^'\"\n]*['\"]?\n)",
+                      rf"\1        CURRENT_PROJECT_VERSION: \"{build}\"\n",
+                      text,
+                      count=1,
+                  )
+              else:
+                  text = re.sub(
+                      r"(CFBundleVersion:\s*['\"]?[^'\"\n]*['\"]?\n)",
+                      rf"\1        CURRENT_PROJECT_VERSION: \"{build}\"\n",
+                      text,
+                      count=1,
+                  )
+
           open(path, "w").write(text)
 
-          # Verify
-          for key, expected in [("CFBundleShortVersionString", version),
-                               ("CFBundleVersion", build),
-                               ("CURRENT_PROJECT_VERSION", build)]:
-              m = re.search(rf"{key}:\s*['\"]?([^'\"\n]+)['\"]?", text)
-              assert m and m.group(1) == expected, f"{key} expected {expected}, got {m.group(1) if m else None}"
+          # Verify (CFBundleVersion must exist; CURRENT_PROJECT_VERSION is best-effort)
+          m = re.search(r"CFBundleVersion:\s*['\"]?([^'\"\n]+)['\"]?", text)
+          assert m and m.group(1) == build, f"CFBundleVersion expected {build}, got {m.group(1) if m else None}"
+          m2 = re.search(r"CFBundleShortVersionString:\s*['\"]?([^'\"\n]+)['\"]?", text)
+          assert m2 and m2.group(1) == version, f"CFBundleShortVersionString expected {version}, got {m2.group(1) if m2 else None}"
           print(f"iOS bundle version patched: {version} ({build})")
+
+          # Also patch the generated .xcodeproj (tauri ios build does not re-run XcodeGen)
+          pbx_path = "src-tauri/gen/apple/beaver-notes.xcodeproj/project.pbxproj"
+          try:
+              pbx = open(pbx_path).read()
+              pbx = re.sub(r'MARKETING_VERSION = [^;]+;', f'MARKETING_VERSION = {version};', pbx)
+              pbx = re.sub(r'CURRENT_PROJECT_VERSION = [^;]+;', f'CURRENT_PROJECT_VERSION = {build};', pbx)
+              open(pbx_path, "w").write(pbx)
+              print("iOS pbxproj version patched")
+          except FileNotFoundError:
+              print("::warning::pbxproj not found, skipping")
           PYEOF
 
       - name: Set iOS development team
