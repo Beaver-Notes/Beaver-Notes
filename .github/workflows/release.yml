@@ -330,7 +330,7 @@ jobs:
             --password "$APPLE_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" 2>&1 | head -5 || echo "WARNING: notarytool check failed"
 
-      - name: Import Apple signing certificate
+      - name: Import macOS signing certificate
         if: ${{ matrix.id == 'macos-universal' }}
         shell: bash
         env:
@@ -352,18 +352,11 @@ jobs:
             -T /usr/bin/codesign \
             -T /usr/bin/security \
             -A
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
           security set-key-partition-list \
             -S apple-tool:,apple:,codesign: -s \
             -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || true
 
-          # Derive the signing identity from the imported cert (CN), not the
-          # team ID — tauri matches this against the certificate.
           IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -o '"[^"]*"' | tr -d '"' | head -1)"
-          if [ -z "$IDENTITY" ]; then
-            echo "::error::No macOS codesigning identity found in imported certificate"
-            exit 1
-          fi
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
           echo "Derived identity: $IDENTITY"
 
@@ -375,6 +368,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
@@ -532,14 +526,23 @@ jobs:
 
           def ensure_maven_central(p):
             s=p.read_text()
-            if 'mavenCentral()' in s or 'repositories' not in s:
-              return False
-            s2=re.sub(r'(repositories\s*\{)', r'\1\n        mavenCentral()', s, count=1)
-            if s2!=s:
-              p.write_text(s2)
+            changed=False
+            # repositories { ... }
+            if 'repositories' in s and 'mavenCentral()' not in s:
+              s2=re.sub(r'(repositories\s*\{)', r'\1\n        mavenCentral()', s, count=1)
+              if s2!=s:
+                s=s2
+                changed=True
+            # pluginManagement { repositories { ... } }
+            if 'pluginManagement' in s and 'mavenCentral()' not in s:
+              s2=re.sub(r'(pluginManagement\s*\{[^}]*repositories\s*\{)', r'\1\n            mavenCentral()', s, count=1)
+              if s2!=s:
+                s=s2
+                changed=True
+            if changed:
+              p.write_text(s)
               print(f'added mavenCentral to {p}')
-              return True
-            return False
+            return changed
 
           def patch_file(p):
             s=p.read_text()
@@ -553,6 +556,8 @@ jobs:
           root = Path('src-tauri/gen/android')
           for p in root.rglob('build.gradle*'):
             patch_file(p)
+          for p in root.rglob('settings.gradle*'):
+            ensure_maven_central(p)
 
           # Patch any android project dir referenced by tauri.settings.gradle (most reliable).
           settings = Path('src-tauri/gen/android/tauri.settings.gradle')
@@ -633,64 +638,40 @@ jobs:
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version.replace(/-.*$/, '')")"
           BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
-          export VERSION BUILD_NUMBER
-          python3 - <<'PY'
-          import os, re
-          from pathlib import Path
+          python3 - "$VERSION" "$BUILD_NUMBER" <<'PYEOF'
+          import re, sys
+          version, build = sys.argv[1], sys.argv[2]
+          path = "src-tauri/gen/apple/project.yml"
+          text = open(path).read()
 
-          version = os.environ["VERSION"]
-          build = os.environ["BUILD_NUMBER"]
-          p = Path("src-tauri/gen/apple/project.yml")
-          s = p.read_text()
+          # Replace CFBundleShortVersionString (any quote style)
+          text = re.sub(
+              r"CFBundleShortVersionString:\s*['\"]?[^'\"\n]*['\"]?",
+              f"CFBundleShortVersionString: '{version}'",
+              text,
+          )
+          # Replace CFBundleVersion (any quote style)
+          text = re.sub(
+              r"CFBundleVersion:\s*['\"]?[^'\"\n]*['\"]?",
+              f"CFBundleVersion: '{build}'",
+              text,
+          )
+          # Replace CURRENT_PROJECT_VERSION (any quote style)
+          text = re.sub(
+              r"CURRENT_PROJECT_VERSION:\s*['\"]?[^'\"\n]*['\"]?",
+              f'CURRENT_PROJECT_VERSION: "{build}"',
+              text,
+          )
+          open(path, "w").write(text)
 
-          patterns = [
-              (r"(CFBundleShortVersionString:\s*)(['\"]?)[^'\"\n]+(['\"]?)", rf"\g<1>'{version}'"),
-              (r"(CFBundleVersion:\s*)(['\"]?)[^'\"\n]+(['\"]?)", rf"\g<1>'{build}'"),
-              (r"(CURRENT_PROJECT_VERSION:\s*)(['\"]?)[^'\"\n]+(['\"]?)", rf"\g<1>\"{build}\""),
-              (r"(MARKETING_VERSION:\s*)(['\"]?)[^'\"\n]+(['\"]?)", rf"\g<1>\"{version}\""),
-          ]
-          for pat, repl in patterns:
-              s2, n = re.subn(pat, repl, s, count=1)
-              if n == 0:
-                  print(f"warning: pattern not found in project.yml: {pat}")
-              s = s2
-
-          p.write_text(s)
-
-          # tauri ios build does not re-run XcodeGen; patch the generated
-          # pbxproj directly so the actual build picks up the version/build.
-          pbx_path = Path("src-tauri/gen/apple/beaver-notes.xcodeproj/project.pbxproj")
-          if pbx_path.exists():
-              pbx = pbx_path.read_text()
-              pbx, n1 = re.subn(r"MARKETING_VERSION = [^;]+;", f'MARKETING_VERSION = {version};', pbx)
-              pbx, n2 = re.subn(r"CURRENT_PROJECT_VERSION = [^;]+;", f'CURRENT_PROJECT_VERSION = {build};', pbx)
-              pbx_path.write_text(pbx)
-              print(f"pbxproj MARKETING_VERSION replacements={n1} CURRENT_PROJECT_VERSION replacements={n2}")
-          else:
-              print("warning: pbxproj not found for version patch")
-
-          # Also patch Info.plist if present in generated project.
-          for plist in Path("src-tauri/gen/apple").rglob("Info.plist"):
-              txt = plist.read_text()
-              txt2 = re.sub(
-                  r"(<key>CFBundleShortVersionString</key>\s*<string>)[^<]+(</string>)",
-                  rf"\g<1>{version}\g<2>",
-                  txt,
-              )
-              txt2 = re.sub(
-                  r"(<key>CFBundleVersion</key>\s*<string>)[^<]+(</string>)",
-                  rf"\g<1>{build}\g<2>",
-                  txt2,
-              )
-              if txt2 != txt:
-                  plist.write_text(txt2)
-                  print(f"patched {plist}")
-
-          txt = p.read_text()
-          if f"CFBundleVersion: '{build}'" not in txt and f'CFBundleVersion: "{build}"' not in txt and f"CFBundleVersion: {build}" not in txt:
-              raise SystemExit(f"CFBundleVersion not set to {build} in project.yml")
-          print(f"iOS project.yml version={version} build={build}")
-          PY
+          # Verify
+          for key, expected in [("CFBundleShortVersionString", version),
+                               ("CFBundleVersion", build),
+                               ("CURRENT_PROJECT_VERSION", build)]:
+              m = re.search(rf"{key}:\s*['\"]?([^'\"\n]+)['\"]?", text)
+              assert m and m.group(1) == expected, f"{key} expected {expected}, got {m.group(1) if m else None}"
+          print(f"iOS bundle version patched: {version} ({build})")
+          PYEOF
 
       - name: Set iOS development team
         if: ${{ matrix.id == 'ios' }}
@@ -856,12 +837,15 @@ jobs:
           if [ -n "$IPA" ]; then
             echo "ipa-path=$IPA" >> "$GITHUB_OUTPUT"
           else
-            echo "ipa-path=" >> "$GITHUB_OUTPUT"
+            echo "::warning::No .ipa file found"
           fi
 
       - name: Verify and stage iOS assets
         if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
         shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
           IPA="${{ steps.find-ipa.outputs.ipa-path }}"
@@ -874,14 +858,20 @@ jobs:
           fi
           codesign --verify --deep --strict --verbose=2 "$APP"
           security cms -D -i "$APP/embedded.mobileprovision" >/dev/null
-          PLIST="$APP/Info.plist"
-          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
-          BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
-          echo "IPA version=$VERSION build=$BUILD"
-          if [ -z "$BUILD" ] || [ "$BUILD" = "8" ]; then
-            echo "::error::IPA CFBundleVersion looks invalid/stale ($BUILD); expected GITHUB_RUN_NUMBER"
-            exit 1
-          fi
+
+          # Verify provisioning profile matches build
+          PROVISION_INFO=$(security cms -D -i "$APP/embedded.mobileprovision")
+          echo "$PROVISION_INFO" | grep -q "F8U6VTU2DJ" || { echo "::error::Provisioning profile team ID mismatch"; exit 1; }
+          echo "$PROVISION_INFO" | grep -q "com.beavernotes.beaver-notes" || echo "::warning::Bundle ID not found in provisioning profile"
+          echo "Provisioning profile verified"
+
+          # Verify bundle version survived the build
+          BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Info.plist")
+          SHORT_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Info.plist")
+          echo "IPA CFBundleShortVersionString=$SHORT_VERSION CFBundleVersion=$BUNDLE_VERSION"
+          test "$SHORT_VERSION" = "$VERSION" || { echo "::error::IPA short version mismatch"; exit 1; }
+          test "$BUNDLE_VERSION" = "$BUILD_NUMBER" || { echo "::error::IPA build number mismatch (got $BUNDLE_VERSION, expected $BUILD_NUMBER)"; exit 1; }
+
           mkdir -p release-assets
           cp "$IPA" release-assets/
 
