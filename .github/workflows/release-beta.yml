@@ -394,8 +394,28 @@ jobs:
           test -n "${MACOS_PROVISIONING_PROFILE:-}" || { echo "::error::APPLE_MACOS_PROVISIONING_PROFILE_BASE64 is empty"; exit 1; }
           PROFILE="$RUNNER_TEMP/embedded.provisionprofile"
           CONFIG="$RUNNER_TEMP/tauri.macOS.conf.json"
-          printf '%s' "$MACOS_PROVISIONING_PROFILE" | tr -d '[:space:]' | base64 -d > "$PROFILE"
+          decode_secret() {
+            python3 - "$1" "$2" <<'PY'
+          import base64, binascii, sys, urllib.parse
+          value, path = sys.argv[1], sys.argv[2]
+          text = value.strip().replace(chr(92) + 'n', '').replace(chr(92) + 'r', '').replace(chr(92) + 't', '')
+          if text.lower().startswith('data:'):
+              text = text.split(',', 1)[1]
+          text = ''.join(text.split())
+          if '%' in text:
+              text = urllib.parse.unquote(text)
+          try:
+              data = base64.b64decode(text, validate=True)
+              if not data:
+                  raise ValueError
+          except (binascii.Error, ValueError):
+              data = value.strip().encode()
+          open(path, 'wb').write(data)
+          PY
+          }
+          decode_secret "$MACOS_PROVISIONING_PROFILE" "$PROFILE"
           test -s "$PROFILE"
+          security cms -D -i "$PROFILE" >/dev/null
           python3 -c 'import json,sys; json.dump({"bundle":{"macOS":{"files":{"embedded.provisionprofile":sys.argv[1]}}}},open(sys.argv[2],"w"))' "$PROFILE" "$CONFIG"
           echo "==> Build start: $(date -u +%FT%TZ)"
           yarn tauri build \
@@ -786,16 +806,46 @@ jobs:
         env:
           IOS_CERTIFICATE_BASE64: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION_BASE64: ${{ secrets.APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
           : "${IOS_CERTIFICATE_BASE64:?APPLE_IOS_SIGNING_CERTIFICATE_BASE64 is not set}"
           : "${IOS_CERTIFICATE_PASSWORD:?APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD is not set}"
+          : "${IOS_MOBILE_PROVISION_BASE64:?APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE is not set}"
           : "${KEYCHAIN_PASSWORD:?KEYCHAIN_PASSWORD is not set}"
           CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
+          PROVISION_PATH="$RUNNER_TEMP/iOS.provisionprofile"
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
 
-          echo "$IOS_CERTIFICATE_BASE64" | base64 -d > "$CERTIFICATE_PATH"
+          decode_secret() {
+            python3 - "$1" "$2" <<'PY'
+          import base64, binascii, sys, urllib.parse
+          value, path = sys.argv[1], sys.argv[2]
+          text = value.strip().replace(chr(92) + 'n', '').replace(chr(92) + 'r', '').replace(chr(92) + 't', '')
+          if text.lower().startswith('data:'):
+              text = text.split(',', 1)[1]
+          text = ''.join(text.split())
+          if '%' in text:
+              text = urllib.parse.unquote(text)
+          try:
+              data = base64.b64decode(text, validate=True)
+              if not data:
+                  raise ValueError
+          except (binascii.Error, ValueError):
+              data = value.strip().encode()
+          open(path, 'wb').write(data)
+          PY
+          }
+          decode_secret "$IOS_CERTIFICATE_BASE64" "$CERTIFICATE_PATH"
+          decode_secret "$IOS_MOBILE_PROVISION_BASE64" "$PROVISION_PATH"
+          security cms -D -i "$PROVISION_PATH" >/dev/null
+          CERT_B64="$(base64 < "$CERTIFICATE_PATH" | tr -d '[:space:]')"
+          PROVISION_B64="$(base64 < "$PROVISION_PATH" | tr -d '[:space:]')"
+          echo "::add-mask::$CERT_B64"
+          echo "::add-mask::$PROVISION_B64"
+          echo "IOS_CERTIFICATE=$CERT_B64" >> "$GITHUB_ENV"
+          echo "IOS_MOBILE_PROVISION=$PROVISION_B64" >> "$GITHUB_ENV"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -820,9 +870,9 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          IOS_CERTIFICATE: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE: ${{ env.IOS_CERTIFICATE }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
-          IOS_MOBILE_PROVISION: ${{ secrets.APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE }}
+          IOS_MOBILE_PROVISION: ${{ env.IOS_MOBILE_PROVISION }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           yarn tauri ios build --export-method app-store-connect --config src-tauri/tauri.ios.ci.conf.json
