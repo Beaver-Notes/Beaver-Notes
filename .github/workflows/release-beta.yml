@@ -554,15 +554,12 @@ jobs:
           : "${ANDROID_KEYSTORE_PASSWORD:?ANDROID_KEYSTORE_PASSWORD is not set}"
           : "${ANDROID_KEY_ALIAS:?ANDROID_KEY_ALIAS is not set}"
           : "${ANDROID_KEY_PASSWORD:?ANDROID_KEY_PASSWORD is not set}"
-          VERSION="${{ needs.validate.outputs.version }}"
-          VERSION="${VERSION%%-*}"
           BUILD_NUMBER="${{ needs.validate.outputs.build_number }}"
-          python3 - "$VERSION" "$BUILD_NUMBER" <<'PYEOF'
-          import sys
-          version, build = sys.argv[1], sys.argv[2]
-          with open("src-tauri/gen/android/app/tauri.properties", "w") as f:
-              f.write(f"tauri.android.versionName={version}\n")
-              f.write(f"tauri.android.versionCode={build}\n")
+          python3 - "$BUILD_NUMBER" <<'PYEOF'
+          import json, sys
+          build = int(sys.argv[1])
+          with open("src-tauri/tauri.android.conf.json", "w") as f:
+              json.dump({"bundle": {"android": {"versionCode": build}}}, f)
           PYEOF
 
       - name: Build Android beta app
