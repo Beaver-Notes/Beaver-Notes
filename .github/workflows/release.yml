@@ -603,11 +603,11 @@ jobs:
           fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
           cat > src-tauri/gen/android/keystore.properties <<EOF
-          storeFile=$RUNNER_TEMP/keystore.jks
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          keyPassword=$ANDROID_KEY_PASSWORD
-          EOF
+storeFile=$RUNNER_TEMP/keystore.jks
+storePassword=$ANDROID_KEYSTORE_PASSWORD
+keyAlias=$ANDROID_KEY_ALIAS
+keyPassword=$ANDROID_KEY_PASSWORD
+EOF
 
       - name: Build Android app
         if: ${{ matrix.id == 'android' }}
