@@ -785,9 +785,8 @@ jobs:
           echo "ANDROID_APKSIGNER=$APKSIGNER" >> "$GITHUB_ENV"
           echo "ANDROID_APKANALYZER=$APKANALYZER" >> "$GITHUB_ENV"
           KS="$RUNNER_TEMP/keystore.jks"
-          shopt -s nullglob
-          aabs=(src-tauri/gen/android/app/build/outputs/bundle/*/*.aab src-tauri/gen/android/app/build/outputs/bundle/**/*.aab)
-          apks=(src-tauri/gen/android/app/build/outputs/apk/*/*.apk src-tauri/gen/android/app/build/outputs/apk/**/*.apk)
+          aabs=(); while IFS= read -r f; do aabs+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' 2>/dev/null | sort)
+          apks=(); while IFS= read -r f; do apks+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' 2>/dev/null | sort)
           for aab in "${aabs[@]}"; do
             echo "Signing AAB: $aab"
             jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
@@ -993,9 +992,8 @@ jobs:
           BUILD_NUMBER: ${{ needs.validate.outputs.build_number }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          aabs=(src-tauri/gen/android/app/build/outputs/bundle/*/*.aab src-tauri/gen/android/app/build/outputs/bundle/**/*.aab)
-          apks=(src-tauri/gen/android/app/build/outputs/apk/*/*.apk src-tauri/gen/android/app/build/outputs/apk/**/*.apk)
+          aabs=(); while IFS= read -r f; do aabs+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' 2>/dev/null | sort)
+          apks=(); while IFS= read -r f; do apks+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' 2>/dev/null | sort)
           if [ ${#aabs[@]} -eq 0 ] && [ ${#apks[@]} -eq 0 ]; then
             echo "::error::No Android AAB/APK outputs found"
             exit 1
@@ -1035,9 +1033,8 @@ jobs:
           set -euo pipefail
           VERSION="${VERSION%%-*}"
           mkdir -p release-assets
-          shopt -s nullglob
-          aabs=(src-tauri/gen/android/app/build/outputs/bundle/*/*.aab)
-          apks=(src-tauri/gen/android/app/build/outputs/apk/*/*.apk)
+          aabs=(); while IFS= read -r f; do aabs+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' 2>/dev/null | sort)
+          apks=(); while IFS= read -r f; do apks+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' 2>/dev/null | sort)
           test ${#aabs[@]} -eq 1 || { echo "::error::Expected exactly one AAB, got ${#aabs[@]}"; exit 1; }
           test ${#apks[@]} -eq 1 || { echo "::error::Expected exactly one APK, got ${#apks[@]}"; exit 1; }
           cp "${aabs[0]}" "release-assets/Beaver.Notes_${VERSION}_android.aab"
