@@ -472,14 +472,23 @@ jobs:
           ./scripts/patch-android-signing.sh
           python3 - <<'PY2'
           from pathlib import Path
-          for p in Path('src-tauri/gen/android').rglob('build.gradle.kts'):
+          import re
+          root = Path('src-tauri/gen/android')
+          for p in root.rglob('build.gradle*'):
             s=p.read_text()
-            # tauri-plugin-biometry may compile against SDK 34 while tauri-android requires 36+
             s=s.replace('compileSdk = 34', 'compileSdk = 36')
             s=s.replace('compileSdkVersion 34', 'compileSdkVersion 36')
-            if 'compileSdk' in s and 'compileSdk = 36' not in s and 'compileSdkVersion 36' not in s:
-              pass
+            s=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', s)
             p.write_text(s)
+          # Also patch cached dependency source if Gradle resolved it (tauri-plugin-biometry 0.2.8 ships compileSdk 34)
+          cargo = Path.home()/'.cargo/registry/src'
+          if cargo.exists():
+            for p in cargo.rglob('tauri-plugin-biometry*/android/build.gradle*'):
+              s=p.read_text()
+              s2=s.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
+              s2=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', s2)
+              if s2!=s:
+                p.write_text(s2)
           PY2
 
       - name: Setup Android keystore
@@ -747,4 +756,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ needs.validate.outputs.tag_name }}" release-assets/* --clobber
+          gh release upload "${{ needs.validate.outputs.tag_name }}" release-assets/* --clobber --repo "${{ github.repository }}"
