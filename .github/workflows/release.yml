@@ -959,7 +959,8 @@ jobs:
           SHORT_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Info.plist")
           echo "IPA CFBundleShortVersionString=$SHORT_VERSION CFBundleVersion=$BUNDLE_VERSION"
           test "$SHORT_VERSION" = "$VERSION" || { echo "::error::IPA short version mismatch"; exit 1; }
-          test "$BUNDLE_VERSION" = "$BUILD_NUMBER" || { echo "::error::IPA build number mismatch (got $BUNDLE_VERSION, expected $BUILD_NUMBER)"; exit 1; }
+          # tauri ios build rewrites CFBundleVersion from tauri.conf.json (same as beta workflow)
+          test "$BUNDLE_VERSION" = "$VERSION" || { echo "::error::IPA build number mismatch (got $BUNDLE_VERSION, expected $VERSION)"; exit 1; }
 
           mkdir -p release-assets
           cp "$IPA" release-assets/
