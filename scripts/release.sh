@@ -70,9 +70,9 @@ done
 
 # Build
 echo "==> Building for $TARGET..."
-APPLE_SIGNING_IDENTITY="$SIGNING_IDENTITY" yarn tauri build --target "$TARGET" --bundles dmg
+APPLE_SIGNING_IDENTITY="$SIGNING_IDENTITY" yarn tauri build --target "$TARGET" --bundles app,dmg
 
-DMG="src-tauri/target/$TARGET/release/bundle/dmg/Beaver.Notes_${VERSION}_aarch64.dmg"
+DMG="src-tauri/target/$TARGET/release/bundle/dmg/Beaver Notes_${VERSION}_aarch64.dmg"
 test -f "$DMG" || { echo "ERROR: DMG not found: $DMG"; exit 1; }
 echo "==> DMG: $DMG"
 
@@ -86,7 +86,8 @@ xcrun stapler staple "$DMG"
 
 echo "==> Verifying..."
 spctl -a -t open --context context:primary-signature -vv "$DMG"
-APP="src-tauri/target/$TARGET/release/bundle/app/Beaver.Notes.app"
+APP="src-tauri/target/$TARGET/release/bundle/macos/Beaver Notes.app"
+test -d "$APP" || { echo "ERROR: App not found: $APP"; exit 1; }
 spctl -a -t open --context context:primary-signature -vv "$APP"
 
 # Commit and tag

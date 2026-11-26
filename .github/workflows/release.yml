@@ -450,8 +450,8 @@ jobs:
           set -euo pipefail
           VERSION="${{ needs.validate.outputs.version }}"
           VERSION="${VERSION%%-*}"
-          DMG="src-tauri/target/universal-apple-darwin/release/bundle/dmg/Beaver.Notes_${VERSION}_universal.dmg"
-          APP="src-tauri/target/universal-apple-darwin/release/bundle/app/Beaver.Notes.app"
+          DMG="src-tauri/target/universal-apple-darwin/release/bundle/dmg/Beaver Notes_${VERSION}_universal.dmg"
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Beaver Notes.app"
           test -f "$DMG" || { echo "::error::DMG not found: $DMG"; exit 1; }
           test -d "$APP" || { echo "::error::App not found: $APP"; exit 1; }
           xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
