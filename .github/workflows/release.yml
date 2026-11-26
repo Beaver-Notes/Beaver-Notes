@@ -727,6 +727,20 @@ jobs:
               print("iOS pbxproj version patched")
           except FileNotFoundError:
               print("::warning::pbxproj not found, skipping")
+
+          # Patch the generated Info.plist directly (tauri ios build uses this static file)
+          import plistlib, os
+          info_path = "src-tauri/gen/apple/beaver-notes_iOS/Info.plist"
+          if os.path.exists(info_path):
+              with open(info_path, "rb") as f:
+                  pl = plistlib.load(f)
+              pl["CFBundleShortVersionString"] = version
+              pl["CFBundleVersion"] = build
+              with open(info_path, "wb") as f:
+                  plistlib.dump(pl, f)
+              print(f"iOS Info.plist patched: {version} ({build})")
+          else:
+              print("::warning::Info.plist not found, skipping")
           PYEOF
 
       - name: Set iOS development team
