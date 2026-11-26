@@ -14,3 +14,8 @@ rustflags = ["--cfg", "aes_armv8", "--cfg", "polyval_armv8"]
 #
 # Example (~/.zshrc):
 #   export SODIUM_LIB_DIR="$HOME/.libsodium-android/lib"
+
+# OSSign Windows ARM64 runners use MSYS Perl lacking Locale::Maketext::Simple,
+# breaking vendored openssl-sys builds. Prefer Strawberry Perl when present.
+[env]
+OPENSSL_SRC_PERL = { value = "C:/Strawberry/perl/bin/perl.exe", force = false }

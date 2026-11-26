@@ -789,6 +789,32 @@ jobs:
             curl -fL -o "signed/$(basename "$url")" "$url"
           done
 
+      - name: Validate signed artifact versions
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(signed/*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No signed Windows artifacts were downloaded"
+            exit 1
+          fi
+          bad=0
+          for f in "${files[@]}"; do
+            base="$(basename "$f")"
+            if [[ "$base" != *"$EXPECTED_VERSION"* ]]; then
+              echo "::error::Unexpected artifact version/name: $base (expected version $EXPECTED_VERSION)"
+              bad=1
+            fi
+          done
+          if [ "$bad" -ne 0 ]; then
+            echo "Downloaded artifacts:"
+            ls -la signed
+            exit 1
+          fi
+
       - name: Stage Windows assets
         shell: bash
         run: |
