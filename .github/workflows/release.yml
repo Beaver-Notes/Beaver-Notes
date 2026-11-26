@@ -2,6 +2,20 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target (all, android, ios, macos-universal, linux-x64, linux-arm64, windows)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+          - macos-universal
+          - linux-x64
+          - linux-arm64
+          - windows
 
 permissions:
   contents: write
@@ -188,7 +202,7 @@ jobs:
 
   desktop:
     name: Build ${{ matrix.id }}
-    if: ${{ needs.validate.outputs.version_match == 'true' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' && (github.event.inputs.target == 'all' || github.event.inputs.target == '' || github.event.inputs.target == matrix.id) }}
     needs:
       - validate
       - create-release
@@ -488,7 +502,29 @@ jobs:
               s2=s.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
               s2=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', s2)
               if s2!=s:
+                print(f'patched {p}')
                 p.write_text(s2)
+          # Patch any android project dir referenced by tauri.settings.gradle (most reliable)
+          settings = Path('src-tauri/gen/android/tauri.settings.gradle')
+          if settings.exists():
+            for m in re.finditer(r"project\(':(?:tauri-plugin-biometry[^']*)'\)\.projectDir = new File\(\"([^\"]+)\"\)", settings.read_text()):
+              d = Path(m.group(1))
+              if d.exists():
+                for p in d.rglob('build.gradle*'):
+                  t=p.read_text()
+                  t2=t.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
+                  t2=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', t2)
+                  if t2!=t:
+                    print(f'patched {p}')
+                    p.write_text(t2)
+          # Also patch gradle project copied by tauri android init, if any
+          for p in Path('src-tauri/gen/android').rglob('tauri-plugin-biometry*/build.gradle*'):
+            s=p.read_text()
+            s2=s.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
+            s2=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', s2)
+            if s2!=s:
+              print(f'patched {p}')
+              p.write_text(s2)
           PY2
 
       - name: Setup Android keystore
@@ -712,7 +748,7 @@ jobs:
 
   windows:
     name: Build Windows (via OSSign)
-    if: ${{ needs.validate.outputs.version_match == 'true' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' && (github.event.inputs.target == 'all' || github.event.inputs.target == '' || github.event.inputs.target == 'windows') }}
     needs:
       - validate
       - create-release
