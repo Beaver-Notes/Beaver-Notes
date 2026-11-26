@@ -487,47 +487,52 @@ jobs:
         shell: bash
         run: |
           ./scripts/patch-android-signing.sh
+          # Ensure cargo plugin sources exist before patching.
+          cargo fetch --manifest-path src-tauri/Cargo.toml || true
           python3 - <<'PY2'
           from pathlib import Path
-          import re
-          root = Path('src-tauri/gen/android')
-          for p in root.rglob('build.gradle*'):
-            s=p.read_text()
-            s=s.replace('compileSdk = 34', 'compileSdk = 36')
-            s=s.replace('compileSdkVersion 34', 'compileSdkVersion 36')
-            s=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', s)
-            p.write_text(s)
-          # Also patch cached dependency source if Gradle resolved it (tauri-plugin-biometry 0.2.8 ships compileSdk 34)
-          cargo = Path.home()/'.cargo/registry/src'
-          if cargo.exists():
-            for p in cargo.rglob('tauri-plugin-biometry*/android/build.gradle*'):
-              s=p.read_text()
-              s2=s.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
-              s2=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', s2)
-              if s2!=s:
-                print(f'patched {p}')
-                p.write_text(s2)
-          # Patch any android project dir referenced by tauri.settings.gradle (most reliable)
-          settings = Path('src-tauri/gen/android/tauri.settings.gradle')
-          if settings.exists():
-            for m in re.finditer(r"project\(':(?:tauri-plugin-biometry[^']*)'\)\.projectDir = new File\(\"([^\"]+)\"\)", settings.read_text()):
-              d = Path(m.group(1))
-              if d.exists():
-                for p in d.rglob('build.gradle*'):
-                  t=p.read_text()
-                  t2=t.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
-                  t2=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', t2)
-                  if t2!=t:
-                    print(f'patched {p}')
-                    p.write_text(t2)
-          # Also patch gradle project copied by tauri android init, if any
-          for p in Path('src-tauri/gen/android').rglob('tauri-plugin-biometry*/build.gradle*'):
+          import os, re
+
+          def patch_file(p):
             s=p.read_text()
             s2=s.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
             s2=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', s2)
             if s2!=s:
               print(f'patched {p}')
               p.write_text(s2)
+              return True
+            return False
+
+          root = Path('src-tauri/gen/android')
+          for p in root.rglob('build.gradle*'):
+            patch_file(p)
+
+          # Patch any android project dir referenced by tauri.settings.gradle (most reliable).
+          settings = Path('src-tauri/gen/android/tauri.settings.gradle')
+          if settings.exists():
+            txt = settings.read_text()
+            print('--- tauri.settings.gradle biometry ---')
+            for line in txt.splitlines():
+              if 'biometry' in line.lower():
+                print(line)
+            for m in re.finditer(r"project\(':(?:tauri-plugin-[^']*)'\)\.projectDir = new File\(\"([^\"]+)\"\)", txt):
+              d = Path(m.group(1))
+              if d.exists():
+                for p in d.rglob('build.gradle*'):
+                  patch_file(p)
+
+          # Patch cargo registry/git checkouts (covers plugin source used by Android build).
+          cargo_homes = [Path.home()/'.cargo', Path(os.environ.get('CARGO_HOME', str(Path.home()/'.cargo')))]
+          seen=set()
+          for cargo in cargo_homes:
+            cargo = cargo.resolve()
+            if cargo in seen or not cargo.exists():
+              continue
+            seen.add(cargo)
+            for p in cargo.rglob('build.gradle*'):
+              sp=str(p)
+              if 'tauri-plugin-biometry' in sp or 'tauri-plugin-' in sp:
+                patch_file(p)
           PY2
 
       - name: Setup Android keystore
