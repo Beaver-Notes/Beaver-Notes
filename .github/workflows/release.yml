@@ -713,7 +713,13 @@ jobs:
           try:
               pbx = open(pbx_path).read()
               pbx = re.sub(r'MARKETING_VERSION = [^;]+;', f'MARKETING_VERSION = {version};', pbx)
-              pbx = re.sub(r'CURRENT_PROJECT_VERSION = [^;]+;', f'CURRENT_PROJECT_VERSION = {build};', pbx)
+              if 'CURRENT_PROJECT_VERSION' in pbx:
+                  pbx = re.sub(r'CURRENT_PROJECT_VERSION = [^;]+;', f'CURRENT_PROJECT_VERSION = {build};', pbx)
+              else:
+                  pbx = pbx.replace(
+                      f'MARKETING_VERSION = {version};',
+                      f'MARKETING_VERSION = {version};\n\t\t\t\tCURRENT_PROJECT_VERSION = {build};',
+                  )
               open(pbx_path, "w").write(pbx)
               print("iOS pbxproj version patched")
           except FileNotFoundError:
