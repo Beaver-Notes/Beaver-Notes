@@ -819,7 +819,7 @@ jobs:
           sed -i '' 's/DEVELOPMENT_TEAM: .*$/DEVELOPMENT_TEAM: F8U6VTU2DJ/' \
             src-tauri/gen/apple/project.yml
 
-      - name: Configure iOS distribution signing
+      - name: Configure iOS build settings
         if: ${{ matrix.id == 'ios' }}
         shell: bash
         run: |
@@ -827,14 +827,6 @@ jobs:
           import re
           path = 'src-tauri/gen/apple/project.yml'
           s = open(path).read()
-          if 'CODE_SIGN_IDENTITY' not in s:
-              s = re.sub(
-                  r'(?m)^(\s+)dependencies:\n',
-                  '      configs:\n        release:\n          CODE_SIGN_IDENTITY: iPhone Distribution\n'
-                  + '\\1dependencies:\n',
-                  s,
-                  count=1,
-              )
           if 'ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES' not in s:
               s = s.replace(
                   'DEVELOPMENT_TEAM: F8U6VTU2DJ',
@@ -876,44 +868,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/app-store-connect-api-key"
           echo "$API_KEY" > "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${API_KEY_ID}.p8"
 
-      - name: Import iOS signing certificate
-        if: ${{ matrix.id == 'ios' }}
-        shell: bash
-        env:
-          IOS_CERTIFICATE_BASE64: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          : "${IOS_CERTIFICATE_BASE64:?APPLE_IOS_SIGNING_CERTIFICATE_BASE64 is not set}"
-          : "${IOS_CERTIFICATE_PASSWORD:?APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD is not set}"
-          : "${KEYCHAIN_PASSWORD:?KEYCHAIN_PASSWORD is not set}"
-          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
-
-          # Decode certificate
-          echo "$IOS_CERTIFICATE_BASE64" | base64 -d > "$CERTIFICATE_PATH"
-
-          # Create and configure temporary keychain (no auto-lock timeout)
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import certificate
-          security import "$CERTIFICATE_PATH" \
-            -P "$IOS_CERTIFICATE_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
-
-          # Set keychain search list
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
-
-          # Allow codesign to access keychain without prompt
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
       - name: Build iOS app
         if: ${{ matrix.id == 'ios' }}
         shell: bash
@@ -925,10 +879,6 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          IOS_CERTIFICATE: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
-          IOS_MOBILE_PROVISION: ${{ secrets.APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           yarn tauri ios build --export-method app-store-connect --config src-tauri/tauri.ios.ci.conf.json
 
