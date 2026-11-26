@@ -1,6 +1,10 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - 'v*'
+      - '!v*-beta.*'
   workflow_dispatch:
     inputs:
       target:
@@ -33,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      build_number: ${{ github.run_number }}
       tag_name: ${{ steps.tag.outputs.tag_name }}
       version_match: ${{ steps.jurisdiction.outputs.version_match }}
 
@@ -78,11 +83,12 @@ jobs:
           set -euo pipefail
 
           PKG_VERSION="$(node -p "require('./package.json').version")"
+          PKG_TAURI_VERSION="${PKG_VERSION%%-*}"
           TAURI_VERSION="$(node -e "console.log(JSON.parse(require('fs').readFileSync('./src-tauri/tauri.conf.json', 'utf8')).version)")"
           CARGO_VERSION="$(node - <<'NODE'
           const fs = require('fs');
           const txt = fs.readFileSync('./src-tauri/Cargo.toml', 'utf8');
-          const m = txt.match(/^\s*version\s*=\s*"(.*?)"/m);
+          const m = txt.match(/^\[package\][\s\S]*?^version\s*=\s*"(.*?)"/m);
           console.log(m ? m[1] : '');
           NODE
           )"
@@ -91,8 +97,8 @@ jobs:
           echo "tauri.conf.json: $TAURI_VERSION"
           echo "Cargo.toml: $CARGO_VERSION"
 
-          test "$PKG_VERSION" = "$TAURI_VERSION"
-          test "$PKG_VERSION" = "$CARGO_VERSION"
+          test "$PKG_TAURI_VERSION" = "$TAURI_VERSION"
+          test "$PKG_TAURI_VERSION" = "$CARGO_VERSION"
 
       - name: Check jurisdiction
         id: jurisdiction
@@ -214,6 +220,15 @@ jobs:
           print("matrix=" + json.dumps(selected, separators=(",", ":")))
           PY
 
+      - name: Notice when Windows is excluded
+        shell: bash
+        env:
+          WINDOWS: ${{ steps.t.outputs.windows }}
+        run: |
+          if [ "$WINDOWS" != "true" ]; then
+            echo "::notice::Windows is not included in this release target; choose target=all or target=windows to build it"
+          fi
+
   create-release:
     name: Create draft release
     if: ${{ needs.validate.outputs.version_match == 'true' }}
@@ -234,6 +249,42 @@ jobs:
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Prune stale draft assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.validate.outputs.tag_name }}"
+          VERSION="${{ needs.validate.outputs.version }}"
+          is_draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+          test "$is_draft" = "true" || { echo "::error::Refusing to prune non-draft release"; exit 1; }
+          for name in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do
+            if python3 - "$VERSION" "$name" <<'PY'
+          import re
+          import sys
+
+          try:
+              version, name = sys.argv[1], sys.argv[2]
+              pattern = r'(?<![0-9A-Za-z.])' + re.escape(version) + r'(?![0-9A-Za-z.]|-(?:alpha|beta|rc|preview|canary))'
+              matched = re.search(pattern, name, re.IGNORECASE) is not None
+          except Exception as exc:
+              print(f"version match helper error: {exc}", file=sys.stderr)
+              sys.exit(2)
+          sys.exit(0 if matched else 1)
+          PY
+            then
+              echo "keeping $name"
+            else
+              status=$?
+              if [ "$status" -ne 1 ]; then
+                echo "::error::Version match helper failed for $name (exit $status)"
+                exit 1
+              fi
+              gh release delete-asset "$TAG" "$name" --yes && echo "deleted stale $name"
+            fi
+          done
 
   desktop:
     name: Build ${{ matrix.id }}
@@ -324,11 +375,12 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          set -euo pipefail
+          test -n "${APPLE_ID:-}" || { echo "::error::APPLE_ID is empty"; exit 1; }
+          test -n "${APPLE_PASSWORD:-}" || { echo "::error::APPLE_PASSWORD is empty"; exit 1; }
+          test -n "${APPLE_TEAM_ID:-}" || { echo "::error::APPLE_TEAM_ID is empty"; exit 1; }
           echo "==> Checking notarytool history: $(date -u +%FT%TZ)"
-          xcrun notarytool history \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" 2>&1 | head -5 || echo "WARNING: notarytool check failed"
+          xcrun notarytool history --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID"
 
       - name: Import macOS signing certificate
         if: ${{ matrix.id == 'macos-universal' }}
@@ -339,6 +391,9 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
+          test -n "${APPLE_CERTIFICATE:-}" || { echo "::error::APPLE_CERTIFICATE is empty"; exit 1; }
+          test -n "${APPLE_CERTIFICATE_PASSWORD:-}" || { echo "::error::APPLE_CERTIFICATE_PASSWORD is empty"; exit 1; }
+          test -n "${KEYCHAIN_PASSWORD:-}" || { echo "::error::KEYCHAIN_PASSWORD is empty"; exit 1; }
           CERT_PATH="$RUNNER_TEMP/certificate.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
           echo "$APPLE_CERTIFICATE" | base64 -d > "$CERT_PATH"
@@ -357,6 +412,7 @@ jobs:
             -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || true
 
           IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -o '"[^"]*"' | tr -d '"' | head -1)"
+          test -n "$IDENTITY" || { echo "::error::No code signing identity found in keychain"; exit 1; }
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
           echo "Derived identity: $IDENTITY"
 
@@ -381,6 +437,26 @@ jobs:
             ${{ matrix.bundle_args }} \
             --ci
           echo "==> Build end: $(date -u +%FT%TZ)"
+
+      - name: Notarize and verify macOS DMG
+        if: ${{ matrix.id == 'macos-universal' }}
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.validate.outputs.version }}"
+          VERSION="${VERSION%%-*}"
+          DMG="src-tauri/target/universal-apple-darwin/release/bundle/dmg/Beaver.Notes_${VERSION}_universal.dmg"
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/app/Beaver.Notes.app"
+          test -f "$DMG" || { echo "::error::DMG not found: $DMG"; exit 1; }
+          test -d "$APP" || { echo "::error::App not found: $APP"; exit 1; }
+          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$DMG"
+          spctl -a -t open --context context:primary-signature -vv "$DMG"
+          spctl -a -t open --context context:primary-signature -vv "$APP"
 
       # Linux build (binary only for Flatpak)
       - name: Build Linux binary
@@ -612,6 +688,29 @@ jobs:
               f.write(f"keyPassword={sys.argv[4]}\n")
           PYEOF
 
+      - name: Set Android version
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_PASSWORD:?ANDROID_KEYSTORE_PASSWORD is not set}"
+          : "${ANDROID_KEY_ALIAS:?ANDROID_KEY_ALIAS is not set}"
+          : "${ANDROID_KEY_PASSWORD:?ANDROID_KEY_PASSWORD is not set}"
+          VERSION="${{ needs.validate.outputs.version }}"
+          VERSION="${VERSION%%-*}"
+          BUILD_NUMBER="${{ needs.validate.outputs.build_number }}"
+          python3 - "$VERSION" "$BUILD_NUMBER" <<'PYEOF'
+          import sys
+          version, build = sys.argv[1], sys.argv[2]
+          with open("src-tauri/gen/android/app/tauri.properties", "w") as f:
+              f.write(f"tauri.android.versionName={version}\n")
+              f.write(f"tauri.android.versionCode={build}\n")
+          PYEOF
+
       - name: Build Android app
         if: ${{ matrix.id == 'android' }}
         shell: bash
@@ -622,7 +721,7 @@ jobs:
         run: |
           yarn tauri android build --apk --aab
 
-      - name: Sign Android AAB/APK with jarsigner
+      - name: Sign Android AAB/APK with jarsigner and apksigner
         if: ${{ matrix.id == 'android' }}
         shell: bash
         env:
@@ -631,14 +730,52 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          resolve_tool() {
+            local tool="$1" root candidate
+            if command -v "$tool" >/dev/null 2>&1; then
+              command -v "$tool"
+              return 0
+            fi
+            for root in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}"; do
+              [ -n "$root" ] || continue
+              for candidate in \
+                "$root"/build-tools/*/"$tool" \
+                "$root"/cmdline-tools/*/bin/"$tool" \
+                "$root"/cmdline-tools/latest/bin/"$tool"; do
+                if [ -x "$candidate" ]; then
+                  echo "$candidate"
+                  return 0
+                fi
+              done
+            done
+            echo "::error::$tool not found in PATH, ANDROID_HOME, or ANDROID_SDK_ROOT" >&2
+            return 1
+          }
+          APKSIGNER="$(resolve_tool apksigner)"
+          APKANALYZER="$(resolve_tool apkanalyzer)"
+          echo "ANDROID_APKSIGNER=$APKSIGNER" >> "$GITHUB_ENV"
+          echo "ANDROID_APKANALYZER=$APKANALYZER" >> "$GITHUB_ENV"
           KS="$RUNNER_TEMP/keystore.jks"
-          for aab in $(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' 2>/dev/null); do
-            echo "Signing $aab"
-            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256               -keystore "$KS" -storepass "$ANDROID_KEYSTORE_PASSWORD"               -keypass "$ANDROID_KEY_PASSWORD"               "$aab" "$ANDROID_KEY_ALIAS"
+          shopt -s nullglob
+          aabs=(src-tauri/gen/android/app/build/outputs/bundle/*/*.aab src-tauri/gen/android/app/build/outputs/bundle/**/*.aab)
+          apks=(src-tauri/gen/android/app/build/outputs/apk/*/*.apk src-tauri/gen/android/app/build/outputs/apk/**/*.apk)
+          for aab in "${aabs[@]}"; do
+            echo "Signing AAB: $aab"
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+              -keystore "$KS" -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+              -keypass "$ANDROID_KEY_PASSWORD" "$aab" "$ANDROID_KEY_ALIAS"
           done
-          for apk in $(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' 2>/dev/null); do
-            echo "Signing $apk"
-            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256               -keystore "$KS" -storepass "$ANDROID_KEYSTORE_PASSWORD"               -keypass "$ANDROID_KEY_PASSWORD"               "$apk" "$ANDROID_KEY_ALIAS"
+          for apk in "${apks[@]}"; do
+            echo "Signing APK: $apk"
+            "$APKSIGNER" sign \
+              --ks "$KS" \
+              --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+              --key-pass "pass:$ANDROID_KEY_PASSWORD" \
+              --ks-key-alias "$ANDROID_KEY_ALIAS" \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              "$apk"
           done
 
       # iOS build
@@ -653,113 +790,29 @@ jobs:
           rm -rf src-tauri/gen/apple/Assets.xcassets
           git checkout -- src-tauri/gen/apple/Assets.xcassets
 
-      - name: Fix iOS bundle version
+          VERSION="${{ needs.validate.outputs.version }}"
+          VERSION="${VERSION%%-*}"
+          MARKETING_VERSION="$VERSION" \
+          CURRENT_PROJECT_VERSION="${{ needs.validate.outputs.build_number }}" \
+          ./scripts/setup-ios-share-extension.sh
+
+      - name: Set iOS bundle version
         if: ${{ matrix.id == 'ios' }}
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(node -p "require('./package.json').version.replace(/-.*$/, '')")"
-          BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
-          python3 - "$VERSION" "$BUILD_NUMBER" <<'PYEOF'
-          import re, sys
-          version, build = sys.argv[1], sys.argv[2]
-          path = "src-tauri/gen/apple/project.yml"
-          text = open(path).read()
-
-          # Replace CFBundleShortVersionString (any quote style) or add it
-          if re.search(r"CFBundleShortVersionString:", text):
-              text = re.sub(
-                  r"CFBundleShortVersionString:\s*['\"]?[^'\"\n]*['\"]?",
-                  f"CFBundleShortVersionString: '{version}'",
-                  text,
-              )
-          else:
-              # Add after MARKETING_VERSION if present
-              text = re.sub(
-                  r"(MARKETING_VERSION:\s*['\"]?[^'\"\n]*['\"]?\n)",
-                  rf"\1        CFBundleShortVersionString: '{version}'\n",
-                  text,
-                  count=1,
-              )
-
-          # Replace CFBundleVersion (any quote style) or add it
-          if re.search(r"CFBundleVersion:", text):
-              text = re.sub(
-                  r"CFBundleVersion:\s*['\"]?[^'\"\n]*['\"]?",
-                  f"CFBundleVersion: '{build}'",
-                  text,
-              )
-          else:
-              text = re.sub(
-                  r"(CFBundleShortVersionString:\s*['\"]?[^'\"\n]*['\"]?\n)",
-                  rf"\1        CFBundleVersion: '{build}'\n",
-                  text,
-                  count=1,
-              )
-
-          # Replace CURRENT_PROJECT_VERSION (any quote style) or add it
-          if re.search(r"CURRENT_PROJECT_VERSION:", text):
-              text = re.sub(
-                  r"CURRENT_PROJECT_VERSION:\s*['\"]?[^'\"\n]*['\"]?",
-                  f'CURRENT_PROJECT_VERSION: "{build}"',
-                  text,
-              )
-          else:
-              # Try after MARKETING_VERSION
-              if re.search(r"MARKETING_VERSION:", text):
-                  text = re.sub(
-                      r"(MARKETING_VERSION:\s*['\"]?[^'\"\n]*['\"]?\n)",
-                      rf"\1        CURRENT_PROJECT_VERSION: \"{build}\"\n",
-                      text,
-                      count=1,
-                  )
-              else:
-                  text = re.sub(
-                      r"(CFBundleVersion:\s*['\"]?[^'\"\n]*['\"]?\n)",
-                      rf"\1        CURRENT_PROJECT_VERSION: \"{build}\"\n",
-                      text,
-                      count=1,
-                  )
-
-          open(path, "w").write(text)
-
-          # Verify (CFBundleVersion must exist; CURRENT_PROJECT_VERSION is best-effort)
-          m = re.search(r"CFBundleVersion:\s*['\"]?([^'\"\n]+)['\"]?", text)
-          assert m and m.group(1) == build, f"CFBundleVersion expected {build}, got {m.group(1) if m else None}"
-          m2 = re.search(r"CFBundleShortVersionString:\s*['\"]?([^'\"\n]+)['\"]?", text)
-          assert m2 and m2.group(1) == version, f"CFBundleShortVersionString expected {version}, got {m2.group(1) if m2 else None}"
-          print(f"iOS bundle version patched: {version} ({build})")
-
-          # Also patch the generated .xcodeproj (tauri ios build does not re-run XcodeGen)
-          pbx_path = "src-tauri/gen/apple/beaver-notes.xcodeproj/project.pbxproj"
-          try:
-              pbx = open(pbx_path).read()
-              pbx = re.sub(r'MARKETING_VERSION = [^;]+;', f'MARKETING_VERSION = {version};', pbx)
-              if 'CURRENT_PROJECT_VERSION' in pbx:
-                  pbx = re.sub(r'CURRENT_PROJECT_VERSION = [^;]+;', f'CURRENT_PROJECT_VERSION = {build};', pbx)
-              else:
-                  pbx = pbx.replace(
-                      f'MARKETING_VERSION = {version};',
-                      f'MARKETING_VERSION = {version};\n\t\t\t\tCURRENT_PROJECT_VERSION = {build};',
-                  )
-              open(pbx_path, "w").write(pbx)
-              print("iOS pbxproj version patched")
-          except FileNotFoundError:
-              print("::warning::pbxproj not found, skipping")
-
-          # Patch the generated Info.plist directly (tauri ios build uses this static file)
-          import plistlib, os
-          info_path = "src-tauri/gen/apple/beaver-notes_iOS/Info.plist"
-          if os.path.exists(info_path):
-              with open(info_path, "rb") as f:
-                  pl = plistlib.load(f)
-              pl["CFBundleShortVersionString"] = version
-              pl["CFBundleVersion"] = build
-              with open(info_path, "wb") as f:
-                  plistlib.dump(pl, f)
-              print(f"iOS Info.plist patched: {version} ({build})")
-          else:
-              print("::warning::Info.plist not found, skipping")
+          VERSION="${{ needs.validate.outputs.version }}"
+          VERSION="${VERSION%%-*}"
+          BUILD_NUMBER="${{ needs.validate.outputs.build_number }}"
+          python3 - "$VERSION" "$BUILD_NUMBER" src-tauri/tauri.conf.json src-tauri/tauri.ios.ci.conf.json <<'PYEOF'
+          import json, sys
+          version, build, base_path, out_path = sys.argv[1:5]
+          with open(base_path) as f:
+              config = json.load(f)
+          config["version"] = version
+          config.setdefault("bundle", {}).setdefault("iOS", {})["bundleVersion"] = build
+          with open(out_path, "w") as f:
+              json.dump(config, f)
           PYEOF
 
       - name: Set iOS development team
@@ -816,7 +869,12 @@ jobs:
         env:
           API_KEY: ${{ secrets.APPLE_API_KEY }}
           API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
+          set -euo pipefail
+          : "${API_KEY:?APPLE_API_KEY is not set}"
+          : "${API_KEY_ID:?APPLE_API_KEY_ID is not set}"
+          : "${API_ISSUER:?APPLE_API_ISSUER is not set}"
           mkdir -p "$RUNNER_TEMP/app-store-connect-api-key"
           echo "$API_KEY" > "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${API_KEY_ID}.p8"
 
@@ -829,6 +887,9 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
+          : "${IOS_CERTIFICATE_BASE64:?APPLE_IOS_SIGNING_CERTIFICATE_BASE64 is not set}"
+          : "${IOS_CERTIFICATE_PASSWORD:?APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD is not set}"
+          : "${KEYCHAIN_PASSWORD:?KEYCHAIN_PASSWORD is not set}"
           CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
 
@@ -871,12 +932,15 @@ jobs:
           IOS_MOBILE_PROVISION: ${{ secrets.APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          yarn tauri ios build --export-method app-store-connect
+          yarn tauri ios build --export-method app-store-connect --config src-tauri/tauri.ios.ci.conf.json
 
       # Android release assets: APK and AAB
       - name: Verify Android signing
         if: ${{ matrix.id == 'android' }}
         shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          BUILD_NUMBER: ${{ needs.validate.outputs.build_number }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -896,25 +960,40 @@ jobs:
           done
           for apk in "${apks[@]}"; do
             echo "Verifying APK: $apk"
-            if ! jarsigner -verify "$apk" | tee /tmp/apk-verify.txt | grep -q "jar verified"; then
+            if ! "$ANDROID_APKSIGNER" verify --verbose "$apk"; then
               echo "::error::APK is not signed: $apk"
-              cat /tmp/apk-verify.txt || true
               exit 1
             fi
+          done
+
+          VERSION="${VERSION%%-*}"
+          grep -Fqx "tauri.android.versionName=$VERSION" src-tauri/gen/android/app/tauri.properties || { echo "::error::tauri.properties versionName mismatch"; exit 1; }
+          grep -Fqx "tauri.android.versionCode=$BUILD_NUMBER" src-tauri/gen/android/app/tauri.properties || { echo "::error::tauri.properties versionCode mismatch"; exit 1; }
+          for artifact in "${apks[@]}"; do
+            ACTUAL_NAME="$("$ANDROID_APKANALYZER" manifest version-name "$artifact")"
+            ACTUAL_CODE="$("$ANDROID_APKANALYZER" manifest version-code "$artifact")"
+            test "$ACTUAL_NAME" = "$VERSION" || { echo "::error::$artifact versionName mismatch"; exit 1; }
+            test "$ACTUAL_CODE" = "$BUILD_NUMBER" || { echo "::error::$artifact versionCode mismatch"; exit 1; }
           done
 
       - name: Stage Android assets
         if: ${{ matrix.id == 'android' }}
         shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
-
-          OUT="release-assets"
-          mkdir -p "$OUT"
-
-          find "src-tauri/gen/android/app/build/outputs" -type f \
-            \( -name "*.apk" -o -name "*.aab" \) \
-            -exec cp {} "$OUT"/ \;
+          VERSION="${VERSION%%-*}"
+          mkdir -p release-assets
+          shopt -s nullglob
+          aabs=(src-tauri/gen/android/app/build/outputs/bundle/*/*.aab)
+          apks=(src-tauri/gen/android/app/build/outputs/apk/*/*.apk)
+          test ${#aabs[@]} -eq 1 || { echo "::error::Expected exactly one AAB, got ${#aabs[@]}"; exit 1; }
+          test ${#apks[@]} -eq 1 || { echo "::error::Expected exactly one APK, got ${#apks[@]}"; exit 1; }
+          cp "${aabs[0]}" "release-assets/Beaver.Notes_${VERSION}_android.aab"
+          cp "${apks[0]}" "release-assets/Beaver.Notes_${VERSION}_android.apk"
+          unsigned="$(find release-assets -type f -name '*-unsigned*' -print -quit)"
+          test -z "$unsigned" || { echo "::error::unsigned asset: $unsigned"; exit 1; }
 
       # iOS release assets
       - name: Find iOS IPA
@@ -934,9 +1013,10 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ needs.validate.outputs.version }}
-          BUILD_NUMBER: ${{ github.run_number }}
+          BUILD_NUMBER: ${{ needs.validate.outputs.build_number }}
         run: |
           set -euo pipefail
+          VERSION="${VERSION%%-*}"
           IPA="${{ steps.find-ipa.outputs.ipa-path }}"
           TMP="$(mktemp -d /tmp/ipa-check.XXXXXX)"
           unzip -q "$IPA" -d "$TMP"
@@ -959,8 +1039,7 @@ jobs:
           SHORT_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Info.plist")
           echo "IPA CFBundleShortVersionString=$SHORT_VERSION CFBundleVersion=$BUNDLE_VERSION"
           test "$SHORT_VERSION" = "$VERSION" || { echo "::error::IPA short version mismatch"; exit 1; }
-          # tauri ios build rewrites CFBundleVersion from tauri.conf.json (same as beta workflow)
-          test "$BUNDLE_VERSION" = "$VERSION" || { echo "::error::IPA build number mismatch (got $BUNDLE_VERSION, expected $VERSION)"; exit 1; }
+          test "$BUNDLE_VERSION" = "$BUILD_NUMBER" || { echo "::error::IPA build number mismatch (got $BUNDLE_VERSION, expected $BUILD_NUMBER)"; exit 1; }
 
           mkdir -p release-assets
           cp "$IPA" release-assets/
@@ -968,7 +1047,6 @@ jobs:
       # Upload iOS IPA to TestFlight via App Store Connect API
       - name: Upload to TestFlight
         if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
-        continue-on-error: true
         uses: apple-actions/upload-testflight-build@v4
         with:
           app-path: ${{ steps.find-ipa.outputs.ipa-path }}
@@ -992,9 +1070,16 @@ jobs:
       - validate
       - create-release
       - targets
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
+      - name: Guard Windows signing token
+        shell: pwsh
+        env:
+          SIGNING_TOKEN: ${{ secrets.SIGNING_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_TOKEN)) { throw "SIGNING_TOKEN is not set" }
+
       - name: Dispatch Windows signing
         uses: ossign/actions/workflow/dispatch@main
         id: dispatch
@@ -1020,31 +1105,40 @@ jobs:
             curl -fL -o "signed/$(basename "$url")" "$url"
           done
 
-      - name: Validate signed artifact versions
-        shell: bash
+      - name: Verify signed Windows artifacts
+        shell: pwsh
         env:
           EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          files=(signed/*)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "::error::No signed Windows artifacts were downloaded"
-            exit 1
-          fi
-          bad=0
-          for f in "${files[@]}"; do
-            base="$(basename "$f")"
-            if [[ "$base" != *"$EXPECTED_VERSION"* ]]; then
-              echo "::error::Unexpected artifact version/name: $base (expected version $EXPECTED_VERSION)"
-              bad=1
-            fi
-          done
-          if [ "$bad" -ne 0 ]; then
-            echo "Downloaded artifacts:"
-            ls -la signed
-            exit 1
-          fi
+          $expected = $env:EXPECTED_VERSION.Split('-')[0]
+          function Assert-SignedExe([string]$path, [string]$expected) {
+            $sig = Get-AuthenticodeSignature -FilePath $path
+            if ($sig.Status -ne 'Valid') { throw "Invalid signature on $path ($($sig.Status))" }
+            $actual = (Get-Item -LiteralPath $path).VersionInfo.ProductVersion
+            if ([string]::IsNullOrWhiteSpace($actual) -or ($actual -ne $expected -and $actual -notlike "$expected.*")) {
+              throw "Embedded version mismatch on $path ($actual vs $expected)"
+            }
+          }
+          $files = @(Get-ChildItem -Path signed -File)
+          if ($files.Count -eq 0) { throw "No signed Windows artifacts were downloaded" }
+          foreach ($f in $files) {
+            if ($f.Name -notlike "*$expected*") { throw "Unexpected artifact version/name: $($f.Name)" }
+            switch ($f.Extension.ToLowerInvariant()) {
+              '.exe' { Assert-SignedExe $f.FullName $expected }
+              '.zip' {
+                $dir = Join-Path $env:RUNNER_TEMP ("winzip-" + [guid]::NewGuid().ToString('N'))
+                Expand-Archive -Path $f.FullName -DestinationPath $dir -Force
+                $exes = @(Get-ChildItem -Path $dir -Filter *.exe -Recurse -File)
+                if ($exes.Count -eq 0) { throw "No exe found in $($f.Name)" }
+                foreach ($exe in $exes) { Assert-SignedExe $exe.FullName $expected }
+              }
+              '.sig' {
+                $payload = @($files | Where-Object { $_.Name -ne $f.Name -and $f.Name.StartsWith($_.BaseName) })
+                if ($payload.Count -eq 0) { throw "No paired payload for $($f.Name)" }
+              }
+              default { throw "Unexpected Windows artifact type: $($f.Name)" }
+            }
+          }
 
       - name: Stage Windows assets
         shell: bash

@@ -47,8 +47,9 @@ xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 ||
 
 echo "==> Checking for prerelease suffix..."
 if [[ "$VERSION" == *"-"* ]]; then
-  echo "WARNING: Prerelease version detected. Use release-beta.yml for CI builds."
+  echo "ERROR: Prerelease version detected. Use release-beta.yml for CI builds."
   echo "  For a local stable release, run: node scripts/bump-version.mjs <semver>"
+  exit 1
 fi
 
 # Bump
@@ -71,11 +72,8 @@ done
 echo "==> Building for $TARGET..."
 APPLE_SIGNING_IDENTITY="$SIGNING_IDENTITY" yarn tauri build --target "$TARGET" --bundles dmg
 
-DMG=$(find "src-tauri/target/$TARGET/release/bundle/dmg" -name "*.dmg" -type f | head -1)
-if [ -z "$DMG" ]; then
-  echo "ERROR: DMG not found."
-  exit 1
-fi
+DMG="src-tauri/target/$TARGET/release/bundle/dmg/Beaver.Notes_${VERSION}_aarch64.dmg"
+test -f "$DMG" || { echo "ERROR: DMG not found: $DMG"; exit 1; }
 echo "==> DMG: $DMG"
 
 # Notarize
@@ -88,10 +86,12 @@ xcrun stapler staple "$DMG"
 
 echo "==> Verifying..."
 spctl -a -t open --context context:primary-signature -vv "$DMG"
+APP="src-tauri/target/$TARGET/release/bundle/app/Beaver.Notes.app"
+spctl -a -t open --context context:primary-signature -vv "$APP"
 
 # Commit and tag
 echo "==> Committing and tagging..."
-git add -A
+git add -- package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json src-tauri/tauri.beta.conf.json
 git commit -m "$TAG"
 git tag "$TAG"
 

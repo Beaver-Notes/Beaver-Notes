@@ -366,30 +366,30 @@ Releases are automated via GitHub Actions.
 1. Bump the version:
 
    ```bash
-   node scripts/bump-version.mjs
+   node scripts/bump-version.mjs 5.0.1
    ```
 
-   This syncs `package.json`, `Cargo.toml`, and `tauri.conf.json`.
+   This syncs `package.json`, `Cargo.toml`, and both Tauri configs.
 
-2. Push a tag matching `v[0-9]+.[0-9]+.[0-9]+` (e.g., `v5.0.0`):
+2. Push a plain `vX.Y.Z` tag (e.g., `v5.0.1`):
    ```bash
-   git tag v5.0.0
-   git push origin v5.0.0
+   git tag v5.0.1
+   git push origin v5.0.1
    ```
-   The [release.yml](.github/workflows/release.yml) workflow builds for all platforms and creates a draft release.
+   Pushing a plain `vX.Y.Z` tag triggers [release.yml](.github/workflows/release.yml) with all targets. Use manual dispatch only for targeted re-runs.
 
 ### Beta Release
 
 1. Bump the version to a beta pre-release:
 
    ```bash
-   node scripts/bump-version.mjs
+   node scripts/bump-version.mjs 5.0.1-beta.1
    ```
 
-2. Push a tag matching `v*-beta.*` (e.g., `v5.0.0-beta.1`):
+2. Push a tag matching `v*-beta.*` (e.g., `v5.0.1-beta.1`):
    ```bash
-   git tag v5.0.0-beta.1
-   git push origin v5.0.0-beta.1
+   git tag v5.0.1-beta.1
+   git push origin v5.0.1-beta.1
    ```
    The [release-beta.yml](.github/workflows/release-beta.yml) workflow builds with the beta Tauri config and creates a prerelease.
 

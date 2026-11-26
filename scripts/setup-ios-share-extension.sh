@@ -17,14 +17,16 @@ copy_extension_files() {
 }
 
 patch_project_yml() {
-  python3 - "$GEN/project.yml" <<'EOF'
+  MARKETING_VERSION="${MARKETING_VERSION:-$(node -p "require('./package.json').version.replace(/-.*$/, '')")}"
+  : "${CURRENT_PROJECT_VERSION:?set CURRENT_PROJECT_VERSION to the build number}"
+  python3 - "$GEN/project.yml" "$MARKETING_VERSION" "$CURRENT_PROJECT_VERSION" <<'PYEOF'
 import sys
 
-path = sys.argv[1]
+path, marketing_version, build_number = sys.argv[1:4]
 with open(path) as f:
     text = f.read()
 
-target_block = '''  ShareExtension:
+target_block = f'''  ShareExtension:
     type: app-extension
     platform: iOS
     sources:
@@ -38,8 +40,8 @@ target_block = '''  ShareExtension:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beavernotes.beaver-notes.ShareExtension
-        MARKETING_VERSION: "5.0.0"
-        CURRENT_PROJECT_VERSION: "5.0.0"
+        MARKETING_VERSION: "{marketing_version}"
+        CURRENT_PROJECT_VERSION: "{build_number}"
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         CODE_SIGN_STYLE: Automatic
@@ -70,7 +72,7 @@ if 'target: ShareExtension' not in text:
 if changed:
     with open(path, 'w') as f:
         f.write(text)
-EOF
+PYEOF
 }
 
 copy_extension_files
@@ -78,5 +80,5 @@ patch_project_yml
 
 (cd "$GEN" && xcodegen generate)
 
-# xcodegen rewrites Info.plist / entitlements it manages — restore ours last.
+# xcodegen rewrites Info.plist / entitlements it manages - restore ours last.
 copy_extension_files
