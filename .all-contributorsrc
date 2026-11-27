@@ -125,6 +125,15 @@
         "design",
         "translation"
       ]
+    },
+    {
+      "login": "omeritzics",
+      "name": "Omer I.S.",
+      "avatar_url": "https://avatars.githubusercontent.com/u/137101815?v=4",
+      "profile": "https://github.com/omeritzics",
+      "contributions": [
+        "translation"
+      ]
     }
   ],
   "contributorsPerLine": 7,
