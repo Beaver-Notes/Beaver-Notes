@@ -1,0 +1,244 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
+
+const { blobs, teardownSpy, switchSpy, runInitSpy, fetchWsSpy } = vi.hoisted(() => ({
+  blobs: new Map(),
+  teardownSpy: vi.fn(async () => {}),
+  switchSpy: vi.fn(async () => {}),
+  runInitSpy: vi.fn(async () => {}),
+  fetchWsSpy: vi.fn(async () => {}),
+}));
+
+vi.mock('@/lib/native/security', () => ({
+  isEncryptionAvailable: vi.fn(async () => true),
+  encryptString: vi.fn(async (s) => `cipher:${s}`),
+  decryptString: vi.fn(async (s) => s.replace(/^cipher:/, '')),
+  storeSecureBlob: vi.fn(async (key, value) => {
+    blobs.set(key, value);
+  }),
+  fetchSecureBlob: vi.fn(async (key) => blobs.get(key) ?? null),
+  clearSecureBlob: vi.fn(async (key) => {
+    blobs.delete(key);
+  }),
+}));
+
+// Signing out of one account runs the same heavy teardown as a full sign-out.
+vi.mock('@/lib/api/auth', () => ({
+  logout: vi.fn(async () => ({})),
+  passwordLogin: vi.fn(async () => ({
+    token: 'tok',
+    refreshToken: 'refresh-tok',
+    user: { id: 'n1', email: 'new@test.test' },
+    subscription: { plan: 'pro' },
+  })),
+}));
+vi.mock('@/lib/api/account', () => ({
+  getAccount: vi.fn(async () => ({
+    profile: { id: 'n1', email: 'new@test.test', kemPublicKey: 'pk' },
+    subscription: { plan: 'pro' },
+    organizations: [{ id: 'o1', workspaces: [{ id: 'w-new', name: 'New Team' }] }],
+    devices: [],
+  })),
+}));
+vi.mock('@/utils/sync/sync-repository.js', () => ({ getSyncDeviceId: vi.fn(async () => 'dev-1') }));
+vi.mock('@/composable/useNoteYjs.js', () => ({ flushAllNoteYjsPending: vi.fn(async () => {}) }));
+vi.mock('@/lib/sync/ws-sync.js', () => ({ getWsSync: () => ({ stop: vi.fn() }) }));
+vi.mock('@/lib/yjs/workspace-doc.js', () => ({ flushPendingMetaUpdates: vi.fn(async () => {}) }));
+vi.mock('@/lib/yjs/meta-doc.js', () => ({ destroyWorkspaceDoc: vi.fn() }));
+vi.mock('@/store/note', () => ({
+  useNoteStore: () => ({ data: {}, syncInProgress: false }),
+  clearNoteContentSignatures: vi.fn(),
+}));
+vi.mock('@/store/comment', () => ({ useCommentStore: () => ({ reset: vi.fn() }) }));
+vi.mock('@/store/collaborator', () => ({ useCollaboratorStore: () => ({ reset: vi.fn() }) }));
+vi.mock('@/store/workspace', () => ({
+  useWorkspaceStore: () => ({ activeId: null, reset: vi.fn() }),
+}));
+vi.mock('@/utils/note/search.js', () => ({ clearSearchIndex: vi.fn() }));
+vi.mock('@/utils/sync/rust-shim.js', () => ({
+  stopRustSync: vi.fn(async () => {}),
+  startRustSync: vi.fn(async () => {}),
+  isRustSyncActive: () => false,
+}));
+
+vi.mock('@/composable/useCloudWorkspaces', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useCloudWorkspaces: () => ({
+      ...actual.useCloudWorkspaces(),
+      teardownLiveWorkspaceState: teardownSpy,
+      fetchWorkspaces: fetchWsSpy,
+    }),
+  };
+});
+vi.mock('@/lib/native/workspaces', () => ({
+  switchLocalWorkspace: switchSpy,
+  listLocalWorkspaces: vi.fn(async () => []),
+  getActiveLocalWorkspace: vi.fn(async () => null),
+}));
+vi.mock('@/composable/useAppShell', () => ({ runWorkspaceInit: runInitSpy }));
+vi.mock('@/utils/crypto/identity', () => ({
+  loadOrCreateIdentity: vi.fn(async () => ({ publicKeyHex: 'pk', privateKeyHex: 'sk' })),
+  publishIdentity: vi.fn(async () => ({ ok: true })),
+}));
+vi.mock('@/utils/sync/shared-keys', () => ({ clearSharedSyncKeys: vi.fn(async () => {}) }));
+
+import { useAccountAuth } from '@/composable/useAccountAuth';
+import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
+import { useAccountStore } from '@/store/account';
+import { clearIndex, getActiveAccountId, listAccounts, saveIndex } from '@/lib/accounts-index';
+import { getAccount } from '@/lib/api/account';
+import { loadRefreshToken, loadSessionToken, saveRefreshToken, saveSessionToken } from '@/lib/account-storage';
+
+const PERSONAL = {
+  id: 'p1',
+  email: 'me@test.test',
+  workspaces: [{ id: 'w-personal', name: 'Personal' }],
+  activeWorkspaceId: 'w-personal',
+};
+const TEAM = {
+  id: 't1',
+  email: 'team@test.test',
+  workspaces: [{ id: 'w-team', name: 'Acme Team' }],
+  activeWorkspaceId: 'w-team',
+};
+
+describe('signInWithPassword', () => {
+  let signIn = null;
+
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    blobs.clear();
+    vi.clearAllMocks();
+    await clearIndex();
+    signIn = useAccountAuth().signInWithPassword;
+  });
+
+  it('records the account so the switcher can show it, and makes it active', async () => {
+    const result = await signIn('new@test.test', 'password');
+
+    expect(result.token).toBe('tok');
+    // The session must land in the account's own slot: the record is what the
+    // switcher renders and what a later switch reads the token back from.
+    expect(await loadSessionToken('n1')).toBe('tok');
+    expect(getActiveAccountId()).toBe('n1');
+    expect(listAccounts()).toHaveLength(1);
+    expect(listAccounts()[0]).toMatchObject({
+      id: 'n1',
+      email: 'new@test.test',
+      activeWorkspaceId: 'w-new',
+      workspaces: [{ id: 'w-new', name: 'New Team' }],
+    });
+    const store = useAccountStore();
+    expect(store.token).toBe('tok');
+    expect(store.status).toBe('authenticated');
+  });
+
+  it('activates the arriving account before fetching its profile', async () => {
+    // The API client picks the credential by the active account id. Fetching
+    // before the switch sent the previous account's token, so `/account` came
+    // back with the previous account's profile under the new account's id.
+    await saveIndex({ accounts: [PERSONAL], activeAccountId: 'p1' });
+    await saveSessionToken('personal-token', 'p1');
+
+    let atFetch = null;
+    getAccount.mockImplementationOnce(async () => {
+      const activeId = getActiveAccountId();
+      atFetch = { activeId, token: await loadSessionToken(activeId) };
+      return {
+        profile: { id: 'n1', email: 'new@test.test', kemPublicKey: 'pk' },
+        subscription: { plan: 'pro' },
+        organizations: [],
+        devices: [],
+      };
+    });
+
+    await signIn('new@test.test', 'password');
+
+    expect(atFetch).toEqual({ activeId: 'n1', token: 'tok' });
+    // And the record that stays behind belongs to the account that just signed
+    // in, not the one that was active before.
+    expect(listAccounts()).toEqual([
+      expect.objectContaining({ id: 'p1', email: 'me@test.test' }),
+      expect.objectContaining({ id: 'n1', email: 'new@test.test' }),
+    ]);
+  });
+
+  it('moves the live workspace to the arriving account', async () => {
+    // Workspaces belong to accounts. Adding one in place left the previous
+    // account's workspace live, so the notes list and the sync scope belonged
+    // to the account we had just left; the reload this used to do hid it.
+    await saveIndex({ accounts: [PERSONAL], activeAccountId: 'p1' });
+    await saveSessionToken('personal-token', 'p1');
+    useCloudWorkspaces().activeId.value = 'w-personal';
+    // A brand-new account with no organization, so its record carries no
+    // workspace and the arrival's own list is what has to answer.
+    getAccount.mockImplementation(async () => ({
+      profile: { id: 'n1', email: 'new@test.test', kemPublicKey: 'pk' },
+      subscription: { plan: 'pro' },
+      organizations: [],
+      devices: [],
+    }));
+    fetchWsSpy.mockImplementation(async () => {
+      const cloud = useCloudWorkspaces();
+      cloud.workspaces.value = [{ id: 'w-new', name: 'New Team' }];
+      cloud.activeId.value = 'w-new';
+    });
+
+    await signIn('new@test.test', 'password');
+
+    expect(switchSpy).toHaveBeenCalledWith('w-new');
+    expect(useCloudWorkspaces().activeId.value).toBe('w-new');
+    expect(useAccountStore().activeWorkspaceId).toBe('w-new');
+  });
+});
+
+describe('signOutAccount', () => {
+  let signOutAccount = null;
+
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    localStorage.clear();
+    blobs.clear();
+    vi.clearAllMocks();
+    teardownSpy.mockImplementation(async () => {});
+    switchSpy.mockImplementation(async () => {});
+    runInitSpy.mockImplementation(async () => {});
+    await clearIndex();
+    useCloudWorkspaces().activeId.value = null;
+    signOutAccount = useAccountAuth().signOutAccount;
+  });
+
+  it('leaves no readable credential behind and moves to the remaining account', async () => {
+    await saveIndex({ accounts: [PERSONAL, TEAM], activeAccountId: 't1' });
+    await saveSessionToken('session-t1', 't1');
+    await saveRefreshToken('refresh-t1', 't1');
+    await saveSessionToken('session-p1', 'p1');
+
+    const result = await signOutAccount('t1');
+
+    expect(await loadSessionToken('t1')).toBeNull();
+    expect(await loadRefreshToken('t1')).toBeNull();
+    expect(listAccounts().map((a) => a.id)).not.toContain('t1');
+    expect(getActiveAccountId()).toBe('p1');
+    // The remaining account is re-initialised in place, on its own workspace.
+    expect(result.switched).toBe(true);
+    expect(switchSpy).toHaveBeenCalledWith('w-personal');
+  });
+
+  it('leaves the active account alone when an inactive one signs out', async () => {
+    await saveIndex({ accounts: [PERSONAL, TEAM], activeAccountId: 'p1' });
+    await saveSessionToken('session-t1', 't1');
+    await saveSessionToken('session-p1', 'p1');
+
+    const result = await signOutAccount('t1');
+
+    expect(result.switched).toBe(false);
+    expect(getActiveAccountId()).toBe('p1');
+    expect(await loadSessionToken('p1')).toBe('session-p1');
+    expect(await loadSessionToken('t1')).toBeNull();
+    expect(switchSpy).not.toHaveBeenCalled();
+  });
+});

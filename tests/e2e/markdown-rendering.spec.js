@@ -7,149 +7,54 @@ describe('Markdown Rendering', () => {
     await createNote();
   });
 
-  it('should render H1 from # shortcut', async () => {
-    await browser.execute(() => {
-      const el = document.querySelector('.ProseMirror');
-      if (el) el.focus();
-    });
-    await browser.pause(200);
-    await browser.execute(() => {
-      document.execCommand('insertText', false, '# ');
-    });
-    await browser.pause(500);
-
-    const html = await getEditorHTML();
-    expect(html).toMatch(/<h[12]/i);
+  const openParagraph = () => browser.execute(() => {
+    const el = document.querySelector('.ProseMirror');
+    if (el) {
+      el.focus();
+      el.dispatchEvent(new InputEvent('beforeinput', {
+        inputType: 'insertParagraph', bubbles: true, cancelable: true
+      }));
+    }
   });
 
-  it('should render H2 from ## shortcut', async () => {
-    await browser.execute(() => {
-      const el = document.querySelector('.ProseMirror');
-      if (el) {
-        el.focus();
-        el.dispatchEvent(new InputEvent('beforeinput', {
-          inputType: 'insertParagraph', bubbles: true, cancelable: true
-        }));
-      }
-    });
-    await browser.pause(200);
-    await browser.execute(() => {
-      document.execCommand('insertText', false, '## ');
-    });
-    await browser.pause(500);
-
-    const html = await getEditorHTML();
-    expect(html).toMatch(/<h[23]/i);
+  const closeParagraph = () => browser.execute(() => {
+    const el = document.querySelector('.ProseMirror');
+    if (el) {
+      el.dispatchEvent(new InputEvent('beforeinput', {
+        inputType: 'insertParagraph', bubbles: true, cancelable: true
+      }));
+    }
   });
 
-  it('should render bold from **text** markdown', async () => {
-    await browser.execute(() => {
-      const el = document.querySelector('.ProseMirror');
-      if (el) {
-        el.focus();
-        el.dispatchEvent(new InputEvent('beforeinput', {
-          inputType: 'insertParagraph', bubbles: true, cancelable: true
-        }));
+  // One table drives every feature: type the markdown, then assert the rendered element.
+  const cases = [
+    { title: 'should render H1 from # shortcut', markdown: '# ', pattern: /<h[12]/i },
+    { title: 'should render H2 from ## shortcut', markdown: '## ', pattern: /<h[23]/i },
+    { title: 'should render bold from **text** markdown', markdown: '**boldword**', pattern: /<(strong|b)>.*boldword.*<\/(strong|b)>/i },
+    { title: 'should render italic from *text* markdown', markdown: '*italicword*', pattern: /<(em|i)>.*italicword.*<\/(em|i)>/i },
+    { title: 'should render code from backtick markdown', markdown: '`codeword`', pattern: /<code.*>.*codeword.*<\/code>/i },
+    { title: 'should render blockquote from > shortcut', markdown: '> ', pattern: /<blockquote/i },
+    // '---' only settles into an <hr> once its paragraph is closed again.
+    { title: 'should render horizontal rule from --- markdown', markdown: '---', pattern: /<hr/i, closeAfter: true },
+  ];
+
+  for (const { title, markdown, pattern, closeAfter } of cases) {
+    it(title, async () => {
+      await openParagraph();
+      await browser.pause(200);
+      await browser.execute((text) => {
+        document.execCommand('insertText', false, text);
+      }, markdown);
+      await browser.pause(closeAfter ? 100 : 500);
+      if (closeAfter) {
+        await closeParagraph();
+        await browser.pause(500);
       }
-    });
-    await browser.pause(200);
-    await browser.execute(() => {
-      document.execCommand('insertText', false, '**boldword**');
-    });
-    await browser.pause(500);
 
-    const html = await getEditorHTML();
-    expect(html).toMatch(/<(strong|b)>.*boldword.*<\/(strong|b)>/i);
-  });
-
-  it('should render italic from *text* markdown', async () => {
-    await browser.execute(() => {
-      const el = document.querySelector('.ProseMirror');
-      if (el) {
-        el.focus();
-        el.dispatchEvent(new InputEvent('beforeinput', {
-          inputType: 'insertParagraph', bubbles: true, cancelable: true
-        }));
-      }
+      const html = await getEditorHTML();
+      expect(html).toMatch(pattern);
     });
-    await browser.pause(200);
-    await browser.execute(() => {
-      document.execCommand('insertText', false, '*italicword*');
-    });
-    await browser.pause(500);
-
-    const html = await getEditorHTML();
-    expect(html).toMatch(/<(em|i)>.*italicword.*<\/(em|i)>/i);
-  });
-
-  it('should render code from backtick markdown', async () => {
-    await browser.execute(() => {
-      const el = document.querySelector('.ProseMirror');
-      if (el) {
-        el.focus();
-        el.dispatchEvent(new InputEvent('beforeinput', {
-          inputType: 'insertParagraph', bubbles: true, cancelable: true
-        }));
-      }
-    });
-    await browser.pause(200);
-    await browser.execute(() => {
-      document.execCommand('insertText', false, '`codeword`');
-    });
-    await browser.pause(500);
-
-    const html = await getEditorHTML();
-    expect(html).toMatch(/<code.*>.*codeword.*<\/code>/i);
-  });
-
-  it('should render blockquote from > shortcut', async () => {
-    await browser.execute(() => {
-      const el = document.querySelector('.ProseMirror');
-      if (el) {
-        el.focus();
-        el.dispatchEvent(new InputEvent('beforeinput', {
-          inputType: 'insertParagraph', bubbles: true, cancelable: true
-        }));
-      }
-    });
-    await browser.pause(200);
-    await browser.execute(() => {
-      document.execCommand('insertText', false, '> ');
-    });
-    await browser.pause(500);
-
-    const html = await getEditorHTML();
-    expect(html).toMatch(/<blockquote/i);
-  });
-
-  it('should render horizontal rule from --- markdown', async () => {
-    await browser.execute(() => {
-      const el = document.querySelector('.ProseMirror');
-      if (el) {
-        el.focus();
-        el.dispatchEvent(new InputEvent('beforeinput', {
-          inputType: 'insertParagraph', bubbles: true, cancelable: true
-        }));
-      }
-    });
-    await browser.pause(200);
-    await browser.execute(() => {
-      document.execCommand('insertText', false, '---');
-    });
-    await browser.pause(100);
-    await browser.execute(() => {
-      const el = document.querySelector('.ProseMirror');
-      if (el) {
-        el.dispatchEvent(new InputEvent('beforeinput', {
-          inputType: 'insertParagraph', bubbles: true, cancelable: true
-        }));
-      }
-    });
-    await browser.pause(500);
-
-    const html = await getEditorHTML();
-    expect(html).toMatch(/<hr/i);
-  });
+  }
 
   after(async () => {
     try {

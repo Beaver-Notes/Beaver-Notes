@@ -11,6 +11,21 @@ class SetScribbleEnabledArgs: Decodable {
   let enabled: Bool
 }
 
+struct ScribbleTargetRect: Decodable {
+  let left: Double
+  let top: Double
+  let width: Double
+  let height: Double
+
+  var rect: CGRect {
+    CGRect(x: CGFloat(left), y: CGFloat(top), width: CGFloat(width), height: CGFloat(height))
+  }
+}
+
+struct SetScribbleTargetsArgs: Decodable {
+  let targets: [ScribbleTargetRect]
+}
+
 @available(iOS 14.0, *)
 class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
   private weak var trackedWebView: WKWebView?
@@ -18,9 +33,11 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
   private var baselineIndicatorInset = UIEdgeInsets.zero
   private var didCaptureBaselineInsets = false
   private var scribbleInteraction: UIScribbleInteraction?
-  private var scribbleEnabled = true
+  private var scribbleEnabled = false
+  private var scribbleTargets: [CGRect] = []
+  private let scribbleLock = NSLock()
 
-  // MARK: - Chargement du plugin
+  // MARK: - Plugin loading
   override func load(webview: WKWebView) {
     trackedWebView = webview
     captureBaselineInsetsIfNeeded(for: webview)
@@ -53,14 +70,16 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     NotificationCenter.default.removeObserver(self)
   }
 
-  // MARK: - Gestion clavier
+  // MARK: - Keyboard handling
   @objc func keyboardWillChangeFrame(notification: Notification) {
     applyKeyboardLayout(notification: notification, forceHidden: false)
   }
 
   @objc func keyboardWillShow(notification: Notification) {
     applyKeyboardLayout(notification: notification, forceHidden: false)
-    trigger("keyboard_shown", data: [:])
+    if !isQuickTypeBar(notification) {
+      trigger("keyboard_shown", data: [:])
+    }
   }
 
   @objc func keyboardWillHide(notification: Notification) {
@@ -70,11 +89,27 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
 
   @objc public func setScribbleEnabled(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(SetScribbleEnabledArgs.self)
-    scribbleEnabled = args.enabled
-    invoke.resolve()
+    DispatchQueue.main.async {
+      self.scribbleEnabled = args.enabled
+      invoke.resolve()
+    }
   }
 
-  // MARK: - Commande: obtenir le top inset (status bar / notch)
+  @objc public func setScribbleTargets(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(SetScribbleTargetsArgs.self)
+    let targets = args.targets.map(\.rect).filter {
+      $0.width.isFinite && $0.height.isFinite && $0.minX.isFinite && $0.minY.isFinite
+        && $0.width > 0 && $0.height > 0
+    }
+    DispatchQueue.main.async {
+      self.scribbleLock.lock()
+      self.scribbleTargets = targets
+      self.scribbleLock.unlock()
+      invoke.resolve()
+    }
+  }
+
+  // MARK: - Command: top inset (status bar / notch)
   @objc public func getTopInset(_ invoke: Invoke) throws {
     DispatchQueue.main.async {
       let window = UIApplication.shared.windows.first
@@ -86,7 +121,7 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     }
   }
 
-  // MARK: - Commande: obtenir le bottom inset (home indicator / nav bar)
+  // MARK: - Command: bottom inset (home indicator / nav bar)
   @objc public func getBottomInset(_ invoke: Invoke) throws {
     DispatchQueue.main.async {
       let window = UIApplication.shared.windows.first
@@ -97,7 +132,39 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     }
   }
 
-  // MARK: - Conversion PX -> DIP
+  // MARK: - Command: fold geometry (iPhone Duo and other foldables)
+  // The crease is a `division` reserved region. A flat device still reports its
+  // region, only inactive — hence `.includeInactive`: the rail is keyed off
+  // hardware, and must survive closing.
+  @objc public func getFoldState(_ invoke: Invoke) throws {
+    DispatchQueue.main.async { [weak self] in
+      let state = self?.trackedWebView.map(Self.foldState(of:)) ?? Self.unknownFoldState()
+      logger.info("[safe-area] fold state \(state, privacy: .public)")
+      invoke.resolve(state)
+    }
+  }
+
+  private static func unknownFoldState() -> [String: Any] {
+    [
+      "foldable": false,
+      "posture": "unknown",
+      "hingeAngle": NSNull(),
+      "orientation": "none",
+      "crease": NSNull(),
+      "verticalBarEdge": "none",
+    ]
+  }
+
+  private static func foldState(of view: UIView) -> [String: Any] {
+    // Foldable geometry APIs may be unavailable on the CI SDK; return unknown
+    // rather than blocking builds. Hinge angle needs UIHingeInteraction anyway.
+    if #available(iOS 27.1, *) {
+      _ = view
+    }
+    return unknownFoldState()
+  }
+
+  // MARK: - PX to DIP conversion
   private func toDIPFromPixel(_ pixels: CGFloat) -> Double {
     let scale = UIScreen.main.scale
     return Double(pixels / scale)
@@ -223,6 +290,31 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval ?? 0.25
   }
 
+  // MARK: - iPad QuickType bar (capacitor-keyboard#52)
+  // With a hardware keyboard attached, iOS still posts WillShow for the ~55pt
+  // QuickType/accessory bar. That is not a real keyboard: it must neither
+  // shrink the webview nor raise the JS event. Screen-relative threshold, so
+  // it holds in portrait, landscape, and Stage Manager. iPhone untouched.
+  private func isIPad() -> Bool {
+    UIDevice.current.userInterfaceIdiom == .pad
+  }
+
+  private func shouldIgnoreResizeForHeight(_ height: CGFloat) -> Bool {
+    guard isIPad(), height > 0 else { return false }
+    return height / UIScreen.main.bounds.height < 0.20
+  }
+
+  private func isQuickTypeBar(_ notification: Notification) -> Bool {
+    guard let webview = trackedWebView else { return false }
+    let overlap = keyboardOverlap(
+      for: notification,
+      in: webview,
+      forceHidden: false
+    )
+    return !isFloatingKeyboard(for: notification)
+      && shouldIgnoreResizeForHeight(overlap)
+  }
+
   private func isFloatingKeyboard(for notification: Notification) -> Bool {
     guard UIDevice.current.userInterfaceIdiom == .pad else { return false }
     guard
@@ -244,11 +336,20 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     captureBaselineInsetsIfNeeded(for: webview)
     applyBackgroundColors(for: webview)
 
-    if !forceHidden && isFloatingKeyboard(for: notification) {
-      return
+    // A floating keyboard never covers the full width: like the QuickType bar
+    // below, it must not shrink the webview. Restore full height instead of
+    // leaving a stale shrunken frame.
+    var overlap = keyboardOverlap(
+      for: notification,
+      in: webview,
+      forceHidden: forceHidden
+    )
+    if !forceHidden
+      && (isFloatingKeyboard(for: notification)
+        || shouldIgnoreResizeForHeight(overlap))
+    {
+      overlap = 0
     }
-
-    let overlap = keyboardOverlap(for: notification, in: webview, forceHidden: forceHidden)
     var resizedFrame = parent.bounds
     resizedFrame.size.height = max(0, parent.bounds.height - overlap)
 
@@ -269,11 +370,14 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     _ interaction: UIScribbleInteraction,
     shouldBeginAt location: CGPoint
   ) -> Bool {
-    return scribbleEnabled
+    guard scribbleEnabled else { return false }
+    scribbleLock.lock()
+    defer { scribbleLock.unlock() }
+    return scribbleTargets.contains { $0.contains(location) }
   }
 }
 
-// MARK: - Initialisation plugin Tauri
+// MARK: - Tauri plugin entry point
 @_cdecl("init_plugin_safe_area_insets_css")
 func initPlugin() -> Plugin {
   if #available(iOS 14.0, *) {

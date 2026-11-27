@@ -1,0 +1,10 @@
+# Shared SwiftFormat configuration.
+#
+# The Swift version lives here rather than in a .swift-version file: swiftly reads
+# .swift-version as a toolchain selector and refuses to build when no toolchain of
+# that exact version is installed, which breaks `swift build`/`swift test` in ios/.
+#
+# 5.7 rather than the newest: at 5.9 the redundantReturn rule rewrites switch
+# statements into implicit-return switch expressions, which raises the minimum
+# toolchain for anyone building the iOS package to Xcode 15.
+--swiftversion 5.7

@@ -3,6 +3,13 @@ import { Plugin, PluginKey } from 'prosemirror-state';
 import { useStore } from '@/store';
 import copyImage from '@/utils/assets/storage.js';
 import { writeImageFile } from '@/utils/assets/storage.js';
+import {
+  isAllowedContentMediaSrc,
+  sanitizeImageSource,
+} from '@/utils/note/contentSecurity.js';
+import mime from 'mime';
+import { parseStrokes, serializeStrokes } from './paper-block/ink/stroke-model.js';
+import { mountImageMarkup } from './paper-block/imageMarkup.js';
 
 const HANDLE_SIDES = ['left', 'right'];
 const IMAGE_LAYOUTS = new Set(['block', 'wrap-left', 'wrap-right']);
@@ -58,12 +65,23 @@ function resolveImageLayout(attrs = {}) {
 
 function applyImageAttributes(nodeAttrs, imgElement) {
   Object.entries(nodeAttrs).forEach(([key, value]) => {
-    if (['containerStyle', 'wrapperStyle', 'layout'].includes(key)) return;
+    if (['containerStyle', 'wrapperStyle', 'layout', 'markup'].includes(key)) return;
 
     if (value === undefined || value === null) {
       imgElement.removeAttribute(key);
       return;
     }
+
+    if (key === 'src') {
+      // Render-sink gate (SC-4-02 round 2): live-Yjs attrs bypass parseHTML
+      // getAttrs, so unsafe schemes are refused here and never reach the DOM.
+      // Empty src (pending optimistic insert) still renders as before.
+      if (value && !isAllowedContentMediaSrc(value)) {
+        imgElement.removeAttribute('src');
+        return;
+      }
+    }
+
 
     if (key === 'width') {
       imgElement.setAttribute('width', String(value));
@@ -74,7 +92,7 @@ function applyImageAttributes(nodeAttrs, imgElement) {
   });
 }
 
-class ImageNodeView {
+export class ImageNodeView {
   constructor({ node, editor, getPos, resizeLimits }) {
     this.node = node;
     this.editor = editor;
@@ -102,8 +120,88 @@ class ImageNodeView {
     this.handleDocumentTouchMove = this.handleDocumentTouchMove.bind(this);
     this.handleDocumentTouchEnd = this.handleDocumentTouchEnd.bind(this);
 
+    this.markupCtrl = null;
+    this.markupHost = null;
+    this.createAnnotateToggle();
+
     this.setupDOM();
     this.createResizeHandles();
+  }
+
+  createAnnotateToggle() {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'bn-image-annotate';
+    button.setAttribute('aria-label', 'Annotate');
+    button.title = 'Annotate';
+    button.textContent = '✎';
+    button.style.display = 'none';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleAnnotate();
+    });
+    this.annotateBtn = button;
+  }
+
+  toggleAnnotate() {
+    if (this.markupCtrl) {
+      this.exitAnnotate();
+      return;
+    }
+
+    this.markupHost = document.createElement('div');
+    this.markupHost.className = 'bn-image-markup-host';
+
+    const appHost = document.createElement('div');
+    appHost.className = 'bn-image-markup-app';
+    this.markupHost.appendChild(appHost);
+
+    const exit = document.createElement('button');
+    exit.type = 'button';
+    exit.className = 'bn-image-markup-exit';
+    exit.textContent = 'Done';
+    exit.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.exitAnnotate();
+    });
+    this.markupHost.appendChild(exit);
+
+    this.container.appendChild(this.markupHost);
+    this.markupCtrl = mountImageMarkup({
+      host: appHost,
+      strokes: this.node.attrs.markup || [],
+      nodeKey: `img-${Date.now().toString(36)}`,
+      height: this.container.clientHeight || 200,
+      onCommit: (next) => this.commitMarkup(next),
+      onUpdateStrokes: (next) => this.commitMarkup(next),
+    });
+  }
+
+  exitAnnotate() {
+    if (this.markupCtrl) {
+      this.markupCtrl.destroy();
+      this.markupCtrl = null;
+    }
+    if (this.markupHost) {
+      this.markupHost.remove();
+      this.markupHost = null;
+    }
+  }
+
+  commitMarkup(nextStrokes) {
+    if (typeof this.getPos !== 'function') return;
+    const pos = this.getPos();
+    if (typeof pos !== 'number') return;
+    const { view } = this.editor;
+    if (!view) return;
+    view.dispatch(
+      view.state.tr.setNodeMarkup(pos, null, {
+        ...this.node.attrs,
+        markup: nextStrokes,
+      }),
+    );
   }
 
   setupDOM() {
@@ -114,6 +212,7 @@ class ImageNodeView {
     this.wrapper.dataset.layout = layout;
     this.container.removeAttribute('style');
     this.container.classList.toggle('has-explicit-width', Boolean(widthValue));
+    this.container.style.position = 'relative';
 
     applyImageAttributes(this.node.attrs, this.img);
 
@@ -122,6 +221,7 @@ class ImageNodeView {
     }
 
     this.applyResizeLimits();
+    this.container.appendChild(this.annotateBtn);
   }
 
   getEditorWidth() {
@@ -173,7 +273,7 @@ class ImageNodeView {
           event.preventDefault();
           event.stopPropagation();
         },
-        { passive: false }
+        { passive: false },
       );
 
       handle.addEventListener('click', (event) => {
@@ -200,6 +300,7 @@ class ImageNodeView {
       passive: false,
     });
     document.addEventListener('touchend', this.handleDocumentTouchEnd);
+    document.addEventListener('touchcancel', this.handleDocumentTouchEnd);
   }
 
   handleDocumentMouseMove(event) {
@@ -284,7 +385,7 @@ class ImageNodeView {
               const colPos = $pos.before(d);
               const parentColumn = this.wrapper.closest('[data-type="column"]');
               const columnContainer = parentColumn?.closest(
-                '[data-type="column-container"]'
+                '[data-type="column-container"]',
               );
 
               if (parentColumn && columnContainer) {
@@ -295,7 +396,7 @@ class ImageNodeView {
                 const padding = 24;
                 const targetColWidth = Math.min(
                   newWidth + padding,
-                  containerWidth * 0.9
+                  containerWidth * 0.9,
                 );
 
                 if (currentColWidth > 0 && containerWidth > 0) {
@@ -329,6 +430,7 @@ class ImageNodeView {
 
   selectNode() {
     this.wrapper.classList.add('is-selected');
+    this.annotateBtn.style.display = '';
   }
 
   deselectNode() {
@@ -336,6 +438,7 @@ class ImageNodeView {
     this.wrapper.classList.remove('is-resizing');
     this.resizeState = null;
     this.removeDocumentListeners();
+    this.annotateBtn.style.display = 'none';
   }
 
   update(node) {
@@ -343,20 +446,46 @@ class ImageNodeView {
 
     this.node = node;
     this.setupDOM();
+    if (this.markupCtrl) {
+      this.markupCtrl.setStrokes(node.attrs.markup || []);
+    }
 
     return true;
   }
 
   destroy() {
+    this.exitAnnotate();
     this.removeDocumentListeners();
   }
 }
 
-export async function insertImages(files, callback) {
+export function swapImageSrc(view, tempSrc, finalSrc) {
+  let pos = null;
+  let node = null;
+  view.state.doc.descendants((n, p) => {
+    if (n.type.name === 'image' && n.attrs.src === tempSrc) {
+      pos = p;
+      node = n;
+      return false;
+    }
+    return true;
+  });
+  if (pos == null || !node) return;
+  view.dispatch(
+    view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, src: finalSrc }),
+  );
+}
+
+export async function insertImages(files, callback, swap) {
   const store = useStore();
 
   for (const file of files) {
-    const isImage = file.type.startsWith('image/') && file instanceof File;
+    // Filename mime fallback mirrors drop-file's outer predicate: in the
+    // Tauri/WebKit drop path a File can carry an empty `type`, and skipping it
+    // here drops the file on the floor entirely (drop-file already selected it).
+    const isImage =
+      (file.type || mime.getType(file.name) || '').startsWith('image/') &&
+      file instanceof File;
 
     if (!isImage) {
       continue;
@@ -369,6 +498,20 @@ export async function insertImages(files, callback) {
     if (file.path) {
       const { fileName } = await copyImage(file.path, noteId, timestamp);
       callback(`assets://${noteId}/${fileName}`, name);
+    } else if (swap) {
+      // Optimistic: show the image instantly, encrypt in the background.
+      const tempSrc = URL.createObjectURL(file);
+      callback(tempSrc, name);
+      writeImageFile(file, noteId, timestamp).then(
+        ({ fileName }) => {
+          URL.revokeObjectURL(tempSrc);
+          const finalSrc = `assets://${noteId}/${fileName}`;
+          swap(tempSrc, finalSrc);
+        },
+        (err) => {
+          console.error('Background image save failed:', err?.cause ?? err);
+        },
+      );
     } else {
       const { fileName } = await writeImageFile(file, noteId, timestamp);
       callback(`assets://${noteId}/${fileName}`, name);
@@ -396,15 +539,21 @@ const handleImagePaste = new Plugin({
         }
 
         const urls = items.filter(
-          (item) => item.kind === 'string' && item.type === 'text/plain'
+          (item) => item.kind === 'string' && item.type === 'text/plain',
         );
 
         if (files.length > 0) {
           event.preventDefault();
-          insertImages(files, (src, alt) => {
-            const { tr, schema } = view.state;
-            const imageNode = schema.nodes.image.create({ src, alt });
-            view.dispatch(tr.replaceSelectionWith(imageNode));
+          insertImages(
+            files,
+            (src, alt) => {
+              const { tr, schema } = view.state;
+              const imageNode = schema.nodes.image.create({ src, alt });
+              view.dispatch(tr.replaceSelectionWith(imageNode));
+            },
+            (tempSrc, finalSrc) => swapImageSrc(view, tempSrc, finalSrc),
+          ).catch((err) => {
+            console.error('Image paste failed:', err?.cause ?? err);
           });
         }
 
@@ -450,7 +599,7 @@ export default Image.extend({
             ? layout
             : getLayoutModeFromWrapperStyle(
                 element.getAttribute('wrapperstyle') || '',
-                'block'
+                'block',
               );
         },
       },
@@ -472,6 +621,14 @@ export default Image.extend({
         rendered: false,
         parseHTML: (element) => element.getAttribute('wrapperstyle'),
       },
+      markup: {
+        default: [],
+        parseHTML: (element) => parseStrokes(element.getAttribute('data-markup')),
+        renderHTML: (attrs) =>
+          attrs.markup?.length
+            ? { 'data-markup': serializeStrokes(attrs.markup) }
+            : {},
+      },
     };
   },
 
@@ -486,6 +643,27 @@ export default Image.extend({
           maxWidth: this.options.maxWidth,
         },
       });
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'img[src]',
+        getAttrs: (el) => {
+          // Schema-level src gate (SC-4-02): unsafe schemes never become image
+          // nodes. Empty src is kept (matches pre-guard behavior for pending
+          // optimistic inserts); only non-empty unsafe values are dropped.
+          const raw = el.getAttribute('src') || '';
+          const src = sanitizeImageSource(raw);
+          if (raw && !src) return false;
+          return {
+            src,
+            alt: el.getAttribute('alt') || el.getAttribute('title') || 'image',
+            title: el.getAttribute('title'),
+          };
+        },
+      },
+    ];
   },
 
   addProseMirrorPlugins() {

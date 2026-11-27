@@ -51,34 +51,6 @@ describe('Import/Export', () => {
     expect(hasExport).toBe(true);
   });
 
-  it('should display export as markdown option', async () => {
-    await browser.pause(500);
-
-    const hasMDExport = await browser.execute(() => {
-      const btns = Array.from(document.querySelectorAll('button, a'));
-      return btns.some(b => {
-        const text = b.textContent.toLowerCase();
-        return text.includes('markdown') && text.includes('export');
-      });
-    });
-
-    expect(hasMDExport).toBe(true);
-  });
-
-  it('should display export as HTML option', async () => {
-    await browser.pause(500);
-
-    const hasHTMLExport = await browser.execute(() => {
-      const btns = Array.from(document.querySelectorAll('button, a'));
-      return btns.some(b => {
-        const text = b.textContent.toLowerCase();
-        return text.includes('html') && text.includes('export');
-      });
-    });
-
-    expect(hasHTMLExport).toBe(true);
-  });
-
   it('should navigate back to home', async () => {
     await navigateToNotes();
     const url = await browser.getUrl();

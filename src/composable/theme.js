@@ -5,7 +5,9 @@ import { backend } from '@/lib/tauri-bridge';
 import { getNativeDarkTheme } from '@/lib/native/app';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 const currentTheme = ref('');
-const resolvedDarkTheme = ref(
+/** Resolved theme, exported for consumers that only need to react to it
+ *  (editor blocks) without re-running loadTheme on every mount. */
+export const resolvedDarkTheme = ref(
   typeof document !== 'undefined' &&
     document.documentElement.classList.contains('dark')
 );
@@ -123,7 +125,7 @@ function applyResolvedTheme(isDarkTheme) {
 }
 
 function clearSystemThemeSync() {
-  if (themeSurfaceSyncFrame !== null && typeof window !== 'undefined') {
+  if (themeSurfaceSyncFrame !== null) {
     window.cancelAnimationFrame(themeSurfaceSyncFrame);
     themeSurfaceSyncFrame = null;
   }
@@ -145,15 +147,16 @@ function clearSystemThemeSync() {
 async function syncSystemThemeFromNative() {
   if (currentTheme.value !== 'system') return;
 
+  // matchMedia tracks the OS theme; the native window theme reports Light
+  // when unset, so it can only demote, never inform. Browser wins.
+  applyResolvedTheme(getBrowserDarkPreference());
+  if (typeof window.matchMedia !== 'undefined') return;
+
   if (isTauri() && !backend.isMobileRuntime()) {
     try {
-      const nativeDark = await getNativeDarkTheme();
-      applyResolvedTheme(nativeDark);
-      return;
+      applyResolvedTheme(await getNativeDarkTheme());
     } catch {}
   }
-
-  applyResolvedTheme(getBrowserDarkPreference());
 }
 
 function ensureSystemThemeSync() {
@@ -184,6 +187,9 @@ function ensureSystemThemeSync() {
     'system-theme-changed',
     ({ dark }) => {
       if (currentTheme.value !== 'system') return;
+      // matchMedia already tracks the OS theme via its own listener;
+      // the native event can only disagree when the window theme is unset.
+      if (typeof window.matchMedia !== 'undefined') return;
       applyResolvedTheme(Boolean(dark));
     }
   );
@@ -210,12 +216,14 @@ function setTheme(name, isSystem = false) {
     applyResolvedTheme(currentTheme.value === 'dark');
   }
 
-  void setSetting('theme', currentTheme.value);
+  void setSetting('theme', currentTheme.value).catch((err) =>
+    console.warn('[theme] write failed:', err?.message || err),
+  );
 }
 
 function loadTheme() {
-  const savedTheme = getSettingSync('theme');
-  setTheme(savedTheme, savedTheme === 'system');
+  const themeName = getSettingSync('theme') || 'system';
+  setTheme(themeName, themeName === 'system');
 }
 
 export function useTheme() {

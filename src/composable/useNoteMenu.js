@@ -1,18 +1,25 @@
 import { computed, reactive, ref, shallowRef, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import useAudioRecorder from '@/utils/assets/record.js';
+import { useAudioRecorder } from '@/composable/useAudioRecorder';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useUiState } from '@/composable/useUiState';
 import { useNoteStore } from '@/store/note';
 import { useEditorImage } from '@/utils/assets/editor-image';
 import { useDialog } from '@/lib/dialog';
-import { useStorage } from '@/lib/storage';
 import { useTranslations } from '@/composable/useTranslations';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
 import { backend, path } from '@/lib/tauri-bridge';
+
+import { moveTableColumn, moveTableRow } from '@tiptap/pm/tables';
+import {
+  getIndexCoordinates,
+  getTable,
+  selectCellsByCoords,
+} from '@/lib/tiptap/exts/table/tiptap-table-utils.js';
 import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
 import { exportBEA } from '@/utils/share/BEA';
+import { readNoteContents } from '@/lib/yjs/meta-store.js';
 import { exportPDF } from '@/utils/share/PDF';
 import {
   getTempSharePath,
@@ -31,11 +38,10 @@ import { readExportData } from '@/lib/native/exports';
 import { saveDialog } from '@/lib/native/dialog';
 import { shareFileViaNative } from '@/lib/native/share';
 import mime from 'mime';
-import { saveFile } from '@/utils/assets/storage.js';
+import { assetFileName } from '@/utils/assets/storage.js';
+import { insertFileBlockOptimistic } from '@/lib/tiptap/exts/create-file-block.js';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/utils/ui/zoom';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
-
-const storage = useStorage('settings');
 
 const highlighterColors = [
   'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40',
@@ -75,8 +81,14 @@ export function useNoteMenu(props) {
   const visibleItems = toolbar.visibleItems;
   const showCustomizer = ref(false);
 
-  const { isRecording, formattedTime, toggleRecording, isPaused, pauseResume } =
-    useAudioRecorder(props, backend, storage, path);
+  const recorder = useAudioRecorder();
+  const isRecording = recorder.isRecording;
+  const formattedTime = recorder.formattedTime;
+
+  function toggleRecording() {
+    const cursorPos = props.editor?.state?.selection?.from ?? 0;
+    recorder.start(props.id, cursorPos);
+  }
 
   const uiState = useUiState();
   const noteStore = useNoteStore();
@@ -85,7 +97,6 @@ export function useNoteMenu(props) {
   const editorImage = useEditorImage(props.editor);
   useGroupTooltip();
 
-  // --- useNoteMenuActions inlined ---
   const isTableActive = computed(
     () => props.editor.isActive('tableCell') || props.editor.isActive('tableHeader')
   );
@@ -135,12 +146,7 @@ export function useNoteMenu(props) {
   }
 
   async function shareBEA() {
-    const storage = useStorage();
-    const allNotes = await storage.store();
-    const notesArray = Array.isArray(allNotes)
-      ? allNotes
-      : Object.values(allNotes.notes || {});
-    const noteToExport = notesArray.find((n) => n.id === props.id);
+    const noteToExport = noteStore.data[props.id];
     if (!noteToExport) return;
 
     const appDirectory = await getAppDirectory();
@@ -161,17 +167,17 @@ export function useNoteMenu(props) {
       notesAssets: await encodeAssets(
         path.join(appDirectory, 'assets', props.id)
       ),
-      fileAssets: await encodeAssets(
-        path.join(appDirectory, 'assets', props.id)
-      ),
+      fileAssets: {},
     };
+    // Content lives in per-note Yjs docs; fall back to any in-memory copy.
+    const contents = await readNoteContents([props.id]);
 
     const exportedData = {
       data: {
         id: props.id,
         title: noteToExport.title,
-        content: noteToExport.content,
-        lockedNotes: JSON.parse(localStorage.getItem('lockedNotes')) || {},
+        content: contents[props.id] ?? noteToExport.content,
+        isLocked: !!noteToExport.isLocked,
         assets,
         labels: noteToExport.labels || [],
       },
@@ -316,19 +322,72 @@ export function useNoteMenu(props) {
     },
   ]);
 
-  const drawActions = computed(() => [
-    {
-      name: 'block',
-      title:
-        translations.value.menu.insertDrawingBlock || 'Insert drawing block',
-      description:
-        translations.value.menu.insertDrawingBlockDescription ||
-        'Create a standalone sketch area inside the note.',
-      icon: 'riBrushLine',
-      isActive: false,
-      handler: () => props.editor.chain().focus().insertPaper().run(),
-    },
-  ]);
+  // Drawing blocks are dev-only for now: prod gets an empty list so the
+  // toolbar draw button has nothing to bind to.
+  const drawActions = computed(() =>
+    import.meta.env.DEV
+      ? [
+          {
+            name: 'block',
+            title:
+              translations.value.menu.insertDrawingBlock ||
+              'Insert drawing block',
+            description:
+              translations.value.menu.insertDrawingBlockDescription ||
+              'Create a standalone sketch area inside the note.',
+            icon: 'riBrushLine',
+            isActive: false,
+            handler: () => props.editor.chain().focus().insertPaper().run(),
+          },
+        ]
+      : [],
+  );
+
+  // The table the caret sits in, plus the row/column it is in. Null outside one.
+  function tableContext() {
+    const table = getTable(props.editor);
+    if (!table) return null;
+    const cell = table.map.findCell(
+      props.editor.state.selection.from - table.start,
+    );
+    return { ...table, row: cell.top, column: cell.left };
+  }
+
+  // ponytail: moveTableRow/moveTableColumn are prosemirror-tables commands, not
+  // TipTap ones, so they run against the view directly instead of chain().
+  function moveRow(delta) {
+    const ctx = tableContext();
+    if (!ctx) return;
+    moveTableRow({ pos: ctx.start, from: ctx.row, to: ctx.row + delta })(
+      props.editor.state,
+      props.editor.view.dispatch,
+    );
+  }
+
+  function moveColumn(delta) {
+    const ctx = tableContext();
+    if (!ctx) return;
+    moveTableColumn({
+      pos: ctx.start,
+      from: ctx.column,
+      to: ctx.column + delta,
+    })(props.editor.state, props.editor.view.dispatch);
+  }
+
+  function selectRowOrColumn(orientation) {
+    const ctx = tableContext();
+    if (!ctx) return;
+    selectCellsByCoords(
+      props.editor,
+      ctx.pos,
+      getIndexCoordinates({
+        editor: props.editor,
+        index: orientation === 'row' ? ctx.row : ctx.column,
+        orientation,
+        tablePos: ctx.pos,
+      }),
+    );
+  }
 
   const tableActions = computed(() => [
     {
@@ -378,6 +437,42 @@ export function useNoteMenu(props) {
       label: translations.value.menu.toggleHeader || 'Toggle header cell',
       icon: 'riBrush2Fill',
       run: () => props.editor.chain().focus().toggleHeaderCell().run(),
+    },
+    {
+      name: 'moveRowUp',
+      label: translations.value.menu.moveRowUp || 'Move row up',
+      icon: 'riArrowUpLine',
+      run: () => moveRow(-1),
+    },
+    {
+      name: 'moveRowDown',
+      label: translations.value.menu.moveRowDown || 'Move row down',
+      icon: 'riArrowDownLine',
+      run: () => moveRow(1),
+    },
+    {
+      name: 'moveColumnLeft',
+      label: translations.value.menu.moveColumnLeft || 'Move column left',
+      icon: 'riArrowLeftLine',
+      run: () => moveColumn(-1),
+    },
+    {
+      name: 'moveColumnRight',
+      label: translations.value.menu.moveColumnRight || 'Move column right',
+      icon: 'riArrowRightLine',
+      run: () => moveColumn(1),
+    },
+    {
+      name: 'selectRow',
+      label: translations.value.menu.selectRow || 'Select row',
+      icon: 'riTableLine',
+      run: () => selectRowOrColumn('row'),
+    },
+    {
+      name: 'selectColumn',
+      label: translations.value.menu.selectColumn || 'Select column',
+      icon: 'riLayoutColumnLine',
+      run: () => selectRowOrColumn('column'),
     },
     {
       name: 'deleteTable',
@@ -439,11 +534,20 @@ export function useNoteMenu(props) {
       : null
   );
 
+  const currentHighlightHex = computed(() => {
+    const c = currentHighlightClass.value;
+    if (!c) return null;
+    const m = c.match(/#[0-9A-Fa-f]{6}/);
+    return m ? m[0] : null;
+  });
+
   function setHighlightColor(color) {
-    if (props.editor.isActive('highlight', { color })) {
-      props.editor.commands.unsetHighlight();
+    const e = props.editor;
+    if (!e) return;
+    if (e.isActive('highlight', { color })) {
+      e.chain().focus().unsetHighlight().run();
     } else {
-      props.editor.commands.setHighlight({ color });
+      e.chain().focus().setHighlight({ color }).run();
     }
   }
 
@@ -455,11 +559,10 @@ export function useNoteMenu(props) {
         .updateAttributes('textStyle', { color: null })
         .run();
     } else {
-      props.editor.commands.setColor(color);
+      props.editor.chain().focus().setColor(color).run();
     }
   }
 
-  // --- useNoteMenuState inlined ---
   const fontSize = ref(16);
   const imgUrl = shallowRef('');
   const fileUrl = shallowRef('');
@@ -494,7 +597,13 @@ export function useNoteMenu(props) {
 
   function insertFile() {
     const url = normalizePath(fileUrl.value);
-    props.editor.commands.setFileEmbed(url, url.substring(url.lastIndexOf('/') + 1));
+    const name = url.substring(url.lastIndexOf('/') + 1);
+    // Pdf blocks are dev-only for now: prod files go to fileEmbed.
+    if (import.meta.env.DEV && /\.pdf$/i.test(name)) {
+      props.editor.commands.insertPdfBlock({ src: url, fileName: name });
+    } else {
+      props.editor.commands.setFileEmbed(url, name);
+    }
     fileUrl.value = '';
   }
 
@@ -503,24 +612,54 @@ export function useNoteMenu(props) {
     videoUrl.value = '';
   }
 
-  async function handleFileSelect(event) {
+  function handleFileSelect(event) {
+    const view = props.editor.view;
     for (const file of event.target.files) {
-      const { fileName, relativePath } = await saveFile(file, props.id);
-      props.editor.commands.setFileEmbed(`${relativePath}`, fileName);
+      const fileName = assetFileName(file);
+      // Pdf blocks are dev-only for now: prod pdfs go to fileEmbed.
+      const isPdf =
+        import.meta.env.DEV &&
+        (file.type || mime.getType(file.name) || '') === 'application/pdf';
+      insertFileBlockOptimistic(view, {
+        typeName: isPdf ? 'pdfBlock' : 'fileEmbed',
+        insert: isPdf
+          ? (tempSrc) => props.editor.commands.insertPdfBlock({ src: tempSrc, fileName })
+          : (tempSrc) => props.editor.commands.setFileEmbed(tempSrc, fileName),
+        file,
+        preview: file,
+        noteId: props.id,
+        fileName,
+      });
     }
   }
 
-  async function handleAudioSelect(event) {
+  function handleAudioSelect(event) {
+    const view = props.editor.view;
     for (const file of event.target.files) {
-      const { fileName, relativePath } = await saveFile(file, props.id);
-      props.editor.commands.setAudio(`${relativePath}`, fileName);
+      const fileName = assetFileName(file);
+      insertFileBlockOptimistic(view, {
+        typeName: 'Audio',
+        insert: (tempSrc) => props.editor.commands.setAudio(tempSrc, fileName),
+        file,
+        preview: file,
+        noteId: props.id,
+        fileName,
+      });
     }
   }
 
-  async function handleVideoSelect(event) {
+  function handleVideoSelect(event) {
+    const view = props.editor.view;
     for (const file of event.target.files) {
-      const { relativePath } = await saveFile(file, props.id);
-      props.editor.commands.setVideo(`${relativePath}`);
+      const fileName = assetFileName(file);
+      insertFileBlockOptimistic(view, {
+        typeName: 'Video',
+        insert: (tempSrc) => props.editor.commands.setVideo(tempSrc, fileName),
+        file,
+        preview: file,
+        noteId: props.id,
+        fileName,
+      });
     }
   }
 
@@ -549,18 +688,8 @@ export function useNoteMenu(props) {
     setStoredZoomLevel(level);
   }
 
-  function toggleReaderMode() {
-    setZoom(getStoredZoomLevel());
-    store.inReaderMode = !store.inReaderMode;
-    if (store.inReaderMode) {
-      document.documentElement.requestFullscreen();
-      props.editor.commands.focus();
-      props.editor.setOptions({ editable: false });
-    } else {
-      document.exitFullscreen();
-      props.editor.setOptions({ editable: true });
-    }
-  }
+  function exitReader(){ store.inReaderMode=false; props.editor?.setOptions?.({editable:true}); document.documentElement.removeAttribute('data-reader-theme-legacy'); }
+  function toggleReaderMode(){ setZoom(getStoredZoomLevel()); const next=!store.inReaderMode; store.inReaderMode=next; if(next){ props.editor?.setOptions?.({editable:false}); } else exitReader(); }
 
   function deleteNode() {
     dialog.confirm({
@@ -597,29 +726,21 @@ export function useNoteMenu(props) {
   });
   onUnmounted(() => _unregShortcuts?.());
 
-  function onKeydown(e) {
-    if (e.key === 'Escape' && store.inReaderMode) {
-      toggleReaderMode();
-    }
-  }
-
-  onMounted(() => {
-    if (props.editor) {
-      props.editor.on('selectionUpdate', handleSelectionUpdate);
-    }
-    document.addEventListener('keydown', onKeydown);
+  let _unregShortcuts2;
+  onMounted(()=>{
+    const onKey=(e)=>{ if(e.key==='Escape' && store.inReaderMode) exitReader(); };
+    document.addEventListener('keydown', onKey);
+    _unregShortcuts2=()=>{document.removeEventListener('keydown', onKey);};
+    if (props.editor) props.editor.on('selectionUpdate', handleSelectionUpdate);
   });
+  onUnmounted(()=>{ props.editor?.off?.('selectionUpdate', handleSelectionUpdate); _unregShortcuts2?.(); });
 
-  onUnmounted(() => {
-    props.editor?.off?.('selectionUpdate', handleSelectionUpdate);
-    document.removeEventListener('keydown', onKeydown);
-  });
-
-  // --- Original computed properties ---
   const visibleItemIds = computed(
     () => new Set(visibleItems.value.map((item) => item.id))
   );
-  const isItemVisible = (id) => visibleItemIds.value.has(id);
+  const isItemVisible = (id) =>
+    // Draw stays dev-only; visibility comes from the toolbar registry.
+    (id !== 'draw' || import.meta.env.DEV) && visibleItemIds.value.has(id);
   const visibleInlineFormatItems = computed(() =>
     inlineFormatItems.filter((item) => isItemVisible(item.id))
   );
@@ -663,10 +784,9 @@ export function useNoteMenu(props) {
     isRecording,
     formattedTime,
     toggleRecording,
-    isPaused,
-    pauseResume,
     currentTextColor,
     currentHighlightClass,
+    currentHighlightHex,
     drawActions,
     fmtMap,
     highlighterColors,
@@ -700,6 +820,7 @@ export function useNoteMenu(props) {
     insertVideo,
     showHeadingsTree,
     toggleReaderMode,
+    exitReader,
     updateFontSize,
     videoUrl,
   };

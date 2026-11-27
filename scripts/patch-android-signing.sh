@@ -38,4 +38,7 @@ perl -i -pe '
   if (/isMinifyEnabled = (true|false)/) {
     print qq(            signingConfig = signingConfigs.findByName("release")\n)
   }
+  if (/^        release \{/) {
+    print qq(            signingConfig = signingConfigs.findByName("release")\n)
+  }
 ' build.gradle.kts

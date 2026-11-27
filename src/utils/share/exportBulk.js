@@ -1,6 +1,7 @@
 import dayjs from '@/lib/dayjs';
-import { useStorage } from '@/lib/storage';
 import { useFolderStore } from '@/store/folder';
+import { useNoteStore } from '@/store/note';
+import { readNoteContents } from '@/lib/yjs/meta-store.js';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readData } from '@/lib/native/fs';
@@ -163,7 +164,8 @@ function renderHtmlInlineNode(node, ctx) {
         number
       )}</a></sup>`;
     }
-    case 'fileEmbed': {
+    case 'fileEmbed':
+    case 'pdfBlock': {
       const href = escapeHtml(
         resolveAssetOutputPath(node?.attrs?.src, ctx.noteId)
       );
@@ -329,6 +331,16 @@ function renderHtmlBlock(node, ctx) {
         .join('')}</ol>`;
     case 'footnote':
       return renderHtmlFootnote(node, ctx);
+    case 'fileEmbed':
+    case 'pdfBlock': {
+      const href = escapeHtml(
+        resolveAssetOutputPath(node?.attrs?.src, ctx.noteId)
+      );
+      const label = escapeHtml(
+        node?.attrs?.fileName || path.basename(href) || 'Attachment'
+      );
+      return `<a href="${href}" download>${label}</a>`;
+    }
     default:
       if (getNodeChildren(node).length > 0) {
         return getNodeChildren(node)
@@ -367,28 +379,18 @@ export function getFolderPath(folderId, folders) {
   return parts.join('/');
 }
 
-export function buildFolderTree(folders) {
-  if (!folders) return {};
-  const tree = {};
-  const list = Array.isArray(folders) ? folders : Object.values(folders);
-  list.forEach((folder) => {
-    if (!folder) return;
-    tree[folder.id] = folder.name || 'Unnamed';
-  });
-  return tree;
+async function loadExportableNotes() {
+  const noteStore = useNoteStore();
+  const folderStore = useFolderStore();
+  const notesArray = Object.values(noteStore.data || {});
+  const contents = await readNoteContents(notesArray.map((note) => note.id));
+  return { notesArray, contents, folders: folderStore?.data || {} };
 }
 
 export async function exportAllMarkdown(onProgress) {
-  const storage = useStorage();
-  const folderStore = useFolderStore();
-  const allNotes = await storage.store();
-  const notesArray = Array.isArray(allNotes)
-    ? allNotes
-    : Object.values(allNotes.notes || {});
-  const folders = folderStore?.data || {};
-
   const rootDir = await chooseRootExportDir('Select export folder');
   if (!rootDir) return null;
+  const { notesArray, contents, folders } = await loadExportableNotes();
 
   const outputRoot = await createDatedExportRoot(rootDir, 'Markdown-Export');
   const total = notesArray.length;
@@ -404,7 +406,10 @@ export async function exportAllMarkdown(onProgress) {
 
       const safeName = sanitizeFileName(note.title || 'Untitled');
       const frontmatter = buildFrontmatter(note, folderPath);
-      const mdBody = tiptapToMarkdown(note.content, { noteId: note.id });
+      const mdBody = tiptapToMarkdown(
+        contents[note.id] ?? note.content,
+        { noteId: note.id }
+      );
       const content = frontmatter ? `${frontmatter}\n${mdBody}` : mdBody;
       await writeTextExportFile(
         path.join(folderDir, `${safeName}.md`),
@@ -425,16 +430,9 @@ export async function exportAllMarkdown(onProgress) {
 }
 
 export async function exportAllHTML(onProgress) {
-  const storage = useStorage();
-  const folderStore = useFolderStore();
-  const allNotes = await storage.store();
-  const notesArray = Array.isArray(allNotes)
-    ? allNotes
-    : Object.values(allNotes.notes || {});
-  const folders = folderStore?.data || {};
-
   const rootDir = await chooseRootExportDir('Select export folder');
   if (!rootDir) return null;
+  const { notesArray, contents, folders } = await loadExportableNotes();
 
   const outputRoot = await createDatedExportRoot(rootDir, 'HTML-Export');
   const total = notesArray.length;
@@ -449,7 +447,10 @@ export async function exportAllHTML(onProgress) {
       await ensureExportFolder(folderDir);
 
       const safeName = sanitizeFileName(note.title || 'Untitled');
-      const htmlBody = tiptapToHtml(note.content, { noteId: note.id });
+      const htmlBody = tiptapToHtml(
+        contents[note.id] ?? note.content,
+        { noteId: note.id }
+      );
       const title = escapeHtml(note.title || 'Untitled');
       const html = `<!DOCTYPE html>
 <html lang="en">
@@ -535,6 +536,9 @@ export function sanitizeClone(clone) {
     '.ProseMirror-gapcursor',
     '.paper-inline-toolbar',
     '.paper-draw-hint',
+    '.surface-hint',
+    '.surface-toolbar',
+    '.paper-toolbar',
     '.search-result-current',
     '.collapse-indicator',
   ];
@@ -566,7 +570,9 @@ export function sanitizeClone(clone) {
     cb.removeAttribute('onclick');
   });
 
-  clone.querySelectorAll('.node-view-wrapper').forEach((el) => {
+  clone
+    .querySelectorAll('[data-node-view-wrapper], .node-view-wrapper')
+    .forEach((el) => {
     const video = el.querySelector('video');
     if (video) {
       const simple = document.createElement('video');
@@ -637,14 +643,75 @@ export function sanitizeClone(clone) {
       return;
     }
 
-    if (el.classList.contains('paper-node')) {
-      const svg = el.querySelector('svg');
-      if (svg) {
-        const div = document.createElement('div');
-        div.className = 'paper-node';
-        div.style.cssText = 'width:100%;padding:0.5rem 0;';
-        div.appendChild(svg.cloneNode(true));
-        el.replaceWith(div);
+    const paper = el.classList.contains('paper-node')
+      ? el
+      : el.querySelector('.paper-node');
+    if (paper) {
+      const logic = paper.querySelector('.paper-surface canvas:not(.live)');
+      if (logic) {
+        const img = document.createElement('img');
+        img.className = 'paper-node';
+        img.style.cssText = 'width:100%;height:auto;';
+        img.src = logic.toDataURL('image/png');
+        el.replaceWith(img);
+      } else {
+        // Legacy v2 markup rendered as inline SVG.
+        const svg = paper.querySelector('svg');
+        if (svg) {
+          const div = document.createElement('div');
+          div.className = 'paper-node';
+          div.style.cssText = 'width:100%;padding:0.5rem 0;';
+          div.appendChild(svg.cloneNode(true));
+          el.replaceWith(div);
+        }
+      }
+      return;
+    }
+
+    const pdfBlock = el.hasAttribute('data-pdf-block')
+      ? el
+      : el.querySelector('[data-pdf-block]');
+    if (pdfBlock) {
+      const pages = Array.from(pdfBlock.querySelectorAll('.pdf-rail-page'));
+      const ink = pdfBlock.querySelector('.pdf-rail-surface');
+      if (pages.length) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'pdf-block';
+        wrapper.style.cssText = 'width:100%;padding:0.5rem 0;';
+        const gap =
+          pages.length > 1 && ink
+            ? (ink.width - pages.length * pages[0].width) / (pages.length - 1)
+            : 0;
+        pages.forEach((page, i) => {
+          const snap = document.createElement('canvas');
+          snap.width = page.width;
+          snap.height = page.height;
+          const img = document.createElement('img');
+          const ctx = snap.getContext && snap.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(page, 0, 0);
+            if (ink) {
+              ctx.drawImage(
+                ink,
+                i * (page.width + gap),
+                0,
+                page.width,
+                ink.height,
+                0,
+                0,
+                page.width,
+                page.height
+              );
+            }
+            img.src = snap.toDataURL('image/png');
+          } else {
+            // No 2d context (test env): export the page bitmap alone.
+            img.src = page.toDataURL('image/png');
+          }
+          img.style.cssText = 'width:100%;height:auto;display:block;';
+          wrapper.appendChild(img);
+        });
+        el.replaceWith(wrapper);
       }
       return;
     }
@@ -1029,6 +1096,7 @@ export async function buildWebExportDocument(editor, options = {}) {
     title = 'Untitled',
     mode = 'folder',
     noteId = '',
+    dir = document.documentElement.dir || 'auto',
     extraStyles = '',
     isPaginated = false,
     pageWidth = A4_CSS_W,
@@ -1052,7 +1120,7 @@ export async function buildWebExportDocument(editor, options = {}) {
     : '';
 
   return `<!DOCTYPE html>
-<html lang="en" class="${theme}">
+<html lang="en" dir="${dir}" class="${theme}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1068,7 +1136,7 @@ export async function buildWebExportDocument(editor, options = {}) {
       ? `<h1 class="export-title">${escapeHtml(title)}</h1>`
       : ''
   }
-  <div class="export-root note-editor__content prose prose-stone max-w-none ${
+  <div dir="${dir}" class="export-root note-editor__content prose prose-stone max-w-none ${
     isDark ? 'dark:text-neutral-100' : ''
   }">
     ${clone.outerHTML}

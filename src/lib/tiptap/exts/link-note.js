@@ -1,6 +1,7 @@
 import { mergeAttributes } from '@tiptap/core';
 import { useNoteStore } from '@/store/note';
 import router from '@/router';
+import { isNoteHref } from '@/utils/note/contentSecurity.js';
 import Suggestion from './suggestion';
 
 const props = {
@@ -19,7 +20,19 @@ const props = {
 const configure = {
   parseHTML() {
     return [
-      { tag: 'a[data-link-note]' },
+      {
+        tag: 'a[data-link-note]',
+        // Stored/imported content can carry any href here: refuse
+        // non-note targets at parse so they never become mark state (SC-4-02).
+        getAttrs: (el) => {
+          const rawHref = el.getAttribute('href');
+          return {
+            id: el.getAttribute('data-id'),
+            label: el.getAttribute('data-label'),
+            href: isNoteHref(rawHref) ? rawHref : null,
+          };
+        },
+      },
       { tag: 'span[data-link-note]' },
       {
         tag: 'a[href^="note://"]',
@@ -74,7 +87,11 @@ const configure = {
       href: {
         default: null,
         parseHTML: (el) => el.getAttribute('href'),
-        renderHTML: (attrs) => (attrs.href ? { href: attrs.href } : {}),
+        // Yjs/JSON content bypasses parseHTML (attrs arrive raw), so the
+        // render sink is the enforcement point: only note: targets are
+        // re-emitted, everything else renders as an inert anchor (SC-4-02).
+        renderHTML: (attrs) =>
+          isNoteHref(attrs.href) ? { href: attrs.href } : {},
       },
     };
   },

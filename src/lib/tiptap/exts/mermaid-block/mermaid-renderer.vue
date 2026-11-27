@@ -1,32 +1,23 @@
 <template>
-  <div
-    :class="['mermaid-viewer', className]"
-    @click="onClick"
-  >
+  <div ref="viewer" :class="['mermaid-viewer', className]" @click="onClick">
     <div
       v-if="svgHtml"
-      class="mermaid-svg"
+      :class="['mermaid-svg', { 'is-wide': isWide }]"
+      :style="isWide ? { '--mermaid-rendered-width': renderedWidth + 'px' } : null"
       v-html="svgHtml"
     ></div>
 
-    <div
-      v-else-if="fallback"
-      class="mermaid-fallback"
-    >
+    <div v-else-if="fallback" class="mermaid-fallback">
       <span
         v-if="fallback.kind === 'unsupported'"
         class="mermaid-fallback-badge"
       >
         {{
-          translations.editor.unsupportedDiagram ||
-          'Unsupported diagram type'
+          translations.editor.unsupportedDiagram || 'Unsupported diagram type'
         }}
       </span>
       <pre class="mermaid-fallback-code">{{ content }}</pre>
-      <p
-        v-if="fallback.kind === 'error'"
-        class="mermaid-fallback-error"
-      >
+      <p v-if="fallback.kind === 'error'" class="mermaid-fallback-error">
         {{ fallback.message }}
       </p>
     </div>
@@ -34,11 +25,20 @@
 </template>
 
 <script>
-import { defineComponent, ref, watch } from 'vue';
+import {
+  defineComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { renderMermaidSVG } from 'beautiful-mermaid';
 import { useTheme } from '@/composable/theme';
 import { useTranslations } from '@/composable/useTranslations';
 
+// beautiful-mermaid renders exactly these types; everything else gets the
+// plaintext "unsupported" badge instead of a library exception.
 const SUPPORTED_TYPES = new Set([
   'flowchart',
   'state',
@@ -46,6 +46,10 @@ const SUPPORTED_TYPES = new Set([
   'class',
   'er',
   'xychart',
+  'pie',
+  'mindmap',
+  'timeline',
+  'quadrant',
 ]);
 
 // Extension point: add new diagram types here as support lands. Types present
@@ -87,6 +91,26 @@ function detectType(content) {
   return { type: null, supported: false };
 }
 
+// Memoized render: output is pure for (source, theme), and card previews
+// remount on scroll while the editor re-renders on unrelated updates.
+const svgCache = new Map();
+const SVG_CACHE_MAX = 100;
+
+function renderCached(content, dark) {
+  const key = `${dark ? 'd' : 'l'}:${content}`;
+  if (svgCache.has(key)) return svgCache.get(key);
+  const svg = renderMermaidSVG(content, resolveThemeColors());
+  if (svgCache.size >= SVG_CACHE_MAX) svgCache.clear();
+  svgCache.set(key, svg);
+  return svg;
+}
+
+// Intrinsic width of the rendered SVG in its own units (from viewBox).
+function naturalWidth(svg) {
+  const match = svg.match(/viewBox="[\d.+-]+\s+[\d.+-]+\s+([\d.]+)\s+[\d.+-]+"/);
+  return match ? parseFloat(match[1]) : 0;
+}
+
 function resolveThemeColors() {
   const styles = window.getComputedStyle(document.documentElement);
   const read = (name, fallback) =>
@@ -111,6 +135,12 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    // Opt-in: keep wide diagrams at a readable scale and scroll them. Off by
+    // default so compact contexts (card previews) keep shrinking to fit.
+    scrollWide: {
+      type: Boolean,
+      default: false,
+    },
     onClick: {
       type: Function,
       default: () => {},
@@ -120,13 +150,37 @@ export default defineComponent({
     const { isDark } = useTheme();
     const { translations } = useTranslations();
 
+    const viewer = ref(null);
     const svgHtml = ref('');
+    const svgWidth = ref(0);
+    const isWide = ref(false);
+    const renderedWidth = ref(0);
     const fallback = ref(null);
+
+    // A diagram wider than its card is drawn at a fraction of its natural size
+    // and scrolls horizontally, instead of being shrunk until its labels are
+    // unreadable. Raise toward 1 for bigger text, lower for a more compact view.
+    const WIDE_MIN_SCALE = 0.50;
+
+    const measure = () => {
+      const available = viewer.value?.clientWidth ?? 0;
+      const natural = svgWidth.value;
+      // available === 0 means not laid out yet (hidden/collapsed); don't guess.
+      isWide.value =
+        props.scrollWide &&
+        Boolean(svgHtml.value) &&
+        available > 0 &&
+        natural > available;
+      renderedWidth.value = isWide.value
+        ? Math.max(available, Math.round(natural * WIDE_MIN_SCALE))
+        : 0;
+    };
 
     const render = () => {
       if (!props.content?.trim()) {
         svgHtml.value = '';
         fallback.value = null;
+        nextTick(measure);
         return;
       }
 
@@ -135,11 +189,13 @@ export default defineComponent({
       if (!supported && type) {
         svgHtml.value = '';
         fallback.value = { kind: 'unsupported', message: '' };
+        nextTick(measure);
         return;
       }
 
       try {
-        svgHtml.value = renderMermaidSVG(props.content, resolveThemeColors());
+        svgHtml.value = renderCached(props.content, isDark());
+        svgWidth.value = naturalWidth(svgHtml.value);
         fallback.value = null;
       } catch (error) {
         svgHtml.value = '';
@@ -148,17 +204,32 @@ export default defineComponent({
           message: error instanceof Error ? error.message : String(error),
         };
       }
+      nextTick(measure);
     };
+
+    // Re-measure when the card itself changes size (editor resize, sidebar, etc.).
+    let observer = null;
+    onMounted(() => {
+      if (typeof ResizeObserver !== 'undefined' && viewer.value) {
+        observer = new ResizeObserver(measure);
+        observer.observe(viewer.value);
+      }
+    });
+    onBeforeUnmount(() => observer?.disconnect());
 
     watch(() => props.content, render, { immediate: true });
 
     watch(
       () => isDark(),
-      () => render()
+      () => render(),
     );
 
     return {
+      viewer,
       svgHtml,
+      svgWidth,
+      isWide,
+      renderedWidth,
       fallback,
       translations,
     };
@@ -171,18 +242,20 @@ export default defineComponent({
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
-  display: flex;
-  justify-content: center;
   cursor: pointer;
 }
 
-:deep(svg) {
+.mermaid-svg :deep(svg) {
+  display: block;
   max-width: 100%;
   height: auto;
+  margin: 0 auto;
 }
 
-:deep(svg[style*='max-width']) {
-  max-width: 100% !important;
+/* Wide diagrams: scaled-down width; the viewer scrolls horizontally. */
+.mermaid-svg.is-wide :deep(svg) {
+  width: var(--mermaid-rendered-width) !important;
+  max-width: none !important;
 }
 
 :deep(div.label) {

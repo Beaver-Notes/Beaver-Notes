@@ -6,37 +6,21 @@ export class CustomTableView extends TableView {
 
     this.containerAttributes = containerAttributes ?? {};
 
-    this.blockContainer = document.createElement('div');
-    this.blockContainer.setAttribute('data-content-type', 'table');
+    // Merge block-container identity onto tableWrapper to avoid an extra
+    // wrapper div per table. data-content-type drives CSS and is used by
+    // sync/export code to identify table blocks. The tableWrapper class is
+    // required by domCellAround, table-handle-plugin, and ignoreMutation to
+    // locate the table's wrapper element.
+    this.dom.setAttribute('data-content-type', 'table');
+    this.dom.classList.add('tableWrapper');
     Object.entries(this.containerAttributes).forEach(([key, value]) => {
-      if (key !== 'class') this.blockContainer.setAttribute(key, value);
+      if (key !== 'class') this.dom.setAttribute(key, value);
     });
-
-    this.innerTableContainer = document.createElement('div');
-    this.innerTableContainer.className = 'table-container';
-
-    this.widgetsContainer = document.createElement('div');
-    this.widgetsContainer.className = 'table-controls';
-    this.widgetsContainer.style.position = 'relative';
-
-    this.overlayContainer = document.createElement('div');
-    this.overlayContainer.className = 'table-selection-overlay-container';
-
-    const originalTable = this.dom;
-    const tableElement = originalTable.firstChild;
-
-    this.innerTableContainer.appendChild(tableElement);
-    originalTable.appendChild(this.innerTableContainer);
-    originalTable.appendChild(this.widgetsContainer);
-    originalTable.appendChild(this.overlayContainer);
-
-    this.blockContainer.appendChild(originalTable);
-    this.dom = this.blockContainer;
   }
 
   ignoreMutation(mutation) {
     const target = mutation.target;
-    const isInsideTable = target.closest('.table-container');
+    const isInsideTable = target.closest('.tableWrapper');
     return !isInsideTable || super.ignoreMutation(mutation);
   }
 }

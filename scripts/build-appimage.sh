@@ -37,8 +37,12 @@ cp -r "$TEMP_DIR"/share/* AppDir/usr/share/
 
 rm -rf "$TEMP_DIR"
 
-# Create symlink for bin
-ln -sf ../../lib/beaver-notes/beaver-notes AppDir/usr/bin/beaver-notes
+# Ensure launcher is a regular executable script (linuxdeploy dislikes symlink Exec targets)
+cat > AppDir/usr/bin/beaver-notes << 'WRAPPER'
+#!/bin/bash
+exec "$(dirname "$0")/../lib/beaver-notes/beaver-notes" "$@"
+WRAPPER
+chmod +x AppDir/usr/bin/beaver-notes
 
 # Build AppImage
 echo "Building AppImage..."
@@ -47,8 +51,14 @@ echo "Building AppImage..."
   --icon-file AppDir/usr/share/icons/hicolor/1024x1024/apps/beaver-notes.png \
   --output appimage
 
-# Rename to final name
-mv Beaver-Notes-*.AppImage "$APPIMAGE_NAME"
+# Rename to final name (linuxdeploy/appimagetool naming varies)
+OUT_APPIMAGE="$(ls -1 Beaver-Notes-*.AppImage Beaver_Notes-*.AppImage 2>/dev/null | head -n1 || true)"
+if [ -z "$OUT_APPIMAGE" ]; then
+  echo "ERROR: AppImage not found after build"
+  ls -la
+  exit 1
+fi
+mv "$OUT_APPIMAGE" "$APPIMAGE_NAME"
 
 echo "=== AppImage created: $APPIMAGE_NAME ==="
 ls -lh "$APPIMAGE_NAME"

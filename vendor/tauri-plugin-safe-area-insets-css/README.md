@@ -42,6 +42,7 @@ fn main() {
 | `get_top_inset`      | Returns the top safe area inset in pixels.            |
 | `get_bottom_inset`   | Returns the bottom safe area inset in pixels.         |
 | `set_scribble_enabled`| Enables or disables Apple Pencil Scribble (iOS 14+). |
+| `set_scribble_targets` | Limits Scribble to reported editable-field rectangles (iOS 14+). |
 
 ### Events
 
@@ -53,11 +54,12 @@ fn main() {
 ### JavaScript / TypeScript
 
 ```ts
-import { getTopInset, getBottomInset, setScribbleEnabled } from "tauri-plugin-safe-area-insets-css";
+import { getTopInset, getBottomInset, setScribbleEnabled, setScribbleTargets } from "tauri-plugin-safe-area-insets-css";
 
 const top = await getTopInset();
 const bottom = await getBottomInset();
 await setScribbleEnabled({ enabled: false });
+await setScribbleTargets({ targets: [{ left: 0, top: 0, width: 300, height: 48 }] });
 ```
 
 The safe area values are also automatically injected as CSS custom properties:
@@ -81,3 +83,12 @@ The iOS plugin (`InsetPlugin.swift`) provides:
 ## License
 
 MIT
+
+## Local patch
+
+This vendored copy diverges from upstream. Added:
+
+- `get_fold_state` / `getFoldState` — fold crease, posture, hinge angle and
+  vertical bar edge (iOS 27.1 `UIView.reservedRegions`, Android `androidx.window`).
+
+Re-vendoring upstream will drop this; port the patch forward, do not regenerate.

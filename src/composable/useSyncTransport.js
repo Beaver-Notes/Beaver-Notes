@@ -1,30 +1,24 @@
 import { computed, ref } from 'vue';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
-import { SYNC_TRANSPORT } from '@/lib/api/types.js';
-import { forceSyncNow } from '@/utils/sync';
+import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types.js';
+import { kickRustSync } from '@/utils/sync/rust-shim.js';
 
 export function useSyncTransport() {
   const accountStore = useAccountStore();
   const transport = ref(
-    getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER
+    normalizeSyncTransport(getSettingSync('syncTransport'))
   );
 
+  // Folder sync is the free/anonymous transport. A paid account syncs to the
+  // cloud even if a folder path is still stored on this install, so a paid
+  // workspace can never ingest a folder that belongs to a free one.
   const isFolder = computed(
-    () =>
-      transport.value === SYNC_TRANSPORT.FOLDER ||
-      transport.value === SYNC_TRANSPORT.BOTH
+    () => transport.value === SYNC_TRANSPORT.FOLDER && !accountStore.isPaidPlan
   );
-  const isRemote = computed(
-    () =>
-      (transport.value === SYNC_TRANSPORT.REMOTE ||
-        transport.value === SYNC_TRANSPORT.BOTH) &&
-      accountStore.isPaidPlan
-  );
+  const isRemote = computed(() => accountStore.isPaidPlan);
 
-  // Reflects the transports the *live* Yjs sync engine (utils/sync/index.js)
-  // will actually use, derived from the same state it reads at sync time —
-  // not a separate computation that can drift from reality.
+  // Reflects live Yjs engine transports, derived from same state at sync time: never drifts.
   const description = computed(() => {
     const active = [];
     if (isFolder.value) active.push('folder');
@@ -39,22 +33,22 @@ export function useSyncTransport() {
   });
 
   const activeTransportNames = computed(() => {
-    if (transport.value === SYNC_TRANSPORT.FOLDER) return ['local'];
-    return ['local', 'cloud'];
+    if (isFolder.value) return ['local'];
+    return ['cloud'];
   });
 
   async function setTransport(value) {
     if (
       value !== SYNC_TRANSPORT.FOLDER &&
-      value !== SYNC_TRANSPORT.REMOTE &&
-      value !== SYNC_TRANSPORT.BOTH
+      value !== SYNC_TRANSPORT.REMOTE
     ) {
       return;
     }
+    if (value === SYNC_TRANSPORT.FOLDER && accountStore.isPaidPlan) return;
     transport.value = value;
     await setSetting('syncTransport', value);
     if (accountStore.isAuthenticated) {
-      forceSyncNow().catch(() => {});
+      kickRustSync();
     }
   }
 

@@ -80,7 +80,7 @@ export function useNotePersistence({
     }
   }
 
-  function buildCurrentNotePatch(editor, titleDiv) {
+  function buildCurrentNotePatch(editor, titleDiv, updatedAt = Date.now()) {
     const labels = new Set();
     const labelEls =
       editor?.options?.element?.querySelectorAll('[data-mention]') ?? [];
@@ -97,19 +97,43 @@ export function useNotePersistence({
     return {
       labels: [...labels],
       ...(currentContent ? { content: currentContent } : {}),
-      ...(currentTitle !== undefined ? { title: currentTitle } : {}),
+      title: currentTitle,
       ...(Number.isFinite(currentCursorPosition)
         ? { lastCursorPosition: currentCursorPosition }
         : {}),
-      updatedAt: Date.now(),
+      updatedAt,
     };
   }
 
-  function persistCurrentNote(editor, titleDiv, noteId, { wait = true } = {}) {
+  function persistCurrentNote(
+    editor,
+    titleDiv,
+    noteId,
+    { wait = true, keepUpdatedAt = false } = {},
+  ) {
     if (appEncryptedLocked.value) return;
-    if (!noteId || !noteStore.getById(noteId)) return;
+    // A locked note renders neither editor nor title; persisting would
+    // fabricate `{ labels: [], title: '' }` and wipe real metadata.
+    if (!editor || !titleDiv) return;
+    const existingNote = noteStore.getById(noteId);
+    if (!noteId || !existingNote) return;
 
-    noteStore.patchLocal(noteId, buildCurrentNotePatch(editor, titleDiv));
+    // keepUpdatedAt: navigation flushes persist current state but must not
+    // bump last-updated sort when nothing was edited (audit item 30).
+    noteStore.patchLocal(
+      noteId,
+      buildCurrentNotePatch(
+        editor,
+        titleDiv,
+        keepUpdatedAt ? (existingNote.updatedAt ?? Date.now()) : undefined,
+      ),
+    );
+    // Route leave / quit: derived data (preview/searchText/link-index) is on
+    // a 1.5s trailing debounce after task-2 deferral — the home list, search
+    // and backlinks read it immediately, so flush it synchronously here.
+    // Only on this explicit path: the scheduled persist burst must keep its
+    // deferral.
+    noteStore.flushDerivedUpdates?.();
     const persistPromise = flushScheduledPersist(noteId);
 
     if (!wait) {

@@ -3,6 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { generateJSON } from '@tiptap/core';
+import {
+  isAllowedContentMediaSrc,
+  sanitizeNoteContent,
+} from '@/utils/note/contentSecurity.js';
 import { extensions, CollapseHeading, heading } from '@/lib/tiptap';
 
 const handlers = [];
@@ -19,9 +23,6 @@ export function registerMarkdownHandler(handler) {
 
 export function getMarkdownHandlers() {
   return handlers;
-}
-export function clearMarkdownHandlers() {
-  handlers.length = 0;
 }
 
 function applyPreprocessors(markdown, context) {
@@ -169,7 +170,19 @@ registerMarkdownHandler({
             id,
             'assets'
           );
-          if (newSrc) node.attrs.src = newSrc;
+          if (newSrc) {
+            node.attrs.src = newSrc;
+          } else if (!isAllowedContentMediaSrc(node.attrs.src)) {
+            // Copy failed and the leftover src is not an allowed scheme
+            // (e.g. file://, data:anything-else from raw HTML in the .md):
+            // drop it here so it never reaches stored content (SC-4-04).
+            // The final sanitizeNoteContent pass backstops this.
+            console.warn(
+              'Dropping blocked image src in markdown import:',
+              String(node.attrs.src || '').slice(0, 80)
+            );
+            node.attrs.src = '';
+          }
         });
       }
       if (Array.isArray(node.content)) node.content.forEach(walk);
@@ -234,15 +247,6 @@ registerMarkdownHandler({
   },
 });
 
-export const readMarkdownFile = async (filePath) => {
-  try {
-    return await backend.invoke('fs:readFile', filePath);
-  } catch (error) {
-    console.error('Error reading file ' + filePath + ':', error);
-    throw error;
-  }
-};
-
 export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   const context = {
     id,
@@ -269,7 +273,10 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
       content: context.footnoteDefinitions,
     });
   }
-  return { title, content: json };
+  // Same validator as the schema-level src gate (SC-4-02/SC-4-04): marked
+  // passes raw HTML through, so media srcs must not survive unchecked. Runs
+  // after postprocessors so srcs they leave behind are covered too.
+  return { title, content: sanitizeNoteContent(json) };
 };
 
 export function escapeHtml(value) {
@@ -439,7 +446,8 @@ function renderMarkdownInlineNode(node, ctx) {
     }
     case 'footnoteReference':
       return `[^${getFootnoteNumber(node.attrs, ctx)}]`;
-    case 'fileEmbed': {
+    case 'fileEmbed':
+    case 'pdfBlock': {
       const href = resolveAssetOutputPath(node?.attrs?.src, ctx.noteId);
       return `[${
         node?.attrs?.fileName || path.basename(href) || 'Attachment'
@@ -647,6 +655,13 @@ function renderMarkdownBlock(node, ctx) {
         node?.attrs?.src,
         ctx.noteId
       )})\n\n`;
+    case 'fileEmbed':
+    case 'pdfBlock': {
+      const href = resolveAssetOutputPath(node?.attrs?.src, ctx.noteId);
+      return `[${
+        node?.attrs?.fileName || path.basename(href) || 'Attachment'
+      }](${href})\n\n`;
+    }
     default:
       if (ctx.inList && getNodeChildren(node).length > 0)
         return getNodeChildren(node)

@@ -1,10 +1,7 @@
 export const ALGO_AES_GCM = 'AES-GCM';
-export const ALGO_HKDF = 'HKDF';
 export const ALGO_PBKDF2 = 'PBKDF2';
 export const HASH_SHA_256 = 'SHA-256';
 
-export const IV_LENGTH_BYTES = 12;
-export const SALT_LENGTH_BYTES = 32;
 export const PBKDF2_ITERATIONS = 100_000;
 
 export const ENVELOPE_VERSION = 2;

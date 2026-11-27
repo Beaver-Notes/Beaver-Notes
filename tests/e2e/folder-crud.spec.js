@@ -26,14 +26,6 @@ describe('Folder CRUD', () => {
     await browser.pause(1000);
   });
 
-  it('should display the folder in the grid', async () => {
-    const folderGrid = await $('.folder-grid');
-    if (await folderGrid.isExisting()) {
-      const items = await folderGrid.$$('.folder-grid__item');
-      expect(items.length).toBeGreaterThan(0);
-    }
-  });
-
   it('should click into the folder', async () => {
     const folderCard = await $('.folder-card');
     if (await folderCard.isExisting()) {

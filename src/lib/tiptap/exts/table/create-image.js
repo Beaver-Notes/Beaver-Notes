@@ -1,51 +1,4 @@
-const STYLE_PROPS = [
-  'boxSizing', 'backgroundColor',
-  'borderTopColor', 'borderRightColor', 'borderBottomColor', 'borderLeftColor',
-  'borderTopStyle', 'borderRightStyle', 'borderBottomStyle', 'borderLeftStyle',
-  'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
-  'borderRadius',
-  'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-  'color', 'font', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle',
-  'lineHeight', 'letterSpacing', 'textTransform', 'textDecoration', 'textAlign',
-  'verticalAlign', 'whiteSpace',
-  'width', 'minWidth', 'maxWidth', 'height', 'minHeight', 'maxHeight',
-  'backgroundClip',
-];
 
-const toDash = (p) => p.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
-
-function copyComputedStyles(source, target) {
-  const cs = getComputedStyle(source);
-  for (const p of STYLE_PROPS) {
-    const val = cs.getPropertyValue(toDash(p));
-    if (val) target.style.setProperty(toDash(p), val);
-  }
-  target.style.overflow = 'hidden';
-  target.style.textOverflow = 'ellipsis';
-  if (cs.whiteSpace === '' || cs.whiteSpace === 'normal') {
-    target.style.whiteSpace = 'nowrap';
-  }
-}
-
-function cloneWithStyles(root) {
-  const clone = root.cloneNode(true);
-  const q = [{ src: root, dst: clone }];
-  while (q.length) {
-    const { src, dst } = q.shift();
-    if (src instanceof HTMLElement && dst instanceof HTMLElement) {
-      copyComputedStyles(src, dst);
-    }
-    const srcChildren = Array.from(src.children);
-    const dstChildren = Array.from(dst.children);
-    const len = Math.min(srcChildren.length, dstChildren.length);
-    for (let i = 0; i < len; i++) {
-      if (srcChildren[i] && dstChildren[i]) {
-        q.push({ src: srcChildren[i], dst: dstChildren[i] });
-      }
-    }
-  }
-  return clone;
-}
 
 function styleDragWrapper(el, maxWidth) {
   Object.assign(el.style, {
@@ -62,8 +15,8 @@ function styleDragWrapper(el, maxWidth) {
   });
 }
 
-function scaleToFit(el, maxWidth) {
-  if (!el.isConnected) document.body.appendChild(el);
+function scaleToFit(el, maxWidth, host) {
+  if (!el.isConnected) host.appendChild(el);
   const rect = el.getBoundingClientRect();
   if (rect.width > maxWidth && rect.width > 0) {
     const scale = maxWidth / rect.width;
@@ -86,6 +39,12 @@ function lockCellWidth(fromCell, toCell) {
     toCell.style.width = rect.width + 'px';
     toCell.style.maxWidth = rect.width + 'px';
   }
+  // The ghost shows one truncated line per cell, like the styled copy it replaces.
+  for (const el of [toCell, ...toCell.querySelectorAll('p')]) {
+    el.style.whiteSpace = 'nowrap';
+    el.style.overflow = 'hidden';
+    el.style.textOverflow = 'ellipsis';
+  }
 }
 
 function buildRowPreview(tableEl, rowIndex) {
@@ -96,7 +55,7 @@ function buildRowPreview(tableEl, rowIndex) {
 
   const tableClone = document.createElement('table');
   const tbodyClone = document.createElement('tbody');
-  const rowClone = cloneWithStyles(row);
+  const rowClone = row.cloneNode(true);
   applyTableBoxStyles(tableEl, tableClone);
 
   for (let i = 0; i < row.cells.length; i++) {
@@ -127,7 +86,7 @@ function buildColumnPreview(tableEl, colIndex) {
     if (!srcCell) continue;
 
     const tr = document.createElement('tr');
-    const cellClone = cloneWithStyles(srcCell);
+    const cellClone = srcCell.cloneNode(true);
     const rect = srcCell.getBoundingClientRect();
     if (!firstCellWidth && rect.width > 0) firstCellWidth = rect.width;
     lockCellWidth(srcCell, cellClone);
@@ -149,11 +108,17 @@ export function createTableDragImage(editor, orientation, index, tablePos) {
   const maxWidth = Math.max(0, editorRect.width);
 
   const wrapper = document.createElement('div');
+  // The ghost is detached from the editor, so it needs the editor classes to keep
+  // the table and paragraph styles the copied cells rely on.
+  wrapper.className = 'ProseMirror table-drag-ghost';
   styleDragWrapper(wrapper, maxWidth);
+  // The editor content container carries the prose styles (table font size, text
+  // color); hosting the ghost there keeps it looking like the source row.
+  const host = editor.view.dom.parentElement || document.body;
 
   const tableEl = editor.view.nodeDOM(tablePos);
   if (!tableEl) {
-    document.body.appendChild(wrapper);
+    host.appendChild(wrapper);
     return wrapper;
   }
 
@@ -170,6 +135,6 @@ export function createTableDragImage(editor, orientation, index, tablePos) {
     wrapper.appendChild(card);
   }
 
-  scaleToFit(wrapper, maxWidth);
+  scaleToFit(wrapper, maxWidth, host);
   return wrapper;
 }

@@ -1,13 +1,7 @@
-/**
- * Post-import finalization shared by the Electron legacy migration and the
- * generic importers. Both sub-steps are non-fatal safety nets — callers wrap
- * them in try/catch and continue if they fail. Heavy dependencies (search,
- * link index, security) stay lazy via dynamic imports so they never enter the
- * onboarding chunk until a migration actually runs.
- */
+/** Post-import finalization for legacy and generic importers. Non-fatal safety nets, lazy deps stay out of onboarding chunk. */
 
-export async function buildImportedSearchIndex() {
-  const { useStorage } = await import('@/lib/storage');
+export async function buildImportedSearchIndex(notesOverride) {
+  const { useNoteStore } = await import('@/store/note');
   const { buildSearchIndex, getSearchIndexJSON } = await import(
     '@/utils/note/search.js'
   );
@@ -17,12 +11,18 @@ export async function buildImportedSearchIndex() {
   } = await import('@/store/note/backlinks.ts');
   const { commands } = await import('@/lib/tauri/bindings');
 
-  const kvNotes = await useStorage('data').get('notes', {});
-  buildSearchIndex(kvNotes);
-  rebuildLinkIndexFromAll(kvNotes);
+  // Source from the caller-provided notes (frontend-led import) or the
+  // in-memory note store; never read KV, which no longer holds note content.
+  const notes =
+    notesOverride ||
+    Object.fromEntries(
+      Object.entries(useNoteStore().data).filter(([id, n]) => n?.id === id)
+    );
+  buildSearchIndex(notes);
+  rebuildLinkIndexFromAll(notes);
 
   const signatures = {};
-  for (const n of Object.values(kvNotes)) {
+  for (const n of Object.values(notes)) {
     if (n?.id) signatures[n.id] = n.updatedAt;
   }
   await commands.indexSave(

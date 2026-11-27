@@ -60,6 +60,37 @@ describe('collectEmptyHeadingPositions', () => {
     expect(collectEmptyHeadingPositions(newDoc, [tr])).toEqual([]);
   });
 
+  it('does not walk the document when a block is moved', () => {
+    // A block move's changed range spans everything between the two ends, so
+    // scanning that range visits the whole document. Only the range's edges
+    // can leave a heading empty, so the scan has to stay proportional to the
+    // edit, not to the document.
+    const blocks = [];
+    for (let i = 0; i < 300; i++) {
+      blocks.push(schema.node('paragraph', null, [schema.text(`block ${i}`)]));
+    }
+    const doc = schema.node('doc', null, blocks);
+    const state = EditorState.create({ schema, doc });
+
+    const last = doc.child(doc.childCount - 1);
+    const from = doc.content.size - last.nodeSize;
+    const tr = state.tr.delete(from, from + last.nodeSize);
+    tr.insert(0, last);
+
+    let visited = 0;
+    const nodesBetween = tr.doc.nodesBetween.bind(tr.doc);
+    tr.doc.nodesBetween = (...args) => {
+      const cb = args[2];
+      return nodesBetween(...args.slice(0, 2), (...inner) => {
+        visited += 1;
+        return cb(...inner);
+      });
+    };
+
+    expect(collectEmptyHeadingPositions(tr.doc, [tr])).toEqual([]);
+    expect(visited).toBeLessThan(10);
+  });
+
   it('handles chained transactions by mapping ranges into the final doc', () => {
     // First transaction empties the heading (deletes 'abc')
     const state = EditorState.create({ schema, doc: makeDoc() });

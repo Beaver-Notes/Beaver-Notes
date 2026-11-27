@@ -67,32 +67,3 @@ export function createCodeHighlightPlugin() {
   });
   return plugin;
 }
-
-export function parseHighlightedHtml(html) {
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  const tokens = [];
-  let pos = 0;
-
-  function traverse(node) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      pos += node.textContent.length;
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const cls = Array.from(node.classList).find((c) =>
-        c.startsWith('shj-syn-')
-      );
-      if (cls) {
-        const text = node.textContent;
-        if (text) {
-          tokens.push({ from: pos, to: pos + text.length, class: cls });
-        }
-        pos += text.length;
-      } else {
-        for (const child of node.childNodes) traverse(child);
-      }
-    }
-  }
-
-  for (const child of div.childNodes) traverse(child);
-  return tokens;
-}

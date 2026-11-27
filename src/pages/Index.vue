@@ -1,5 +1,10 @@
 <template>
-  <div>
+  <div class="mobile:pb-[calc(var(--app-mobile-content-offset)+1.5rem)]">
+    <mobile-sync-strip v-if="isMobile" />
+    <div v-if="isMobile && !isFoldableDevice" class="px-4 pt-2">
+      <workspace-switcher expanded />
+    </div>
+
     <div class="container pt-6">
       <h1 class="text-4xl mb-6 font-bold">
         {{
@@ -104,13 +109,6 @@
               :pulse="isFiltering"
               :highlight-query="state.query"
               :gap-px="24"
-              :breakpoints="[
-                { min: 0, cols: 2 },
-                { min: 640, cols: 2 },
-                { min: 768, cols: 2 },
-                { min: 1024, cols: 3 },
-                { min: 1280, cols: 4 },
-              ]"
               @item-click="
                 handleItemClick(
                   $event.event,
@@ -131,6 +129,7 @@
               @dragend="handleDragEnd($event.event)"
               @update:label="state.activeLabel = $event"
               @update="noteStore.update($event.noteId, $event.payload)"
+              @move="openMoveForNote"
             />
           </template>
         </section>
@@ -138,16 +137,16 @@
 
       <empty-state
         v-if="
-          noteStore.notes.length === 0 && folderStore.rootFolders.length === 0
+          uiState.workspaceReady &&
+          noteStore.notes.length === 0 &&
+          folderStore.rootFolders.length === 0
         "
-        class="flex items-center justify-center min-h-[calc(100vh-250px)]"
+        class="flex items-center justify-center min-h-[calc(100vh-250px)] mobile:min-h-[calc(100vh-250px-var(--app-mobile-content-offset))]"
       />
 
       <folder-tree
         v-model="showMoveModal"
-        :notes="selectedNotes"
-        :folders="selectedFolders"
-        :mode="moveMode"
+        v-bind="resolveMoveModalParams(moveTarget, selectedNotes, selectedFolders, moveMode)"
         @moved="handleMoved"
       />
     </div>
@@ -158,6 +157,13 @@
       @move="bulkMove"
       @clear="clearSelection"
     />
+    <join-invite-dialog
+      v-if="paidFeaturesEnabled"
+      :show="showJoinDialog"
+      :token="joinToken"
+      @close="closeJoinDialog"
+    />
+    <ui-customize-modal v-model="showCustomizeModal" kind="folder" :folder="customizeFolder" @saved="clearSelection" />
   </div>
 </template>
 
@@ -168,9 +174,12 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useDialog } from '@/lib/dialog';
+import { useUiState } from '@/composable/useUiState';
 import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
+import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
+import { useNoteMove } from '@/composable/useNoteMove';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
@@ -179,7 +188,13 @@ import FolderTree from '../components/home/FolderTree.vue';
 import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
+import MobileSyncStrip from '../components/app/MobileSyncStrip.vue';
+import WorkspaceSwitcher from '../components/app/WorkspaceSwitcher.vue';
+import JoinInviteDialog from '../components/app/JoinInviteDialog.vue';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { foldState } from '@/lib/foldable';
 import { useSelectionBar } from '@/composable/useSelectionBar';
+import { PAID_FEATURES_ENABLED } from '@/utils/paid-features';
 
 export default {
   components: {
@@ -189,15 +204,21 @@ export default {
     FolderTree,
     Actions,
     EmptyState,
+    MobileSyncStrip,
+    WorkspaceSwitcher,
+    JoinInviteDialog,
   },
   setup() {
     const { translations } = useTranslations();
+    const isMobile = isMobileRuntime();
+    const isFoldableDevice = computed(() => foldState.isFoldable);
     const highlightedFolderIds = ref(new Set());
     const route = useRoute();
     const router = useRouter();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
     const dialog = useDialog();
+    const uiState = useUiState();
     const state = reactive({
       query: '',
       activeLabel: '',
@@ -222,9 +243,7 @@ export default {
       if (queryLower !== '') {
         // Search mode: match folders at ANY depth by name, flattened into
         // the results so nested folders are found too.
-        const allFolders = Object.values(folderStore.data).filter(
-          (f) => f && !folderStore.deletedIds[f.id]
-        );
+        const allFolders = Object.values(folderStore.data).filter((f) => f);
         const matched = allFolders.filter((folder) => {
           if (isArchiveView ? !folder.isArchived : folder.isArchived) {
             return false;
@@ -243,13 +262,9 @@ export default {
         return { all: sorted, bookmarked: [], archived: [] };
       }
 
-      let rootFolders = folderStore.rootFolders.filter(
-        (f) => !folderStore.deletedIds[f.id]
-      );
+      let rootFolders = [...folderStore.rootFolders];
 
-      // Filter by archive status:
-      // In archive view, show only archived folders
-      // In normal view, show only non-archived folders
+      // Archive view: only archived folders; normal view: only non-archived.
       rootFolders = rootFolders.filter((f) =>
         isArchiveView ? f.isArchived : !f.isArchived
       );
@@ -291,7 +306,7 @@ export default {
           let matchesQuery = false;
 
           if (matchedIds === null) {
-            // Index unavailable — linear fallback
+            // Index unavailable: linear fallback.
             if (isLabelQuery) {
               for (let j = 0; j < labels.length; j++) {
                 if (labels[j].toLocaleLowerCase().includes(labelQuery)) {
@@ -386,7 +401,37 @@ export default {
       listenForLabelEvents: true,
     });
 
+    const { showMoveModal } = pageController;
+    const noteMove = useNoteMove(showMoveModal);
+
     const selectionBar = useSelectionBar();
+    const showCustomizeModal = ref(false);
+    const customizeFolder = ref(null);
+
+    const paidFeaturesEnabled = PAID_FEATURES_ENABLED;
+    const showJoinDialog = ref(false);
+    const joinToken = ref('');
+    watch(
+      () => route.query.join,
+      (token) => {
+        if (paidFeaturesEnabled && typeof token === 'string' && token) {
+          joinToken.value = token;
+          showJoinDialog.value = true;
+        } else if (token) {
+          router.replace({ query: { ...route.query, join: undefined } });
+        }
+      },
+      { immediate: true }
+    );
+    function closeJoinDialog() {
+      showJoinDialog.value = false;
+      router.replace({ query: { ...route.query, join: undefined } });
+    }
+
+    function openCustomizeFor(id) {
+      customizeFolder.value = folderStore.getById(id) || null;
+      if (customizeFolder.value) showCustomizeModal.value = true;
+    }
     watch(
       () => pageController.selectedItems.value,
       (items) => {
@@ -394,6 +439,7 @@ export default {
           onClear: pageController.clearSelection,
           onDelete: pageController.bulkDelete,
           onMove: pageController.bulkMove,
+          onCustomize: openCustomizeFor,
         });
       },
       { immediate: true }
@@ -407,6 +453,18 @@ export default {
       translations,
       folders,
       highlightedFolderIds,
+      isMobile,
+      isFoldableDevice,
+      showCustomizeModal,
+      customizeFolder,
+      openCustomizeFor,
+      paidFeaturesEnabled,
+      showJoinDialog,
+      joinToken,
+      closeJoinDialog,
+      uiState,
+      ...noteMove,
+      resolveMoveModalParams,
       ...pageController,
     };
   },

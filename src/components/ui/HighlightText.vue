@@ -19,13 +19,9 @@ const segments = computed(() => highlightSegments(props.text, props.query));
 
 <style>
 mark.search-highlight {
-  background-color: rgb(254 240 138 / 0.9);
+  background-color: hsl(var(--twc-primary) / 0.2);
   color: inherit;
   border-radius: 0.2em;
   padding: 0 0.05em;
-}
-
-.dark mark.search-highlight {
-  background-color: rgb(202 138 4 / 0.5);
 }
 </style>

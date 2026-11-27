@@ -1,25 +1,10 @@
-//! PDF export for Beaver Notes.
-//!
-//! The export HTML (built by `exportBulk.js`) includes a measurement script
-//! that inserts `break-after:page` markers into the DOM. Every platform
-//! then uses its native print / PDF-capture API to produce a paginated
-//! multi-page A4 PDF.
-//!
-//! - macOS: hidden `WKWebView` inside a Tauri `WebviewWindow`,
-//!   captured via `WKWebView.printOperationWithPrintInfo:`.
-//! - Windows: hidden `WebView2` via `webview2-com`, printed via
-//!   `ICoreWebView2.PrintToPdf`.
-//! - Linux: hidden `WebKitGTK` `WebView`, printed via
-//!   `WebKitPrintOperation`.
-//! - iOS/Android: handled by `tauri-plugin-pdf-render`.
-//!   - iOS: `WKWebView` with `UIPrintPageRenderer`.
-//!   - Android: `WebView` with `PrintDocumentAdapter`.
+//! PDF export. Export HTML inserts break-after:page markers, each platform prints with native PDF API.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use tauri::AppHandle;
 use crate::shared::AppError;
+use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "macos")]
 use std::sync::mpsc;
@@ -74,6 +59,41 @@ pub(crate) async fn render_pdf(
     html: String,
     output_path: String,
 ) -> Result<(), AppError> {
+    let is_scoped = output_path.starts_with("scoped:");
+    // Round-1 fix: desktop has no scoped-storage paths — a `scoped:` value
+    // here would reach the writer as an ungated relative path, so reject it.
+    // (Verified: no desktop JS caller passes `scoped:`; the only exportPDF
+    // call sites pass a save-dialog path or a `beaver-notes-share` temp path.)
+    #[cfg(desktop)]
+    if is_scoped {
+        return Err(AppError::Other(
+            "[pdf] scoped: output paths are only valid on mobile".into(),
+        ));
+    }
+    // SC-2-02: the renderer supplies the destination; without this gate it is
+    // an arbitrary-file-overwrite primitive. Dialog-granted export dirs pass
+    // via granted_paths. On mobile, `scoped:` outputs stay under the
+    // scoped-storage plugin's own access control.
+    #[cfg(desktop)]
+    {
+        let state = app.state::<crate::shared::AppState>();
+        crate::shared::assert_path_access(
+            &app,
+            state.inner(),
+            Path::new(&output_path),
+            "pdf export",
+        )?;
+    }
+    #[cfg(not(desktop))]
+    if !is_scoped {
+        let state = app.state::<crate::shared::AppState>();
+        crate::shared::assert_path_access(
+            &app,
+            state.inner(),
+            Path::new(&output_path),
+            "pdf export",
+        )?;
+    }
     render_native(app, html, output_path).await
 }
 
@@ -92,7 +112,7 @@ async fn render_pdf_native(
 ) -> Result<(), AppError> {
     let html_path = write_html_to_temp(&html)?;
     let url = format!("file://{}", html_path.display());
-    eprintln!(
+    crate::rs_log!(
         "[pdf] macOS render: html={} output={} html_len={}",
         html_path.display(),
         output_path,
@@ -103,8 +123,11 @@ async fn render_pdf_native(
     let (load_tx, load_rx) = mpsc::channel::<()>();
     let builder = WebviewWindowBuilder::new(
         &app,
-        &next_pdf_window_label(),
-        WebviewUrl::External(url.parse().map_err(|e| AppError::Other(format!("Invalid URL: {e}")))?),
+        next_pdf_window_label(),
+        WebviewUrl::External(
+            url.parse()
+                .map_err(|e| AppError::Other(format!("Invalid URL: {e}")))?,
+        ),
     )
     .title("Beaver Notes – PDF Render")
     .visible(false)
@@ -132,7 +155,9 @@ async fn render_pdf_native(
     if page_rx.await.is_err() {
         let _ = window.destroy();
         let _ = std::fs::remove_file(&html_path);
-        return Err(AppError::Other("PDF render window signaled an error while loading".into()));
+        return Err(AppError::Other(
+            "PDF render window signaled an error while loading".into(),
+        ));
     }
 
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -149,7 +174,7 @@ async fn render_pdf_native(
     window
         .with_webview(move |webview| {
             if let Err(e) = run_print_page_pdf(webview.inner(), &output_path_clone, raw_tx) {
-                eprintln!("Failed to start PDF print: {e}");
+                crate::rs_log!("Failed to start PDF print: {e}");
             }
         })
         .map_err(|e| AppError::Other(e.to_string()))?;
@@ -159,7 +184,7 @@ async fn render_pdf_native(
     let _ = window.destroy();
     let _ = std::fs::remove_file(&html_path);
 
-    eprintln!("[pdf] macOS: done");
+    crate::rs_log!("[pdf] macOS: done");
     Ok(())
 }
 
@@ -188,10 +213,11 @@ fn run_print_page_pdf(
     use objc2_foundation::NSString;
     use objc2_web_kit::WKWebView;
 
-    let _mtm =
-        MainThreadMarker::new().ok_or_else(|| AppError::Other("Must be called from the main thread".into()))?;
-    let webview: Retained<WKWebView> = unsafe { Retained::retain(webview_ptr as *mut WKWebView) }
-        .ok_or_else(|| AppError::Other("Invalid WKWebView pointer".into()))?;
+    let _mtm = MainThreadMarker::new()
+        .ok_or_else(|| AppError::Other("Must be called from the main thread".into()))?;
+    let webview: Retained<WKWebView> =
+        unsafe { Retained::retain(webview_ptr as *mut WKWebView) }
+            .ok_or_else(|| AppError::Other("Invalid WKWebView pointer".into()))?;
 
     let print_info = NSPrintInfo::new();
     print_info.setPaperSize(CGSize {
@@ -268,10 +294,11 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
 
     let _ = std::fs::remove_file(&html_path);
 
-    let pdf_bytes =
-        std::fs::read(&render_output).map_err(|e| AppError::Other(format!("Failed to read iOS PDF: {e}")))?;
+    let pdf_bytes = std::fs::read(&render_output)
+        .map_err(|e| AppError::Other(format!("Failed to read iOS PDF: {e}")))?;
 
-    std::fs::write(&render_output, &pdf_bytes).map_err(|e| AppError::Other(format!("Failed to write PDF: {e}")))?;
+    std::fs::write(&render_output, &pdf_bytes)
+        .map_err(|e| AppError::Other(format!("Failed to write PDF: {e}")))?;
 
     if scoped_info.is_some() {
         let app_clone = app.clone();
@@ -321,10 +348,11 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
 
     let _ = std::fs::remove_file(&html_path);
 
-    let pdf_bytes =
-        std::fs::read(&render_output).map_err(|e| AppError::Other(format!("Failed to read Android PDF: {e}")))?;
+    let pdf_bytes = std::fs::read(&render_output)
+        .map_err(|e| AppError::Other(format!("Failed to read Android PDF: {e}")))?;
 
-    std::fs::write(&render_output, &pdf_bytes).map_err(|e| AppError::Other(format!("Failed to write PDF: {e}")))?;
+    std::fs::write(&render_output, &pdf_bytes)
+        .map_err(|e| AppError::Other(format!("Failed to write PDF: {e}")))?;
 
     if scoped_info.is_some() {
         let app_clone = app.clone();
@@ -405,7 +433,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
         html_path.display().to_string().replace('\\', "/")
     );
 
-    eprintln!(
+    crate::rs_log!(
         "[pdf] Windows render: html at {} output={}",
         html_path.display(),
         output_path
@@ -469,7 +497,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
             }
             .map_err(|e| format!("CreateWindowExW: {e}"))?;
 
-            eprintln!("[pdf] Window created, creating WebView2 env");
+            crate::rs_log!("[pdf] Window created, creating WebView2 env");
 
             let (env_tx, env_rx) = smpsc::channel::<Result<ICoreWebView2Environment, String>>();
             let (ctrl_tx, ctrl_rx) = smpsc::channel::<Result<ICoreWebView2Controller, String>>();
@@ -495,7 +523,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                 .map_err(|e| format!("CreateCoreWebView2EnvironmentWithOptions: {e}"))?;
             }
             let env = recv_with_pump(&env_rx).map_err(|e| format!("env: {e}"))??;
-            eprintln!("[pdf] WebView2 env created");
+            crate::rs_log!("[pdf] WebView2 env created");
 
             let ctrl_handler = CreateCoreWebView2ControllerCompletedHandler::create(Box::new(
                 move |_result, controller| {
@@ -512,7 +540,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
             }
             let controller: ICoreWebView2Controller =
                 recv_with_pump(&ctrl_rx).map_err(|e| format!("ctrl: {e}"))??;
-            eprintln!("[pdf] WebView2 controller created");
+            crate::rs_log!("[pdf] WebView2 controller created");
 
             let webview: ICoreWebView2 = unsafe {
                 controller
@@ -552,9 +580,9 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                     .Navigate(&HSTRING::from(&url_string))
                     .map_err(|e| format!("Navigate: {e}"))?;
             }
-            eprintln!("[pdf] Navigated, waiting for page load");
+            crate::rs_log!("[pdf] Navigated, waiting for page load");
             recv_with_pump(&nav_rx).map_err(|e| format!("nav: {e}"))??;
-            eprintln!("[pdf] Page loaded");
+            crate::rs_log!("[pdf] Page loaded");
 
             std::thread::sleep(std::time::Duration::from_millis(150));
             let noop_handler =
@@ -594,9 +622,9 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                     .PrintToPdf(PCWSTR(pdf_path_hstring.as_ptr()), None, &pdf_handler)
                     .map_err(|e| format!("PrintToPdf: {e}"))?;
             }
-            eprintln!("[pdf] PrintToPdf called, waiting for result");
+            crate::rs_log!("[pdf] PrintToPdf called, waiting for result");
             let pdf_bytes = recv_with_pump(&pdf_rx).map_err(|e| format!("pdf: {e}"))??;
-            eprintln!("[pdf] Got PDF ({} bytes)", pdf_bytes.len());
+            crate::rs_log!("[pdf] Got PDF ({} bytes)", pdf_bytes.len());
 
             let _ = std::fs::remove_file(&pdf_path);
             unsafe {
@@ -616,7 +644,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
         .map_err(|e| AppError::Other(format!("Windows render channel closed: {e}")))??;
 
     let _ = std::fs::remove_file(&html_path);
-    eprintln!("[pdf] Writing PDF to {}", output_path);
+    crate::rs_log!("[pdf] Writing PDF to {}", output_path);
     std::fs::write(&output_path, &pdf_bytes)?;
     Ok(())
 }
@@ -625,8 +653,8 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
 
 #[cfg(target_os = "linux")]
 async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), AppError> {
-    // Force only the file print backend so GTK doesn't require CUPS
-    // to have a printer configured. Set before any GTK init.
+    // File print backend only so GTK doesn't require CUPS to have a printer;
+    // must be set before any GTK init.
     std::env::set_var("GTK_PRINT_BACKENDS", "file");
 
     use std::sync::mpsc as smpsc;
@@ -643,7 +671,10 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
     let builder = WebviewWindowBuilder::new(
         &app,
         &label,
-        WebviewUrl::External(url.parse().map_err(|e| AppError::Other(format!("Invalid URL: {e}")))?),
+        WebviewUrl::External(
+            url.parse()
+                .map_err(|e| AppError::Other(format!("Invalid URL: {e}")))?,
+        ),
     )
     .title("Beaver Notes – PDF Render")
     .visible(false)
@@ -728,7 +759,7 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
     Ok(())
 }
 
-// ── Shared helpers ─────────────────────────────────────────────────
+// Shared helpers
 
 #[cfg(any(
     target_os = "ios",
@@ -773,6 +804,12 @@ fn scoped_temp_output_path() -> String {
     target_os = "linux",
     target_os = "android"
 )))]
-async fn render_native(_app: AppHandle, _html: String, _output_path: String) -> Result<(), AppError> {
-    Err(AppError::Other("Native PDF rendering is not implemented for this platform".into()))
+async fn render_native(
+    _app: AppHandle,
+    _html: String,
+    _output_path: String,
+) -> Result<(), AppError> {
+    Err(AppError::Other(
+        "Native PDF rendering is not implemented for this platform".into(),
+    ))
 }
