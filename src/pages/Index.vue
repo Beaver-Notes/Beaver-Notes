@@ -69,10 +69,10 @@
                 :folder="folder"
                 :disable-open="selectionMode"
                 :is-drag-over="dragOverFolderId === folder.id"
+                :highlight-query="state.query"
                 :class="{
                   'transform scale-[1.02]':
-                    dragOverFolderId === folder.id ||
-                    (state.query && highlightedFolderIds.has(folder.id)),
+                    dragOverFolderId === folder.id || state.query,
                   'transform scale-[1.02] transition-transform duration-200':
                     selectedItems.has(`folder-${folder.id}`),
                 }"
@@ -107,6 +107,7 @@
               :selected-items="selectedItems"
               :selection-mode="selectionMode"
               :pulse="isFiltering"
+              :highlight-query="state.query"
               :gap-px="24"
               @item-click="
                 handleItemClick(
@@ -237,6 +238,29 @@ export default {
 
     const folders = computed(() => {
       const isArchiveView = route.query.archived === 'true';
+      const queryLower = state.query.trim().toLocaleLowerCase();
+
+      if (queryLower !== '') {
+        // Search mode: match folders at ANY depth by name, flattened into
+        // the results so nested folders are found too.
+        const allFolders = Object.values(folderStore.data).filter((f) => f);
+        const matched = allFolders.filter((folder) => {
+          if (isArchiveView ? !folder.isArchived : folder.isArchived) {
+            return false;
+          }
+          const name =
+            folder.name && folder.name.trim() !== ''
+              ? folder.name
+              : translations.value.card?.untitledFolder || '';
+          return name.toLocaleLowerCase().includes(queryLower);
+        });
+        const sorted = sortArray({
+          data: matched,
+          order: state.sortOrder,
+          key: 'name',
+        });
+        return { all: sorted, bookmarked: [], archived: [] };
+      }
 
       let rootFolders = [...folderStore.rootFolders];
 
@@ -268,11 +292,9 @@ export default {
           ? matchNoteIdsByQuery(notes, state.query)
           : null;
 
-      highlightedFolderIds.value.clear();
-
       for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
-        const { title, isArchived, isBookmarked, labels, folderId } = note;
+        const { title, isArchived, isBookmarked, labels } = note;
 
         const labelFilter = state.activeLabel
           ? labels.includes(state.activeLabel)
@@ -319,12 +341,6 @@ export default {
           }
 
           if (!matchesQuery) continue;
-        }
-
-        if (folderId !== null && folderId !== undefined) {
-          highlightedFolderIds.value.add(folderId);
-          bubbleHighlight(folderId);
-          continue;
         }
 
         if (isArchived) {

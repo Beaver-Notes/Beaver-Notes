@@ -71,8 +71,8 @@ export function hydrateNote(note) {
 
   const previewText = hidden
     ? ''
-    : (persisted.preview ||
-      persisted.searchText ||
+    : (persisted.searchText ||
+      persisted.preview ||
       extractTextFromContent(persisted.content) ||
       '');
 

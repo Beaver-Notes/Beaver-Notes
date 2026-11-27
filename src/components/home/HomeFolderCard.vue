@@ -77,7 +77,10 @@
               class="text-white font-bold text-sm truncate leading-tight cursor-pointer"
               @click.stop="openCustomizeModal"
             >
-              {{ folder.name || translations.card.untitledFolder }}
+              <ui-highlight-text
+                :text="folder.name || translations.card.untitledFolder"
+                :query="highlightQuery"
+              />
             </h3>
             <p class="text-white/80 text-xs font-medium">
               {{ itemCount }} item{{ itemCount !== 1 ? 's' : '' }}
@@ -185,6 +188,7 @@ const props = defineProps({
   folder: { type: Object, required: true },
   disableOpen: { type: Boolean, default: false },
   isDragOver: { type: Boolean, default: false },
+  highlightQuery: { type: String, default: '' },
 });
 
 const noteStore = useNoteStore();

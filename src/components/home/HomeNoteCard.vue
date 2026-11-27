@@ -24,7 +24,10 @@
             data-testid="note-card-title"
             class="text-md font-semibold text-lg block line-clamp leading-tight note-card__title flex-1"
           >
-            {{ note.title || translations.card.untitledNote }}
+            <ui-highlight-text
+              :text="note.title || translations.card.untitledNote"
+              :query="highlightQuery"
+            />
           </div>
           <!-- Shared with me: not a workspace member, collaborator on this note only -->
           <v-remixicon
@@ -81,6 +84,7 @@
         <NotePreviewBlocks
           v-if="preview.blocks.length"
           :blocks="preview.blocks"
+          :highlight-query="highlightQuery"
         />
         <div v-else class="note-card-preview-empty">
           {{ translations.card.content || 'Start writing...' }}
@@ -245,6 +249,10 @@ const props = defineProps({
   disableOpen: {
     type: Boolean,
     default: false,
+  },
+  highlightQuery: {
+    type: String,
+    default: '',
   },
 });
 

@@ -112,7 +112,7 @@
       </template>
 
       <template v-else>
-        {{ block.text }}
+        <ui-highlight-text :text="block.text" :query="highlightQuery" />
       </template>
     </div>
 
@@ -140,6 +140,10 @@ defineProps({
   blocks: {
     type: Array,
     default: () => [],
+  },
+  highlightQuery: {
+    type: String,
+    default: '',
   },
   meta: {
     type: String,

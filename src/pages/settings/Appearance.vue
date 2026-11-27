@@ -484,6 +484,8 @@ export default {
         }
       });
       root.classList.add(color);
+      // 'dark' is also the dark-mode class; clearing accent classes removes it.
+      if (theme.isDark()) root.classList.add('dark');
       state.accentColor = color;
       void setSetting('colorScheme', color).catch((err) =>
         console.warn('[settings] write failed:', err?.message || err),

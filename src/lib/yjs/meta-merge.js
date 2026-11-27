@@ -5,6 +5,10 @@ export function mergeNoteEntry(existing, meta) {
   const merged = { ...existing, ...meta };
 
   if (meta.preview && meta.preview.length > 0) merged.preview = meta.preview;
+  // searchText is not persisted in the workspace doc (size) — fall back to
+  // the truncated preview rather than leaving it empty, so meta-only updates
+  // never wipe the note's searchable text from memory.
+  if (!merged.searchText && merged.preview) merged.searchText = merged.preview;
 
   let needsSnapshot = false;
   if (merged.isLocked) {

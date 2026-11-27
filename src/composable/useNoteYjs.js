@@ -29,6 +29,8 @@ import { getWsSync, setRoomKey } from '@/lib/sync/ws-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';
 import { resolveNoteWorkspaceId, syncSharedNote } from '@/utils/sync/shared-notes.js';
+import { useNoteStore } from '@/store/note';
+import { upsertSearchEntry } from '@/utils/note/search.js';
 import { speed } from '@/utils/speed.js';
 
 export { registerActiveDoc, applyRemote } from '@/lib/yjs/shared.js';
@@ -50,6 +52,26 @@ export async function flushAllNoteYjsPending() {
 // only: it never gates editing or persistence. Pure + exported for unit testing.
 export function applyNoteKeyResult(noteKeyHex) {
   return !noteKeyHex;
+}
+
+/**
+ * Flat plain text of a Yjs XML fragment, for the search index. Cheap string
+ * walk — no ProseMirror conversion.
+ */
+function yFragmentPlainText(fragment) {
+  const parts = [];
+  const walk = (node) => {
+    if (node instanceof Y.XmlText) {
+      parts.push(node.toString());
+    } else if (
+      node instanceof Y.XmlElement ||
+      node instanceof Y.XmlFragment
+    ) {
+      for (const child of node.toArray()) walk(child);
+    }
+  };
+  walk(fragment);
+  return parts.join(' ');
 }
 
 async function retryWrite(fn, label) {
@@ -366,6 +388,26 @@ export function useNoteYjs() {
         pendingByNote.set(id, requeued);
         scheduleRetryFlush();
         continue;
+      }
+
+      // Keep the search index in sync with the Yjs content — persistUpdate only
+      // writes updates to storage; without this, content edits were invisible
+      // to search (note.searchText stayed empty for Yjs-backed notes).
+      if (id === currentNoteId && currentDoc) {
+        try {
+          const text = yFragmentPlainText(currentDoc.getXmlFragment('content'));
+          const noteStore = useNoteStore();
+          const note = noteStore.data?.[id];
+          if (note && text !== note.searchText) {
+            note.searchText = text;
+            note.updatedAt = Date.now();
+            upsertSearchEntry(note);
+            const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
+            syncNoteMeta(note);
+          }
+        } catch (err) {
+          console.warn('[yjs] search index update failed:', err);
+        }
       }
 
       // Fold accumulated history into a single row when due. Rust merges the

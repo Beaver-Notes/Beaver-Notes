@@ -93,7 +93,7 @@ export function useAppShellActions({ includeSettingsNav = false } = {}) {
         ? currentFolderId.value
         : null;
 
-    folderStore.add({ parentId });
+    await folderStore.add({ parentId });
   }
 
   function handleNavigation(nav) {

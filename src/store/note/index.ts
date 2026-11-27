@@ -335,8 +335,14 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
         for (const note of Object.values(this.data)) {
           if (!note?.id) continue;
           if (!signatures[note.id] || note.updatedAt > signatures[note.id]) {
-            upsertSearchEntry(note);
-            rebuildLinkIndexForNote(note.id, note.content);
+            // Only touch the indexes when the note carries its content (or a
+            // full extracted searchText) in memory. Notes whose content lives
+            // only in their Yjs doc would otherwise overwrite their complete
+            // persisted index entry with empty/truncated text.
+            if (note.content || note.searchText) {
+              upsertSearchEntry(note);
+              rebuildLinkIndexForNote(note.id, note.content);
+            }
             signatures[note.id] = note.updatedAt;
             indexChanged = true;
           }
@@ -372,6 +378,35 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
     }
 
     // Skip Spotlight reindex when nothing changed
+    if (coldStart) {
+      // No persisted index snapshot (first launch / rebuilt storage): pull
+      // full text out of the per-note Yjs docs in one batch, build the index,
+      // and persist it so subsequent launches load instantly.
+      try {
+        const { ensureSearchTextFromSnapshots } = await import(
+          '@/lib/yjs/meta-store.js'
+        );
+        await ensureSearchTextFromSnapshots(this.data);
+      } catch (err) {
+        console.error('Search-text backfill failed:', err);
+      }
+      buildSearchIndex(this.data);
+      rebuildLinkIndexFromAll(this.data);
+      try {
+        const signatures: Record<string, number> = {};
+        for (const note of Object.values(this.data)) {
+          if (note?.id) signatures[note.id] = note.updatedAt || Date.now();
+        }
+        await commands.indexSave(
+          getSearchIndexJSON(),
+          getLinkIndexJSON(),
+          JSON.stringify(signatures)
+        );
+      } catch (err) {
+        console.error('Persisting search index failed:', err);
+      }
+    }
+
     if (coldStart || indexChanged) {
       reindexAllNotes(this.data).catch((err) =>
         console.warn('[spotlight] reindex failed:', err?.message || err)
