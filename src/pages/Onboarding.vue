@@ -1866,6 +1866,7 @@ export default {
     // Intro curtain: starts closed, opens once with a slow retract synced to the intro sound.
     (async function playIntroCurtain() {
       if (prefersReducedMotion()) {
+        curtainOpen.value = true;
         return;
       }
 
