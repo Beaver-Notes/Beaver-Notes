@@ -4,6 +4,7 @@ export const ONBOARDING_LANGUAGE_CONFIG = {
   en: { name: 'English', dir: 'ltr' },
   es: { name: 'Español', dir: 'ltr' },
   fr: { name: 'Français', dir: 'ltr' },
+  he: { name: 'עברית', dir: 'rtl' },
   it: { name: 'Italiano', dir: 'ltr' },
   nl: { name: 'Nederlands', dir: 'ltr' },
   pt: { name: 'Português', dir: 'ltr' },
