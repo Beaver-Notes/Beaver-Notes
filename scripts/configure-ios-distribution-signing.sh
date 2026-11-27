@@ -88,14 +88,37 @@ PYEOF
 
 # Tauri reads signingStyle from the host target, so make the generated Xcode
 # config manual before it builds its temporary export options plist.
-python3 - "$GEN/beaver-notes.xcodeproj/project.pbxproj" <<'PYEOF'
+python3 - "$GEN/beaver-notes.xcodeproj/project.pbxproj" "$EXTENSION_UUID" <<'PYEOF'
+import re
 import sys
 
-path = sys.argv[1]
+path, extension_uuid = sys.argv[1:3]
 with open(path) as f:
     pbx = f.read()
+pbx = pbx.replace("CODE_SIGN_STYLE = Automatic;", "CODE_SIGN_STYLE = Manual;")
+
+# Tauri only writes manual signing values to the host target. The extension
+# needs its own App Store profile so Xcode can enable the App Groups capability.
+config_list = re.search(
+    r'\t\t[0-9A-F]+ /\* Build configuration list for PBXNativeTarget "ShareExtension" \*/ = \{'
+    r'.*?buildConfigurations = \((.*?)\);',
+    pbx,
+    re.S,
+)
+assert config_list, "ShareExtension configuration list not found"
+config_ids = re.findall(r'([0-9A-F]+) /\* (?:debug|release) \*/', config_list.group(1))
+lines = pbx.splitlines(True)
+for config_id in config_ids:
+    start = next(i for i, line in enumerate(lines) if line.startswith(f"\t\t{config_id} "))
+    for i in range(start, min(start + 20, len(lines))):
+        if "buildSettings = {" in lines[i]:
+            lines.insert(i + 1, f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{extension_uuid}";\n')
+            lines.insert(i + 1, '\t\t\t\tCODE_SIGN_IDENTITY = "iPhone Distribution";\n')
+            break
+    else:
+        raise SystemExit(f"buildSettings not found for ShareExtension config {config_id}")
 with open(path, "w") as f:
-    f.write(pbx.replace("CODE_SIGN_STYLE = Automatic;", "CODE_SIGN_STYLE = Manual;"))
+    f.write("".join(lines))
 PYEOF
 
 security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
