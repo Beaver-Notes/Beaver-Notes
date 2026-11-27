@@ -115,7 +115,11 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          yarn install --frozen-lockfile
+          yarn install --frozen-lockfile || {
+            echo "Retrying yarn install after clearing cache"
+            rm -rf "$(yarn cache dir)"
+            yarn install --frozen-lockfile
+          }
 
       - name: Run lint
         shell: bash
@@ -379,7 +383,11 @@ jobs:
       - name: Install JS dependencies
         shell: bash
         run: |
-          yarn install --frozen-lockfile
+          yarn install --frozen-lockfile || {
+            echo "Retrying yarn install after clearing cache"
+            rm -rf "$(yarn cache dir)"
+            yarn install --frozen-lockfile
+          }
 
       # macOS signing and notarization
       - name: Diagnostic — check notarytool connectivity
