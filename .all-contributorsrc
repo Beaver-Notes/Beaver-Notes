@@ -113,6 +113,18 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Nikitamce",
+      "name": "Nikitamce",
+      "avatar_url": "https://avatars.githubusercontent.com/u/187407575?v=4",
+      "profile": "https://github.com/Nikitamce",
+      "contributions": [
+        "bug",
+        "code",
+        "design",
+        "translation"
+      ]
     }
   ],
   "contributorsPerLine": 7,
