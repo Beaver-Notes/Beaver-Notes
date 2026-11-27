@@ -29,6 +29,7 @@
     "clipboard-manager:allow-write-text",
     "audio-recorder:default",
     "biometry:default",
+    "passkey:default",
     "safe-area-insets-css:default",
     "core:webview:default",
     "deep-link:default"

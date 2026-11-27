@@ -11,8 +11,8 @@ use aes_gcm::{
 };
 use tauri::AppHandle;
 
+use super::super::{is_local_asset_path, AppError, AppState};
 use super::keys::{current_app_key, derive_chunk_nonce, random_nonce, STREAM_CHUNK_SIZE};
-use super::super::{AppError, AppState, is_local_asset_path};
 
 pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA3";
 pub(crate) const ASSET_MAGIC_LEGACY_V2: &[u8; 4] = b"BNA2";
@@ -150,6 +150,7 @@ pub(crate) fn decrypt_asset_streaming(
         Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
             drop(reader);
             fs::copy(input_path, output_path)?;
+            crate::shared::restrict_private(output_path)?;
             return Ok(());
         }
         Err(e) => return Err(AppError::from(e)),
@@ -159,7 +160,7 @@ pub(crate) fn decrypt_asset_streaming(
         drop(reader);
         let data = fs::read(input_path)?;
         let plain = decrypt_asset_bytes_with_key(&data, key)?;
-        fs::write(output_path, plain)?;
+        crate::shared::write_private_bytes(output_path, &plain)?;
         return Ok(());
     }
 
@@ -168,10 +169,9 @@ pub(crate) fn decrypt_asset_streaming(
     let mut nonce_seed = [0u8; 12];
     reader.read_exact(&mut nonce_seed)?;
 
-    // Assets encrypted with `encrypt_asset_bytes_with_key` (fs:writeFile,
-    // migration) are a single chunk whose length can exceed STREAM_CHUNK_SIZE.
-    // Validate chunk lengths against the bytes actually remaining in the file
-    // rather than a fixed streaming cap, so both layouts decrypt.
+    // Assets from `encrypt_asset_bytes_with_key` (fs:writeFile, migration) are
+    // a single chunk possibly larger than STREAM_CHUNK_SIZE: validate chunk
+    // lengths against bytes remaining, not a fixed streaming cap.
     let file_len = reader.get_ref().metadata().map_err(AppError::from)?.len();
     let mut bytes_consumed = (ASSET_MAGIC.len() + nonce_seed.len()) as u64;
 
@@ -228,6 +228,8 @@ pub(crate) fn decrypt_asset_streaming(
     }
 
     writer.flush()?;
+    drop(writer);
+    crate::shared::restrict_private(output_path)?;
     Ok(())
 }
 
@@ -254,9 +256,8 @@ pub(crate) fn encrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, A
     Ok(output)
 }
 
-/// Decrypt a Yjs blob previously encrypted with `encrypt_yjs_blob`.
-/// Legacy unencrypted blobs (no `BNY1` prefix) are returned as-is so
-/// existing databases continue to work without a migration pass.
+/// Decrypt a Yjs blob from `encrypt_yjs_blob`. Legacy unencrypted blobs (no
+/// `BNY1` prefix) pass through so existing databases work without a migration.
 pub(crate) fn decrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, AppError> {
     let _t = crate::shared::speed_log::scope("assets.decrypt_yjs_blob");
     if data.len() < 4 + 12 {
@@ -285,15 +286,13 @@ pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
         || (buffer.len() > 4 + 12 + 16 && &buffer[..4] == ASSET_MAGIC_LEGACY_V1)
 }
 
-/// Checks if a 4-byte magic prefix and file size indicate an encrypted asset,
-/// without reading the file payload. Mirrors the size thresholds of
-/// [`is_encrypted_asset_buffer`].
+/// Encrypted-asset check from a 4-byte magic prefix + file size, without
+/// reading the payload. Mirrors [`is_encrypted_asset_buffer`] thresholds.
 pub(crate) fn is_encrypted_asset_header(magic: &[u8; 4], file_size: u64) -> bool {
     (file_size > 4 + 12 + 4 && magic == ASSET_MAGIC)
-        || (file_size > 4 + 12 + 16 && (magic == ASSET_MAGIC_LEGACY_V2 || magic == ASSET_MAGIC_LEGACY_V1))
+        || (file_size > 4 + 12 + 16
+            && (magic == ASSET_MAGIC_LEGACY_V2 || magic == ASSET_MAGIC_LEGACY_V1))
 }
-
-
 
 pub(crate) fn encrypt_asset(
     app: &AppHandle,
@@ -304,9 +303,7 @@ pub(crate) fn encrypt_asset(
     if !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
-    let key = current_app_key(state)?.ok_or(AppError::Other(
-        "App encryption is enabled but locked. Unlock before writing assets.".into(),
-    ))?;
+    let key = current_app_key(state)?.ok_or(AppError::EncryptionLocked)?;
     encrypt_asset_bytes_with_key(input, &key)
 }
 

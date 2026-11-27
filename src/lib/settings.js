@@ -1,6 +1,13 @@
 import { useStorage } from './storage';
 
 const settingsStorage = useStorage('settings');
+
+// Same source of truth as the API client: a build pointed at another server
+// (self-hosted, or a dev rig) must not show the vendor URL in onboarding.
+export const DEFAULT_SERVER_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BEAVER_SYNC_API_URL) ||
+  'https://api.beavernotes.com';
+
 export const DEFAULT_UI_FONT_STACK =
   "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif";
 
@@ -18,7 +25,7 @@ const settingDefs = {
   },
   colorScheme: {
     legacyKey: 'color-scheme',
-    defaultValue: 'light',
+    defaultValue: 'amber',
     parse: String,
   },
   zoomLevel: { legacyKey: 'zoomLevel', defaultValue: '1.0', parse: String },
@@ -119,7 +126,7 @@ const settingDefs = {
   },
   beaverAccountServerUrl: {
     legacyKey: 'beaverAccountServerUrl',
-    defaultValue: 'https://api.beavernotes.com',
+    defaultValue: DEFAULT_SERVER_URL,
     parse: String,
   },
   syncTransport: {
@@ -127,7 +134,47 @@ const settingDefs = {
     defaultValue: 'folder',
     parse: String,
   },
+  collaborationEnabled: {
+    legacyKey: 'collaborationEnabled',
+    defaultValue: true,
+    parse: (value) => value === true || value === 'true',
+  },
+  // Last known good GET /plans payload, so the plan UI still shows real limits
+  // while the account server is unreachable. Written, never authoritative:
+  // a live fetch always overwrites it.
+  accountPlanLimits: {
+    legacyKey: 'accountPlanLimits',
+    defaultValue: null,
+    parse: (value) => {
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+      } catch {
+        return null;
+      }
+    },
+  },
+  syncPath: {
+    legacyKey: 'default-path',
+    defaultValue: '',
+    parse: String,
+  },
+  vaultJoinDeclinedPath: {
+    legacyKey: 'vaultJoinDeclinedPath',
+    defaultValue: '',
+    parse: String,
+  },
 };
+
+// Per-instance namespace for the localStorage settings mirror. Both the real app
+// and any second instance share one WKWebView localStorage DB (same bundle id),
+// so the mirror must be scoped to this instance's data dir; the per-instance kv
+// stays the source of truth.
+let mirrorNamespace = '';
+
+export function setSettingsMirrorNamespace(namespace) {
+  mirrorNamespace = namespace ? `${namespace}::` : '';
+}
 
 function getSettingDef(key) {
   const def = settingDefs[key];
@@ -137,30 +184,40 @@ function getSettingDef(key) {
   return def;
 }
 
+function mirrorKey(legacyKey) {
+  return `${mirrorNamespace}${legacyKey}`;
+}
+
+// Shared so path.js mirrors its legacy `default-path` under the same
+// per-instance namespace instead of leaking one folder to every instance.
+export function settingsMirrorKey(legacyKey) {
+  return mirrorKey(legacyKey);
+}
+
 function mirrorToLocalStorage(key, value) {
   const { legacyKey } = getSettingDef(key);
   if (value == null) {
-    localStorage.removeItem(legacyKey);
+    localStorage.removeItem(mirrorKey(legacyKey));
     return;
   }
 
   if (typeof value === 'object') {
-    localStorage.setItem(legacyKey, JSON.stringify(value));
+    localStorage.setItem(mirrorKey(legacyKey), JSON.stringify(value));
     return;
   }
 
-  localStorage.setItem(legacyKey, String(value));
+  localStorage.setItem(mirrorKey(legacyKey), String(value));
 }
 
 export function getSettingSync(key) {
   const { legacyKey, defaultValue, parse } = getSettingDef(key);
-  const raw = localStorage.getItem(legacyKey);
+  const raw = localStorage.getItem(mirrorKey(legacyKey));
   return raw == null ? defaultValue : parse(raw);
 }
 
 function hasMirroredValue(key) {
   const { legacyKey } = getSettingDef(key);
-  return localStorage.getItem(legacyKey) != null;
+  return localStorage.getItem(mirrorKey(legacyKey)) != null;
 }
 
 export async function getSetting(key) {
@@ -200,4 +257,10 @@ export async function hydrateSettingsStore(keys = Object.keys(settingDefs)) {
     })
   );
   return Object.fromEntries(entries);
+}
+
+export function invalidateSettingMirrors(keys) {
+  for (const key of keys) {
+    mirrorToLocalStorage(key, null);
+  }
 }

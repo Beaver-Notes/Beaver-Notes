@@ -11,6 +11,7 @@ vi.mock('@/utils/crypto/encryption.js', () => ({
   tryRestoreKeyFromSafeStorage: vi.fn(async () => true),
   encryptionIsConfigured: vi.fn(async () => true),
   isKeyLoaded: vi.fn(() => false),
+  reconcileFolderVault: vi.fn(async () => true),
 }));
 
 import {
@@ -48,7 +49,7 @@ describe('useAppEncryptionGate', () => {
   });
 
   it('hides the gate when the key is already loaded', async () => {
-    isKeyLoaded.mockReturnValueOnce(true);
+    isKeyLoaded.mockReturnValue(true);
     const { finishWorkspaceInit, onUnlockError } = setup();
     const gate = useAppEncryptionGate({ finishWorkspaceInit, onUnlockError });
     await gate.restoreEncryptionKeys();

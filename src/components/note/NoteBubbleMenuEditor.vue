@@ -1,12 +1,13 @@
 <template>
   <div
     v-if="editor"
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden tablet:hidden"
   >
     <div class="flex items-center justify-start w-max h-full gap-1">
       <ui-popover>
         <template #trigger>
           <button
+            v-keep-focus
             v-tooltip.group="translations.toolbar?.turnInto || 'Turn into'"
             class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300"
           >
@@ -19,9 +20,7 @@
         </template>
 
         <div>
-          <ui-list
-            class="overflow-y-auto no-scrollbar min-w-[160px] max-h-80"
-          >
+          <ui-list class="overflow-y-auto no-scrollbar min-w-[160px] max-h-80">
             <ui-list-item
               v-for="item in menuOptions"
               :key="item.label"
@@ -48,6 +47,7 @@
             class="flex items-center justify-between w-24 h-8 p-0.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 overflow-hidden flex-shrink-0"
           >
             <button
+              v-keep-focus
               type="button"
               class="w-6 h-6 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 focus:outline-none rounded-lg transition-colors"
               @click.stop="
@@ -68,6 +68,7 @@
             />
 
             <button
+              v-keep-focus
               type="button"
               class="w-6 h-6 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 focus:outline-none rounded-lg transition-colors"
               @click.stop="
@@ -82,6 +83,7 @@
 
         <div class="flex flex-col max-h-44 overflow-y-auto no-scrollbar w-24">
           <button
+            v-keep-focus
             class="w-full p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer"
             @click="
               editor.chain().focus().unsetFontSize().run();
@@ -94,6 +96,7 @@
           <button
             v-for="size in [10, 12, 14, 16, 18, 20, 24, 28, 32, 36]"
             :key="size"
+            v-keep-focus
             class="w-full p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs text-neutral-600 dark:text-neutral-400 transition-colors cursor-pointer"
             @click="
               editor
@@ -114,6 +117,7 @@
       <ui-popover>
         <template #trigger>
           <button
+            v-keep-focus
             v-tooltip.group="'Align'"
             class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 px-2 rounded-lg transition-colors flex items-center gap-1 text-neutral-600 dark:text-neutral-400"
           >
@@ -126,9 +130,7 @@
         </template>
 
         <div>
-          <ui-list
-            class="overflow-y-auto no-scrollbar min-w-[140px] max-h-80"
-          >
+          <ui-list class="overflow-y-auto no-scrollbar min-w-[140px] max-h-80">
             <ui-list-item
               v-for="item in alignmentOptions"
               :key="item.label"
@@ -153,9 +155,10 @@
       <template v-for="item in visibleItems" :key="item.id">
         <button
           v-if="fmtMap[item.id]"
+          v-keep-focus
           v-tooltip.group="fmtMap[item.id].title"
           :class="
-            editor.isActive(fmtMap[item.id].state)
+            activeFmt[fmtMap[item.id].state]
               ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-white'
               : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
           "
@@ -168,9 +171,12 @@
 
       <button
         v-if="canComment"
+        v-keep-focus
         v-tooltip.group="translations.comments?.title || 'Comment'"
+        data-testid="bubble-comment-trigger"
         class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
-        @click="createCommentOnSelection"
+        :class="{ 'bg-neutral-100 dark:bg-neutral-800': commentPopoverOpen }"
+        @click.stop="openCommentComposer"
       >
         <v-remixicon name="riChat3Line" class="size-6" />
       </button>
@@ -181,9 +187,10 @@
       >
         <template #trigger>
           <button
+            v-keep-focus
             v-tooltip.group="translations.menu.link"
             :class="
-              editor.isActive('link')
+              activeFmt.link
                 ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-white'
                 : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
             "
@@ -208,6 +215,7 @@
               @keyup.enter="saveLinkInput"
             />
             <button
+              v-keep-focus
               class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
               :title="translations.common?.cancel || 'Cancel'"
               @click="closeLinkInput"
@@ -215,6 +223,7 @@
               <v-remixicon name="riCloseLine" class="size-4" />
             </button>
             <button
+              v-keep-focus
               class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
               :title="translations.common?.save || 'Save'"
               :disabled="!linkInputValue.trim()"
@@ -265,26 +274,29 @@
       <ui-popover>
         <template #trigger>
           <button
+            v-keep-focus
             v-tooltip.group="translations.menu.highlight"
-            class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
+            class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+            :style="currentHighlightHex ? { backgroundColor: currentHighlightHex + '33' } : null"
           >
             <v-remixicon
               name="riFontColor"
               class="size-6"
-              :style="{ color: currentTextColor }"
+              :style="{ color: currentTextColor || undefined }"
             />
           </button>
         </template>
 
         <div class="w-40">
           <p
-            class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-2"
+            class="text-xs font-semibold text-neutral-400 font-bold tracking-wider mb-2"
           >
             {{ translations.menu.textColor }}
           </p>
 
           <div class="grid grid-cols-4 gap-1.5 mb-4 justify-items-center">
             <button
+              v-keep-focus
               class="w-7 h-7 flex items-center justify-center rounded-lg border hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 transition-colors"
               @click="editor.chain().focus().unsetColor().run()"
             >
@@ -294,6 +306,7 @@
             <button
               v-for="c in textColors"
               :key="c"
+              v-keep-focus
               class="w-7 h-7 rounded-lg border border-neutral-100 dark:border-neutral-800 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
               :style="{ backgroundColor: c + '22' }"
               @click="setTextColor(c)"
@@ -307,22 +320,24 @@
           </div>
 
           <p
-            class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-2"
+            class="text-xs font-semibold text-neutral-400 font-bold tracking-wider mb-2"
           >
             {{ translations.menu.highlighterColor }}
           </p>
 
           <div class="grid grid-cols-4 gap-1.5 justify-items-center">
             <button
+              v-keep-focus
               class="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 text-xs font-medium transition-colors"
-              @click="editor.commands.unsetHighlight()"
+              @click="editor.chain().focus().unsetHighlight().run()"
             >
-              —
+              -
             </button>
 
             <button
               v-for="c in highlighterColors"
               :key="c"
+              v-keep-focus
               :class="[
                 'w-7 h-7 rounded-lg hover:scale-105 active:scale-95 transition-transform shadow-sm border border-black/5',
                 c,
@@ -334,10 +349,83 @@
       </ui-popover>
     </div>
   </div>
+
+  <!-- Comment composer card: anchored under the selected text, not the toolbar. -->
+  <teleport to="body">
+    <div
+      v-if="commentPopoverOpen"
+      ref="commentCardRef"
+      :style="commentCardStyles"
+      class="fixed z-[60] w-[360px] max-w-[90vw] motion-spring-enter"
+      @keydown.esc.stop.prevent="closeCommentInput()"
+    >
+      <div
+        class="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xl overflow-hidden"
+      >
+        <div class="flex items-center gap-2 px-3 pt-3">
+          <ui-user-avatar :name="commentAuthor" :size="24" />
+          <span
+            class="text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 truncate"
+          >
+            {{ commentAuthor }}
+          </span>
+          <span class="shrink-0 text-xs text-neutral-400">
+            {{ translations.common?.justNow || 'Just now' }}
+          </span>
+          <button
+            type="button"
+            class="ltr:ml-auto rtl:mr-auto shrink-0 w-6 h-6 grid place-items-center rounded-md text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 dark:hover:text-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            :title="translations.common?.cancel || 'Cancel'"
+            @click="closeCommentInput()"
+          >
+            <v-remixicon name="riCloseLine" size="15" />
+          </button>
+        </div>
+
+        <div v-if="commentQuote" class="mt-2.5 mx-3 flex items-stretch gap-2">
+          <span class="w-[3px] shrink-0 rounded-full bg-amber-400" />
+          <span
+            class="min-w-0 truncate text-[13px] leading-6 text-neutral-500 dark:text-neutral-400"
+          >
+            {{ commentQuote }}
+          </span>
+        </div>
+
+        <textarea
+          ref="commentInputRef"
+          v-model="commentInputValue"
+          :placeholder="translations.comments?.placeholder || 'Add a comment…'"
+          rows="2"
+          class="mt-2 w-full resize-none bg-transparent px-3 py-2 text-[14px] leading-relaxed text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 outline-none"
+          @keydown.enter.exact.prevent="saveCommentInput"
+        />
+
+        <div class="flex items-center justify-end px-3 pb-3">
+          <button
+            type="button"
+            data-testid="comment-composer-send"
+            class="shrink-0 grid place-items-center w-8 h-8 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 disabled:opacity-30 disabled:pointer-events-none transition"
+            :disabled="!commentInputValue.trim()"
+            :aria-label="translations.common?.save || 'Save'"
+            @click="saveCommentInput"
+          >
+            <v-remixicon name="riArrowUpLine" size="16" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <script>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, shallowReactive } from 'vue';
+import {
+  useFloating,
+  offset,
+  flip,
+  shift,
+  autoUpdate,
+} from '@floating-ui/vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
 import { useCommentStore } from '@/store/comment';
@@ -367,17 +455,146 @@ export default {
       return from !== to;
     });
 
-    function createCommentOnSelection() {
+    const commentInputValue = ref('');
+    const commentInputRef = ref(null);
+    const commentPopoverOpen = ref(false);
+    const commentRange = ref({ from: 0, to: 0 });
+    const commentCardRef = ref(null);
+    const commentAnchor = ref(null);
+
+    const { floatingStyles: commentCardStyles } = useFloating(
+      commentAnchor,
+      commentCardRef,
+      {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        transform: false,
+        middleware: [offset(8), flip(), shift({ padding: 12 })],
+        whileElementsMounted: autoUpdate,
+      },
+    );
+
+    const commentAuthor = computed(
+      () => accountStore.profile?.username || 'You',
+    );
+
+    const commentQuote = computed(() => {
       const { editor } = props;
-      if (!editor || !accountStore.isAuthenticated) return;
-      const { from, to } = editor.state.selection;
-      if (from === to) return;
-      const threadId = crypto.randomUUID();
-      editor.chain().focus().setComment(threadId).run();
-      commentStore.setPendingThread(threadId, from, to);
+      const { from, to } = commentRange.value;
+      if (!editor || from === to) return '';
+      try {
+        return editor.state.doc.textBetween(from, to, ' ').trim();
+      } catch {
+        return '';
+      }
+    });
+
+    // Live rect so the card stays glued to the selection while scrolling;
+    // coordsAtPos throws if a remote edit moves the doc out from under it.
+    let lastSelectionRect = null;
+    function selectionRect() {
+      const { editor } = props;
+      const { from, to } = commentRange.value;
+      try {
+        const start = editor.view.coordsAtPos(from);
+        const end = editor.view.coordsAtPos(to);
+        const left = Math.min(start.left, end.left);
+        const right = Math.max(start.right, end.right);
+        lastSelectionRect = {
+          x: left,
+          y: start.top,
+          width: Math.max(right - left, 1),
+          height: Math.max(start.bottom - start.top, 1),
+          top: start.top,
+          bottom: start.bottom,
+          left,
+          right,
+        };
+      } catch {
+        // keep the last known position
+      }
+      return (
+        lastSelectionRect || {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+        }
+      );
     }
 
-    // ── Link input state ────────────────────────────────────────────
+    function openCommentComposer() {
+      const { editor } = props;
+      if (!editor) return;
+      if (commentPopoverOpen.value) {
+        closeCommentInput({ refocus: false });
+        return;
+      }
+      const { from, to } = editor.state.selection;
+      if (from === to) return;
+      commentRange.value = { from, to };
+      lastSelectionRect = null;
+      commentAnchor.value = {
+        contextElement: editor.view.dom,
+        getBoundingClientRect: selectionRect,
+      };
+      commentInputValue.value = '';
+      commentPopoverOpen.value = true;
+      nextTick(() => commentInputRef.value?.focus());
+    }
+
+    async function saveCommentInput() {
+      const content = commentInputValue.value.trim();
+      const { editor } = props;
+      const { from, to } = commentRange.value;
+      if (!content || !editor || from === to) return;
+      const threadId = crypto.randomUUID();
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .setComment(threadId)
+        .run();
+      closeCommentInput({ refocus: false });
+      try {
+        await commentStore.addComment(props.note.id, {
+          content,
+          threadId,
+          anchorFrom: from,
+          anchorTo: to,
+        });
+      } catch (err) {
+        console.warn('[comment] Failed to add comment:', err);
+      }
+    }
+
+    function closeCommentInput({ refocus = true } = {}) {
+      commentInputValue.value = '';
+      commentPopoverOpen.value = false;
+      commentAnchor.value = null;
+      if (refocus) props.editor?.commands?.focus();
+    }
+
+    // Click anywhere outside the card dismisses it without stealing focus.
+    function onDocumentMouseDown(event) {
+      if (!commentPopoverOpen.value) return;
+      if (commentCardRef.value?.contains(event.target)) return;
+      if (event.target.closest?.('[data-testid="bubble-comment-trigger"]')) {
+        return;
+      }
+      closeCommentInput({ refocus: false });
+    }
+    onMounted(() =>
+      document.addEventListener('mousedown', onDocumentMouseDown, true),
+    );
+    onBeforeUnmount(() =>
+      document.removeEventListener('mousedown', onDocumentMouseDown, true),
+    );
+
     const linkInputValue = ref('');
     const linkInputRef = ref(null);
     const selectedLinkIndex = ref(0);
@@ -394,13 +611,15 @@ export default {
       const query = linkInputValue.value.substring(1).toLowerCase();
       if (!query) return [];
       const candidates =
-        noteStore.notes.length > 200 ? noteStore.notes.slice(0, 200) : noteStore.notes;
+        noteStore.notes.length > 200
+          ? noteStore.notes.slice(0, 200)
+          : noteStore.notes;
       return candidates
         .filter(
           (n) =>
             n.id !== route.params.id &&
             (n.title.toLowerCase().includes(query) ||
-              n.id.toLowerCase().includes(query))
+              n.id.toLowerCase().includes(query)),
         )
         .slice(0, 6);
     });
@@ -410,7 +629,7 @@ export default {
       if (!query) return null;
       return (
         noteStore.notes.find(
-          (n) => n.title.toLowerCase() === query.toLowerCase()
+          (n) => n.title.toLowerCase() === query.toLowerCase(),
         ) || noteStore.notes.find((n) => n.id === query)
       );
     }
@@ -472,7 +691,8 @@ export default {
     watch(linkInputValue, (val) => {
       if (val.startsWith('@')) selectedLinkIndex.value = 0;
     });
-    const t = (key) => translations.value.toolbar?.[key] || translations.value.menu?.[key];
+    const t = (key) =>
+      translations.value.toolbar?.[key] || translations.value.menu?.[key];
     const blockTypes = [
       {
         id: 'paragraph',
@@ -546,18 +766,141 @@ export default {
       },
     ];
 
-    const nodeName = computed(() => {
-      const { editor } = props;
-      if (!editor) return t('text') || 'Text';
-
-      const active = blockTypes.find((type) =>
-        type.level
-          ? editor.isActive(type.id, { level: type.level })
-          : editor.isActive(type.id)
-      );
-
-      return active ? active.label : (t('text') || 'Text');
+    // Cached menu active-states. Previously every render evaluated
+    // editor.isActive() per button (each walking the selected range) plus
+    // ~20 more calls in the nodeName/alignment computeds — after Cmd+A that
+    // was dozens of full-document walks per bubble evaluation. Now: ONE
+    // nodesBetween pass, computed once per selection settle (not while the
+    // mouse is down), with the cursor case served O(1) from $from.marks().
+    const activeFmt = shallowReactive({
+      bold: false,
+      italic: false,
+      underline: false,
+      strike: false,
+      code: false,
+      link: false,
     });
+    const activeAlign = ref('left');
+    const activeNodeLabel = ref(t('text') || 'Text');
+
+    function recomputeMenuState() {
+      const editor = props.editor;
+      if (!editor || editor.isDestroyed) return;
+      const state = editor.state;
+      const { selection } = state;
+      const { empty, from, to, $from } = selection;
+
+      const markNames = new Set();
+      const nodeNames = new Set();
+      const aligns = new Set();
+      const headingLevels = new Set();
+
+      if (empty) {
+        const marks = state.storedMarks || $from.marks();
+        for (const m of marks) markNames.add(m.type.name);
+        const parent = $from.parent;
+        nodeNames.add(parent.type.name);
+        const ta = parent.attrs?.textAlign;
+        if (ta) aligns.add(ta);
+        if (parent.type.name === 'heading') {
+          headingLevels.add(parent.attrs.level);
+        }
+      } else {
+        state.doc.nodesBetween(from, to, (node) => {
+          if (node.marks) for (const m of node.marks) markNames.add(m.type.name);
+          const ta = node.attrs?.textAlign;
+          if (ta) aligns.add(ta);
+          nodeNames.add(node.type.name);
+          if (node.type.name === 'heading') headingLevels.add(node.attrs.level);
+          return true;
+        });
+      }
+
+      activeFmt.bold = markNames.has('bold');
+      activeFmt.italic = markNames.has('italic');
+      activeFmt.underline = markNames.has('underline');
+      activeFmt.strike = markNames.has('strike');
+      activeFmt.code = markNames.has('code');
+      activeFmt.link = markNames.has('link');
+
+      const alignMatch = alignmentTypes.find((type) => aligns.has(type.id));
+      activeAlign.value = alignMatch ? alignMatch.id : 'left';
+
+      // Same first-match ordering as the previous blockTypes.isActive loop.
+      const blockMatch = blockTypes.find((type) =>
+        type.level
+          ? headingLevels.has(type.level)
+          : nodeNames.has(type.id),
+      );
+      activeNodeLabel.value = blockMatch
+        ? blockMatch.label
+        : t('text') || 'Text';
+    }
+
+    // Recompute on settle: trailing 100ms debounce for keyboard selection and
+    // typing; during pointer drag-select we skip entirely and recompute once
+    // on pointerup so growing selections never pay repeated range walks.
+    let menuStateTimer = 0;
+    let pointerDown = false;
+    let pendingWhilePointerDown = false;
+
+    function scheduleMenuState() {
+      if (pointerDown) {
+        pendingWhilePointerDown = true;
+        return;
+      }
+      if (menuStateTimer) clearTimeout(menuStateTimer);
+      menuStateTimer = setTimeout(() => {
+        menuStateTimer = 0;
+        recomputeMenuState();
+      }, 100);
+    }
+
+    function onEditorTransaction({ transaction }) {
+      if (transaction.selectionSet || transaction.docChanged) {
+        scheduleMenuState();
+      }
+    }
+
+    function onPointerDown() {
+      pointerDown = true;
+    }
+
+    function onPointerUp() {
+      pointerDown = false;
+      if (menuStateTimer) {
+        clearTimeout(menuStateTimer);
+        menuStateTimer = 0;
+      }
+      if (pendingWhilePointerDown) {
+        pendingWhilePointerDown = false;
+        recomputeMenuState();
+      }
+    }
+
+    onMounted(() => {
+      recomputeMenuState();
+      const ed = props.editor;
+      if (!ed || ed.isDestroyed) return;
+      ed.on('transaction', onEditorTransaction);
+      ed.view?.dom?.addEventListener('pointerdown', onPointerDown);
+      // window-level pointerup: drags that end outside the editor still settle
+      window.addEventListener('pointerup', onPointerUp);
+    });
+
+    onBeforeUnmount(() => {
+      const ed = props.editor;
+      if (ed && !ed.isDestroyed) {
+        ed.off('transaction', onEditorTransaction);
+        try {
+          ed.view?.dom?.removeEventListener('pointerdown', onPointerDown);
+        } catch { /* view already torn down */ }
+      }
+      window.removeEventListener('pointerup', onPointerUp);
+      if (menuStateTimer) clearTimeout(menuStateTimer);
+    });
+
+    const nodeName = computed(() => activeNodeLabel.value);
 
     const menuOptions = computed(() => {
       return blockTypes.map((type) => ({
@@ -569,24 +912,12 @@ export default {
     });
 
     const currentAlignment = computed(() => {
-      const { editor } = props;
-      if (!editor) return t('left') || 'Left';
-
-      const active = alignmentTypes.find((type) =>
-        editor.isActive({ textAlign: type.id })
-      );
-
-      return active ? active.label : (t('left') || 'Left');
+      const active = alignmentTypes.find((type) => type.id === activeAlign.value);
+      return active ? active.label : t('left') || 'Left';
     });
 
     const currentAlignmentIcon = computed(() => {
-      const { editor } = props;
-      if (!editor) return 'riAlignLeft';
-
-      const active = alignmentTypes.find((type) =>
-        editor.isActive({ textAlign: type.id })
-      );
-
+      const active = alignmentTypes.find((type) => type.id === activeAlign.value);
       return active ? active.icon : 'riAlignLeft';
     });
 
@@ -595,18 +926,30 @@ export default {
         label: type.label,
         command: () => type.cmd(props.editor),
         icon: type.icon,
-        isActive: props.editor?.isActive({ textAlign: type.id }) || false,
+        isActive: type.id === activeAlign.value,
       }));
     });
 
     return {
       ...menu,
+      activeFmt,
       nodeName,
       menuOptions,
       currentAlignment,
       currentAlignmentIcon,
       alignmentOptions,
       canComment,
+      // Comment input
+      commentInputValue,
+      commentInputRef,
+      commentPopoverOpen,
+      commentCardRef,
+      commentCardStyles,
+      commentAuthor,
+      commentQuote,
+      openCommentComposer,
+      saveCommentInput,
+      closeCommentInput,
       // Link input
       linkInputValue,
       linkInputRef,

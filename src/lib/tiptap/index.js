@@ -6,6 +6,11 @@ import StarterKit from '@tiptap/starter-kit';
 import { Highlight } from './exts/highlight';
 import Typography from '@tiptap/extension-typography';
 import Link from '@tiptap/extension-link';
+import { registerCustomProtocol } from 'linkifyjs';
+
+['http', 'https', 'mailto', 'note'].forEach((scheme) =>
+  registerCustomProtocol(scheme)
+);
 import Code from '@tiptap/extension-code';
 import markdownEngine from './exts/markdown-engine';
 import { Paste } from './exts/markdown-engine/paste';
@@ -14,6 +19,7 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import LabelSuggestion from './exts/label-suggestion';
 import UserMention from './exts/user-mention';
+import { CommentExtension } from '@sereneinserenade/tiptap-comment-extension';
 import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
 import MermaidBlock from './exts/mermaid-block';
@@ -26,8 +32,9 @@ import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
 import CollapseHeading from './exts/collapse-heading';
-import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
+import SearchAndReplace from './exts/search-and-replace';
 import Dropcursor from '@tiptap/extension-dropcursor';
+import { CharacterCount } from '@tiptap/extensions';
 import {
   blueCallout,
   yellowCallout,
@@ -54,16 +61,21 @@ import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
 import TextAlign from '@tiptap/extension-text-align';
 import Paper from './exts/paper-block';
+import PdfBlock from './exts/pdf-block';
+import { PaperInsert } from './exts/paper-block/double-tap-insert';
+import { PaperStrokesMigration } from './exts/paper-block/migrate';
+import { PdfEmbedMigration } from './exts/pdf-block/migrate';
 import { dropFile } from './exts/drop-file';
-import { getTranslations } from '@/utils/getTranslations';
+import YUndo from './exts/y-undo';
+import { getTranslations } from '@/utils/i18n/getTranslations';
 import { getSettingSync } from '@/lib/settings';
 const translations = getTranslations();
 
-const directionPreference = getSettingSync('directionPreference');
+function getDefaultDirection() {
+  return getSettingSync('directionPreference') === 'rtl' ? 'rtl' : 'ltr';
+}
 
-const defaultDirection = directionPreference === 'rtl' ? 'rtl' : 'ltr';
-
-function createBaseExtensions({ yjs = false } = {}) {
+function createBaseExtensions({ yjs = false, direction = null } = {}) {
   return [
     LabelSuggestion,
     UserMention,
@@ -137,23 +149,38 @@ function createBaseExtensions({ yjs = false } = {}) {
     }),
     Superscript,
     TextDirection.configure({
-      defaultDirection: defaultDirection,
+      types: ['heading', 'paragraph', 'blockquote', 'listItem', 'codeBlock'],
+      // 'auto' (from the note's own dir field) lets the extension detect
+      // direction per block from the text itself, which is what a note in a
+      // different script than the UI needs. getDefaultDirection() stays as the
+      // fallback for editors built without a note.
+      defaultDirection: direction || getDefaultDirection(),
     }),
     Image,
     Audio,
     SearchAndReplace.configure(),
     TextStyle,
+    CharacterCount,
     TextAlign.configure({
       types: ['heading', 'paragraph'],
     }),
     markdownEngine,
     Paper,
+    PdfBlock,
+    // Everything that creates or converts paper/pdf blocks is dev-only for
+    // now: the nodes stay registered so existing docs still parse, but prod
+    // never inserts them. Reads/renders keep working either way.
+    ...(import.meta.env.DEV
+      ? [PaperInsert, PaperStrokesMigration, PdfEmbedMigration]
+      : []),
     Placeholder.configure({
       placeholder: translations.editor.tiptapPlaceholder,
     }),
     Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
     Link.extend({
       inclusive: false,
+      onCreate() {},
+      onDestroy() {},
       addKeyboardShortcuts() {
         return {
           'Mod-k': () =>
@@ -169,13 +196,25 @@ function createBaseExtensions({ yjs = false } = {}) {
         'tiptap-url': 'true',
       },
     }),
+    ...(yjs ? [YUndo] : []),
   ];
 }
 
 const extensions = createBaseExtensions();
 const yjsExtensions = createBaseExtensions({ yjs: true });
 
-export { extensions, yjsExtensions, createBaseExtensions, CollapseHeading, heading, dropFile, Commands };
+// Comment anchors ride in the doc as a `comment` mark that only NoteEditor
+// registers (it needs `onCommentActivated`). Snapshot capture parses the same
+// JSON through generateHTML, so without the mark here the capture is dropped
+// with "There is no mark type comment in this schema". Not part of `extensions`
+// on purpose: a second registration would duplicate the extension name.
+// The rendered class matches NoteEditor's config; styles are in its global block.
+const snapshotExtensions = [
+  ...extensions,
+  CommentExtension.configure({ HTMLAttributes: { class: 'comment-highlight' } }),
+];
+
+export { extensions, yjsExtensions, snapshotExtensions, createBaseExtensions, CollapseHeading, heading, dropFile, Commands };
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

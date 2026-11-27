@@ -1,0 +1,146 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount, flushPromises } from '@vue/test-utils';
+import { nextTick } from 'vue';
+
+vi.mock('@/store/note', () => ({
+  useNoteStore: () => ({
+    lockNote: vi.fn(),
+    unlockNote: vi.fn(),
+    delete: vi.fn(),
+    update: vi.fn(),
+  }),
+}));
+vi.mock('@/store/label', () => ({ useLabelStore: () => ({ getColor: () => null }) }));
+vi.mock('@/lib/dialog', () => ({ useDialog: () => ({ alert: vi.fn(), confirm: vi.fn() }) }));
+vi.mock('@/composable/useTranslations', () => ({
+  useTranslations: () => ({ translations: { card: { untitledNote: 'Untitled' } } }),
+}));
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+// link-note.js (pulled in transitively) imports the app router singleton;
+// stub it so the spec doesn't need the real vue-router factory functions.
+vi.mock('@/router', () => ({ default: { push: vi.fn() } }));
+vi.mock('@/composable/useGroupTooltip', () => ({ useGroupTooltip: () => {} }));
+vi.mock('@/composable/useSounds', () => ({ useSounds: () => ({ play: vi.fn() }) }));
+vi.mock('../FolderTree.vue', () => ({ default: { template: '<div />' } }));
+
+import HomeNoteMasonry from '../HomeNoteMasonry.vue';
+
+const makeNotes = (count) =>
+  Array.from({ length: count }, (_, i) => ({
+    id: `n${i}`,
+    title: `Note ${i}`,
+    labels: [],
+    isLocked: false,
+    isArchived: false,
+    isBookmarked: false,
+    cardPreview: { blocks: [], hasMore: false, mediaCount: 0, visibleMediaCount: 0 },
+  }));
+
+function mountMasonry(notes, props = {}) {
+  return mount(HomeNoteMasonry, {
+    props: { notes, ...props },
+    global: {
+      stubs: {
+        'home-note-card': {
+          props: ['note', 'isLocked', 'disableOpen'],
+          template: '<div class="stub-card" data-testid="note-card">{{ note.title }}</div>',
+        },
+      },
+    },
+  });
+}
+
+let mockScrollY = 0;
+
+beforeEach(() => {
+  mockScrollY = 0;
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+    configurable: true,
+    get() {
+      return 800;
+    },
+  });
+  // The masonry reads window.scrollY (its scroll parent is `window` in the
+  // detached test mount) and computes containerOffset from a scroll-aware
+  // getBoundingClientRect (cr.top + scrollY). happy-dom's rects are NOT
+  // scroll-aware and its scrollTop is not wired to window.scrollY, so both
+  // must be stubbed for the offset math to work.
+  Object.defineProperty(window, 'scrollY', {
+    configurable: true,
+    get: () => mockScrollY,
+    set: (v) => {
+      mockScrollY = v;
+    },
+  });
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+    function () {
+      const top = -mockScrollY;
+      return {
+        top,
+        left: 0,
+        right: 800,
+        bottom: 800 + top,
+        width: 800,
+        height: 800,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      };
+    }
+  );
+});
+
+afterEach(() => {
+  delete globalThis.ResizeObserver;
+  delete HTMLElement.prototype.clientWidth;
+  delete window.scrollY;
+  vi.restoreAllMocks();
+});
+
+describe('HomeNoteMasonry', () => {
+  it('renders only a window of cards and updates it on scroll', async () => {
+    const wrapper = mountMasonry(makeNotes(1000));
+    await flushPromises();
+    await nextTick();
+
+    const rendered = wrapper.findAll('.note-masonry__card');
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(rendered.length).toBeLessThan(80);
+    expect(wrapper.find('[data-item-id="note-n900"]').exists()).toBe(false);
+
+    // Scroll 6000px down. The masonry listens on `window` (its scroll parent in
+    // this detached mount), so dispatch there, then flush the rAF-deferred
+    // onScroll handler. With 3 lanes at the 800px test width (round-robin:
+    // item i sits at y = floor(i / 3) * 274), row 21 starts the window, so it
+    // covers indices ~63..89 while staying bounded.
+    mockScrollY = 6000;
+    window.dispatchEvent(new Event('scroll'));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await nextTick();
+
+    const ids = wrapper
+      .findAll('[data-item-id]')
+      .map((el) => Number(el.attributes('data-item-id').replace('note-n', '')));
+    expect(ids.length).toBeLessThan(80);
+    expect(Math.max(...ids)).toBeGreaterThanOrEqual(60);
+  });
+
+  it('rebinds the window when notes change', async () => {
+    const wrapper = mountMasonry(makeNotes(50));
+    await flushPromises();
+    await nextTick();
+    expect(wrapper.find('[data-item-id="note-n0"]').exists()).toBe(true);
+
+    await wrapper.setProps({
+      notes: makeNotes(50).map((n, i) => ({ ...n, id: `m${i}`, title: `Note ${i}` })),
+    });
+    await nextTick();
+
+    expect(wrapper.find('[data-item-id="note-m0"]').exists()).toBe(true);
+  });
+});

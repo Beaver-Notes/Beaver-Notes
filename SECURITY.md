@@ -19,7 +19,10 @@ We will respond to valid security disclosures within 72 hours and provide securi
 
 - All note content and metadata encrypted client-side using AES-256-GCM and XChaCha20-Poly1305
 - Key derivation uses Argon2id (16 MiB, 2 iterations, 2 parallelism)
-- Master encryption keys stored in hardware-backed OS keychain when available
+- Master encryption keys stored per platform through a single backend chain:
+  - **macOS / iOS / Windows:** the master key lives in the OS keychain / Credential Manager
+  - **Linux:** the master key is stored in the OS Secret Service (gnome-keyring/KWallet) and the kernel keyring (keyutils); when no Secret Service daemon is present, a device-password-encrypted `master.key.enc` file is used
+  - **Android:** the master key is stored in Android Keystore (hardware-backed)
 - Key rotation supported via lazy rotation without data re-encryption
 - 256-bit recovery code available for key loss scenarios
 
@@ -41,7 +44,7 @@ We will respond to valid security disclosures within 72 hours and provide securi
 
 - The FTS5 full-text search index stores note content in plaintext (intentional trade-off for search functionality)
 - The settings database stores preferences unencrypted (by design)
-- When the OS keyring is unavailable, the master key is stored as a file with chmod 600
+- A plaintext master key is never written on any platform
 
 ## Vulnerability Disclosure Timeline
 

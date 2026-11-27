@@ -17,10 +17,16 @@ export function useDialog() {
     emitter.emit('show-dialog', 'auth', options);
   }
 
+  // Checkbox list; `onConfirm` receives the array of selected `choices` values.
+  function select(options) {
+    emitter.emit('show-dialog', 'select', options);
+  }
+
   return {
     alert,
     prompt,
     confirm,
     auth,
+    select,
   };
 }

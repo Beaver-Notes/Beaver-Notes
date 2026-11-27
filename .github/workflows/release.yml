@@ -1,13 +1,31 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - 'v*'
+      - '!v*-beta.*'
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target (all, android, ios, macos-universal, linux-x64, linux-arm64, windows)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+          - macos-universal
+          - linux-x64
+          - linux-arm64
+          - windows
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.ref }}-${{ github.event.inputs.target || 'all' }}
   cancel-in-progress: false
 
 env:
@@ -19,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      build_number: ${{ github.run_number }}
       tag_name: ${{ steps.tag.outputs.tag_name }}
       version_match: ${{ steps.jurisdiction.outputs.version_match }}
 
@@ -64,11 +83,12 @@ jobs:
           set -euo pipefail
 
           PKG_VERSION="$(node -p "require('./package.json').version")"
+          PKG_TAURI_VERSION="${PKG_VERSION%%-*}"
           TAURI_VERSION="$(node -e "console.log(JSON.parse(require('fs').readFileSync('./src-tauri/tauri.conf.json', 'utf8')).version)")"
           CARGO_VERSION="$(node - <<'NODE'
           const fs = require('fs');
           const txt = fs.readFileSync('./src-tauri/Cargo.toml', 'utf8');
-          const m = txt.match(/^\s*version\s*=\s*"(.*?)"/m);
+          const m = txt.match(/^\[package\][\s\S]*?^version\s*=\s*"(.*?)"/m);
           console.log(m ? m[1] : '');
           NODE
           )"
@@ -77,8 +97,8 @@ jobs:
           echo "tauri.conf.json: $TAURI_VERSION"
           echo "Cargo.toml: $CARGO_VERSION"
 
-          test "$PKG_VERSION" = "$TAURI_VERSION"
-          test "$PKG_VERSION" = "$CARGO_VERSION"
+          test "$PKG_TAURI_VERSION" = "$TAURI_VERSION"
+          test "$PKG_TAURI_VERSION" = "$CARGO_VERSION"
 
       - name: Check jurisdiction
         id: jurisdiction
@@ -123,6 +143,7 @@ jobs:
             libasound2-dev \
             libfreetype-dev \
             libfontconfig-dev \
+            libudev-dev \
             patchelf \
             xdg-utils \
             gnupg
@@ -142,7 +163,11 @@ jobs:
       - name: Audit npm dependencies
         shell: bash
         run: |
-          yarn audit --audit-level=high
+          set +e
+          yarn audit --json > /tmp/yarn-audit.json 2>&1
+          status=$?
+          set -e
+          node -e "const fs=require('fs'); const s=fs.readFileSync('/tmp/yarn-audit.json','utf8'); const lines=s.split(/\n+/).filter(Boolean); let high=0; for(const line of lines){try{const obj=JSON.parse(line); if(obj.type==='auditSummary'){high=obj.data.vulnerabilities.high||0;}}catch{}} if(high>0){console.error('High vulnerabilities: '+high); process.exit(1);} console.log('No high vulnerabilities'); process.exit(0)"
 
       - name: Run knip (dead code detection)
         shell: bash
@@ -160,10 +185,54 @@ jobs:
         run: |
           cd src-tauri && cargo audit
 
+  targets:
+    name: Resolve targets
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      android: ${{ steps.t.outputs.android }}
+      ios: ${{ steps.t.outputs.ios }}
+      macos-universal: ${{ steps.t.outputs.macos-universal }}
+      linux-x64: ${{ steps.t.outputs.linux-x64 }}
+      linux-arm64: ${{ steps.t.outputs.linux-arm64 }}
+      windows: ${{ steps.t.outputs.windows }}
+      matrix: ${{ steps.t.outputs.matrix }}
+    steps:
+      - id: t
+        shell: bash
+        env:
+          TARGET: ${{ github.event.inputs.target || 'all' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          target = os.environ.get("TARGET", "all")
+          items = [
+            {"id":"macos-universal","runner":"macos-latest","rust_targets":"aarch64-apple-darwin,x86_64-apple-darwin","tauri_target":"universal-apple-darwin","bundle_args":"--bundles app,dmg","asset_suffix":"macos-universal"},
+            {"id":"linux-x64","runner":"ubuntu-24.04","rust_targets":"x86_64-unknown-linux-gnu","tauri_target":"x86_64-unknown-linux-gnu","asset_suffix":"linux-x64"},
+            {"id":"linux-arm64","runner":"ubuntu-24.04-arm","rust_targets":"aarch64-unknown-linux-gnu","tauri_target":"aarch64-unknown-linux-gnu","asset_suffix":"linux-arm64"},
+            {"id":"android","runner":"ubuntu-24.04","rust_targets":"aarch64-linux-android,x86_64-linux-android","asset_suffix":"android"},
+            {"id":"ios","runner":"macos-latest","rust_targets":"aarch64-apple-ios","asset_suffix":"ios"},
+          ]
+          selected = [i for i in items if target in ("all", i["id"])]
+          for id in ["android","ios","macos-universal","linux-x64","linux-arm64","windows"]:
+            print(f"{id}={'true' if target in ('all', id) else 'false'}")
+          print("matrix=" + json.dumps(selected, separators=(",", ":")))
+          PY
+
+      - name: Notice when Windows is excluded
+        shell: bash
+        env:
+          WINDOWS: ${{ steps.t.outputs.windows }}
+        run: |
+          if [ "$WINDOWS" != "true" ]; then
+            echo "::notice::Windows is not included in this release target; choose target=all or target=windows to build it"
+          fi
+
   create-release:
     name: Create draft release
     if: ${{ needs.validate.outputs.version_match == 'true' }}
-    needs: validate
+    needs: [validate, targets]
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.id }}
@@ -181,51 +250,56 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
+      - name: Prune stale draft assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.validate.outputs.tag_name }}"
+          VERSION="${{ needs.validate.outputs.version }}"
+          is_draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
+          test "$is_draft" = "true" || { echo "::error::Refusing to prune non-draft release"; exit 1; }
+          for name in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do
+            if python3 - "$VERSION" "$name" <<'PY'
+          import re
+          import sys
+
+          try:
+              version, name = sys.argv[1], sys.argv[2]
+              pattern = r'(?<![0-9A-Za-z.])' + re.escape(version) + r'(?![0-9A-Za-z.]|-(?:alpha|beta|rc|preview|canary))'
+              matched = re.search(pattern, name, re.IGNORECASE) is not None
+          except Exception as exc:
+              print(f"version match helper error: {exc}", file=sys.stderr)
+              sys.exit(2)
+          sys.exit(0 if matched else 1)
+          PY
+            then
+              echo "keeping $name"
+            else
+              status=$?
+              if [ "$status" -ne 1 ]; then
+                echo "::error::Version match helper failed for $name (exit $status)"
+                exit 1
+              fi
+              gh release delete-asset "$TAG" "$name" --yes && echo "deleted stale $name"
+            fi
+          done
+
   desktop:
     name: Build ${{ matrix.id }}
-    if: ${{ needs.validate.outputs.version_match == 'true' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' && needs.targets.outputs.matrix != '[]' }}
     needs:
       - validate
       - create-release
+      - targets
     runs-on: ${{ matrix.runner }}
 
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Universal mac build
-          - id: macos-universal
-            runner: macos-latest
-            rust_targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-            tauri_target: 'universal-apple-darwin'
-            bundle_args: '--bundles app,dmg'
-            asset_suffix: 'macos-universal'
-
-          # Linux x64 binary only (packaged as portable tar.gz)
-          - id: linux-x64
-            runner: ubuntu-24.04
-            rust_targets: 'x86_64-unknown-linux-gnu'
-            tauri_target: 'x86_64-unknown-linux-gnu'
-            asset_suffix: 'linux-x64'
-
-          # Linux ARM64 binary only
-          - id: linux-arm64
-            runner: ubuntu-24.04-arm
-            rust_targets: 'aarch64-unknown-linux-gnu'
-            tauri_target: 'aarch64-unknown-linux-gnu'
-            asset_suffix: 'linux-arm64'
-
-          # Android build (APK + AAB)
-          - id: android
-            runner: ubuntu-24.04
-            rust_targets: 'aarch64-linux-android,x86_64-linux-android'
-            asset_suffix: 'android'
-
-          # iOS build
-          - id: ios
-            runner: macos-latest
-            rust_targets: 'aarch64-apple-ios'
-            asset_suffix: 'ios'
+        include: ${{ fromJson(needs.targets.outputs.matrix) }}
 
     steps:
       # Pull source
@@ -282,6 +356,7 @@ jobs:
             libasound2-dev \
             libfreetype-dev \
             libfontconfig-dev \
+            libudev-dev \
             patchelf \
             xdg-utils \
             gnupg
@@ -301,11 +376,46 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          set -euo pipefail
+          test -n "${APPLE_ID:-}" || { echo "::error::APPLE_ID is empty"; exit 1; }
+          test -n "${APPLE_PASSWORD:-}" || { echo "::error::APPLE_PASSWORD is empty"; exit 1; }
+          test -n "${APPLE_TEAM_ID:-}" || { echo "::error::APPLE_TEAM_ID is empty"; exit 1; }
           echo "==> Checking notarytool history: $(date -u +%FT%TZ)"
-          xcrun notarytool history \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" 2>&1 | head -5 || echo "WARNING: notarytool check failed"
+          xcrun notarytool history --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID"
+
+      - name: Import macOS signing certificate
+        if: ${{ matrix.id == 'macos-universal' }}
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${APPLE_CERTIFICATE:-}" || { echo "::error::APPLE_CERTIFICATE is empty"; exit 1; }
+          test -n "${APPLE_CERTIFICATE_PASSWORD:-}" || { echo "::error::APPLE_CERTIFICATE_PASSWORD is empty"; exit 1; }
+          test -n "${KEYCHAIN_PASSWORD:-}" || { echo "::error::KEYCHAIN_PASSWORD is empty"; exit 1; }
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          echo "$APPLE_CERTIFICATE" | base64 -d > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security \
+            -A
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || true
+
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -o '"[^"]*"' | tr -d '"' | head -1)"
+          test -n "$IDENTITY" || { echo "::error::No code signing identity found in keychain"; exit 1; }
+          echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "Derived identity: $IDENTITY"
 
       - name: Build macOS bundles (signed + notarized)
         if: ${{ matrix.id == 'macos-universal' }}
@@ -315,19 +425,51 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE: ${{ secrets.APPLE_MACOS_PROVISIONING_PROFILE_BASE64 }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          test -n "${MACOS_PROVISIONING_PROFILE:-}" || { echo "::error::APPLE_MACOS_PROVISIONING_PROFILE_BASE64 is empty"; exit 1; }
+          PROFILE="$RUNNER_TEMP/embedded.provisionprofile"
+          CONFIG="$RUNNER_TEMP/tauri.macOS.conf.json"
+          printf '%s' "$MACOS_PROVISIONING_PROFILE" | tr -d '[:space:]' | base64 -d > "$PROFILE"
+          test -s "$PROFILE"
+          security cms -D -i "$PROFILE" >/dev/null
+          python3 -c 'import json,sys; json.dump({"bundle":{"macOS":{"files":{"embedded.provisionprofile":sys.argv[1]}}}},open(sys.argv[2],"w"))' "$PROFILE" "$CONFIG"
           echo "==> Build start: $(date -u +%FT%TZ)"
           yarn tauri build \
+            --config "$CONFIG" \
             --target "${{ matrix.tauri_target }}" \
             ${{ matrix.bundle_args }} \
             --ci
           echo "==> Build end: $(date -u +%FT%TZ)"
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Beaver Notes.app"
+          test -f "$APP/Contents/embedded.provisionprofile" || { echo "::error::embedded.provisionprofile missing from app bundle"; exit 1; }
+
+      - name: Notarize and verify macOS DMG
+        if: ${{ matrix.id == 'macos-universal' }}
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.validate.outputs.version }}"
+          VERSION="${VERSION%%-*}"
+          DMG="src-tauri/target/universal-apple-darwin/release/bundle/dmg/Beaver Notes_${VERSION}_universal.dmg"
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Beaver Notes.app"
+          test -f "$DMG" || { echo "::error::DMG not found: $DMG"; exit 1; }
+          test -d "$APP" || { echo "::error::App not found: $APP"; exit 1; }
+          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$DMG"
+          spctl -a -t open --context context:primary-signature -vv "$DMG"
+          spctl -a -t open --context context:primary-signature -vv "$APP"
 
       # Linux build (binary only for Flatpak)
       - name: Build Linux binary
@@ -420,12 +562,12 @@ jobs:
           StartupWMClass=beaver-notes
           DESKTOP
 
-          tar -czf "$OUT/$TAR_NAME" -C portable-root .
+          tar -czf "$TAR_NAME" -C portable-root .
 
           # Build AppImage
           chmod +x ./scripts/build-appimage.sh
           ./scripts/build-appimage.sh "$VERSION" "$ARCH"
-          mv "$APPIMAGE_NAME" "$OUT/"
+          mv "$TAR_NAME" "$APPIMAGE_NAME" "$OUT/"
 
           # Sign the tarball for updater
           yarn tauri signer sign \
@@ -443,6 +585,8 @@ jobs:
       - name: Install Android SDK
         if: ${{ matrix.id == 'android' }}
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
       - name: Regenerate Android project for CI
         if: ${{ matrix.id == 'android' }}
@@ -463,6 +607,74 @@ jobs:
         shell: bash
         run: |
           ./scripts/patch-android-signing.sh
+          # Ensure cargo plugin sources exist before patching.
+          cargo fetch --manifest-path src-tauri/Cargo.toml || true
+          python3 - <<'PY2'
+          from pathlib import Path
+          import os, re
+
+          def ensure_maven_central(p):
+            s=p.read_text()
+            changed=False
+            # repositories { ... }
+            if 'repositories' in s and 'mavenCentral()' not in s:
+              s2=re.sub(r'(repositories\s*\{)', r'\1\n        mavenCentral()', s, count=1)
+              if s2!=s:
+                s=s2
+                changed=True
+            # pluginManagement { repositories { ... } }
+            if 'pluginManagement' in s and 'mavenCentral()' not in s:
+              s2=re.sub(r'(pluginManagement\s*\{[^}]*repositories\s*\{)', r'\1\n            mavenCentral()', s, count=1)
+              if s2!=s:
+                s=s2
+                changed=True
+            if changed:
+              p.write_text(s)
+              print(f'added mavenCentral to {p}')
+            return changed
+
+          def patch_file(p):
+            s=p.read_text()
+            s2=s.replace('compileSdk = 34', 'compileSdk = 36').replace('compileSdkVersion 34', 'compileSdkVersion 36')
+            s2=re.sub(r'compileSdkVersion\s*\(?\s*34\s*\)?', 'compileSdk = 36', s2)
+            if s2!=s:
+              print(f'patched {p}')
+              p.write_text(s2)
+            ensure_maven_central(p)
+
+          root = Path('src-tauri/gen/android')
+          for p in root.rglob('build.gradle*'):
+            patch_file(p)
+          for p in root.rglob('settings.gradle*'):
+            ensure_maven_central(p)
+
+          # Patch any android project dir referenced by tauri.settings.gradle (most reliable).
+          settings = Path('src-tauri/gen/android/tauri.settings.gradle')
+          if settings.exists():
+            txt = settings.read_text()
+            print('--- tauri.settings.gradle biometry ---')
+            for line in txt.splitlines():
+              if 'biometry' in line.lower():
+                print(line)
+            for m in re.finditer(r"project\(':(?:tauri-plugin-[^']*)'\)\.projectDir = new File\(\"([^\"]+)\"\)", txt):
+              d = Path(m.group(1))
+              if d.exists():
+                for p in d.rglob('build.gradle*'):
+                  patch_file(p)
+
+          # Patch cargo registry/git checkouts (covers plugin source used by Android build).
+          cargo_homes = [Path.home()/'.cargo', Path(os.environ.get('CARGO_HOME', str(Path.home()/'.cargo')))]
+          seen=set()
+          for cargo in cargo_homes:
+            cargo = cargo.resolve()
+            if cargo in seen or not cargo.exists():
+              continue
+            seen.add(cargo)
+            for p in cargo.rglob('build.gradle*'):
+              sp=str(p)
+              if 'tauri-plugin-biometry' in sp or 'tauri-plugin-' in sp:
+                patch_file(p)
+          PY2
 
       - name: Setup Android keystore
         if: ${{ matrix.id == 'android' }}
@@ -479,12 +691,35 @@ jobs:
             exit 1
           fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
-          cat > src-tauri/gen/android/keystore.properties <<EOF
-          storeFile=$RUNNER_TEMP/keystore.jks
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          keyPassword=$ANDROID_KEY_PASSWORD
-          EOF
+          python3 - "$RUNNER_TEMP/keystore.jks" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" <<'PYEOF'
+          import sys
+          path = "src-tauri/gen/android/keystore.properties"
+          with open(path, "w") as f:
+              f.write(f"storeFile={sys.argv[1]}\n")
+              f.write(f"storePassword={sys.argv[2]}\n")
+              f.write(f"keyAlias={sys.argv[3]}\n")
+              f.write(f"keyPassword={sys.argv[4]}\n")
+          PYEOF
+
+      - name: Set Android build number
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_PASSWORD:?ANDROID_KEYSTORE_PASSWORD is not set}"
+          : "${ANDROID_KEY_ALIAS:?ANDROID_KEY_ALIAS is not set}"
+          : "${ANDROID_KEY_PASSWORD:?ANDROID_KEY_PASSWORD is not set}"
+          BUILD_NUMBER="${{ needs.validate.outputs.build_number }}"
+          python3 - "$BUILD_NUMBER" <<'PYEOF'
+          import json, sys
+          build = int(sys.argv[1])
+          with open("src-tauri/tauri.android.conf.json", "w") as f:
+              json.dump({"bundle": {"android": {"versionCode": build}}}, f)
+          PYEOF
 
       - name: Build Android app
         if: ${{ matrix.id == 'android' }}
@@ -495,6 +730,62 @@ jobs:
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
         run: |
           yarn tauri android build --apk --aab
+
+      - name: Sign Android AAB/APK with jarsigner and apksigner
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          resolve_tool() {
+            local tool="$1" root candidate
+            if command -v "$tool" >/dev/null 2>&1; then
+              command -v "$tool"
+              return 0
+            fi
+            for root in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}"; do
+              [ -n "$root" ] || continue
+              for candidate in \
+                "$root"/build-tools/*/"$tool" \
+                "$root"/cmdline-tools/*/bin/"$tool" \
+                "$root"/cmdline-tools/latest/bin/"$tool"; do
+                if [ -x "$candidate" ]; then
+                  echo "$candidate"
+                  return 0
+                fi
+              done
+            done
+            echo "::error::$tool not found in PATH, ANDROID_HOME, or ANDROID_SDK_ROOT" >&2
+            return 1
+          }
+          APKSIGNER="$(resolve_tool apksigner)"
+          APKANALYZER="$(resolve_tool apkanalyzer)"
+          echo "ANDROID_APKSIGNER=$APKSIGNER" >> "$GITHUB_ENV"
+          echo "ANDROID_APKANALYZER=$APKANALYZER" >> "$GITHUB_ENV"
+          KS="$RUNNER_TEMP/keystore.jks"
+          aabs=(); while IFS= read -r f; do aabs+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' 2>/dev/null | sort)
+          apks=(); while IFS= read -r f; do apks+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' 2>/dev/null | sort)
+          for aab in "${aabs[@]}"; do
+            echo "Signing AAB: $aab"
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+              -keystore "$KS" -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+              -keypass "$ANDROID_KEY_PASSWORD" "$aab" "$ANDROID_KEY_ALIAS"
+          done
+          for apk in "${apks[@]}"; do
+            echo "Signing APK: $apk"
+            "$APKSIGNER" sign \
+              --ks "$KS" \
+              --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+              --key-pass "pass:$ANDROID_KEY_PASSWORD" \
+              --ks-key-alias "$ANDROID_KEY_ALIAS" \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              "$apk"
+          done
 
       # iOS build
       - name: Regenerate iOS project
@@ -508,15 +799,30 @@ jobs:
           rm -rf src-tauri/gen/apple/Assets.xcassets
           git checkout -- src-tauri/gen/apple/Assets.xcassets
 
-      - name: Fix iOS bundle version
+          VERSION="${{ needs.validate.outputs.version }}"
+          VERSION="${VERSION%%-*}"
+          MARKETING_VERSION="$VERSION" \
+          CURRENT_PROJECT_VERSION="${{ needs.validate.outputs.build_number }}" \
+          ./scripts/setup-ios-share-extension.sh
+
+      - name: Set iOS bundle version
         if: ${{ matrix.id == 'ios' }}
         shell: bash
         run: |
-          VERSION="$(node -p "require('./package.json').version.replace(/-.*$/, '')")"
-          sed -i '' "s/CFBundleShortVersionString: '.*'/CFBundleShortVersionString: '$VERSION'/" \
-            src-tauri/gen/apple/project.yml
-          sed -i '' "s/CFBundleVersion: '.*'/CFBundleVersion: '$VERSION'/" \
-            src-tauri/gen/apple/project.yml
+          set -euo pipefail
+          VERSION="${{ needs.validate.outputs.version }}"
+          VERSION="${VERSION%%-*}"
+          BUILD_NUMBER="${{ needs.validate.outputs.build_number }}"
+          python3 - "$VERSION" "$BUILD_NUMBER" src-tauri/tauri.conf.json src-tauri/tauri.ios.ci.conf.json <<'PYEOF'
+          import json, sys
+          version, build, base_path, out_path = sys.argv[1:5]
+          with open(base_path) as f:
+              config = json.load(f)
+          config["version"] = version
+          config.setdefault("bundle", {}).setdefault("iOS", {})["bundleVersion"] = build
+          with open(out_path, "w") as f:
+              json.dump(config, f)
+          PYEOF
 
       - name: Set iOS development team
         if: ${{ matrix.id == 'ios' }}
@@ -572,7 +878,12 @@ jobs:
         env:
           API_KEY: ${{ secrets.APPLE_API_KEY }}
           API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
+          set -euo pipefail
+          : "${API_KEY:?APPLE_API_KEY is not set}"
+          : "${API_KEY_ID:?APPLE_API_KEY_ID is not set}"
+          : "${API_ISSUER:?APPLE_API_ISSUER is not set}"
           mkdir -p "$RUNNER_TEMP/app-store-connect-api-key"
           echo "$API_KEY" > "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${API_KEY_ID}.p8"
 
@@ -582,32 +893,36 @@ jobs:
         env:
           IOS_CERTIFICATE_BASE64: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
+          IOS_MOBILE_PROVISION_BASE64: ${{ secrets.APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
+          : "${IOS_CERTIFICATE_BASE64:?APPLE_IOS_SIGNING_CERTIFICATE_BASE64 is not set}"
+          : "${IOS_MOBILE_PROVISION_BASE64:?APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE is not set}"
+          : "${KEYCHAIN_PASSWORD:?KEYCHAIN_PASSWORD is not set}"
           CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
+          PROVISION_PATH="$RUNNER_TEMP/iOS.provisionprofile"
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
 
-          # Decode certificate
-          echo "$IOS_CERTIFICATE_BASE64" | base64 -d > "$CERTIFICATE_PATH"
-
-          # Create and configure temporary keychain (no auto-lock timeout)
+          printf '%s' "$IOS_CERTIFICATE_BASE64" | tr -d '[:space:]' | base64 -d > "$CERTIFICATE_PATH"
+          printf '%s' "$IOS_MOBILE_PROVISION_BASE64" | tr -d '[:space:]' | base64 -d > "$PROVISION_PATH"
+          security cms -D -i "$PROVISION_PATH" >/dev/null
+          CERT_B64="$(base64 < "$CERTIFICATE_PATH" | tr -d '[:space:]')"
+          PROVISION_B64="$(base64 < "$PROVISION_PATH" | tr -d '[:space:]')"
+          echo "::add-mask::$CERT_B64"
+          echo "::add-mask::$PROVISION_B64"
+          echo "IOS_CERTIFICATE=$CERT_B64" >> "$GITHUB_ENV"
+          echo "IOS_MOBILE_PROVISION=$PROVISION_B64" >> "$GITHUB_ENV"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import certificate
           security import "$CERTIFICATE_PATH" \
             -P "$IOS_CERTIFICATE_PASSWORD" \
             -A \
             -t cert \
             -f pkcs12 \
             -k "$KEYCHAIN_PATH"
-
-          # Set keychain search list
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
-
-          # Allow codesign to access keychain without prompt
           security set-key-partition-list -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
@@ -622,26 +937,71 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          IOS_CERTIFICATE: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE: ${{ env.IOS_CERTIFICATE }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
-          IOS_MOBILE_PROVISION: ${{ secrets.APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE }}
+          IOS_MOBILE_PROVISION: ${{ env.IOS_MOBILE_PROVISION }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          yarn tauri ios build --export-method app-store-connect
+          yarn tauri ios build --export-method app-store-connect --config src-tauri/tauri.ios.ci.conf.json
 
       # Android release assets: APK and AAB
+      - name: Verify Android signing
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          BUILD_NUMBER: ${{ needs.validate.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          aabs=(); while IFS= read -r f; do aabs+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' 2>/dev/null | sort)
+          apks=(); while IFS= read -r f; do apks+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' 2>/dev/null | sort)
+          if [ ${#aabs[@]} -eq 0 ] && [ ${#apks[@]} -eq 0 ]; then
+            echo "::error::No Android AAB/APK outputs found"
+            exit 1
+          fi
+          for aab in "${aabs[@]}"; do
+            echo "Verifying AAB: $aab"
+            if ! jarsigner -verify "$aab" | tee /tmp/aab-verify.txt | grep -q "jar verified"; then
+              echo "::error::AAB is not signed: $aab"
+              cat /tmp/aab-verify.txt || true
+              exit 1
+            fi
+          done
+          for apk in "${apks[@]}"; do
+            echo "Verifying APK: $apk"
+            if ! "$ANDROID_APKSIGNER" verify --verbose "$apk"; then
+              echo "::error::APK is not signed: $apk"
+              exit 1
+            fi
+          done
+
+          VERSION="${VERSION%%-*}"
+          grep -Fqx "tauri.android.versionName=$VERSION" src-tauri/gen/android/app/tauri.properties || { echo "::error::tauri.properties versionName mismatch"; exit 1; }
+          grep -Fqx "tauri.android.versionCode=$BUILD_NUMBER" src-tauri/gen/android/app/tauri.properties || { echo "::error::tauri.properties versionCode mismatch"; exit 1; }
+          for artifact in "${apks[@]}"; do
+            ACTUAL_NAME="$("$ANDROID_APKANALYZER" manifest version-name "$artifact")"
+            ACTUAL_CODE="$("$ANDROID_APKANALYZER" manifest version-code "$artifact")"
+            test "$ACTUAL_NAME" = "$VERSION" || { echo "::error::$artifact versionName mismatch"; exit 1; }
+            test "$ACTUAL_CODE" = "$BUILD_NUMBER" || { echo "::error::$artifact versionCode mismatch"; exit 1; }
+          done
+
       - name: Stage Android assets
         if: ${{ matrix.id == 'android' }}
         shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
-
-          OUT="release-assets"
-          mkdir -p "$OUT"
-
-          find "src-tauri/gen/android/app/build/outputs" -type f \
-            \( -name "*.apk" -o -name "*.aab" \) \
-            -exec cp {} "$OUT"/ \;
+          VERSION="${VERSION%%-*}"
+          mkdir -p release-assets
+          aabs=(); while IFS= read -r f; do aabs+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' 2>/dev/null | sort)
+          apks=(); while IFS= read -r f; do apks+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' 2>/dev/null | sort)
+          test ${#aabs[@]} -eq 1 || { echo "::error::Expected exactly one AAB, got ${#aabs[@]}"; exit 1; }
+          test ${#apks[@]} -eq 1 || { echo "::error::Expected exactly one APK, got ${#apks[@]}"; exit 1; }
+          cp "${aabs[0]}" "release-assets/Beaver.Notes_${VERSION}_android.aab"
+          cp "${apks[0]}" "release-assets/Beaver.Notes_${VERSION}_android.apk"
+          unsigned="$(find release-assets -type f -name '*-unsigned*' -print -quit)"
+          test -z "$unsigned" || { echo "::error::unsigned asset: $unsigned"; exit 1; }
 
       # iOS release assets
       - name: Find iOS IPA
@@ -656,12 +1016,41 @@ jobs:
             echo "::warning::No .ipa file found"
           fi
 
-      - name: Stage iOS assets
+      - name: Verify and stage iOS assets
         if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
         shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          BUILD_NUMBER: ${{ needs.validate.outputs.build_number }}
         run: |
+          set -euo pipefail
+          VERSION="${VERSION%%-*}"
+          IPA="${{ steps.find-ipa.outputs.ipa-path }}"
+          TMP="$(mktemp -d /tmp/ipa-check.XXXXXX)"
+          unzip -q "$IPA" -d "$TMP"
+          APP="$(find "$TMP/Payload" -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$APP" ]; then
+            echo "::error::No .app found inside IPA: $IPA"
+            exit 1
+          fi
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          security cms -D -i "$APP/embedded.mobileprovision" >/dev/null
+
+          # Verify provisioning profile matches build
+          PROVISION_INFO=$(security cms -D -i "$APP/embedded.mobileprovision")
+          echo "$PROVISION_INFO" | grep -q "F8U6VTU2DJ" || { echo "::error::Provisioning profile team ID mismatch"; exit 1; }
+          echo "$PROVISION_INFO" | grep -q "com.beavernotes.beaver-notes" || echo "::warning::Bundle ID not found in provisioning profile"
+          echo "Provisioning profile verified"
+
+          # Verify bundle version survived the build
+          BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Info.plist")
+          SHORT_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Info.plist")
+          echo "IPA CFBundleShortVersionString=$SHORT_VERSION CFBundleVersion=$BUNDLE_VERSION"
+          test "$SHORT_VERSION" = "$VERSION" || { echo "::error::IPA short version mismatch"; exit 1; }
+          test "$BUNDLE_VERSION" = "$BUILD_NUMBER" || { echo "::error::IPA build number mismatch (got $BUNDLE_VERSION, expected $BUILD_NUMBER)"; exit 1; }
+
           mkdir -p release-assets
-          cp "${{ steps.find-ipa.outputs.ipa-path }}" release-assets/
+          cp "$IPA" release-assets/
 
       # Upload iOS IPA to TestFlight via App Store Connect API
       - name: Upload to TestFlight
@@ -684,13 +1073,21 @@ jobs:
 
   windows:
     name: Build Windows (via OSSign)
-    if: ${{ needs.validate.outputs.version_match == 'true' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' && needs.targets.outputs.windows == 'true' }}
     needs:
       - validate
       - create-release
-    runs-on: ubuntu-latest
+      - targets
+    runs-on: windows-latest
 
     steps:
+      - name: Guard Windows signing token
+        shell: pwsh
+        env:
+          SIGNING_TOKEN: ${{ secrets.SIGNING_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_TOKEN)) { throw "SIGNING_TOKEN is not set" }
+
       - name: Dispatch Windows signing
         uses: ossign/actions/workflow/dispatch@main
         id: dispatch
@@ -700,18 +1097,56 @@ jobs:
 
       - name: Parse signed artifacts
         shell: bash
+        env:
+          SIGNED_ARTIFACTS: ${{ steps.dispatch.outputs.signed_artifacts }}
         run: |
-          printf "%s" "${{ steps.dispatch.outputs.signed_artifacts }}" > artifacts.json
-          echo "parsed=$(cat artifacts.json)" >> "$GITHUB_OUTPUT"
+          printf '%s' "$SIGNED_ARTIFACTS" > artifacts.json
+          jq -e . artifacts.json >/dev/null
 
       - name: Download signed artifacts
         shell: bash
         run: |
           mkdir -p signed
-          for url in $(jq -r '.[].browser_download_url' artifacts.json); do
+          jq -r '.[].browser_download_url' artifacts.json | while IFS= read -r url; do
+            [ -n "$url" ] || continue
             echo "Downloading $url"
-            curl -L -o "signed/$(basename "$url")" "$url"
+            curl -fL -o "signed/$(basename "$url")" "$url"
           done
+
+      - name: Verify signed Windows artifacts
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          $expected = $env:EXPECTED_VERSION.Split('-')[0]
+          function Assert-SignedExe([string]$path, [string]$expected) {
+            $sig = Get-AuthenticodeSignature -FilePath $path
+            if ($sig.Status -ne 'Valid') { throw "Invalid signature on $path ($($sig.Status))" }
+            $actual = (Get-Item -LiteralPath $path).VersionInfo.ProductVersion
+            if ([string]::IsNullOrWhiteSpace($actual) -or ($actual -ne $expected -and $actual -notlike "$expected.*")) {
+              throw "Embedded version mismatch on $path ($actual vs $expected)"
+            }
+          }
+          $files = @(Get-ChildItem -Path signed -File)
+          if ($files.Count -eq 0) { throw "No signed Windows artifacts were downloaded" }
+          foreach ($f in $files) {
+            if ($f.Name -notlike "*$expected*") { throw "Unexpected artifact version/name: $($f.Name)" }
+            switch ($f.Extension.ToLowerInvariant()) {
+              '.exe' { Assert-SignedExe $f.FullName $expected }
+              '.zip' {
+                $dir = Join-Path $env:RUNNER_TEMP ("winzip-" + [guid]::NewGuid().ToString('N'))
+                Expand-Archive -Path $f.FullName -DestinationPath $dir -Force
+                $exes = @(Get-ChildItem -Path $dir -Filter *.exe -Recurse -File)
+                if ($exes.Count -eq 0) { throw "No exe found in $($f.Name)" }
+                foreach ($exe in $exes) { Assert-SignedExe $exe.FullName $expected }
+              }
+              '.sig' {
+                $payload = @($files | Where-Object { $_.Name -ne $f.Name -and $f.Name.StartsWith($_.BaseName) })
+                if ($payload.Count -eq 0) { throw "No paired payload for $($f.Name)" }
+              }
+              default { throw "Unexpected Windows artifact type: $($f.Name)" }
+            }
+          }
 
       - name: Stage Windows assets
         shell: bash
@@ -725,4 +1160,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ needs.validate.outputs.tag_name }}" release-assets/* --clobber
+          gh release upload "${{ needs.validate.outputs.tag_name }}" release-assets/* --clobber --repo "${{ github.repository }}"

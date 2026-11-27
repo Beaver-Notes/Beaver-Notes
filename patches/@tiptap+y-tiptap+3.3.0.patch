@@ -1,0 +1,26 @@
+diff --git a/node_modules/@tiptap/y-tiptap/dist/index.cjs b/node_modules/@tiptap/y-tiptap/dist/index.cjs
+index 309e68f..c381534 100644
+--- a/node_modules/@tiptap/y-tiptap/dist/index.cjs
++++ b/node_modules/@tiptap/y-tiptap/dist/index.cjs
+@@ -976,6 +976,8 @@ const updateYText = (ytext, ptexts, meta) => {
+ //#endregion
+ //#region src/lib/utils/reconciliation/updateMatchingYChild.ts
+ const updateMatchingYChild = (y, yChild, pChild, meta, updateFragment) => {
++	// patch: an already mapped child is the same immutable PM node, so skip the deep subtree compare
++	if (meta.mapping.get(yChild) === pChild) return true;
+ 	if (yChild instanceof yjs.XmlText && pChild instanceof Array) {
+ 		if (equalYTextPText(yChild, pChild)) meta.mapping.set(yChild, pChild);
+ 		else updateYText(yChild, pChild, meta);
+diff --git a/node_modules/@tiptap/y-tiptap/dist/index.js b/node_modules/@tiptap/y-tiptap/dist/index.js
+index 64482fa..25aebe1 100644
+--- a/node_modules/@tiptap/y-tiptap/dist/index.js
++++ b/node_modules/@tiptap/y-tiptap/dist/index.js
+@@ -943,6 +943,8 @@ const updateYText = (ytext, ptexts, meta) => {
+ //#endregion
+ //#region src/lib/utils/reconciliation/updateMatchingYChild.ts
+ const updateMatchingYChild = (y, yChild, pChild, meta, updateFragment) => {
++	// patch: an already mapped child is the same immutable PM node, so skip the deep subtree compare
++	if (meta.mapping.get(yChild) === pChild) return true;
+ 	if (yChild instanceof Y.XmlText && pChild instanceof Array) {
+ 		if (equalYTextPText(yChild, pChild)) meta.mapping.set(yChild, pChild);
+ 		else updateYText(yChild, pChild, meta);

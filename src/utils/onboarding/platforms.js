@@ -1,7 +1,4 @@
-/**
- * Canonical registry for all migration source platforms.
- * Single source of truth for labels, icons, descriptions, and import mappings.
- */
+/** Canonical registry for migration source platforms: labels, icons, descriptions, mappings. */
 
 const PLATFORMS = [
   {
@@ -18,8 +15,7 @@ const PLATFORMS = [
     iconBg: 'rgba(245, 158, 11, 0.12)',
     sourceMap: null,
     macOnly: false,
-    // The legacy Electron migration runs in Rust behind `#[cfg(desktop)]` —
-    // it is not available on mobile.
+    // Legacy Electron migration runs in Rust behind cfg(desktop): desktop only.
     desktopOnly: true,
   },
   {
@@ -126,8 +122,6 @@ const PLATFORM_ORDER = [
   'simplenote',
 ];
 
-export const MIGRATION_PLATFORMS = PLATFORMS;
-
 export const ALL_PLATFORMS = [...PLATFORMS].sort(
   (a, b) => PLATFORM_ORDER.indexOf(a.id) - PLATFORM_ORDER.indexOf(b.id)
 );
@@ -136,22 +130,13 @@ export const PLATFORM_LABELS = Object.fromEntries(
   PLATFORMS.map((p) => [p.id, p.label])
 );
 
-export const PLATFORM_ICONS = Object.fromEntries(
-  PLATFORMS.map((p) => [
-    p.id,
-    {
-      icon: p.icon,
-      useLogo: p.useLogoImg,
-      bg: p.iconBg,
-      color: p.iconColor,
-      iconClass: p.iconClass,
-    },
-  ])
-);
-
 export const ONBOARDING_IMPORT_SOURCE_MAP = Object.fromEntries(
   PLATFORMS.filter((p) => p.sourceMap).map((p) => [p.id, p.sourceMap])
 );
+
+export function isPlatformVisible(p, { isMacOS, isTouch }) {
+  return (!p.macOnly || isMacOS) && (!isTouch || !p.desktopOnly);
+}
 
 export function getMigrationSourceCopy(platformId) {
   const platform = PLATFORMS.find((p) => p.id === platformId);

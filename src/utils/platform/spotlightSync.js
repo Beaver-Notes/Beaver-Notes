@@ -10,7 +10,9 @@ export function isSpotlightEnabled() {
 function buildSpotItem(note) {
   if (!note || !note.id) return null;
 
-  const snippet = (note.searchText || note.cardPreview || '').substring(0, 300);
+  const rawSnippet = note.searchText || note.preview || '';
+  const snippet =
+    typeof rawSnippet === 'string' ? rawSnippet.substring(0, 300) : '';
 
   return {
     id: note.id,
@@ -43,15 +45,6 @@ export function deleteNoteFromSpotlight(id) {
 
   deleteItems([id]).catch((err) => {
     console.error('[spotlight] failed to remove note:', id, err);
-  });
-}
-
-export function bulkDeleteFromSpotlight(ids) {
-  if (!isSpotlightEnabled()) return;
-  if (!ids || ids.length === 0) return;
-
-  deleteItems(ids).catch((err) => {
-    console.error('[spotlight] failed to bulk remove notes:', err);
   });
 }
 

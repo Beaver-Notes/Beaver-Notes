@@ -1,18 +1,18 @@
 <template>
   <aside
-    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 border-r border-neutral-200/40 dark:border-neutral-800/40 select-none"
+    class="relative z-50 flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 ltr:border-r rtl:border-l border-neutral-200/40 dark:border-neutral-800/40 select-none pt-[var(--app-safe-area-top)]"
     :class="expanded ? 'w-64' : 'w-16'"
-    :style="{ paddingTop: titlebarInset }"
   >
     <div
       class="pt-5 px-3 mb-3 shrink-0"
-      :class="expanded ? 'flex justify-end' : ''"
+      :class="expanded ? 'flex items-center gap-1' : ''"
     >
       <WorkspaceSwitcher :expanded="expanded" />
       <button
         v-tooltip:right="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
         :aria-label="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
-        class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+        class="w-9 h-9 mt-1 flex items-center justify-center rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+        :class="expanded ? 'ltr:ml-auto rtl:mr-auto' : ''"
         @click="toggleExpanded"
       >
         <v-remixicon
@@ -21,6 +21,17 @@
           :class="expanded ? 'rotate-180' : ''"
         />
       </button>
+    </div>
+
+    <div
+      v-if="showWorkspacePresence"
+      class="px-3 pb-3 shrink-0"
+      :class="expanded ? 'flex' : 'flex justify-center'"
+    >
+      <PresenceAvatars
+        :peers="workspacePresence.peers.value"
+        :max-visible="4"
+      />
     </div>
 
     <div class="px-3 mb-4 shrink-0">
@@ -32,19 +43,28 @@
         "
         :aria-label="translations.sidebar.addNotes"
         data-testid="add-note-button"
-        class="transition-[width,height,padding,gap] duration-200 ease-[var(--ease-snappy)] text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center justify-center overflow-hidden"
-        :class="expanded ? 'px-4 gap-2 h-10 w-full' : 'p-0 w-9 h-9'"
+        class="relative text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center h-10 w-full overflow-hidden transition-colors"
+        :class="expanded ? 'px-3' : 'justify-center'"
         @click="addNote"
       >
-        <v-remixicon
-          name="riAddFill"
-          size="20"
-          class="transition-transform duration-200 ease-[var(--ease-snappy)] shrink-0"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
+        >
+          <v-remixicon
+            name="riAddFill"
+            size="20"
+            class="transition-transform duration-200 ease-[var(--ease-snappy)] shrink-0"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="text-sm font-medium whitespace-nowrap truncate"
+            class="ltr:ml-8 rtl:mr-8 text-sm font-medium whitespace-nowrap truncate"
           >
             {{ translations.sidebar.addNotes }}
           </span>
@@ -62,18 +82,26 @@
             : undefined
         "
         :aria-label="translations.sidebar.newFolder || 'New Folder'"
-        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="relative w-full rounded-xl flex items-center h-9 overflow-hidden transition-colors"
         :class="[
-          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
-        @click="addFolder"
+        @click="openCreateFolderModal"
       >
-        <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
+        >
+          <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="text-sm font-medium whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm font-medium whitespace-nowrap truncate"
           >
             {{ translations.sidebar.newFolder || 'New Folder' }}
           </span>
@@ -83,7 +111,7 @@
 
     <nav class="flex flex-col gap-1 px-3 shrink-0 relative">
       <div
-        class="absolute left-0 w-1 bg-primary rounded-r-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
+        class="absolute ltr:left-0 rtl:right-0 w-1 bg-primary ltr:rounded-r-full rtl:rounded-l-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
         :style="pillStyle"
       />
 
@@ -96,25 +124,33 @@
         "
         :aria-label="translations.sidebar.notes"
         data-testid="nav-notes-button"
-        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="relative w-full rounded-xl flex items-center h-9 overflow-hidden transition-colors"
         :class="[
-          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           isAllNotesActive
             ? 'text-primary bg-primary/10'
             : 'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
         @click="goHome"
       >
-        <v-remixicon
-          name="riBookletLine"
-          size="20"
-          class="shrink-0 transition-transform duration-200"
-          :class="{ 'scale-105': isAllNotesActive }"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
+        >
+          <v-remixicon
+            name="riBookletLine"
+            size="20"
+            class="shrink-0 transition-transform duration-200"
+            :class="{ 'scale-105': isAllNotesActive }"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="text-sm font-medium whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm font-medium whitespace-nowrap truncate"
           >
             {{ translations.sidebar.notes || 'All Notes' }}
           </span>
@@ -130,25 +166,33 @@
         "
         :aria-label="translations.sidebar.archive"
         data-testid="nav-archive-button"
-        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="relative w-full rounded-xl flex items-center h-9 overflow-hidden transition-colors"
         :class="[
-          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           isArchiveActive
             ? 'text-primary bg-primary/10'
             : 'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
         @click="goArchive"
       >
-        <v-remixicon
-          name="riArchiveDrawerLine"
-          size="20"
-          class="shrink-0 transition-transform duration-200"
-          :class="{ 'scale-105': isArchiveActive }"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
+        >
+          <v-remixicon
+            name="riArchiveDrawerLine"
+            size="20"
+            class="shrink-0 transition-transform duration-200"
+            :class="{ 'scale-105': isArchiveActive }"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="text-sm font-medium whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm font-medium whitespace-nowrap truncate"
           >
             {{ translations.sidebar.archive || 'Archive' }}
           </span>
@@ -162,7 +206,7 @@
         class="mt-5 px-3 flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col"
       >
         <div
-          class="text-[11px] font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-2 px-3 select-none shrink-0"
+          class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 mb-2 px-3 select-none shrink-0"
         >
           {{ translations.sidebar.recent || 'Recent' }}
         </div>
@@ -170,7 +214,7 @@
           <button
             v-for="item in recentItems"
             :key="`${item.type}-${item.id}`"
-            class="flex items-center gap-2 w-full min-w-0 px-3 py-1.5 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors text-left group"
+            class="flex items-center gap-2 w-full min-w-0 px-3 py-1.5 rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors text-left group"
             :title="item.title"
             @click="
               item.type === 'folder' ? openFolder(item.id) : openNote(item.id)
@@ -198,7 +242,7 @@
               {{ item.title }}
             </span>
             <span
-              class="text-[11px] text-neutral-400 dark:text-neutral-500 shrink-0 tabular-nums"
+              class="text-xs text-neutral-400 dark:text-neutral-500 shrink-0 tabular-nums"
             >
               {{ formatRelativeTime(item.updatedAt) }}
             </span>
@@ -218,36 +262,89 @@
       class="flex flex-col items-center gap-1 px-3 pb-4 pt-3 border-t border-neutral-200/50 dark:border-neutral-800/50 shrink-0 relative"
     >
       <div
-        class="absolute left-0 w-1 bg-primary rounded-r-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
+        class="absolute ltr:left-0 rtl:right-0 w-1 bg-primary ltr:rounded-r-full rtl:rounded-l-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
         :style="footerPillStyle"
       />
 
       <button
         v-tooltip:right="
           !expanded
-            ? `${translations.sidebar.toggleSync} (${keyBinding}+Shift+Y)`
+            ? syncStateText ||
+              `${translations.sidebar.toggleSync} (${keyBinding}+Shift+Y)`
             : undefined
         "
-        :aria-label="translations.sidebar.toggleSync"
-        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
+        :aria-label="syncStateText || translations.sidebar.toggleSync"
+        class="relative w-full rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
         :class="[
-          expanded ? 'w-full px-3' : 'justify-center w-9',
-          { '!text-primary': spinning },
+          { '!text-primary': spinning || syncProgressStore.isSyncing },
+          {
+            '!text-red-600 dark:!text-red-400':
+              syncAttentionIcon === 'riAlertLine' && !spinning,
+          },
         ]"
-        @click="manualSync"
+        @click="syncButtonAction"
       >
-        <v-remixicon
-          name="riLoopRightLine"
-          size="20"
-          :class="{ 'animate-spin': spinning }"
-          class="shrink-0 transition-transform duration-200"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
+        >
+          <svg
+            v-if="syncProgressStore.hasProgress"
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            class="shrink-0 -rotate-90"
+            role="progressbar"
+            :aria-valuemin="0"
+            :aria-valuemax="100"
+            :aria-valuenow="syncProgressStore.progress"
+            :aria-label="syncProgressStore.phaseMessage"
+          >
+            <circle
+              cx="10"
+              cy="10"
+              r="8"
+              fill="none"
+              stroke-width="2.5"
+              class="stroke-neutral-200 dark:stroke-neutral-700"
+            />
+            <circle
+              cx="10"
+              cy="10"
+              r="8"
+              fill="none"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              class="stroke-primary transition-all duration-300"
+              :stroke-dasharray="donutDash"
+            />
+          </svg>
+          <v-remixicon
+            v-else-if="syncAttentionIcon"
+            :name="syncAttentionIcon"
+            size="20"
+            class="shrink-0 transition-transform duration-200"
+          />
+          <v-remixicon
+            v-else
+            name="riLoopRightLine"
+            size="20"
+            :class="{
+              'animate-spin': spinning || syncProgressStore.isSyncing,
+            }"
+            class="shrink-0 transition-transform duration-200"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
-            {{ translations.sidebar.sync || 'Sync' }}
+            {{ syncStateText || translations.sidebar.sync || 'Sync' }}
           </span>
         </transition>
       </button>
@@ -259,20 +356,28 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleDarkTheme"
-        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
-        :class="expanded ? 'w-full px-3' : 'justify-center w-9'"
+        class="relative w-full rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden transition-colors"
         @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
       >
-        <v-remixicon
-          size="20"
-          :class="theme.isDark() ? 'text-primary' : ''"
-          :name="theme.isDark() ? 'riSunLine' : 'riMoonClearLine'"
-          class="shrink-0 transition-transform duration-200"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
+        >
+          <v-remixicon
+            size="20"
+            :class="theme.isDark() ? 'text-primary' : ''"
+            :name="theme.isDark() ? 'riSunLine' : 'riMoonClearLine'"
+            class="shrink-0 transition-transform duration-200"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
             {{
               theme.isDark()
@@ -292,30 +397,46 @@
         "
         :aria-label="translations.settings.title"
         to="/settings"
-        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9"
+        class="relative w-full rounded-xl hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 overflow-hidden transition-colors"
         active-class="text-primary bg-primary/10"
         :class="[
           !isSettingsActive
             ? 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
             : '',
-          expanded ? 'w-full px-3' : 'justify-center w-9',
         ]"
       >
-        <v-remixicon
-          name="riSettingsLine"
-          size="20"
-          class="shrink-0 transition-transform duration-200"
-        />
+        <span
+          class="absolute inset-y-0 flex items-center justify-center transition-[transform,background-color] duration-200 ease-[var(--ease-standard)]"
+          :class="
+            expanded
+              ? 'ltr:left-3 rtl:right-3 translate-x-0'
+              : 'left-1/2 -translate-x-1/2'
+          "
+        >
+          <v-remixicon
+            name="riSettingsLine"
+            size="20"
+            class="shrink-0 transition-transform duration-200"
+          />
+        </span>
         <transition name="fade-fast">
           <span
             v-if="expanded"
-            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+            class="ltr:ml-9 rtl:mr-9 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
           >
             {{ translations.settings.title }}
           </span>
         </transition>
       </router-link>
     </div>
+
+    <ui-customize-modal
+      v-model="showCreateFolderModal"
+      kind="folder"
+      :folder="null"
+      :parent-id="currentFolderId"
+      @saved="onFolderCreated"
+    />
   </aside>
 </template>
 
@@ -326,23 +447,51 @@ import { useTheme } from '@/composable/theme';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import emitter from 'tiny-emitter/instance';
-import { forceSyncNow } from '@/utils/sync';
+import { kickRustSync, startRustSync } from '@/utils/sync/rust-shim.js';
+import { logger } from '@/utils/logger';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useSounds } from '@/composable/useSounds';
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
+import { useSyncProgressStore } from '@/store/sync-progress';
+import { useSidebar } from '@/composable/useSidebar';
+import { useAccountStore } from '@/store/account';
+import { useWorkspacePresence } from '@/composable/useWorkspacePresence';
+import PresenceAvatars from '@/components/note/PresenceAvatars.vue';
 
 export default {
-  components: { WorkspaceSwitcher },
+  components: { WorkspaceSwitcher, PresenceAvatars },
   setup() {
     const { play } = useSounds();
     const router = useRouter();
     const route = useRoute();
     const spinning = ref(false);
+    const syncProgressStore = useSyncProgressStore();
+    const syncStateText = computed(() =>
+      syncProgressStore.isSyncing
+        ? syncProgressStore.phaseMessage
+        : (syncProgressStore.attention?.text ?? ''),
+    );
+    const syncAttentionIcon = computed(() =>
+      !syncProgressStore.isSyncing && syncProgressStore.attention
+        ? syncProgressStore.attention.tone === 'action'
+          ? 'riAlertLine'
+          : 'riCloudLine'
+        : '',
+    );
+    const donutDash = computed(() => {
+      const circumference = 2 * Math.PI * 8;
+      return `${(syncProgressStore.progress / 100) * circumference} ${circumference}`;
+    });
     const theme = useTheme();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
-    const titlebarInset = ref('0px');
+    const accountStore = useAccountStore();
+    const workspacePresence = useWorkspacePresence();
+    const showWorkspacePresence = computed(
+      () => accountStore.isAuthenticated && workspacePresence.peers.value.size > 0,
+    );
 
     // DOM Element pointers to calculate indicator pill transitions cleanly
     const homeBtn = ref(null);
@@ -367,21 +516,23 @@ export default {
       createShortcutMap,
     } = useAppShellActions();
 
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
+    const showCreateFolderModal = ref(false);
+    const currentFolderId = computed(() =>
+      route.name === 'Folder' ? (route.params.id ?? null) : null,
+    );
+
+    function openCreateFolderModal() {
+      showCreateFolderModal.value = true;
+    }
+
+    function onFolderCreated() {
+      showCreateFolderModal.value = false;
+    }
+
+    const isMacOS = isMacOSRuntime();
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
 
     onMounted(() => {
-      const computedStyle = window.getComputedStyle(document.documentElement);
-
-      const envTop = computedStyle
-        .getPropertyValue('--safe-area-inset-top')
-        .trim();
-      if (envTop && envTop !== '0px') {
-        titlebarInset.value = envTop;
-      } else {
-        titlebarInset.value = '0px';
-      }
-
       if (typeof window !== 'undefined') {
         window.addNote = addNote;
       }
@@ -389,13 +540,7 @@ export default {
       calculatePillPositions();
     });
 
-    const expanded = ref(localStorage.getItem('sidebarExpanded') !== 'false');
-
-    function toggleExpanded() {
-      expanded.value = !expanded.value;
-      localStorage.setItem('sidebarExpanded', String(expanded.value));
-      nextTick(() => calculatePillPositions());
-    }
+    const { expanded, toggleExpanded } = useSidebar();
 
     // Fixed path structural matches for nested routes (`/settings/labels` won't drop parent highlight)
     const isAllNotesActive = computed(
@@ -407,7 +552,6 @@ export default {
 
     const isSettingsActive = computed(() => route.path.startsWith('/settings'));
 
-    // Compute active styles for a single fluid moving side indicator bar
     const pillStyle = computed(() => ({
       top: `${pillTop.value}px`,
       height: `${pillHeight.value}px`,
@@ -421,7 +565,6 @@ export default {
     }));
 
     function calculatePillPositions() {
-      // Main navigation pill calculations
       let activeNavEl = null;
       if (isAllNotesActive.value) activeNavEl = homeBtn.value;
       else if (isArchiveActive.value) activeNavEl = archiveBtn.value;
@@ -434,7 +577,6 @@ export default {
         pillHeight.value = 0;
       }
 
-      // Footer utilities pill calculations
       if (isSettingsActive.value && settingsBtn.value) {
         const el = settingsBtn.value.$el || settingsBtn.value;
         footerPillTop.value = el.offsetTop + 6;
@@ -468,12 +610,16 @@ export default {
       router.push(`/folder/${folderId}`);
     }
 
+    function openSyncSettings() {
+      router.push({ path: '/settings', query: { section: 'sync' } });
+    }
+
     const recentItems = computed(() => {
       const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const items = [];
 
-      for (const note of Object.values(noteStore.data)) {
-        if (note.id && !note.isArchived && note.updatedAt > cutoff) {
+      for (const note of noteStore.notes) {
+        if (!note.isArchived && note.updatedAt > cutoff) {
           items.push({
             id: note.id,
             updatedAt: note.updatedAt,
@@ -483,13 +629,8 @@ export default {
         }
       }
 
-      for (const folder of Object.values(folderStore.data)) {
-        if (
-          folder.id &&
-          !folderStore.deletedIds[folder.id] &&
-          !folder.isArchived &&
-          folder.updatedAt > cutoff
-        ) {
+      for (const folder of folderStore.folders) {
+        if (!folder.isArchived && folder.updatedAt > cutoff) {
           items.push({
             id: folder.id,
             updatedAt: folder.updatedAt,
@@ -533,6 +674,10 @@ export default {
     onMounted(() => {
       _unregSidebarShortcuts = bindGlobalShortcuts(
         createShortcutMap({
+          'mod+shift+f': () => {
+            if (route.name === 'Note') return false;
+            openCreateFolderModal();
+          },
           'mod+shift+l': () =>
             theme.setTheme(theme.isDark() ? 'light' : 'dark'),
           'mod+shift+y': () => manualSync(),
@@ -547,21 +692,42 @@ export default {
       emitter.off('open-settings', openSettings);
       emitter.off('dark', enableDarkTheme);
       emitter.off('light', enableLightTheme);
+      workspacePresence.destroy();
 
-      // CRITICAL FIX: Safe memory leak cleanup
       if (typeof window !== 'undefined' && window.addNote) {
         delete window.addNote;
       }
     });
 
-    function manualSync() {
-      if (spinning.value) return;
+    async function manualSync() {
+      if (spinning.value || syncProgressStore.isSyncing) return;
+      let accepted = kickRustSync();
+      if (!accepted) {
+        // Scheduler isn't running (stopped or failed to start): bring it up.
+        try {
+          await startRustSync();
+          accepted = kickRustSync();
+        } catch (err) {
+          logger.warn('[sidebar] sync unavailable:', err?.message);
+        }
+      }
+      if (!accepted) {
+        logger.warn('[sidebar] sync kick was not accepted');
+        return;
+      }
       spinning.value = true;
-      forceSyncNow().catch(() => {});
+      play('sync');
       setTimeout(() => {
         spinning.value = false;
-        play('sync');
       }, 1000);
+    }
+
+    function syncButtonAction() {
+      if (syncAttentionIcon.value === 'riAlertLine') {
+        openSyncSettings();
+      } else {
+        manualSync();
+      }
     }
 
     return {
@@ -584,15 +750,25 @@ export default {
       goArchive,
 
       openNote,
-      titlebarInset,
+      openSyncSettings,
       translations,
       theme,
       spinning,
+      syncProgressStore,
+      syncStateText,
+      syncAttentionIcon,
+      donutDash,
       addNote,
       addFolder,
-      manualSync,
+      syncButtonAction,
       keyBinding,
       folderStore,
+      showCreateFolderModal,
+      currentFolderId,
+      openCreateFolderModal,
+      onFolderCreated,
+      showWorkspacePresence,
+      workspacePresence,
     };
   },
 };

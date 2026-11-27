@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-clearPendingShare"
+description = "Enables the clearPendingShare command without any pre-configured scope."
+commands.allow = ["clearPendingShare"]
+
+[[permission]]
+identifier = "deny-clearPendingShare"
+description = "Denies the clearPendingShare command without any pre-configured scope."
+commands.deny = ["clearPendingShare"]

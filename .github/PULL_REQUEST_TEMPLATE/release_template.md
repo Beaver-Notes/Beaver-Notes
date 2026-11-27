@@ -1,6 +1,6 @@
 ## Release - v*.*.*
 
-PRs should have the release or release-beta label to trigger a release workflow.
+Releases are triggered by pushing a version tag or by manual workflow dispatch.
 
 ### Summary 
 

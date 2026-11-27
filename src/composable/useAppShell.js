@@ -12,24 +12,41 @@ import { useRoute, useRouter } from 'vue-router';
 const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
 import { useTheme } from './theme';
 import { useStorage } from '@/lib/storage';
-import { getSettingSync, hydrateSettingsStore, setSetting } from '@/lib/settings';
+import {
+  getSetting,
+  getSettingSync,
+  hydrateSettingsStore,
+  setSetting,
+} from '@/lib/settings';
 import { useUiState } from '@/composable/useUiState';
+import { foldState } from '@/lib/foldable';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
 import { useAppStore } from '@/store/app';
+import { useAccountStore } from '@/store/account';
 import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
+import { logger } from '@/utils/logger';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
-import { appReady, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
+import {
+  appReady,
+  initNotificationClicks,
+  setMenuVisibility,
+  setZoomLevel,
+} from '@/lib/native/app';
 import {
   checkForUpdates,
   getAutoUpdateStatus,
   installUpdate,
   isUpdateManaged,
 } from '@/lib/native/updates';
-import { getStoredZoomLevel, setStoredZoomLevel, wasZoomAppliedAtBoot } from '@/utils/ui/zoom';
+import {
+  getStoredZoomLevel,
+  setStoredZoomLevel,
+  wasZoomAppliedAtBoot,
+} from '@/utils/ui/zoom';
 import {
   encryptionIsConfigured,
   isKeyLoaded,
@@ -41,48 +58,132 @@ import {
   observeWorkspace,
   writeStoresFromWorkspace,
   backfillNotePreviews,
+  repairStrandedNotes,
 } from '@/lib/yjs/workspace-doc';
-import { getSyncEngine } from '@/utils/sync/engine.js';
 import { initAppSync } from '@/utils/sync/app-sync.js';
+import { kickRustSync, kickRustDirty } from '@/utils/sync/rust-shim.js';
+
+import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
+import { useSidebar } from '@/composable/useSidebar';
+
+// Re-exported here so it stays unit-testable via this module
+// (see src/composable/__tests__/menu-context.spec.js).
+export { buildMenuContext };
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
 
-// Dev-only startup instrumentation. esbuild strips console.log in prod builds.
 function logStartupTiming() {
-  const entries = performance.getEntriesByType('mark');
+  const entries = performance
+    .getEntriesByType('mark')
+    .filter((entry) => entry.name.startsWith('init:'));
+  if (entries.length < 2) return;
+
   const measures = [];
   for (let i = 1; i < entries.length; i++) {
-    measures.push(
-      `${entries[i].name}: ${Math.round(
-        entries[i].startTime - entries[i - 1].startTime
-      )}ms`
-    );
+    const name = `${entries[i - 1].name}->${entries[i].name}`;
+    const duration = Math.round(entries[i].startTime - entries[i - 1].startTime);
+    measures.push({ name, duration });
+    try {
+      performance.measure(name, entries[i - 1].name, entries[i].name);
+    } catch {
+      // Ignore duplicate/invalid marks.
+    }
   }
-  // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
-  console.log('[perf] Startup timeline:', measures.join(' → '));
-  // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
-  console.log(
-    '[perf] Total startup:',
-    Math.round(entries[entries.length - 1].startTime - entries[0].startTime) +
-      'ms'
+
+  const total = Math.round(
+    entries[entries.length - 1].startTime - entries[0].startTime,
   );
+  const summary = { total, measures, at: Date.now() };
+  try {
+    window.__beaverStartupPerf = summary;
+    localStorage.setItem('beaver:startup-perf', JSON.stringify(summary));
+  } catch {
+    // Ignore storage failures; perf is diagnostic only.
+  }
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console -- dev-only startup instrumentation
+    console.info('[perf] Startup timeline:', summary);
+  }
 }
 
 function applyDocumentSettings() {
   document.documentElement.style.setProperty(
     '--selected-font',
-    getSettingSync('selectedFont')
+    getSettingSync('selectedFont'),
   );
   document.documentElement.style.setProperty(
     '--selected-font-code',
-    getSettingSync('selectedCodeFont')
+    getSettingSync('selectedCodeFont'),
   );
   document.documentElement.style.setProperty(
     '--selected-dark-text',
-    getSettingSync('selectedDarkText')
+    getSettingSync('selectedDarkText'),
   );
   document.documentElement.classList.add(getSettingSync('colorScheme'));
+}
+
+// App.vue mounts one shell; it owns the live workspace init (the encryption
+// gate's callback and the listener disposer). An account switch re-runs that
+// same closure rather than building a second shell.
+let liveWorkspaceInit = null;
+
+export function runWorkspaceInit() {
+  return liveWorkspaceInit ? liveWorkspaceInit() : undefined;
+}
+
+// A tier change happens on another device or through the billing webhook;
+// nothing pushes it to a running app, and the plan is otherwise read once at
+// boot. Refetch on return-to-window so an upgrade or downgrade lands without a
+// reload. `accountPlan` in the switcher reads the stored account record, so
+// both that record and the live limits have to be updated.
+// Throttled: focus fires often, and this is two authenticated GETs. Lives at
+// module scope (and is exported) so the org heal stays unit-testable without
+// mounting the whole shell.
+let lastPlanRefresh = 0;
+export function refreshPlanQuietly() {
+  const now = Date.now();
+  if (now - lastPlanRefresh < 60000) return;
+  const store = useAccountStore();
+  if (!store.isAuthenticated || !store.activeAccountId) return;
+  lastPlanRefresh = now;
+  return (async () => {
+    try {
+      const [{ getAccount }, { getPlans }] = await Promise.all([
+        import('@/lib/api/account'),
+        import('@/lib/api/plans'),
+      ]);
+      const [data, plans] = await Promise.all([
+        getAccount({ baseUrl: store.serverUrl }),
+        getPlans({ baseUrl: store.serverUrl }),
+      ]);
+      const patch = { id: store.activeAccountId };
+      if (plans) {
+        store.setPlanLimits(plans);
+        patch.planLimits = plans;
+      }
+      if (data?.subscription) {
+        store.setSubscription(data.subscription);
+        patch.subscription = data.subscription;
+      }
+      // The plan getters read the org record, which was only written at
+      // sign-in; without this a mid-session plan or org change stays
+      // invisible until the next login.
+      patch.organizations = data?.organizations || [];
+      // A member added to their first org mid-session has no stored selection;
+      // pick the only org so the plan getters see it. Never override an
+      // existing choice, and never guess with 0 or 2+ orgs.
+      if (!store.activeOrgId && data?.organizations?.length === 1) {
+        store.activeOrgId = data.organizations[0].id;
+        // persistActiveAccount re-derives activeOrgId from the stored record,
+        // so the selection has to ride in the patch.
+        patch.activeOrgId = store.activeOrgId;
+      }
+      await store.persistActiveAccount(patch);
+    } catch {
+      /* non-critical: the next focus retries. */
+    }
+  })();
 }
 
 export function useAppShell(onboardingCompleted = true) {
@@ -92,7 +193,6 @@ export function useAppShell(onboardingCompleted = true) {
   const route = useRoute();
   const router = useRouter();
   const settingsStorage = useStorage('settings');
-  const dataStorage = useStorage('data');
   const appStore = useAppStore();
 
   useSoundActions();
@@ -108,31 +208,38 @@ export function useAppShell(onboardingCompleted = true) {
   const state = reactive({
     zoomLevel: getStoredZoomLevel().toFixed(1),
   });
-  // ── Layout ──
   const keyboardVisible = ref(false);
   const pluginKeyboardVisible = ref(false);
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
+  // Hardware, not size: a folded Duo must keep the same chrome as an open one.
+  const isFoldableDevice = computed(() => foldState.isFoldable);
   const showSidebar = computed(
-    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
+    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME,
   );
   const showMobileNavbar = computed(
     () =>
-      showSidebar.value &&
+      route.name !== ONBOARDING_ROUTE_NAME &&
       route.name !== 'Note' &&
-      (!isPhoneRuntime.value || !keyboardVisible.value)
+      !isFoldableDevice.value &&
+      (!isPhoneRuntime.value || !keyboardVisible.value),
   );
   const useMobileBottomDockSpacing = computed(
-    () => isPhoneRuntime.value && showMobileNavbar.value
+    () => isPhoneRuntime.value && showMobileNavbar.value,
   );
   const mainStyle = computed(() => {
     if (!isMobileRuntime.value || route.name === ONBOARDING_ROUTE_NAME)
       return undefined;
     return {
       paddingTop: 'var(--app-safe-area-top)',
+      // The rail owns that edge when there is one; it already includes the inset.
+      paddingRight: isFoldableDevice.value
+        ? 'var(--app-rail-width)'
+        : 'var(--app-safe-area-right)',
       paddingBottom: useMobileBottomDockSpacing.value
         ? 'var(--app-mobile-content-offset)'
         : 'var(--app-safe-area-bottom)',
+      paddingLeft: 'var(--app-safe-area-left)',
     };
   });
   const bottomBannerStyle = computed(() => {
@@ -141,6 +248,22 @@ export function useAppShell(onboardingCompleted = true) {
       bottom: useMobileBottomDockSpacing.value
         ? 'var(--app-mobile-floating-offset)'
         : 'var(--app-safe-area-bottom)',
+      ...(isFoldableDevice.value ? { right: 'var(--app-rail-width)' } : {}),
+    };
+  });
+  const { expanded: sidebarExpanded } = useSidebar();
+  const undoBannerWrapperStyle = computed(() => {
+    if (isMobileRuntime.value) {
+      return {
+        ...bottomBannerStyle.value,
+        left: '0',
+        right: isFoldableDevice.value ? 'var(--app-rail-width)' : '0',
+      };
+    }
+    if (!showSidebar.value) return undefined;
+    return {
+      left: sidebarExpanded.value ? '16rem' : '4rem',
+      right: '0',
     };
   });
   const mobileNavbarStyle = computed(() => {
@@ -155,6 +278,22 @@ export function useAppShell(onboardingCompleted = true) {
     if (uiState.overlayCount > 0) return false;
     return true;
   });
+
+  // Keep the native menu in sync with the current screen. Desktop only;
+  // debounced so rapid navigation coalesces into one rebuild.
+  watch(
+    () => [route.name, uiState.inReaderMode],
+    () => {
+      if (!backend.isDesktopRuntime()) return;
+      pushMenuContext(
+        buildMenuContext({
+          routeName: route.name,
+          inReaderMode: uiState.inReaderMode,
+        }),
+      );
+    },
+    { immediate: true },
+  );
 
   let maxVisualViewportHeight = 0;
   let pendingBlurTimeout = null;
@@ -194,10 +333,10 @@ export function useAppShell(onboardingCompleted = true) {
       if (typeof document === 'undefined' || !isPhoneRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-mobile-dock-height-active',
-        visible ? 'var(--app-mobile-dock-height)' : '0px'
+        visible ? 'var(--app-mobile-dock-height)' : '0px',
       );
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   watch(
@@ -206,37 +345,62 @@ export function useAppShell(onboardingCompleted = true) {
       if (typeof document === 'undefined' || !isMobileRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-keyboard-inset-bottom',
-        visible ? '8px' : 'var(--app-safe-area-bottom)'
+        visible ? '8px' : 'var(--app-safe-area-bottom)',
+      );
+      document.documentElement.style.setProperty(
+        '--app-note-page-padding',
+        `calc(56px + var(--app-keyboard-inset-bottom) + 0.75rem)`,
       );
     },
-    { immediate: true }
+    { immediate: true },
   );
+
+  // ponytail: 1.5s ceiling, real safe-area plugin can hang on cold iOS launch, never block first paint
+  const withTimeout = (p, ms, label) =>
+    Promise.race([
+      p,
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error(`${label} timeout after ${ms}ms`)), ms),
+      ),
+    ]);
 
   const initializeSafeAreaInsets = async () => {
     if (!isMobileRuntime.value) return;
     try {
-      const { getTopInset, getBottomInset } = await import(
-        '@saurl/tauri-plugin-safe-area-insets-css-api'
+      const { getTopInset, getBottomInset } = await withTimeout(
+        import('@saurl/tauri-plugin-safe-area-insets-css-api'),
+        1500,
+        'safe-area import',
       );
-      const topInset = await getTopInset();
-      const bottomInset = await getBottomInset();
+      const [topInset, bottomInset] = await withTimeout(
+        Promise.all([getTopInset(), getBottomInset()]),
+        1500,
+        'safe-area insets',
+      );
       const bottomInsetValue = `${bottomInset?.inset ?? 0}px`;
       const rootStyle = document.documentElement.style;
       rootStyle.setProperty(
         '--safe-area-inset-top',
-        `${topInset?.inset ?? 0}px`
+        `${topInset?.inset ?? 0}px`,
       );
       rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-keyboard-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-toolbar-bottom', bottomInsetValue);
-      rootStyle.setProperty(
-        '--app-note-page-padding',
-        `calc(54px + ${bottomInsetValue} + 0.75rem)`
-      );
     } catch (error) {
       console.warn('Safe area inset CSS plugin failed to initialize:', error);
     }
   };
+
+  // ponytail: asymmetric insets change on fold; plugin has top/bottom only, left/right ride the env() fallback in CSS
+  let safeAreaTimer = 0;
+  const handleSafeAreaResize = () => {
+    if (!isMobileRuntime.value) return;
+    window.clearTimeout(safeAreaTimer);
+    safeAreaTimer = window.setTimeout(() => {
+      initializeSafeAreaInsets();
+    }, 150);
+  };
+  window.addEventListener('resize', handleSafeAreaResize);
 
   const initializeMobileKeyboardTracking = (unlistenFns) => {
     if (!isMobileRuntime.value) return;
@@ -248,7 +412,7 @@ export function useAppShell(onboardingCompleted = true) {
       backend.listen('keyboard_hidden', () => {
         pluginKeyboardVisible.value = false;
         keyboardVisible.value = false;
-      })
+      }),
     );
     maxVisualViewportHeight =
       window.visualViewport?.height ?? window.innerHeight ?? 0;
@@ -277,11 +441,11 @@ export function useAppShell(onboardingCompleted = true) {
       document.removeEventListener('focusout', handleFocusOut);
       window.visualViewport?.removeEventListener(
         'resize',
-        handleViewportChange
+        handleViewportChange,
       );
       window.visualViewport?.removeEventListener(
         'scroll',
-        handleViewportChange
+        handleViewportChange,
       );
       if (pendingBlurTimeout) {
         clearTimeout(pendingBlurTimeout);
@@ -292,10 +456,11 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   onUnmounted(() => {
+    window.removeEventListener('resize', handleSafeAreaResize);
+    window.clearTimeout(safeAreaTimer);
     removeMobileKeyboardListeners();
   });
 
-  // ── Banners ──
   const updateBanner = reactive({
     show: false,
     content: '',
@@ -303,24 +468,12 @@ export function useAppShell(onboardingCompleted = true) {
     secondaryText: '',
     version: '',
   });
-  const syncLockBanner = reactive({
-    show: false,
-    dismissed: false,
-  });
   const appEncryptionMigrationBanner = reactive({
     show: false,
     dismissed: false,
     status: null,
     error: null,
   });
-
-  const syncLockBannerCopy = computed(() => ({
-    content:
-      translations.value.app?.syncLockContent ||
-      'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.',
-    primaryText: translations.value.app?.openSettings || 'Open Settings',
-    secondaryText: translations.value.app?.dismiss || 'Dismiss',
-  }));
 
   const appEncryptionMigrationBannerCopy = computed(() => ({
     content:
@@ -340,33 +493,6 @@ export function useAppShell(onboardingCompleted = true) {
 
   const handleUpdateDismiss = () => {
     updateBanner.show = false;
-  };
-
-  const openSyncSettings = () => {
-    syncLockBanner.show = false;
-    router.push(SETTINGS_ROUTE_PREFIX);
-  };
-
-  const dismissSyncBanner = () => {
-    syncLockBanner.dismissed = true;
-    syncLockBanner.show = false;
-  };
-
-  const refreshSyncLockBanner = async () => {
-    const inSettings = router.currentRoute.value.path.startsWith(
-      SETTINGS_ROUTE_PREFIX
-    );
-    if (
-      inSettings ||
-      syncLockBanner.dismissed ||
-      route.name === ONBOARDING_ROUTE_NAME
-    ) {
-      syncLockBanner.show = false;
-      return;
-    }
-    const configured = await encryptionIsConfigured();
-    syncLockBanner.show = configured && !isKeyLoaded();
-    await refreshEncryptionGate(configured);
   };
 
   const dismissAppEncryptionMigrationBanner = () => {
@@ -400,51 +526,98 @@ export function useAppShell(onboardingCompleted = true) {
   const getTopLevelRouteKey = (viewRoute) =>
     viewRoute?.fullPath || viewRoute?.path || route.fullPath;
 
-  const setZoom = (newZoomLevel) => {
-    state.zoomLevel = setStoredZoomLevel(newZoomLevel, {
-      syncDocument: true,
-    });
+  // Await the write: state.zoomLevel must only ever hold the formatted string
+  // setStoredZoomLevel resolves to (a stored Promise parses to NaN on the next
+  // zoom step and would persist "NaN"). Rejections surface at the non-Vue
+  // call sites below, which attach their own catch.
+  const setZoom = async (newZoomLevel) => {
+    state.zoomLevel = await setStoredZoomLevel(newZoomLevel);
   };
 
   const updateZoomBy = (delta) => {
     const currentZoomLevel = parseFloat(state.zoomLevel);
     const nextZoomLevel = Math.min(Math.max(currentZoomLevel + delta, 0.5), 3);
-    setZoom(nextZoomLevel);
+    return setZoom(nextZoomLevel);
   };
 
   const hasExistingWorkspaceData = async () => {
-    const [notesData, foldersData] = await Promise.all([
-      dataStorage.get('notes', {}),
-      dataStorage.get('folders', {}),
-    ]);
-
-    return (
-      Object.keys(notesData || {}).length > 0 ||
-      Object.keys(foldersData || {}).length > 0
-    );
+    const isLocked = (e) => {
+      const msg = String(e?.message || e || '');
+      return (
+        msg.includes('EncryptionLocked') ||
+        msg.includes('App encryption is locked')
+      );
+    };
+    // Yjs workspace doc is the source for notes/folders (KV `notes`/`folders`
+    // are legacy, never written post-migration); KV is only a fallback for
+    // not-yet-migrated users.
+    try {
+      const snap = await withTimeout(
+        backend.invoke('yjs:getSnapshot', { noteId: 'meta' }),
+        2000,
+        'yjs:getSnapshot',
+      );
+      if (snap?.data?.length) return true;
+    } catch (e) {
+      if (isLocked(e)) return true;
+    }
+    try {
+      const { useStorage: _useStorage } = await import('@/lib/storage');
+      const legacy = _useStorage('data');
+      const [notesData, foldersData] = await withTimeout(
+        Promise.all([legacy.get('notes', {}), legacy.get('folders', {})]),
+        2000,
+        'legacy storage',
+      );
+      return (
+        Object.keys(notesData || {}).length > 0 ||
+        Object.keys(foldersData || {}).length > 0
+      );
+    } catch (e) {
+      if (isLocked(e)) return true;
+      return false;
+    }
   };
 
   const initializeWorkspace = async () => {
     performance.mark('init:start');
+    uiState.workspaceReady = false;
 
-    // Set retrieved immediately — the UI can render while we check onboarding state.
-    // This eliminates the white screen for both first-time and returning users.
+    // Credentials became per-account slots; a pre-existing single-account install
+    // is adopted into the account index before anything reads a credential, and
+    // the store then hydrates from that index.
+    try {
+      const { migrateSingleAccountToIndex } = await import('@/lib/accounts-migrate');
+      await migrateSingleAccountToIndex();
+      await useAccountStore().hydrateAccounts();
+    } catch (err) {
+      console.warn('[app] account migration failed:', err);
+    }
+
+    // Set immediately: UI renders while onboarding checked (no white screen).
     retrieved.value = true;
 
     await hydrateSettingsStore();
-    setSetting('spellcheckEnabled', getSettingSync('spellcheckEnabled'));
+    void setSetting(
+      'spellcheckEnabled',
+      getSettingSync('spellcheckEnabled'),
+    ).catch((err) =>
+      logger.warn('[app] settings write failed:', err?.message || err),
+    );
     performance.mark('init:settings');
 
     const [hasData, onboardingCompleted] = await Promise.all([
       hasExistingWorkspaceData(),
-      settingsStorage.get('onboardingCompleted', false),
+      getSetting('onboardingCompleted'),
     ]);
 
     if (!hasData && !onboardingCompleted) {
-      // First run: initialize the sync engine before entering onboarding so a
-      // post-onboarding sync (path set + initial pull) has a live engine. With
-      // no sync folder configured yet the engine's cycles are no-ops.
-      initAppSync();
+      // Start the sync scheduler before onboarding so post-onboarding sync
+      // has a live scheduler; with no sync target the cycles are no-ops.
+      void initAppSync().catch((err) =>
+        logger.warn('[sync] init failed:', err?.message || err),
+      );
+      uiState.workspaceReady = true;
       performance.mark('init:done');
       logStartupTiming();
       if (route.name !== ONBOARDING_ROUTE_NAME) {
@@ -453,22 +626,16 @@ export function useAppShell(onboardingCompleted = true) {
       return;
     }
 
-    // Derive/restore the encryption key BEFORE reading any note data. Note
-    // blobs are encrypted at rest when the vault is enabled, so loading them
-    // before the items key is available would hand ciphertext to the Yjs
-    // decoder (which aborts on invalid UTF-8).
+    // Derive/restore the encryption key BEFORE reading note data: blobs are
+    // encrypted at rest, and handing ciphertext to the Yjs decoder makes it
+    // abort on invalid UTF-8.
     await restoreEncryptionKeys();
     performance.mark('init:encryption');
 
-    // The vault passphrase is set by the user during onboarding — the startup
-    // path never auto-creates encryption. Encryption is mandatory; the yjs
-    // layer fails closed if it is ever missing (a startup/init bug).
+    // The vault key is user-set during onboarding; startup never
+    // auto-creates encryption. The yjs layer fails closed if it is missing.
     if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
-      // Encryption is configured but the key could not be restored (no stored
-      // passphrase / safe storage unavailable). Loading note data now would
-      // yield garbage (or fail closed server-side), so defer until the user
-      // unlocks via the encryption gate. handleEncryptionUnlocked() runs the
-      // remainder of the init afterwards.
+      // Key configured but unrestorable: defer to gate, remainder runs on unlock.
       retrieved.value = true;
       return;
     }
@@ -476,119 +643,267 @@ export function useAppShell(onboardingCompleted = true) {
     await finishWorkspaceInit();
   };
 
+  // A switch re-runs the init in this same window, so the listeners are removed
+  // before they are added again. Both the unmount handler and the switch dispose
+  // through here.
+  const disposeWorkspaceInitListeners = () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('focus', refreshSharedNotesQuietly);
+    window.removeEventListener('focus', refreshPlanQuietly);
+  };
+
   const finishWorkspaceInit = async () => {
     const migrationStatus = await settingsStorage.get(
       'app_encryption_migration',
-      null
+      null,
     );
     if (migrationStatus) {
       checkAppEncryptionMigration(migrationStatus);
     }
 
-    // Load the unified workspace Y.Doc first — it is the single source of
-    // truth for all note/folder/label metadata.  On first run after legacy
-    // migration the doc may still be empty, so seed it from the KV stores
-    // before wiring observers.
+    // Load unified workspace Y.Doc: single truth for note/folder/label metadata, seeded during onboarding.
     await loadWorkspaceDoc();
     performance.mark('init:workspace-doc');
+
+    // One-time repair for legacy imports that seeded meta without a Yjs doc
+    // (unopenable, undeletable cards): titled notes get empty docs, untitled
+    // and id-less notes are dropped. Awaited so drops land before hydration.
+    if (!(await settingsStorage.get('stranded_repair_done', false))) {
+      try {
+        const result = await repairStrandedNotes();
+        if (!result.failed) {
+          await settingsStorage.set('stranded_repair_done', true);
+        }
+      } catch (err) {
+        console.warn('[app] stranded repair failed:', err?.message || err);
+      }
+    }
+
     observeWorkspace(writeStoresFromWorkspace);
     await writeStoresFromWorkspace();
     performance.mark('init:workspace-write');
 
-    // Post-process — the stores are now populated from Yjs, so retrieve()
-    // must NOT read from KV.
+    // Stores now from Yjs: retrieve() must NOT read KV.
     await store.retrieve();
     performance.mark('init:retrieve');
 
-    // One-time whole-row re-encryption of legacy migration rows (which left
-    // note titles and folder metadata as plaintext JSON on disk). Idempotent.
+    // One-time idempotent re-encryption of legacy migration rows (plaintext
+    // titles/folder metadata on disk).
     backend.invoke('storage:reencryptLegacyRows').catch((err) => {
-      console.warn('[app] legacy row re-encryption failed:', err);
+      console.warn(
+        '[app] legacy row re-encryption failed:',
+        err?.message || err,
+      );
+    });
+    // One-time repair: rows sealed while settings were incorrectly encrypted
+    // become plaintext after the fix; decrypt with the now-loaded key.
+    backend.invoke('storage:repairSettings').catch((err) => {
+      console.warn('[app] settings repair failed:', err?.message || err);
     });
 
-    await refreshSyncLockBanner();
-
-    // One-time deferred backfill of card previews for notes that predate the
-    // persisted `cardPreview` (so their cards aren't blank on launch).
+    // One-time backfill of previews for notes predating persisted `cardPreview`.
+    // Retries until every missing preview has its snapshot: a device that ran the
+    // first pass before its pull finished would otherwise keep empty cards forever.
     if (!(await settingsStorage.get('preview_backfill_done', false))) {
-      backfillNotePreviews()
-        .then(() => settingsStorage.set('preview_backfill_done', true))
-        .catch((err) => console.warn('[app] preview backfill failed:', err));
+      let backfillTries = 0;
+      const runBackfill = () => {
+        backfillNotePreviews()
+          .then((state) => {
+            if (state === 'complete') {
+              settingsStorage.set('preview_backfill_done', true);
+              return;
+            }
+            if (backfillTries++ < 20) setTimeout(runBackfill, 60 * 1000);
+          })
+          .catch((err) => {
+            console.warn('[app] preview backfill failed:', err);
+            if (backfillTries++ < 20) setTimeout(runBackfill, 60 * 1000);
+          });
+      };
+      runBackfill();
     }
 
-    if (appStore.setting.openLastEdited) {
-      const lastNoteEdit = localStorage.getItem('lastNoteEdit');
-      if (lastNoteEdit && route.name !== ONBOARDING_ROUTE_NAME) {
-        router.push(`/note/${lastNoteEdit}`);
-      }
-    }
+    // The last note is restored below, once the active workspace is known.
 
-    // Always initialize the engine so runtime sync config (Settings "Sync now",
-    // transport, path pick) works without an app restart. Autosync is always
-    // on — periodic sync runs whenever the app is visible.
+    // Always init so runtime sync works without restart. Autosync on: periodic sync when visible.
     try {
-      const { useAccountStore } = await import('@/store/account');
       const { useWorkspaceStore } = await import('@/store/workspace.ts');
       const accountStore = useAccountStore();
-      // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
-      // useAccountAuth components which may not have mounted yet.
-      if (!accountStore.isAuthenticated) {
+      // Hydrate auth before sync: hydrate() runs in onMounted, may not have mounted yet.
+      if (!useAccountStore().isAuthenticated) {
         const { loadSessionToken } = await import('@/lib/account-storage');
         const token = await loadSessionToken().catch(() => null);
         if (token) {
+          accountStore.setToken(token);
           accountStore.setStatus('authenticated');
         }
       }
-      if (accountStore.isAuthenticated) {
-        // Fetch profile/subscription so _remoteAllowed has plan info for sync
-        import('@/lib/api/account').then(({ getAccount }) => {
-          getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
-            if (data) {
-              accountStore.setProfile(data.profile);
-              accountStore.setSubscription(data.subscription);
-              accountStore.setDevices(data.devices || []);
-            }
-          }).catch(() => {});
-        }).catch(() => {});
+      if (useAccountStore().isAuthenticated) {
+        // Fetch profile/subscription so _remoteAllowed has plan info; awaited
+        // so initAppSync() runs with full auth state.
+        try {
+          const { getAccount } = await import('@/lib/api/account');
+          const data = await getAccount({ baseUrl: accountStore.serverUrl });
+          if (data) {
+            accountStore.setProfile(data.profile);
+            accountStore.setSubscription(data.subscription);
+            accountStore.setDevices(data.devices || []);
+          }
+          // Effective plan limits (history window, storage quota). Separate call
+          // because /account does not carry them; non-critical, same catch.
+          const { getPlans } = await import('@/lib/api/plans');
+          const plans = await getPlans({ baseUrl: accountStore.serverUrl });
+          accountStore.setPlanLimits(plans);
+        } catch {
+          // non-critical: sync retries next cycle.
+        }
+        // Observed bug: a session restored from secure storage never re-published
+        // the ML-KEM keypair (only interactive sign-in did), so the server held no
+        // device key for this account and other accounts could not encrypt for it.
+        try {
+          const { loadOrCreateIdentity, publishIdentity } = await import(
+            '@/utils/crypto/identity'
+          );
+          const { loadAccountDeviceId } = await import('@/lib/account-storage');
+          const { getSyncDeviceId } = await import('@/utils/sync/sync-repository.js');
+          const identity = await loadOrCreateIdentity();
+          const deviceId =
+            (await getSyncDeviceId().catch(() => null)) ||
+            (await loadAccountDeviceId().catch(() => null));
+          if (identity?.publicKeyHex && deviceId) {
+            await publishIdentity(identity, deviceId, accountStore.serverUrl);
+            const { getAccount } = await import('@/lib/api/account');
+            const refreshed = await getAccount({
+              baseUrl: accountStore.serverUrl,
+            });
+            if (refreshed) accountStore.setProfile(refreshed.profile);
+          }
+        } catch (err) {
+          logger.warn(
+            '[app] restored-session keypair publish failed:',
+            err?.message || err,
+          );
+        }
         await useWorkspaceStore().retrieve();
+
+        // Open the last note only inside the workspace it belongs to: a note
+        // restored under another workspace left the chip and the open note
+        // disagreeing (F26). No marker (older build) keeps the old behaviour.
+        if (appStore.setting.openLastEdited && route.name !== ONBOARDING_ROUTE_NAME) {
+          const lastNoteEdit = localStorage.getItem('lastNoteEdit');
+          const noteWorkspace = localStorage.getItem('lastNoteWorkspace') || '';
+          const activeWorkspace = useWorkspaceStore().activeId || '';
+          if (lastNoteEdit && (!noteWorkspace || noteWorkspace === activeWorkspace)) {
+            router.push(`/note/${lastNoteEdit}`);
+          }
+        }
+
+        // Join meta room now activeId known (was null at loadWorkspaceDoc).
+        const { getWsSync, retryParkedNoteJoins, fireAndLog } = await import(
+          '@/lib/sync/ws-sync'
+        );
+        const { ensureMetaRoomKey } = await import('@/lib/yjs/workspace-doc');
+        const wsId = useWorkspaceStore().activeId;
+        if (wsId) {
+          await ensureMetaRoomKey(wsId).catch(() => {});
+          fireAndLog(
+            getWsSync().joinMetaRoom(wsId),
+            `meta room join for workspace ${wsId} (app init)`,
+          );
+          // A note page that mounted before this hydrate parked its room join
+          // because the workspace id was still null. Now that activeId is known,
+          // replay those joins, or the room stays unjoined for the whole session:
+          // no realtime typing, no presence.
+          retryParkedNoteJoins();
+        }
       }
     } catch (err) {
       console.warn('[app] pre-sync auth/workspace hydrate failed:', err);
     }
-    initAppSync();
+    void initAppSync().catch((err) =>
+      logger.warn('[sync] init failed:', err?.message || err),
+    );
+    // Tapping a notification must land on the note it announced.
+    initNotificationClicks();
+    disposeWorkspaceInitListeners();
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', refreshSharedNotesQuietly);
+    window.addEventListener('focus', refreshPlanQuietly);
 
+    uiState.workspaceReady = true;
     performance.mark('init:done');
     logStartupTiming();
   };
 
-  // Full-screen encryption gate (show/derive state, key auto-restore, deferred
-  // init on unlock) lives in a focused composable.
+  // App.vue mounts one shell and it owns this init; an account switch re-runs
+  // the same closure instead of building a second shell.
+  liveWorkspaceInit = finishWorkspaceInit;
+
   const encryptionGate = useAppEncryptionGate({
     finishWorkspaceInit,
     onUnlockError: () => {
       retrieved.value = true;
     },
   });
-  const { appEncryptionGate, restoreEncryptionKeys, refreshEncryptionGate, handleEncryptionUnlocked } =
-    encryptionGate;
+  const {
+    appEncryptionGate,
+    restoreEncryptionKeys,
+    refreshEncryptionGate,
+    handleEncryptionUnlocked,
+  } = encryptionGate;
 
   const handleDeepLink = async (payload) => {
     try {
-      const raw = typeof payload === 'string' ? payload : payload?.url || payload?.path || '';
+      const raw =
+        typeof payload === 'string'
+          ? payload
+          : payload?.url || payload?.path || '';
       const path = raw.replace(/^beaver-notes:\/\//, '');
+      if (path.startsWith('join-ws/')) {
+        const token = path.slice('join-ws/'.length);
+        if (!token) return;
+        const accountStore = useAccountStore();
+        if (!accountStore.isAuthenticated) {
+          console.warn('[deep-link] Cannot join workspace: not authenticated');
+          return;
+        }
+        const { useCloudWorkspaces } = await import(
+          '@/composable/useCloudWorkspaces'
+        );
+        const result = await useCloudWorkspaces().joinWorkspace(token);
+        // A require-approval invite grants nothing until approved; stay put so
+        // the pending state is visible instead of switching as if joined.
+        if (!result?.pending && result?.workspaceId) {
+          const { switchAccount } = await import('@/composable/useAccountAuth');
+          const { getActiveAccountId } = await import('@/lib/accounts-index');
+          await switchAccount({
+            accountId: getActiveAccountId(),
+            workspaceId: result.workspaceId,
+          });
+        }
+        return;
+      }
       if (path.startsWith('join/')) {
         const token = path.slice('join/'.length);
         if (!token) return;
-        const { useAccountStore } = await import('@/store/account');
         const accountStore = useAccountStore();
         if (!accountStore.isAuthenticated) {
           console.warn('[deep-link] Cannot join note: not authenticated');
           return;
         }
         const { joinViaInviteLink } = await import('@/lib/api/collaboration');
-        const result = await joinViaInviteLink(token, { baseUrl: accountStore.serverUrl });
+        const result = await joinViaInviteLink(token, {
+          baseUrl: accountStore.serverUrl,
+        });
         if (result?.noteId) {
+          try {
+            const { useSharedNotes } = await import(
+              '@/composable/useSharedNotes'
+            );
+            await useSharedNotes().refreshSharedNotes();
+          } catch {
+            // fall through to navigation
+          }
           router.push(`/note/${result.noteId}`);
         }
       }
@@ -598,9 +913,10 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   onMounted(async () => {
-    document.body.style.zoom = state.zoomLevel;
+    if (Number(state.zoomLevel) !== 1) {
+      document.body.style.zoom = state.zoomLevel;
+    }
 
-    // Skip heavy init for first-time users (onboarding not completed)
     if (!onboardingCompleted) {
       retrieved.value = true;
       return;
@@ -612,22 +928,36 @@ export function useAppShell(onboardingCompleted = true) {
 
     if (isWindowsOrLinux) {
       Mousetrap.bind(['ctrl+=', 'ctrl+plus'], () => {
-        updateZoomBy(0.1);
+        void updateZoomBy(0.1).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        );
       });
 
       Mousetrap.bind('ctrl+-', () => {
-        updateZoomBy(-0.1);
+        void updateZoomBy(-0.1).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        );
       });
 
       Mousetrap.bind('ctrl+0', () => {
-        setZoom(1.0);
+        void setZoom(1.0).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        );
       });
     }
 
     unlistenFns.push(
       backend.listen('menu-new-note', () => emitter.emit('new-note')),
-      backend.listen('menu-zoom-in', () => updateZoomBy(0.1)),
-      backend.listen('menu-zoom-out', () => updateZoomBy(-0.1)),
+      backend.listen('menu-zoom-in', () =>
+        void updateZoomBy(0.1).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        ),
+      ),
+      backend.listen('menu-zoom-out', () =>
+        void updateZoomBy(-0.1).catch((err) =>
+          logger.warn('[app] zoom failed:', err?.message || err),
+        ),
+      ),
       backend.listen('update-banner', (_, bannerData) => {
         updateBanner.content = bannerData.content;
         updateBanner.primaryText = bannerData.primaryText;
@@ -638,27 +968,33 @@ export function useAppShell(onboardingCompleted = true) {
       backend.listen('spellcheck-changed', () => {}),
       backend.listen('deep-link://received', (_, payload) => {
         handleDeepLink(payload);
-      })
+      }),
     );
 
-    try {
-      await appReady();
-      await initializeSafeAreaInsets();
-    } catch (error) {
-      console.error(
-        'Error notifying the Tauri backend that the app is ready:',
-        error
-      );
-    }
+    // ponytail: native ready plus safe-area must never block first paint on iOS, run in background with timeouts
+    const nativeReady = Promise.allSettled([
+      withTimeout(appReady(), 2000, 'appReady').catch((e) =>
+        console.warn('[app] appReady failed:', e?.message || e),
+      ),
+      withTimeout(initializeSafeAreaInsets(), 2000, 'safeArea').catch((e) =>
+        console.warn('[app] safeArea failed:', e?.message || e),
+      ),
+    ]);
 
     initializeMobileKeyboardTracking(unlistenFns);
 
     try {
-      const managed = await isUpdateManaged();
-
+      const managed = await withTimeout(
+        isUpdateManaged(),
+        1500,
+        'isUpdateManaged',
+      );
       if (!managed) {
-        const autoUpdateEnabled = await getAutoUpdateStatus();
-
+        const autoUpdateEnabled = await withTimeout(
+          getAutoUpdateStatus(),
+          1500,
+          'getAutoUpdateStatus',
+        ).catch(() => false);
         if (autoUpdateEnabled) {
           setTimeout(async () => {
             try {
@@ -670,20 +1006,33 @@ export function useAppShell(onboardingCompleted = true) {
         }
       }
     } catch (error) {
-      console.error('Error checking auto-update status:', error);
+      console.warn(
+        'Error checking auto-update status:',
+        error?.message || error,
+      );
     }
 
+    // Always run workspace init even if nativeReady pending: retrieved set sync so UI paints.
     try {
-      await initializeWorkspace();
+      await withTimeout(initializeWorkspace(), 8000, 'initializeWorkspace');
     } catch (error) {
-      console.error('Error initializing workspace:', error);
+      console.error('Error initializing workspace:', error?.message || error);
       try {
         const [hasData, onboardingCompleted] = await Promise.all([
-          dataStorage.get('notes', {}),
-          settingsStorage.get('onboardingCompleted', false),
+          withTimeout(
+            hasExistingWorkspaceData(),
+            2000,
+            'hasExistingWorkspaceData',
+          ).catch(() => false),
+          withTimeout(
+            getSetting('onboardingCompleted'),
+            1500,
+            'onboardingCompleted',
+          ).catch(() => false),
         ]);
         if (!hasData && !onboardingCompleted) {
           retrieved.value = true;
+          uiState.workspaceReady = true;
           await router.replace('/onboarding');
           return;
         }
@@ -691,41 +1040,53 @@ export function useAppShell(onboardingCompleted = true) {
         console.error('Fallback onboarding check failed:', innerError);
       }
       retrieved.value = true;
+      uiState.workspaceReady = true;
+    } finally {
+      // No await: let it settle in background.
+      void nativeReady;
     }
 
-    void refreshSyncLockBanner();
     removeBeforeRouteGuard = router.beforeEach((to, from, next) => {
       animateRouteChange.value =
         Boolean(from.name) && to.fullPath !== from.fullPath;
       next();
     });
     removeRouteGuard = router.afterEach(async () => {
-      void refreshSyncLockBanner();
       await nextTick();
       const mainEl = document.querySelector('[data-testid="app-main"]');
       if (mainEl) mainEl.scrollTop = 0;
     });
   });
 
+  // A new invite reaches a running app through no push channel: the pull only
+  // runs on a workspace fetch (app start, workspace switch). Refresh whenever
+  // the user returns to the window, so an invite lands without a reload.
+  function refreshSharedNotesQuietly() {
+    void import('@/composable/useSharedNotes')
+      .then(({ useSharedNotes }) => useSharedNotes().refreshSharedNotes())
+      .catch(() => {});
+  }
+
   function handleVisibilityChange() {
     if (document.hidden) {
-      // Flush cloud push before going to background
-      const engine = getSyncEngine();
-      if (engine) engine.flush().catch(() => {});
-      engine?.stopPullTimer();
+      kickRustDirty();
     } else {
-      // App returned to foreground — pull remote changes and restart pull timer
-      const engine = getSyncEngine();
-      if (engine) engine.notifyForeground().catch(() => {});
-      engine?.startPullTimer();
+      kickRustSync();
+      // iOS suspends the webview: the relay sockets die with their single-use
+      // tickets, so the rooms must be reopened or nothing arrives afterwards.
+      import('@/lib/sync/ws-sync')
+        .then(({ getWsSync }) => getWsSync().repairRealtime())
+        .catch(() => {});
+      refreshSharedNotesQuietly();
+      refreshPlanQuietly();
     }
   }
 
   onUnmounted(() => {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    getSyncEngine()?.stopPullTimer();
+    disposeWorkspaceInitListeners();
+    liveWorkspaceInit = null;
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())
@@ -747,14 +1108,14 @@ export function useAppShell(onboardingCompleted = true) {
               resolve();
             }
           },
-          { immediate: true }
+          { immediate: true },
         );
       });
     }
 
     const ext = path.split('.').pop().toLowerCase();
 
-    const SUPPORTED = ['bea', 'md', 'mdx', 'txt', 'html'];
+    const SUPPORTED = ['bea', 'md', 'mdx', 'markdown', 'txt', 'html'];
     if (!SUPPORTED.includes(ext)) {
       console.warn('Unsupported file format for import:', ext, path);
       return;
@@ -766,9 +1127,8 @@ export function useAppShell(onboardingCompleted = true) {
       let title;
 
       if (ext === 'bea') {
-        // Read just the metadata from the BEA JSON
         const fileContent = await import('@/lib/native/exports').then((m) =>
-          m.readImportJson(path)
+          m.readImportJson(path),
         );
         title =
           fileContent?.data?.title ||
@@ -778,11 +1138,10 @@ export function useAppShell(onboardingCompleted = true) {
             .replace(/\.bea$/i, '') ||
           'Untitled';
       } else {
-        // Read file once, reuse for title extraction and later import
+        // Read once; raw content is reused for title extraction and import.
         const { readFile } = await import('@/lib/native/fs');
-        const { extractImportTitle } = await import(
-          '@/utils/import/fileImport'
-        );
+        const { extractImportTitle } =
+          await import('@/utils/import/fileImport');
         const raw = await readFile(path);
         importFileContent.value = raw;
         title = await extractImportTitle(path, raw);
@@ -843,21 +1202,18 @@ export function useAppShell(onboardingCompleted = true) {
     importFileType,
     showImportDialog,
     bottomBannerStyle,
-    dismissSyncBanner,
+    undoBannerWrapperStyle,
     getTopLevelRouteKey,
     handleUpdateDismiss,
     handleUpdateInstall: () => handleUpdateInstall(installUpdate),
     initializeWorkspace,
     mainStyle,
     mobileNavbarStyle,
-    openSyncSettings,
     retrieved,
     showMobileNavbar,
     showSidebar,
     state,
     store,
-    syncLockBanner,
-    syncLockBannerCopy,
     appEncryptionGate,
     refreshEncryptionGate,
     handleEncryptionUnlocked,

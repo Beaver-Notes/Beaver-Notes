@@ -1,19 +1,25 @@
 import { Extension } from '@tiptap/core';
-import { saveFile } from '@/utils/assets/storage.js';
+import { assetFileName } from '@/utils/assets/storage.js';
 import { Plugin, PluginKey } from 'prosemirror-state';
-import { insertImages } from './image';
+import { insertImages, swapImageSrc } from './image';
+import { insertFileBlockOptimistic } from './create-file-block';
+import mime from 'mime';
 
 async function processDropFiles(view, editor, event, files, id) {
   try {
-    for (const file of files) {
-      const mimeType = file.type;
+    const allFiles = Array.from(files);
+    // One batched insert for the whole image set: calling insertImages per
+    // file re-inserted the entire set each time (N files → N² nodes). The
+    // predicate mirrors the loop check below, including the filename mime
+    // fallback for files with an empty `type`.
+    const imageFiles = allFiles.filter(
+      (file) => (file.type || mime.getType(file.name) || '').startsWith('image/'),
+    );
 
-      if (mimeType.startsWith('image/')) {
-        const imageFiles = Array.from(files).filter((f) =>
-          f.type.startsWith('image/')
-        );
-
-        insertImages(imageFiles, (src, alt) => {
+    if (imageFiles.length > 0) {
+      insertImages(
+        imageFiles,
+        (src, alt) => {
           const coordinates = view.posAtCoords({
             left: event.clientX,
             top: event.clientY,
@@ -23,45 +29,66 @@ async function processDropFiles(view, editor, event, files, id) {
 
           const node = view.state.schema.nodes.image.create({ alt, src });
           view.dispatch(view.state.tr.insert(coordinates.pos, node));
-        });
+        },
+        (tempSrc, finalSrc) => swapImageSrc(view, tempSrc, finalSrc),
+      ).catch((error) => {
+        console.error('Error saving dropped images:', error?.cause ?? error);
+      });
+    }
 
-        continue;
-      }
+    for (const file of allFiles) {
+      const mimeType = file.type || mime.getType(file.name) || '';
 
-      const { fileName, relativePath } = await saveFile(file, id);
-      const src = `${relativePath}`;
+      if (mimeType.startsWith('image/')) continue;
+
+      // Optimistic: the node appears instantly (blob URL plays immediately
+      // when we hold the bytes, '' placeholder for bare paths). Tauri exposes
+      // the filesystem path on dropped files, so Rust streams the encrypt
+      // instead of pushing the whole file through IPC.
+      const fileName = assetFileName(file.path || file);
+      const preview = file instanceof File ? file : null;
 
       const typeName = mimeType.startsWith('audio/')
         ? 'Audio'
         : mimeType.startsWith('video/')
           ? 'Video'
-          : 'fileEmbed';
+          : // Pdf blocks are dev-only for now: prod pdfs go to fileEmbed.
+            mimeType === 'application/pdf' && import.meta.env.DEV
+            ? 'pdfBlock'
+            : 'fileEmbed';
 
       const coordinates = view.posAtCoords({
         left: event.clientX,
         top: event.clientY,
       });
 
-      if (!coordinates) {
-        if (typeName === 'Audio') {
-          editor.commands.setAudio(src);
-        } else if (typeName === 'Video') {
-          editor.commands.setVideo(src);
-        } else {
-          editor.commands.setFileEmbed(src, fileName);
-        }
+      const insert =
+        !coordinates && typeName === 'Audio'
+          ? (tempSrc) => editor.commands.setAudio(tempSrc, fileName)
+          : !coordinates && typeName === 'Video'
+            ? (tempSrc) => editor.commands.setVideo(tempSrc, fileName)
+            : !coordinates && typeName === 'pdfBlock'
+              ? (tempSrc) =>
+                  editor.commands.insertPdfBlock({ src: tempSrc, fileName })
+              : !coordinates
+                ? (tempSrc) => editor.commands.setFileEmbed(tempSrc, fileName)
+                : (tempSrc) => {
+                  const attrs = { src: tempSrc, fileName };
+                  const node = view.state.schema.nodes[typeName].create(attrs);
+                  view.dispatch(view.state.tr.insert(coordinates.pos, node));
+                };
 
-        continue;
-      }
-
-      const attrs =
-        typeName === 'fileEmbed' ? { src, fileName } : { src };
-
-      const node = view.state.schema.nodes[typeName].create(attrs);
-      view.dispatch(view.state.tr.insert(coordinates.pos, node));
+      insertFileBlockOptimistic(view, {
+        typeName,
+        insert,
+        file: file.path || file,
+        preview,
+        noteId: id,
+        fileName,
+      });
     }
   } catch (error) {
-    console.error('Error saving and embedding files:', error);
+    console.error('Error saving and embedding files:', error?.cause ?? error);
   }
 }
 
@@ -83,9 +110,6 @@ export const dropFile = Extension.create({
             drop: (view, event) => {
               const files = event.dataTransfer?.files;
               if (!files || files.length === 0) return false;
-
-              const hasFileType = files.length > 0 && files[0].type.length > 0;
-              if (!hasFileType) return false;
 
               event.preventDefault();
               event.stopPropagation();

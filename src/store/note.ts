@@ -33,18 +33,18 @@ import {
   cleanupDeletedIds,
   moveToFolder,
   normalizeInvalidFolderIds,
+  rebuildFolderCounts,
   addLabel,
   removeLabel,
+  retryNoteExtraction,
 } from './note/index';
 import { getBacklinks, getBacklinkCount } from './note/backlinks';
+export { setSkipUndo, clearNoteContentSignatures } from './note/index';
 
 export const useNoteStore = defineStore('note', {
   state: (): NoteState => ({
     data: {},
-    lockStatus: {},
-    isLocked: {},
     syncInProgress: false,
-    deletedIds: {},
   }),
 
   getters: {
@@ -83,6 +83,7 @@ export const useNoteStore = defineStore('note', {
     // Folder operations
     moveToFolder,
     normalizeInvalidFolderIds,
+    rebuildFolderCounts,
 
     // Note locking
     lockNote,
@@ -92,5 +93,8 @@ export const useNoteStore = defineStore('note', {
     // Labels
     addLabel,
     removeLabel,
+
+    // Share extraction retry (card chip)
+    retryNoteExtraction,
   },
 });

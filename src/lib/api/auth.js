@@ -1,4 +1,5 @@
 import { getApiClient } from './client';
+import { isOfficialServer } from '@/lib/server-url';
 
 let _isTauri = null;
 function isTauri() {
@@ -156,11 +157,11 @@ export function isWebAuthnAvailable() {
   );
 }
 
-export function isConditionalMediationAvailable() {
-  return (
-    typeof window !== 'undefined' &&
-    !!window.PublicKeyCredential?.isConditionalMediationAvailable
-  );
+// Passkeys in the desktop/mobile app rely on the official server's associated
+// domain entitlement; a custom server has no matching domain association.
+export function canUsePasskeys(baseUrl) {
+  if (isTauri()) return isOfficialServer(baseUrl);
+  return isWebAuthnAvailable();
 }
 
 async function ensureWebAuthn() {
@@ -192,9 +193,12 @@ export async function passkeyRegisterComplete(
 ) {
   let registrationResponse;
   if (isTauri()) {
+    if (!isOfficialServer(baseUrl)) {
+      throw new Error('Passkeys are only available on the official Beaver Notes server.');
+    }
     const { invoke } = await import('@tauri-apps/api/core');
     const origin = getOrigin(baseUrl);
-    registrationResponse = await invoke('plugin:webauthn|register', {
+    registrationResponse = await invoke('plugin:passkey|register', {
       origin,
       options: createOptions,
     });
@@ -229,9 +233,12 @@ export async function passkeyLoginComplete(
 ) {
   let authenticationResponse;
   if (isTauri()) {
+    if (!isOfficialServer(baseUrl)) {
+      throw new Error('Passkeys are only available on the official Beaver Notes server.');
+    }
     const { invoke } = await import('@tauri-apps/api/core');
     const origin = getOrigin(baseUrl);
-    authenticationResponse = await invoke('plugin:webauthn|authenticate', {
+    authenticationResponse = await invoke('plugin:passkey|authenticate', {
       origin,
       options: requestOptions,
     });
@@ -262,40 +269,16 @@ export async function passwordLogin(email, password, { baseUrl, signal } = {}) {
 export async function passwordRegister(
   email,
   password,
-  { baseUrl, signal, kemPublicKey } = {}
+  { baseUrl, signal, kemPublicKey, username } = {}
 ) {
   const client = getClient(baseUrl);
+  const payload = { email, password, kemPublicKey };
+  if (typeof username === 'string' && username.trim()) payload.username = username.trim().slice(0, 50);
   return client.post(
     '/auth/register',
-    { email, password, kemPublicKey },
+    payload,
     { signal }
   );
-}
-
-export async function quickConnectInitiate({ baseUrl } = {}) {
-  const client = getClient(baseUrl);
-  return client.post('/auth/quickconnect/initiate', {});
-}
-
-export async function quickConnectAuthorize(
-  code,
-  payload,
-  { baseUrl, signal } = {}
-) {
-  const client = getClient(baseUrl);
-  return client.post(
-    `/auth/quickconnect/authorize/${encodeURIComponent(code)}`,
-    payload ? { payload } : {},
-    { signal }
-  );
-}
-
-export async function quickConnectPoll(secret, { baseUrl, signal } = {}) {
-  const client = getClient(baseUrl);
-  return client.get('/auth/quickconnect/connect', {
-    query: { secret },
-    signal,
-  });
 }
 
 export async function logout({ baseUrl, signal } = {}) {
@@ -322,20 +305,22 @@ export async function revokeAllSessions({
   return client.post('/auth/sessions/revoke-all', { keepCurrent }, { signal });
 }
 
-export async function verifySession({ baseUrl, signal } = {}) {
+export async function setKeypair(kemPublicKey, { deviceId, baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
-  return client.post('/auth/verify-session', {}, { signal });
+  return client.post('/auth/keypair', { kemPublicKey, deviceId }, { signal });
 }
 
-export async function setKeypair(kemPublicKey, { baseUrl, signal } = {}) {
+export async function recoverAccount(email, code, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
-  return client.post('/auth/keypair', { kemPublicKey }, { signal });
+  return client.post('/auth/recover', { email, code }, { signal, auth: false });
 }
 
-export const webauthn = {
-  isAvailable: isWebAuthnAvailable,
-  isConditionalMediationAvailable,
-  decodeRegistrationOptions,
-  decodeAuthenticationOptions,
-  publicKeyCredentialToJSON,
-};
+export async function requestPasswordReset(email, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/password/reset-request', { email }, { signal, auth: false });
+}
+
+export async function completePasswordReset(token, newPassword, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/password/reset-complete', { token, newPassword, password: newPassword }, { signal, auth: false });
+}

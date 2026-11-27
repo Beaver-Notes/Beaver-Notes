@@ -3,18 +3,19 @@
     <div
       v-if="selectedItems.size > 0"
       data-selection-keep
-      class="mobile:hidden sm:pl-16 fixed inset-x-0 z-40 transition-[opacity,transform] duration-300 ease-out mx-2 bottom-4"
+      class="mobile:hidden fixed inset-x-0 z-40 pointer-events-none transition-[opacity,transform] duration-[var(--motion-slow)] ease-[var(--ease-standard)] bottom-4"
+      :style="boundsStyle"
     >
       <div
-        class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
+        class="pointer-events-auto relative bg-white dark:bg-neutral-900 border rounded-2xl shadow-xl overflow-hidden w-full max-w-3xl p-2 mx-auto"
       >
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-3 shrink-0">
             <span class="text-sm font-medium">
               {{ selectedItems.size }} items selected
             </span>
           </div>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2 [&>*]:shrink-0">
             <ui-button
               v-if="selectedNotes.length > 0 || selectedFolders.length > 0"
               v-tooltip.group="
@@ -70,8 +71,10 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useSidebarAwareOverlay } from '@/composable/useSidebarAwareOverlay';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
+import { useUndoStore } from '@/store/undo';
 import { useTranslations } from '@/composable/useTranslations';
 import { parseItemId } from '@/utils/helpers/index.js';
 
@@ -87,6 +90,7 @@ const emit = defineEmits(['clear', 'delete', 'move']);
 const noteStore = useNoteStore();
 const folderStore = useFolderStore();
 const { translations } = useTranslations();
+const { boundsStyle } = useSidebarAwareOverlay();
 
 const selectedNotes = computed(() => {
   return Array.from(props.selectedItems)
@@ -104,7 +108,7 @@ const selectedFolders = computed(() => {
     .filter(Boolean);
 });
 
-// Archive logic — notes + folders
+// Archive logic: notes plus folders.
 const shouldArchive = computed(() => {
   const notes = selectedNotes.value;
   const folders = selectedFolders.value;
@@ -115,7 +119,6 @@ const shouldArchive = computed(() => {
     return archivedCount < folders.length / 2;
   }
 
-  // If only notes selected, check note archive status
   if (folders.length === 0 && notes.length > 0) {
     const archivedCount = notes.filter((n) => n.isArchived).length;
     return archivedCount < notes.length / 2;
@@ -136,29 +139,23 @@ const shouldBookmark = computed(() => {
 
 async function handleToggleArchive() {
   const archive = shouldArchive.value;
-
-  // Archive/unarchive selected folders
+  const undo = useUndoStore();
+  undo.startBatch();
   for (const folder of selectedFolders.value) {
-    if (archive && !folder.isArchived) {
-      await folderStore.archive(folder.id);
-    } else if (!archive && folder.isArchived) {
-      await folderStore.unarchive(folder.id);
-    }
+    if (archive && !folder.isArchived) await folderStore.archive(folder.id);
+    else if (!archive && folder.isArchived) await folderStore.unarchive(folder.id);
   }
-
-  // Archive/unarchive selected notes
-  for (const note of selectedNotes.value) {
-    await noteStore.update(note.id, { isArchived: archive });
-  }
-
+  for (const note of selectedNotes.value) await noteStore.update(note.id, { isArchived: archive });
+  undo.commitBatch();
   emit('clear');
 }
 
 async function handleToggleBookmark() {
   const bookmark = shouldBookmark.value;
-  for (const note of selectedNotes.value) {
-    await noteStore.update(note.id, { isBookmarked: bookmark });
-  }
+  const undo = useUndoStore();
+  undo.startBatch();
+  for (const note of selectedNotes.value) await noteStore.update(note.id, { isBookmarked: bookmark });
+  undo.commitBatch();
   emit('clear');
 }
 </script>

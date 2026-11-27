@@ -5,7 +5,6 @@ const markdownEngine = Extension.create({
 
   addInputRules() {
     return [
-      // Handle Markdown images
       {
         find: /!\[([^\]]*)\]\(([^)]+)\)/,
         handler: ({ state, range, match }) => {
@@ -25,7 +24,6 @@ const markdownEngine = Extension.create({
           return true;
         },
       },
-      // Handle Markdown links
       {
         find: /\[([^\]]+)\]\(([^)]+)\)/,
         handler: ({ state, range, match }) => {
@@ -48,7 +46,6 @@ const markdownEngine = Extension.create({
           return true;
         },
       },
-      // Handle line breaks
       {
         find: /\\ $/,
         handler: ({ state, range }) => {

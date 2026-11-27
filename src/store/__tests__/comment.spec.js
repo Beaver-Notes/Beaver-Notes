@@ -5,15 +5,19 @@ import { useCommentStore } from '@/store/comment';
 vi.mock('@/lib/api/comments', () => ({
   listComments: vi.fn(async () => []),
   createComment: vi.fn(async () => ({ comment: { id: 'c1', contentEncrypted: 'x', contentIv: 'y', mentions: '[]' } })),
+  resolveComment: vi.fn(async () => ({ resolved: true })),
+  toggleReaction: vi.fn(async () => ({ reactions: [] })),
 }));
+
+const ensureNoteKeyMock = vi.hoisted(() => vi.fn(async () => 'ab'.repeat(32)));
 
 vi.mock('@/composable/useNoteSharing', () => ({
   useNoteSharing: () => ({
-    ensureNoteKey: vi.fn(async () => 'ab'.repeat(32)),
+    ensureNoteKey: ensureNoteKeyMock,
   }),
 }));
 
-import { listComments, createComment } from '@/lib/api/comments';
+import { listComments, createComment, resolveComment, toggleReaction } from '@/lib/api/comments';
 
 describe('comment store pending flow', () => {
   beforeEach(() => {
@@ -50,6 +54,56 @@ describe('comment store pending flow', () => {
     expect(s.comments[0].content).toBe('hello @alice');
   });
 
+  it('addComment carries anchors encrypted, not as readable columns', async () => {
+    const { decryptComment } = await import('@/utils/crypto/comment-crypto');
+    const { importCollabKey } = await import('@/utils/crypto/collab');
+    const s = useCommentStore();
+    await s.addComment('n1', { content: 'hi', threadId: 't1', anchorFrom: 4, anchorTo: 9 });
+    const [, body] = createComment.mock.calls[0];
+    expect(body.anchorFrom).toBeUndefined();
+    expect(body.anchorTo).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('anchorFrom');
+    const key = await importCollabKey('ab'.repeat(32));
+    const payload = JSON.parse(await decryptComment(key, body, 'n1'));
+    expect(payload.text).toBe('hi');
+    expect(payload.anchorFrom).toBe(4);
+    expect(payload.anchorTo).toBe(9);
+  });
+
+  it('fetchThreads reads anchors from the encrypted payload', async () => {
+    const { encryptComment, packComment } = await import('@/utils/crypto/comment-crypto');
+    const { importCollabKey } = await import('@/utils/crypto/collab');
+    const key = await importCollabKey('ab'.repeat(32));
+    const { contentEncrypted, contentIv } = await encryptComment(
+      key,
+      packComment({ text: 'new scheme', anchorFrom: 11, anchorTo: 22 }),
+      'n1'
+    );
+    listComments.mockResolvedValueOnce([
+      { id: 'c1', noteId: 'n1', threadId: 't1', contentEncrypted, contentIv, anchorFrom: null, anchorTo: null, resolved: false },
+    ]);
+    const s = useCommentStore();
+    await s.fetchThreads('n1');
+    expect(s.comments[0].content).toBe('new scheme');
+    expect(s.threads[0].anchorFrom).toBe(11);
+    expect(s.threads[0].anchorTo).toBe(22);
+  });
+
+  it('fetchThreads falls back to row anchor columns for a legacy comment', async () => {
+    const { encryptComment } = await import('@/utils/crypto/comment-crypto');
+    const { importCollabKey } = await import('@/utils/crypto/collab');
+    const key = await importCollabKey('ab'.repeat(32));
+    const { contentEncrypted, contentIv } = await encryptComment(key, 'legacy body', 'n1');
+    listComments.mockResolvedValueOnce([
+      { id: 'c1', noteId: 'n1', threadId: 't1', contentEncrypted, contentIv, anchorFrom: 5, anchorTo: 9, resolved: false },
+    ]);
+    const s = useCommentStore();
+    await s.fetchThreads('n1');
+    expect(s.comments[0].content).toBe('legacy body');
+    expect(s.threads[0].anchorFrom).toBe(5);
+    expect(s.threads[0].anchorTo).toBe(9);
+  });
+
   it('fetchThreads populates authorName from the collaborator store', async () => {
     const { useCollaboratorStore } = await import('@/store/collaborator');
     const collab = useCollaboratorStore();
@@ -60,6 +114,42 @@ describe('comment store pending flow', () => {
     const s = useCommentStore();
     await s.fetchThreads('n1');
     expect(s.comments[0].authorName).toBe('alice');
+  });
+
+  it('resolves the signed-in author from their own profile, not the collaborator list', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    const { useCollaboratorStore } = await import('@/store/collaborator');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    // The note owner is never in the collaborators list (that endpoint is for
+    // invited non-members), so the profile is the only source for own comments.
+    useCollaboratorStore().setCollaborators('n1', []);
+    listComments.mockResolvedValueOnce([
+      { id: 'c1', noteId: 'n1', threadId: 't1', authorId: 'me', contentEncrypted: 'x', contentIv: 'y', resolved: false },
+      { id: 'c2', noteId: 'n1', threadId: 't1', authorId: 'u1', contentEncrypted: 'x', contentIv: 'y', resolved: false },
+    ]);
+    const s = useCommentStore();
+    await s.fetchThreads('n1');
+    expect(s.comments.find((c) => c.id === 'c1').authorName).toBe('myself');
+  });
+
+  it('marks comments unavailable instead of a silent no-op when the note has no shared key', async () => {
+    ensureNoteKeyMock.mockResolvedValueOnce(null);
+    const s = useCommentStore();
+    await s.fetchThreads('personal-note');
+    expect(s.unavailable).toBe(true);
+    expect(s.comments).toEqual([]);
+    expect(listComments).not.toHaveBeenCalled();
+  });
+
+  it('clears the unavailable state once a shared key resolves', async () => {
+    ensureNoteKeyMock.mockResolvedValueOnce(null);
+    const s = useCommentStore();
+    await s.fetchThreads('personal-note');
+    expect(s.unavailable).toBe(true);
+
+    await s.fetchThreads('personal-note');
+    expect(s.unavailable).toBe(false);
+    expect(listComments).toHaveBeenCalled();
   });
 
   it('fetchThreads decrypts encrypted comment content', async () => {
@@ -73,5 +163,102 @@ describe('comment store pending flow', () => {
     const s = useCommentStore();
     await s.fetchThreads('n1');
     expect(s.comments[0].content).toBe('secret note');
+  });
+
+  it('toggleResolve still flips the thread after the payload change', async () => {
+    const { encryptComment, packComment } = await import('@/utils/crypto/comment-crypto');
+    const { importCollabKey } = await import('@/utils/crypto/collab');
+    const key = await importCollabKey('ab'.repeat(32));
+    const { contentEncrypted, contentIv } = await encryptComment(
+      key,
+      packComment({ text: 'root', anchorFrom: 1, anchorTo: 2 }),
+      'n1'
+    );
+    listComments.mockResolvedValueOnce([
+      { id: 'c1', noteId: 'n1', threadId: 't1', contentEncrypted, contentIv, anchorFrom: null, anchorTo: null, resolved: 0 },
+    ]);
+    const s = useCommentStore();
+    await s.fetchThreads('n1');
+    expect(s.unresolvedThreads).toHaveLength(1);
+
+    await s.toggleResolve('t1');
+
+    expect(resolveComment).toHaveBeenCalledWith('c1', expect.anything());
+    expect(s.resolvedThreads).toHaveLength(1);
+    expect(s.unresolvedThreads).toHaveLength(0);
+  });
+
+  it('toggleReaction encrypts my emoji list and keeps the optimistic state', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    toggleReaction.mockResolvedValueOnce(undefined);
+    const s = useCommentStore();
+    s.comments.push({ id: 'c1', noteId: 'n1', threadId: 't1', reactions: [] });
+    await s.toggleReaction('c1', '👍', { baseUrl: null });
+    expect(toggleReaction).toHaveBeenCalledWith(
+      'c1',
+      { emojisEncrypted: expect.any(String), emojisIv: expect.any(String) },
+      { baseUrl: null },
+    );
+    expect(s.comments[0].reactions).toEqual([{ emoji: '👍', userIds: ['me'] }]);
+  });
+
+  it('toggleReaction removes the caller from an existing emoji bucket', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    toggleReaction.mockResolvedValueOnce(undefined);
+    const s = useCommentStore();
+    s.comments.push({
+      id: 'c1',
+      noteId: 'n1',
+      threadId: 't1',
+      reactions: [{ emoji: '👍', userIds: ['me', 'other'] }],
+    });
+    await s.toggleReaction('c1', '👍', { baseUrl: null });
+    expect(s.comments[0].reactions).toEqual([{ emoji: '👍', userIds: ['other'] }]);
+  });
+
+  it('toggleReaction decrypts returned rows into the UI shape', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    const { importCollabKey } = await import('@/utils/crypto/collab');
+    const { encryptComment } = await import('@/utils/crypto/comment-crypto');
+    const key = await importCollabKey('ab'.repeat(32));
+    const mine = await encryptComment(key, JSON.stringify(['👍']), 'c1');
+    const theirs = await encryptComment(key, JSON.stringify(['👍', '🎉']), 'c1');
+    toggleReaction.mockResolvedValueOnce({
+      reactions: [
+        { userId: 'me', emojisEncrypted: mine.contentEncrypted, emojisIv: mine.contentIv },
+        { userId: 'other', emojisEncrypted: theirs.contentEncrypted, emojisIv: theirs.contentIv },
+      ],
+    });
+    const s = useCommentStore();
+    s.comments.push({ id: 'c1', noteId: 'n1', threadId: 't1', reactions: [] });
+    await s.toggleReaction('c1', '👍', { baseUrl: null });
+    expect(s.comments[0].reactions).toEqual([
+      { emoji: '👍', userIds: ['me', 'other'] },
+      { emoji: '🎉', userIds: ['other'] },
+    ]);
+  });
+
+  it('toggleReaction restores the previous reactions when the API call fails', async () => {
+    const { useAccountStore } = await import('@/store/account');
+    useAccountStore().setProfile({ id: 'me', username: 'myself' });
+    const before = [{ emoji: '🎉', userIds: ['other'] }];
+    toggleReaction.mockRejectedValueOnce(new Error('offline'));
+    const s = useCommentStore();
+    s.comments.push({ id: 'c1', noteId: 'n1', threadId: 't1', reactions: JSON.parse(JSON.stringify(before)) });
+    await expect(s.toggleReaction('c1', '🎉', { baseUrl: null })).rejects.toThrow('offline');
+    expect(s.comments[0].reactions).toEqual(before);
+  });
+
+  it('setHoverThread does not touch the click/selection path', () => {
+    const s = useCommentStore();
+    s.setActiveThread('t-click');
+    s.setHoverThread('t-hover');
+    expect(s.hoverThreadId).toBe('t-hover');
+    expect(s.activeThreadId).toBe('t-click');
+    s.setHoverThread(null);
+    expect(s.activeThreadId).toBe('t-click');
   });
 });

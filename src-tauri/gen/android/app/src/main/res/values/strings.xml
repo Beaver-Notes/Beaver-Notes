@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">Beaver Notes</string>
     <string name="main_activity_title">Beaver Notes</string>
+    <string name="asset_statements" translatable="false">
+    [{
+    "include": "https://api.beavernotes.com/.well-known/assetlinks.json"
+    }]
+    </string>
 </resources>

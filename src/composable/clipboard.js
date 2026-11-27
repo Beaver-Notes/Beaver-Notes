@@ -16,9 +16,6 @@ export const useClipboard = () => {
     if (timer) clearTimeout(timer);
   });
 
-  /**
-   * @param {string} code
-   */
   const copyToClipboard = (code) => {
     const clipboard = navigator.clipboard;
     if (clipboard != null) {

@@ -27,23 +27,6 @@ export function findBoundaryPosition(view, event, _handleWidth) {
   return -1;
 }
 
-export function updateColumnNodeFlex(view, pos, flex) {
-  const { state, dispatch } = view;
-  const node = state.doc.nodeAt(pos);
-  if (!node || node.type.name !== 'column') return;
-
-  const roundedFlex = Math.round(flex * 100) / 100;
-
-  dispatch(
-    state.tr
-      .setNodeMarkup(pos, undefined, {
-        ...node.attrs,
-        flexGrow: roundedFlex,
-      })
-      .setMeta('addToHistory', false)
-  );
-}
-
 export function getColumnInfoAtPos(view, boundaryPos) {
   const $pos = view.state.doc.resolve(boundaryPos);
   const node = $pos.parent;

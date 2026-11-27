@@ -28,12 +28,22 @@ module.exports = {
     function ({ addVariant }) {
       addVariant('mobile', '.runtime-mobile &');
       addVariant('tablet', '.runtime-tablet &');
+      addVariant('foldable', '.runtime-foldable &');
+      // Registered after foldable so folded rules win same-specificity
+      // conflicts (max-width, margins) in pure CSS source order.
+      addVariant('folded', '.runtime-folded &');
+      addVariant('ltr', '[dir="ltr"] &');
+      addVariant('rtl', '[dir="rtl"] &');
     },
     require('@tailwindcss/typography'),
     require('@eioluseyi/tailwind-fade')({
       prefix: 'eio-',
     }),
     createThemes({
+      amber: {
+        primary: colors.amber['400'],
+        secondary: colors.amber['300'],
+      },
       light: {
         primary: colors.amber['400'],
         secondary: colors.amber['300'],

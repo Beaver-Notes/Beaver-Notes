@@ -2,11 +2,12 @@ name: beaver-notes
 options:
   bundleIdPrefix: com.beavernotes.beaver-notes
   deploymentTarget:
-    iOS: 14.0
+    iOS: 15.0
 fileGroups: [../../src]
 configs:
   debug: debug
   release: release
+packages: {}
 settingGroups:
   app:
     base:
@@ -41,6 +42,23 @@ targets:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
+        NSMicrophoneUsageDescription: Beaver Notes uses the microphone to record audio notes.
+        ITSAppUsesNonExemptEncryption: false
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoadsInWebContent: true
+        CFBundleIcons:
+          CFBundleAlternateIcons:
+            AppIcon 1: {}
+            AppIcon 2: {}
+            AppIcon 3: {}
+            AppIcon 4: {}
+            AppIcon 5: {}
+            AppIcon 6: {}
+            AppIcon 7: {}
+            AppIcon 8: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UISupportedInterfaceOrientations~ipad:
@@ -59,7 +77,6 @@ targets:
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: LAF7ZJN6TW
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: '"AppIcon 1" "AppIcon 2" "AppIcon 3" "AppIcon 4" "AppIcon 5" "AppIcon 6" "AppIcon 7" "AppIcon 8"'
         ENABLE_BITCODE: false
         ARCHS: [arm64]
@@ -79,6 +96,9 @@ targets:
       - sdk: Security.framework
       - sdk: UIKit.framework
       - sdk: WebKit.framework
+      - target: ShareExtension
+        embed: true
+        codeSign: true
     preBuildScripts:
       - script: ../../../scripts/xcode-rust-build.sh
         name: Build Rust Code
@@ -86,3 +106,27 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+
+  ShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+        excludes:
+          - "*.entitlements"
+    info:
+      path: ShareExtension/Info.plist
+    entitlements:
+      path: ShareExtension/ShareExtension.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.beavernotes.beaver-notes.ShareExtension
+        MARKETING_VERSION: "5.0.0"
+        CURRENT_PROJECT_VERSION: "5.0.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: F8U6VTU2DJ
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        IPHONEOS_DEPLOYMENT_TARGET: "14.0"
