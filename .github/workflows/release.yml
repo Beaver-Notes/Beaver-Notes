@@ -343,6 +343,11 @@ jobs:
         with:
           targets: ${{ matrix.rust_targets }}
 
+      - name: Install llvm-tools for Xcode 27
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        run: rustup component add llvm-tools
+
       # Rust artifacts cache
       - name: Rust cache
         if: ${{ !env.ACT }}
