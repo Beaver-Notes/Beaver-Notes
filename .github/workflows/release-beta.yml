@@ -250,7 +250,7 @@ jobs:
             {"id": "linux-x64", "runner": "ubuntu-24.04", "rust_targets": "x86_64-unknown-linux-gnu", "tauri_target": "x86_64-unknown-linux-gnu", "asset_suffix": "linux-x64"},
             {"id": "linux-arm64", "runner": "ubuntu-24.04-arm", "rust_targets": "aarch64-unknown-linux-gnu", "tauri_target": "aarch64-unknown-linux-gnu", "asset_suffix": "linux-arm64"},
             {"id": "android", "runner": "ubuntu-24.04", "rust_targets": "aarch64-linux-android,x86_64-linux-android", "asset_suffix": "android"},
-            {"id": "ios", "runner": "macos-latest", "rust_targets": "aarch64-apple-ios", "asset_suffix": "ios"},
+            {"id": "ios", "runner": "xcode-27", "rust_targets": "aarch64-apple-ios", "asset_suffix": "ios"},
           ]
           entries = all_entries if platform == "all" else [e for e in all_entries if e["id"].startswith(platform)]
           print(json.dumps(entries, separators=(",", ":")))
@@ -274,6 +274,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify Xcode 27
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          test "${SDK_VERSION%%.*}" = "27"
 
       - name: Setup Node with Yarn cache
         if: ${{ !env.ACT }}
@@ -779,44 +788,19 @@ jobs:
           mkdir -p "$RUNNER_TEMP/app-store-connect-api-key"
           echo "$API_KEY" > "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${API_KEY_ID}.p8"
 
-      - name: Import iOS signing certificate
+      - name: Install iOS distribution signing
         if: ${{ matrix.id == 'ios' }}
         shell: bash
         env:
           IOS_CERTIFICATE_BASE64: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
           IOS_MOBILE_PROVISION_BASE64: ${{ secrets.APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE }}
+          IOS_SHARE_EXTENSION_PROVISION_BASE64: ${{ secrets.APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
-          : "${IOS_CERTIFICATE_BASE64:?APPLE_IOS_SIGNING_CERTIFICATE_BASE64 is not set}"
-          : "${IOS_MOBILE_PROVISION_BASE64:?APPLE_IOS_DISTRIBUTION_PROVISIONING_PROFILE is not set}"
-          : "${KEYCHAIN_PASSWORD:?KEYCHAIN_PASSWORD is not set}"
-          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
-          PROVISION_PATH="$RUNNER_TEMP/iOS.provisionprofile"
-          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
-
-          printf '%s' "$IOS_CERTIFICATE_BASE64" | tr -d '[:space:]' | base64 -d > "$CERTIFICATE_PATH"
-          printf '%s' "$IOS_MOBILE_PROVISION_BASE64" | tr -d '[:space:]' | base64 -d > "$PROVISION_PATH"
-          security cms -D -i "$PROVISION_PATH" >/dev/null
-          CERT_B64="$(base64 < "$CERTIFICATE_PATH" | tr -d '[:space:]')"
-          PROVISION_B64="$(base64 < "$PROVISION_PATH" | tr -d '[:space:]')"
-          echo "::add-mask::$CERT_B64"
-          echo "::add-mask::$PROVISION_B64"
-          echo "IOS_CERTIFICATE=$CERT_B64" >> "$GITHUB_ENV"
-          echo "IOS_MOBILE_PROVISION=$PROVISION_B64" >> "$GITHUB_ENV"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" \
-            -P "$IOS_CERTIFICATE_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          : "${IOS_SHARE_EXTENSION_PROVISION_BASE64:?APPLE_IOS_SHARE_EXTENSION_PROVISIONING_PROFILE is not set}"
+          ./scripts/configure-ios-distribution-signing.sh
 
       - name: Build iOS beta app
         if: ${{ matrix.id == 'ios' }}
@@ -829,9 +813,6 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          IOS_CERTIFICATE: ${{ env.IOS_CERTIFICATE }}
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
-          IOS_MOBILE_PROVISION: ${{ env.IOS_MOBILE_PROVISION }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           yarn tauri ios build --export-method app-store-connect --config src-tauri/tauri.ios.ci.conf.json
