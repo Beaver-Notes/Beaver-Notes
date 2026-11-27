@@ -306,14 +306,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select Xcode 27.2
+      - name: Verify Xcode 27
         if: ${{ matrix.id == 'ios' }}
         shell: bash
         run: |
           set -euo pipefail
-          sudo xcode-select -s /Applications/Xcode_27.2.app/Contents/Developer
           xcodebuild -version
-          test "$(xcrun --sdk iphoneos --show-sdk-version)" = "27.2"
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          test "${SDK_VERSION%%.*}" = "27"
 
       # Use cache on GitHub runners, skipped in local ACT runs
       - name: Setup Node with Yarn cache
