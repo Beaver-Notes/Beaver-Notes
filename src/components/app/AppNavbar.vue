@@ -1,5 +1,5 @@
 <template>
-  <nav :class="rail ? 'w-auto' : 'w-full'" role="navigation" aria-label="Main navigation" data-selection-keep>
+  <nav :class="rail ? 'w-auto' : 'w-full'" role="navigation" :aria-label="translations.app?.mainNavigation || 'Main navigation'" data-selection-keep>
     <div
       class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between"
       :class="{ 'max-w-none flex-col items-center gap-2': rail }"
@@ -188,6 +188,7 @@ import { useSelectionBar } from '@/composable/useSelectionBar';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { foldState } from '@/lib/foldable';
 import { useDialog } from '@/lib/dialog';
+
 
 export default {
   setup() {

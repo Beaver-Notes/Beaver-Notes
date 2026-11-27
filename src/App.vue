@@ -24,7 +24,7 @@
     class="sr-only focus:not-sr-only focus:fixed focus:top-2 ltr:focus:left-2 rtl:focus:right-2 focus:z-[200] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none"
     @click.prevent="skipToMain"
   >
-    Skip to content
+    {{ translations.app?.skipToContent || 'Skip to content' }}
   </a>
 
   <div
@@ -40,7 +40,7 @@
       v-if="onboardingCompleted"
       v-show="showSidebar"
       class="mobile:hidden foldable:hidden shrink-0"
-      aria-label="Sidebar"
+      :aria-label="translations.sidebar?.sidebar || 'Sidebar'"
     />
     <main
       id="app-main"

@@ -32,7 +32,10 @@
         :label="
           translations.settings.openAfterCreation || 'Open note after creation'
         "
-        description="Immediately navigate to a note after creating it."
+        :description="
+          translations.settings.openAfterCreationDescription ||
+          'Immediately navigate to a note after creating it.'
+        "
       >
         <ui-switch
           id="general-open-after-creation"
@@ -42,7 +45,10 @@
       <settings-row
         control-id="general-open-last-edited"
         :label="translations.settings.openLastEdited || 'Open last edited note'"
-        description="When the app launches, reopen the note you were last editing."
+        :description="
+          translations.settings.openLastEditedDescription ||
+          'When the app launches, reopen the note you were last editing.'
+        "
       >
         <ui-switch id="general-open-last-edited" v-model="openLastEdited" />
       </settings-row>
@@ -50,7 +56,10 @@
         v-if="!isTouchRuntime"
         control-id="general-sounds"
         label="Enable sounds"
-        description="Enable sounds for interactions around the app."
+        :description="
+          translations.settings.enableSoundsDescription ||
+          'Enable sounds for interactions around the app.'
+        "
       >
         <ui-switch id="general-sounds" v-model="soundsEnabled" />
       </settings-row>
@@ -60,7 +69,10 @@
       <settings-row
         control-id="general-spellcheck"
         :label="translations.settings.spellCheck || 'Spell check'"
-        description="Underline spelling errors in the editor as you type."
+        :description="
+          translations.settings.spellCheckDescription ||
+          'Underline spelling errors in the editor as you type.'
+        "
       >
         <ui-switch
           id="general-spellcheck"
@@ -73,7 +85,10 @@
         :label="
           translations.settings.collapsibleHeading || 'Collapsible headings'
         "
-        description="Allow headings to be folded so their content is hidden below."
+        :description="
+          translations.settings.collapsibleHeadingDescription ||
+          'Allow headings to be folded so their content is hidden below.'
+        "
       >
         <ui-switch
           id="general-collapsible-heading"
@@ -82,7 +97,10 @@
       </settings-row>
       <settings-row
         control-id="general-date-format"
-        description="Format used when inserting today's date via the /today command."
+        :description="
+          translations.settings.todayDateFormatDescription ||
+          'Format used when inserting today\'s date via the /today command.'
+        "
         stacked
         control-class="w-40 sm:w-52"
       >
@@ -104,7 +122,10 @@
       <settings-row
         control-id="general-time-format"
         :label="translations.settings.timeFormat || 'Time format'"
-        description="Format used when inserting the current time via the /time command."
+        :description="
+          translations.settings.timeFormatDescription ||
+          'Format used when inserting the current time via the /time command.'
+        "
         stacked
         control-class="w-40"
       >
@@ -125,11 +146,17 @@
       </settings-row>
     </settings-group>
 
-    <settings-group v-if="isIOSRuntime" title="Spotlight">
+    <settings-group
+      v-if="isIOSRuntime"
+      :title="translations.settings.spotlight || 'Spotlight'"
+    >
       <settings-row
         control-id="general-spotlight"
-        label="Spotlight indexing"
-        description="Let iOS / macOS Spotlight index your notes so they can be found via system search."
+        :label="translations.settings.spotlightIndexing || 'Spotlight indexing'"
+        :description="
+          translations.settings.spotlightIndexingDescription ||
+          'Let iOS / macOS Spotlight index your notes so they can be found via system search.'
+        "
       >
         <ui-switch
           id="general-spotlight"
@@ -238,7 +265,10 @@
           <p
             class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            The folder where your notes and assets are stored on disk.
+            {{
+              translations.settings.syncPathDescription ||
+              'The folder where your notes and assets are stored on disk.'
+            }}
           </p>
         </div>
         <div class="flex items-center gap-2 justify-between">
@@ -271,7 +301,10 @@
         <p
           class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
         >
-          Sync through Beaver Sync (instead of a folder).
+          {{
+            translations.settings.cloudSyncDescription ||
+            'Sync through Beaver Sync (instead of a folder).'
+          }}
         </p>
         <div class="mt-3 space-y-2">
           <div
@@ -440,7 +473,10 @@
             {{ trExport.import || 'Import' }}
           </p>
           <p class="text-xs text-neutral-500 dark:text-neutral-400">
-            Restore a backup or bring notes from other apps.
+            {{
+              translations.settings.importDataDescription ||
+              'Restore a backup or bring notes from other apps.'
+            }}
           </p>
         </div>
         <ui-button @click="openImportModal('beaverBackup')">{{
@@ -670,21 +706,27 @@
       </template>
     </ui-modal>
 
-    <settings-group v-if="isDebugMode" title="Debug" danger>
+    <settings-group
+      v-if="isDebugMode"
+      :title="translations.settings.debug || 'Debug'"
+      danger
+    >
       <div class="px-4 py-3.5 flex flex-col gap-3">
         <div class="space-y-0.5">
           <p class="text-sm font-medium text-red-900 dark:text-red-100">
-            Nuke app
+            {{ translations.settings.debugNukeApp || 'Nuke app' }}
           </p>
           <p
             class="mt-0.5 text-xs leading-relaxed text-red-700 dark:text-red-300"
           >
-            Debug-only reset that wipes local state and relaunches into a fresh
-            install.
+            {{
+              translations.settings.nukeDescription ||
+              'Debug-only reset that wipes local state and relaunches into a fresh install.'
+            }}
           </p>
         </div>
         <ui-button class="w-full" variant="danger" @click="nukeAppDebugOnly"
-          >Nuke app and restart</ui-button
+          >{{ translations.settings.nukeAndRestart || 'Nuke app and restart' }}</ui-button
         >
       </div>
     </settings-group>
@@ -886,6 +928,7 @@ export default {
         title: 'Beaver Notes Backup',
         icon: 'riArchiveLine',
         description:
+          translations.value.settings.exportDataDescription ||
           'Full backup as a dated archive folder. Use to move devices or keep backups.',
         buttonLabel: 'Create Backup',
       },
@@ -893,16 +936,20 @@ export default {
         key: 'markdown',
         title: 'Markdown',
         icon: 'riMarkdownLine',
-        description: 'Export all notes as .md files with YAML frontmatter.',
-        buttonLabel: 'Export Markdown',
+        description:
+          translations.value.settings.exportMarkdownDescription ||
+          'Export all notes as .md files with YAML frontmatter.',
+        buttonLabel:
+          translations.value.settings.exportMarkdown || 'Export Markdown',
       },
       {
         key: 'html',
         title: 'HTML',
         icon: 'riGlobalLine',
         description:
+          translations.value.settings.exportHtmlDescription ||
           'Export all notes as .html files preserving folder structure.',
-        buttonLabel: 'Export HTML',
+        buttonLabel: translations.value.settings.exportHtml || 'Export HTML',
       },
     ];
     const showExportModal = ref(false);

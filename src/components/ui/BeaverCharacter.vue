@@ -403,6 +403,7 @@
 </template>
 
 <script>
+import { useTranslations } from '@/composable/useTranslations';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 export default {
@@ -413,6 +414,7 @@ export default {
     poses: { type: Array, default: null },
   },
   setup(props) {
+    const { translations } = useTranslations();
     const rootEl = ref(null);
     const stage = ref(null);
     const head = ref(null);
@@ -1426,6 +1428,7 @@ export default {
     });
 
     return {
+      translations,
       rootEl,
       stage,
       head,

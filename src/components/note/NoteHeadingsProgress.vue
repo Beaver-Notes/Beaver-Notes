@@ -78,7 +78,7 @@
               v-if="!filteredHeadings.length"
               class="text-center text-sm text-neutral-400 py-4"
             >
-              No headings found
+              {{ translations.noteActions?.noHeadingsFound || 'No headings found' }}
             </div>
           </div>
         </div>

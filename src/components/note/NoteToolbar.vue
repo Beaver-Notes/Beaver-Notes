@@ -182,7 +182,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -192,20 +192,20 @@
             <button
               v-keep-focus
               :class="tbChip(editor.isActive('paragraph'))"
-              aria-label="Body"
+              :aria-label="translations.toolbar?.body || 'Body'"
               @click="
                 editor.chain().focus().setParagraph().run();
                 closeSub();
               "
             >
-              Body
+              {{ translations.toolbar?.body || 'Body' }}
             </button>
             <button
               v-for="h in [1, 2, 3, 4]"
               :key="h"
               v-keep-focus
               :class="tbChip(editor.isActive('heading', { level: h }))"
-              :aria-label="'Heading ' + h"
+              :aria-label="(translations.toolbar?.heading || 'Heading {level}').replace('{level}', h)"
               @click="
                 editor.chain().focus().toggleHeading({ level: h }).run();
                 closeSub();
@@ -228,7 +228,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -241,7 +241,7 @@
               <button
                 v-keep-focus
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
-                aria-label="Decrease font size"
+                :aria-label="translations.toolbar?.decreaseFontSize || 'Decrease font size'"
                 @click="
                   fontSize = Math.max(1, fontSize - 1);
                   updateFontSize();
@@ -259,7 +259,7 @@
               <button
                 v-keep-focus
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
-                aria-label="Increase font size"
+                :aria-label="translations.toolbar?.increaseFontSize || 'Increase font size'"
                 @click="
                   fontSize += 1;
                   updateFontSize();
@@ -290,14 +290,14 @@
             <button
               v-keep-focus
               :class="[tbChip(), 'opacity-60 !text-xs']"
-              aria-label="Default font size"
+              :aria-label="translations.toolbar?.defaultFontSize || 'Default font size'"
               @click="
                 editor.chain().focus().unsetFontSize().run();
                 fontSize = null;
                 closeSub();
               "
             >
-              Default
+              {{ translations.toolbar?.default || 'Default' }}
             </button>
           </div>
 
@@ -314,7 +314,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -324,7 +324,7 @@
             <button
               v-keep-focus
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
-              aria-label="Remove text color"
+              :aria-label="translations.toolbar?.removeTextColor || 'Remove text color'"
               @click="
                 editor.chain().focus().unsetColor().run();
                 closeSub();
@@ -357,7 +357,7 @@
             <button
               v-keep-focus
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-[12px] text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
-              aria-label="Remove highlight"
+              :aria-label="translations.toolbar?.removeHighlight || 'Remove highlight'"
               @click="
                 editor.chain().focus().unsetHighlight().run();
                 closeSub();
@@ -394,7 +394,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -428,7 +428,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -438,7 +438,7 @@
             <button
               v-keep-focus
               :class="tbBtn()"
-              aria-label="Upload image"
+              :aria-label="translations.toolbar?.uploadImage || 'Upload image'"
               @click="
                 triggerImageInput();
                 closeSub();
@@ -461,7 +461,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -471,7 +471,7 @@
             <button
               v-keep-focus
               :class="tbBtn()"
-              aria-label="Upload file"
+              :aria-label="translations.toolbar?.uploadFile || 'Upload file'"
               @click="
                 triggerFileInput();
                 closeSub();
@@ -494,7 +494,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -504,7 +504,7 @@
             <button
               v-keep-focus
               :class="tbBtn()"
-              aria-label="Upload video"
+              :aria-label="translations.toolbar?.uploadVideo || 'Upload video'"
               @click="
                 triggerVideoInput();
                 closeSub();
@@ -527,7 +527,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -573,7 +573,7 @@
             <button
               v-keep-focus
               class="tb-back"
-              aria-label="Back"
+              :aria-label="translations.toolbar?.back || 'Back'"
               @click="closeSub()"
             >
               <v-remixicon name="riArrowLeftLine" />
@@ -587,7 +587,7 @@
             <button
               v-keep-focus
               :class="tbBtn()"
-              aria-label="Align left"
+              :aria-label="translations.toolbar?.alignLeft || 'Align left'"
               @click="
                 editor.chain().focus().setTextAlign('left').run();
                 closeSub();
@@ -598,7 +598,7 @@
             <button
               v-keep-focus
               :class="tbBtn()"
-              aria-label="Align center"
+              :aria-label="translations.toolbar?.alignCenter || 'Align center'"
               @click="
                 editor.chain().focus().setTextAlign('center').run();
                 closeSub();
@@ -609,7 +609,7 @@
             <button
               v-keep-focus
               :class="tbBtn()"
-              aria-label="Align right"
+              :aria-label="translations.toolbar?.alignRight || 'Align right'"
               @click="
                 editor.chain().focus().setTextAlign('right').run();
                 closeSub();
@@ -620,7 +620,7 @@
             <button
               v-keep-focus
               :class="tbBtn()"
-              aria-label="Align justify"
+              :aria-label="translations.toolbar?.alignJustify || 'Align justify'"
               @click="
                 editor.chain().focus().setTextAlign('justify').run();
                 closeSub();

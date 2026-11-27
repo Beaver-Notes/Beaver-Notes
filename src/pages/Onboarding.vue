@@ -83,7 +83,7 @@
             data-testid="onboarding-welcome-continue"
             @click="handlePrimaryContinue"
           >
-            Continue <v-remixicon name="riArrowRightLine" />
+            {{ tr.continue || 'Continue' }} <v-remixicon name="riArrowRightLine" />
           </ui-button>
         </div>
       </div>
@@ -385,7 +385,7 @@
                       <h2
                         class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                       >
-                        Importing from {{ migrationPlatformLabel }}
+                        {{ tr.importingFrom || 'Importing from' }} {{ migrationPlatformLabel }}
                       </h2>
                     </div>
                     <div class="flex flex-col gap-3">
@@ -426,12 +426,17 @@
                       <h2
                         class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                       >
-                        Import complete
+                        {{ tr.importComplete || 'Import complete' }}
                       </h2>
                       <p
                         class="text-neutral-600 dark:text-neutral-400 max-w-sm"
                       >
-                        Your notes from {{ migrationPlatformLabel }} are ready.
+                        {{
+                          (
+                            tr.yourNotesReady ||
+                            'Your notes from {app} are ready.'
+                          ).replace('{app}', migrationPlatformLabel)
+                        }}
                       </p>
                     </div>
 
@@ -440,7 +445,7 @@
                         <p
                           class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
                         >
-                          Import complete
+                          {{ tr.importComplete || 'Import complete' }}
                         </p>
                         <span class="text-xs font-bold text-primary"
                           >{{ state.migrationProgress }}%</span
@@ -466,12 +471,17 @@
                       <p
                         class="text-xs font-semibold text-neutral-500 dark:text-neutral-500 mb-1"
                       >
-                        Import summary
+                        {{ tr.importSummary || 'Import summary' }}
                       </p>
                       <p class="text-sm text-neutral-600 dark:text-neutral-400">
-                        Imported
-                        {{ state.migrationResult.imported || 0 }} notes across
-                        {{ state.migrationResult.folders || 0 }} folders.
+                        {{
+                          (
+                            tr.importedNotesCount ||
+                            'Imported {notes} notes across {folders} folders.'
+                          )
+                            .replace('{notes}', state.migrationResult.imported || 0)
+                            .replace('{folders}', state.migrationResult.folders || 0)
+                        }}
                       </p>
                     </div>
 
@@ -483,7 +493,7 @@
                         <p
                           class="text-xs font-semibold text-neutral-500 dark:text-neutral-500"
                         >
-                          Issues
+                          {{ tr.issues || 'Issues' }}
                         </p>
                         <ui-button
                           variant="secondary"
@@ -1260,7 +1270,7 @@
               @click="goToPreviousStep"
               :disabled="state.openingWorkspace"
             >
-              <v-remixicon name="riArrowLeftLine" /> Back
+              <v-remixicon name="riArrowLeftLine" /> {{ tr.back || 'Back' }}
             </ui-button>
             <ui-button
               variant="primary"
@@ -1268,8 +1278,8 @@
               @click="completeAndOpenWorkspace"
             >
               <template v-if="!state.openingWorkspace">
-                <v-remixicon name="riCheckLine" class="mr-1" /> Open Beaver
-                Notes
+                <v-remixicon name="riCheckLine" class="mr-1" />
+                {{ tr.openBeaverNotes || 'Open Beaver Notes' }}
               </template>
             </ui-button>
           </div>
@@ -1715,7 +1725,7 @@ export default {
     const backLabel = computed(() =>
       flow.step.value === 'account' && accountView.value !== 'signin'
         ? trAccount.value?.backToSignIn || 'Back to sign in'
-        : 'Back',
+        : tr.value?.back || 'Back',
     );
 
     // Footer button set per step/phase (Skip vs Start import vs Decrypt
@@ -1774,7 +1784,7 @@ export default {
           return [
             {
               key: 'continue',
-              label: 'Continue',
+              label: t?.onboarding?.continue || 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
               onClick: flow.goToNextStep,
@@ -1793,7 +1803,9 @@ export default {
           return [
             {
               key: 'folder-sync',
-              label: hasPath ? 'Continue' : 'Skip for now',
+              label: hasPath
+                ? t?.onboarding?.continue || 'Continue'
+                : 'Skip for now',
               variant: hasPath ? 'primary' : 'secondary',
               icon: hasPath ? 'riArrowRightLine' : null,
               testid: 'onboarding-folder-sync-continue',
@@ -1808,7 +1820,7 @@ export default {
             {
               key: 'account-next',
               label: accountStore.isAuthenticated
-                ? 'Continue'
+                ? t?.onboarding?.continue || 'Continue'
                 : t?.account?.skip || 'Skip for now',
               variant: accountStore.isAuthenticated ? 'primary' : 'secondary',
               icon: accountStore.isAuthenticated ? 'riArrowRightLine' : null,
@@ -1823,7 +1835,7 @@ export default {
         return [
           {
             key: 'continue',
-            label: 'Continue',
+            label: t?.onboarding?.continue || 'Continue',
             icon: 'riArrowRightLine',
             variant: 'primary',
             testid: 'onboarding-connect-continue',
@@ -1837,7 +1849,7 @@ export default {
         return [
           {
             key: 'continue',
-            label: 'Continue',
+            label: t?.onboarding?.continue || 'Continue',
             icon: 'riArrowRightLine',
             variant: 'primary',
             loading: flow.encryptionPasswordLoading.value,

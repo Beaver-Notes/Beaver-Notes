@@ -17,7 +17,7 @@
         class="w-full !h-11"
         @click="$emit('update:modelValue', false)"
       >
-        Done
+        {{ translations.dialog?.done || 'Done' }}
       </ui-button>
     </template>
 
@@ -68,7 +68,7 @@
             />
             <ui-select
               v-model="inviteRole"
-              :options="INVITE_ROLE_OPTIONS"
+              :options="inviteRoleOptions"
               class="w-[6.5rem] shrink-0 [&_select]:!h-11"
             />
             <ui-button
@@ -202,8 +202,8 @@
                 v-if="!collab.viaWorkspace"
                 data-testid="share-collaborator-remove"
                 class="motion-press -mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:text-red-500 active:text-red-500 focus-visible:ring-2 focus-visible:ring-secondary focus-visible:outline-none dark:hover:text-red-400"
-                title="Remove collaborator"
-                aria-label="Remove collaborator"
+                :title="translations.share?.removeCollaborator || 'Remove collaborator'"
+                :aria-label="translations.share?.removeCollaborator || 'Remove collaborator'"
                 @click="handleRemove(collab)"
               >
                 <v-remixicon name="riCloseLine" size="18" />
@@ -292,12 +292,12 @@
             <div class="flex items-center gap-2 px-3 py-2">
               <ui-select
                 v-model="linkAccess"
-                :options="LINK_ACCESS_OPTIONS"
+                :options="linkAccessOptions"
                 class="min-w-0 flex-1 [&_select]:!h-11"
               />
               <ui-select
                 v-model="linkExpiry"
-                :options="EXPIRY_OPTIONS"
+                :options="expiryOptions"
                 class="min-w-0 flex-1 [&_select]:!h-11"
               />
               <ui-button
@@ -375,24 +375,6 @@ import { backend } from '@/lib/tauri-bridge';
 import { displayName } from '@/utils/displayName';
 import { roleLabel } from '@/utils/roleLabel';
 
-const INVITE_ROLE_OPTIONS = [
-  { value: 'editor', text: 'Editor' },
-  { value: 'viewer', text: 'Viewer' },
-];
-
-const LINK_ACCESS_OPTIONS = [
-  { value: 'viewer', text: 'Can view' },
-  { value: 'editor', text: 'Can edit' },
-  { value: 'off', text: 'Off' },
-];
-
-const EXPIRY_OPTIONS = [
-  { value: 'never', text: 'Never expires' },
-  { value: '86400000', text: '24 hours' },
-  { value: '604800000', text: '7 days' },
-  { value: '2592000000', text: '30 days' },
-];
-
 export default {
   props: {
     modelValue: { type: Boolean, default: false },
@@ -407,6 +389,36 @@ export default {
     const noteStore = useNoteStore();
     const workspaceStore = useWorkspaceStore();
     const { translations } = useTranslations();
+    const inviteRoleOptions = computed(() => [
+      {
+        value: 'editor',
+        text: translations.value?.share?.roleEditor || 'Editor',
+      },
+      {
+        value: 'viewer',
+        text: translations.value?.share?.roleViewer || 'Viewer',
+      },
+    ]);
+    const linkAccessOptions = computed(() => [
+      {
+        value: 'viewer',
+        text: translations.value?.share?.canView || 'Can view',
+      },
+      {
+        value: 'editor',
+        text: translations.value?.share?.canEdit || 'Can edit',
+      },
+      { value: 'off', text: 'Off' },
+    ]);
+    const expiryOptions = computed(() => [
+      {
+        value: 'never',
+        text: translations.value?.share?.neverExpires || 'Never expires',
+      },
+      { value: '86400000', text: '24 hours' },
+      { value: '604800000', text: '7 days' },
+      { value: '2592000000', text: '30 days' },
+    ]);
     const dialog = useDialog();
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const isMobile = backend.isMobileRuntime();
@@ -760,9 +772,9 @@ export default {
       translations,
       isAuthenticated,
       isMobile,
-      INVITE_ROLE_OPTIONS,
-      LINK_ACCESS_OPTIONS,
-      EXPIRY_OPTIONS,
+      inviteRoleOptions,
+      linkAccessOptions,
+      expiryOptions,
       inviteInput,
       inviteRole,
       inviting,

@@ -323,6 +323,7 @@ import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useAccountStore } from '@/store/account';
+import { getTranslations } from '@/utils/i18n/getTranslations';
 import { normalizeInviteToken } from '@/lib/api/collaboration';
 import { useDialog } from '@/lib/dialog';
 import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
@@ -346,6 +347,7 @@ export default {
     expanded: { type: Boolean, default: false },
   },
   setup() {
+    const translations = getTranslations();
     const workspaceStore = useWorkspaceStore();
     const accountStore = useAccountStore();
     const cloud = useCloudWorkspaces();
@@ -582,9 +584,11 @@ export default {
     function promptJoin() {
       if (!paidFeaturesEnabled) return;
       emitter.emit('show-dialog', 'prompt', {
-        title: 'Join Workspace',
-        placeholder: 'Paste invite link or token',
-        okText: 'Join',
+        title: translations.workspace.joinWorkspace || 'Join Workspace',
+        placeholder:
+          translations.workspace.pasteInviteToken ||
+          'Paste invite link or token',
+        okText: translations.workspace.join || 'Join',
         password: false,
         async onConfirm(token) {
           const inviteToken = normalizeInviteToken(token);
@@ -614,6 +618,7 @@ export default {
     }
 
     return {
+      translations,
       triggerEl,
       popoverOpen,
       sheetMode,

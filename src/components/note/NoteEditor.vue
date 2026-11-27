@@ -12,7 +12,11 @@
       :class="{ 'opacity-0 pointer-events-none': isDragging }"
     >
       <div class="drag-handle-inner">
-        <button class="dh-button" title="Add block" @click.prevent="addBlock">
+        <button
+          class="dh-button"
+          :title="translations.menu?.insertBlock || 'Add block'"
+          @click.prevent="addBlock"
+        >
           <v-remixicon name="riAddLine" class="dh-icon" />
         </button>
         <div class="dh-grip">
@@ -71,6 +75,7 @@ import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
 import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
+import { useTranslations } from '@/composable/useTranslations';
 import { getColorFromId } from '@/composable/usePresence';
 
 export default {
@@ -103,6 +108,7 @@ export default {
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
+    const { translations } = useTranslations();
 
     const isYjs = computed(() => !!props.ydoc);
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
@@ -547,6 +553,7 @@ export default {
     );
 
     return {
+      translations,
       editor,
       computePositionConfig,
       showDragHandle,

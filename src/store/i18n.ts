@@ -45,6 +45,14 @@ export const useI18nStore = defineStore('i18n', () => {
       }
     }
     dayjs.locale(newLang);
+    // Keep the native (Rust-built) application menu in the same language.
+    // Dynamic import + best-effort: a no-op outside the Tauri runtime (tests).
+    try {
+      const { emit } = await import('@tauri-apps/api/event');
+      await emit('menu-language', newLang);
+    } catch {
+      // not running inside Tauri
+    }
   }
 
   setLanguage(lang.value).catch((error) => {
