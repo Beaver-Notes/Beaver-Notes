@@ -52,7 +52,7 @@
   "devDependencies": {
     "@benrbray/prosemirror-math": "^1.0.0",
     "@tailwindcss/typography": "^0.5.19",
-    "@tauri-apps/cli": "^2.12",
+    "@tauri-apps/cli": "2.12.5",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/test-utils": "^2.4.11",
     "@wdio/cli": "^9.30.0",
