@@ -48,7 +48,7 @@ target_block = f'''  ShareExtension:
         DEVELOPMENT_TEAM: F8U6VTU2DJ
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
-        IPHONEOS_DEPLOYMENT_TARGET: "14.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "15.0"
 '''
 
 embed_dep = '''      - target: ShareExtension
