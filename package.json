@@ -148,7 +148,7 @@
     "prosemirror-model": "^1.25.4",
     "prosemirror-state": "^1.4.3",
     "tauri-plugin-audio-recorder-api": "^0.1.0",
-    "tauri-plugin-scoped-storage-api": "^1.5.0",
+    "tauri-plugin-scoped-storage-api": "^1.5.2",
     "tiny-emitter": "^2.1.0",
     "tiptap-extension-font-size": "^1.2.0",
     "tiptap-text-direction": "^0.5",

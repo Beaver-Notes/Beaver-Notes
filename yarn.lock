@@ -1134,7 +1134,12 @@
   dependencies:
     postcss-selector-parser "6.0.10"
 
-"@tauri-apps/api@^2.0.0", "@tauri-apps/api@^2.11.0", "@tauri-apps/api@^2.11.1", "@tauri-apps/api@^2.5.0", "@tauri-apps/api@^2.8.0":
+"@tauri-apps/api@^2.0.0":
+  version "2.12.5"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.12.5.tgz#e7484e38aede505c74ec258b10b703262dcda787"
+  integrity sha512-G9QIMt5fzED+aS4QhVK3w1HWLKpLIwH/MnpCr9z1ugGEHnS2ORmqrLkc0uALOjRK4qXJy+4Yiw8LDl/KicC1Hg==
+
+"@tauri-apps/api@^2.11.0", "@tauri-apps/api@^2.11.1", "@tauri-apps/api@^2.5.0", "@tauri-apps/api@^2.8.0":
   version "2.11.1"
   resolved "https://registry.npmjs.org/@tauri-apps/api/-/api-2.11.1.tgz"
   integrity sha512-M2FPuYND2m+wh5hfW9ZpSdxMPdEJovPBWwoHJmwUpysTYNHaOkVFN419m/K0LIgjb/7KU2vBgsUepJWugQCvAA==
@@ -5463,10 +5468,10 @@ tauri-plugin-audio-recorder-api@^0.1.0:
   dependencies:
     "@tauri-apps/api" "^2.11.1"
 
-tauri-plugin-scoped-storage-api@^1.5.0:
-  version "1.5.1"
-  resolved "https://registry.npmjs.org/tauri-plugin-scoped-storage-api/-/tauri-plugin-scoped-storage-api-1.5.1.tgz"
-  integrity sha512-4kXi7cepSzZlfgq8ux3nzIlXBlXr9+/6McNSoP3HcbRZswjK68bMsTPiSB2N8qjcRZ3rL1o77SjdtjsxEAIalQ==
+tauri-plugin-scoped-storage-api@^1.5.2:
+  version "1.5.2"
+  resolved "https://registry.yarnpkg.com/tauri-plugin-scoped-storage-api/-/tauri-plugin-scoped-storage-api-1.5.2.tgz#429cfd3922b492a26998c17c1d584aa3c61b4414"
+  integrity sha512-Xttc/CTpWJts0vA22nVolv4Kjda8wpmNtc0YD47HUpTHe4QNHvaKeS+qeG2bcOcHjlsfdbdPfKK2Mj8xJ1sW6w==
   dependencies:
     "@tauri-apps/api" "^2.0.0"
 

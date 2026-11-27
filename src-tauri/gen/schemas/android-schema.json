@@ -6903,6 +6903,72 @@
           "markdownDescription": "Denies the version command without any pre-configured scope."
         },
         {
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-register`\n- `allow-authenticate`\n- `allow-send-pin`\n- `allow-select-key`\n- `allow-cancel`",
+          "type": "string",
+          "const": "passkey:default",
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-register`\n- `allow-authenticate`\n- `allow-send-pin`\n- `allow-select-key`\n- `allow-cancel`"
+        },
+        {
+          "description": "Enables the authenticate command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:allow-authenticate",
+          "markdownDescription": "Enables the authenticate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:allow-cancel",
+          "markdownDescription": "Enables the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:allow-register",
+          "markdownDescription": "Enables the register command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the select_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:allow-select-key",
+          "markdownDescription": "Enables the select_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the send_pin command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:allow-send-pin",
+          "markdownDescription": "Enables the send_pin command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the authenticate command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:deny-authenticate",
+          "markdownDescription": "Denies the authenticate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:deny-cancel",
+          "markdownDescription": "Denies the cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:deny-register",
+          "markdownDescription": "Denies the register command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the select_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:deny-select-key",
+          "markdownDescription": "Denies the select_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the send_pin command without any pre-configured scope.",
+          "type": "string",
+          "const": "passkey:deny-send-pin",
+          "markdownDescription": "Denies the send_pin command without any pre-configured scope."
+        },
+        {
           "description": "Enables the render command without any pre-configured scope.",
           "type": "string",
           "const": "pdf-render:allow-render",
@@ -6915,10 +6981,10 @@
           "markdownDescription": "Denies the render command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-get-bottom-inset`\n- `allow-get-top-inset`\n- `allow-get-fold-state`\n- `allow-set-scribble-enabled`\n- `allow-registerListener`\n- `allow-unregister-listener`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-get-bottom-inset`\n- `allow-get-top-inset`\n- `allow-get-fold-state`\n- `allow-set-scribble-enabled`\n- `allow-set-scribble-targets`\n- `allow-registerListener`\n- `allow-unregister-listener`",
           "type": "string",
           "const": "safe-area-insets-css:default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-get-bottom-inset`\n- `allow-get-top-inset`\n- `allow-get-fold-state`\n- `allow-set-scribble-enabled`\n- `allow-registerListener`\n- `allow-unregister-listener`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-get-bottom-inset`\n- `allow-get-top-inset`\n- `allow-get-fold-state`\n- `allow-set-scribble-enabled`\n- `allow-set-scribble-targets`\n- `allow-registerListener`\n- `allow-unregister-listener`"
         },
         {
           "description": "Enables the get_bottom_inset command without any pre-configured scope.",
@@ -6961,6 +7027,12 @@
           "type": "string",
           "const": "safe-area-insets-css:allow-set-scribble-enabled",
           "markdownDescription": "Enables the set_scribble_enabled command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_scribble_targets command without any pre-configured scope.",
+          "type": "string",
+          "const": "safe-area-insets-css:allow-set-scribble-targets",
+          "markdownDescription": "Enables the set_scribble_targets command without any pre-configured scope."
         },
         {
           "description": "Enables the unregister_listener command without any pre-configured scope.",
@@ -7009,6 +7081,12 @@
           "type": "string",
           "const": "safe-area-insets-css:deny-set-scribble-enabled",
           "markdownDescription": "Denies the set_scribble_enabled command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_scribble_targets command without any pre-configured scope.",
+          "type": "string",
+          "const": "safe-area-insets-css:deny-set-scribble-targets",
+          "markdownDescription": "Denies the set_scribble_targets command without any pre-configured scope."
         },
         {
           "description": "Denies the unregister_listener command without any pre-configured scope.",
