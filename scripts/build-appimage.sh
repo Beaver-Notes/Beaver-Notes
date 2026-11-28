@@ -55,16 +55,16 @@ exit 1
 WRAPPER
 chmod +x AppDir/usr/bin/beaver-notes
 
-# linuxdeploy may use this as AppRun; keep a root AppRun with the same robust paths.
-cp AppDir/usr/bin/beaver-notes AppDir/AppRun
-chmod +x AppDir/AppRun
+# linuxdeploy copies --custom-apprun into AppDir/AppRun; keep source outside AppDir.
+cp AppDir/usr/bin/beaver-notes ./custom-AppRun
+chmod +x ./custom-AppRun
 
 # Build AppImage
 echo "Building AppImage..."
 ./linuxdeploy --appdir AppDir \
   --desktop-file AppDir/usr/share/applications/beaver-notes.desktop \
   --icon-file AppDir/usr/share/icons/hicolor/1024x1024/apps/beaver-notes.png \
-  --custom-apprun AppDir/AppRun \
+  --custom-apprun ./custom-AppRun \
   --output appimage
 
 # Rename to final name (linuxdeploy/appimagetool naming varies)
