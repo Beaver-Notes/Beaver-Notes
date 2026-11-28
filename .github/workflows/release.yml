@@ -264,7 +264,10 @@ jobs:
           TAG="${{ needs.validate.outputs.tag_name }}"
           VERSION="${{ needs.validate.outputs.version }}"
           is_draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)"
-          test "$is_draft" = "true" || { echo "::error::Refusing to prune non-draft release"; exit 1; }
+          if [ "$is_draft" != "true" ]; then
+            echo "::notice::Release $TAG is not a draft; skipping stale asset pruning"
+            exit 0
+          fi
           for name in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do
             if python3 - "$VERSION" "$name" <<'PY'
           import re
