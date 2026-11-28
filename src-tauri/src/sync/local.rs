@@ -777,19 +777,25 @@ fn run_cycle(app: &AppHandle, folder_id: &str) -> Result<LocalStats, AppError> {
     } else {
         let base = PathBuf::from(folder_id);
         assert_path_access(app, state.inner(), &base, "sync")?;
-        // macOS denies enumerating the iCloud Drive root (EPERM) while writes
-        // still succeed, so a sync folder pointed at the root fails every tick
-        // with a bare os error. Fail with the actionable message instead.
-        if let Err(e) = std::fs::read_dir(&base) {
-            if e.kind() == std::io::ErrorKind::PermissionDenied {
+        // macOS can deny enumerating the iCloud Drive container root (EPERM)
+        // while writes inside it still succeed. Do not block when the resolved
+        // commits subfolder is usable; only fail if that subfolder itself cannot
+        // be created or listed.
+        let base_list_denied = matches!(
+            std::fs::read_dir(&base),
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied
+        );
+        let dir = resolve_commits_dir(folder_id)?;
+        assert_path_access(app, state.inner(), &dir, "sync")?;
+        if base_list_denied {
+            let probe = fs::create_dir_all(&dir).and_then(|_| fs::read_dir(&dir).map(|_| ()));
+            if matches!(probe, Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied) {
                 return Err(AppError::Other(format!(
                     r#"[fs-access] Blocked sync: "{path}". This folder cannot be listed by the app; pick a folder inside it (for iCloud Drive, a subfolder) instead of the drive root."#,
                     path = base.display()
                 )));
             }
         }
-        let dir = resolve_commits_dir(folder_id)?;
-        assert_path_access(app, state.inner(), &dir, "sync")?;
         CommitStore::Fs(dir)
     };
     store.ensure()?;
