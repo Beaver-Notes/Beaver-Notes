@@ -37,18 +37,34 @@ cp -r "$TEMP_DIR"/share/* AppDir/usr/share/
 
 rm -rf "$TEMP_DIR"
 
-# Ensure launcher is a regular executable script (linuxdeploy dislikes symlink Exec targets)
+# Ensure launcher is a regular executable script (linuxdeploy dislikes symlink Exec targets).
+# Resolve relative to this script so it also works if linuxdeploy copies it as AppRun.
 cat > AppDir/usr/bin/beaver-notes << 'WRAPPER'
 #!/bin/bash
-exec "$(dirname "$0")/../lib/beaver-notes/beaver-notes" "$@"
+HERE="$(dirname "$(readlink -f "$0")")"
+for BIN in \
+  "$HERE/../lib/beaver-notes/beaver-notes" \
+  "$HERE/usr/lib/beaver-notes/beaver-notes" \
+  "$HERE/lib/beaver-notes/beaver-notes"; do
+  if [ -x "$BIN" ]; then
+    exec "$BIN" "$@"
+  fi
+done
+echo "beaver-notes: binary not found relative to $HERE" >&2
+exit 1
 WRAPPER
 chmod +x AppDir/usr/bin/beaver-notes
+
+# linuxdeploy may use this as AppRun; keep a root AppRun with the same robust paths.
+cp AppDir/usr/bin/beaver-notes AppDir/AppRun
+chmod +x AppDir/AppRun
 
 # Build AppImage
 echo "Building AppImage..."
 ./linuxdeploy --appdir AppDir \
   --desktop-file AppDir/usr/share/applications/beaver-notes.desktop \
   --icon-file AppDir/usr/share/icons/hicolor/1024x1024/apps/beaver-notes.png \
+  --custom-apprun AppDir/AppRun \
   --output appimage
 
 # Rename to final name (linuxdeploy/appimagetool naming varies)
