@@ -860,8 +860,8 @@ jobs:
           apks=(); while IFS= read -r f; do apks+=("$f"); done < <(find src-tauri/gen/android/app/build/outputs/apk -type f -name '*.apk' 2>/dev/null | sort)
           test ${#aabs[@]} -eq 1 || { echo "::error::Expected exactly one AAB, got ${#aabs[@]}"; exit 1; }
           test ${#apks[@]} -eq 1 || { echo "::error::Expected exactly one APK, got ${#apks[@]}"; exit 1; }
-          cp "${aabs[0]}" "release-assets/Beaver.Notes_${VERSION}_android.aab"
-          cp "${apks[0]}" "release-assets/Beaver.Notes_${VERSION}_android.apk"
+          cp "${aabs[0]}" "release-assets/Beaver.Notes_${VERSION}_android.apk"
+          cp "${apks[0]}" "release-assets/Beaver.Notes_${VERSION}_android.aab"
           unsigned="$(find release-assets -type f -name '*-unsigned*' -print -quit)"
           test -z "$unsigned" || { echo "::error::unsigned asset: $unsigned"; exit 1; }
 
